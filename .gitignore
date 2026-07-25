@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.turbo/
+.cache/
+coverage/
+.dart_tool/
+build/
+pubspec.lock
+*.iml
+.idea/
+.vscode/
+.env
+.env.*
+!examples/**/.env.example

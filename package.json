@@ -1,0 +1,25 @@
+{
+  "name": "moonshine-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Moonshine — lightweight React-first UI runtime, crepus View IR bridge, and dither component kit",
+  "license": "ISC",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "components",
+    "examples/*"
+  ],
+  "scripts": {
+    "test": "bun test packages components",
+    "typecheck": "bunx tsc --noEmit -p tsconfig.base.json"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "typescript": "^5.8.3"
+  }
+}

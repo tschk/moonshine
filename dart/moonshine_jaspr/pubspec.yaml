@@ -1,0 +1,10 @@
+name: moonshine_jaspr
+description: Lower crepuscularity View IR JSON to TypeScript that imports @tschk/crepus-moonshine.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dev_dependencies:
+  test: ^1.25.0

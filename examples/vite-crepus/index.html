@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>moonshine · crepus IR</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ms-bg: #0a0a0c;
+        --ms-fg: #f2f2f5;
+        --ms-accent: #358ff3;
+        --ms-border: #2a2a30;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse at 20% 0%, #1a2740 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 100%, #1a1528 0%, transparent 45%),
+          var(--ms-bg);
+        color: var(--ms-fg);
+      }
+      #app {
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 48px 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
