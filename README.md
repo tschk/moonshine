@@ -1,14 +1,17 @@
 # moonshine
 
-Lightweight **React-first** UI runtime for crepuscularity View IR, plus a Bayer-dither component kit.
+Hyperminimal **Bun-first** signal runtime for crepuscularity View IR, plus a Bayer-dither component kit.
 
-Published under the `@tschk/*` scope.
+Published under the `@tschk/*` scope. Default `@tschk/moonshine` has **no React dependency** — import `/react` for TSX apps.
 
 ## Packages
 
 | Package | Role |
 |---------|------|
-| `@tschk/moonshine` | Light core: signals, `createApp`, jsx-runtime |
+| `@tschk/moonshine` | Signals only (`createSignal` / `createMemo` / `createStore`) |
+| `@tschk/moonshine/react` | `useSignal`, `useStore`, `createApp` |
+| `@tschk/moonshine/runes` | Svelte-inspired sugar (`state` / `derived` / `effect`) |
+| `@tschk/moonshine-cli` | Bun CLI: `moonshine new\|compile\|dev\|build` |
 | `@tschk/crepus-moonshine` | Crepus View IR → React renderer |
 | `@tschk/moonshine-components` | 44 catalog components (charts / primitives / motion) |
 | `@tschk/moonshine-waku` | Waku client re-exports |
@@ -19,33 +22,34 @@ Published under the `@tschk/*` scope.
 | `@tschk/moonshine-angular` | Angular-like API (no `@angular/core` peer) |
 | `moonshine_jaspr` | Dart: View IR JSON → TypeScript emit |
 
-## Light core — import what you need
+See [DESIGN.md](./DESIGN.md) for Solid / Svelte / Waku influences.
+
+## Import what you need
 
 ```ts
-import { createSignal, createApp } from "@tschk/moonshine";
+import { createSignal, createMemo } from "@tschk/moonshine";
+import { createApp, useSignal } from "@tschk/moonshine/react";
+import { state, effect } from "@tschk/moonshine/runes";
 import { MoonshineRouter } from "@tschk/moonshine/router";
 import { createMoonshineServer } from "@tschk/moonshine/server";
 import { useFragmentShader } from "@tschk/moonshine/shaders";
 ```
 
-Default export surface stays small. Router, server, and shaders are optional subpaths.
+## CLI
 
-## React frameworks (Waku / Next)
+```bash
+bun run moonshine -- new my-app
+bun run moonshine -- compile view.json   # → view.tsx
+bun run moonshine -- dev
+```
 
-Waku and Next are React. Moonshine works natively — use `"use client"` islands and import from `@tschk/moonshine-waku` or `@tschk/moonshine-next`. No vnode translation.
+## Crepus → TSX
 
-## Solid is separate
-
-Solid does **not** share a vnode with React. Use `@tschk/moonshine-solid` for a signal bridge and `renderCrepusIrSolid`.
-
-## Crepus → moonshine
-
-`.crepus` compiles to View IR; `@tschk/crepus-moonshine` maps IR kinds to React:
-
-`text`, `stack`, `scroll`, `button`, `toggle`, `checkbox`, `progress`, `meter`, `sparkline`, `badge`, `divider`, `spacer`, `image`, `if`, `forEach`, `list`, `listItem`.
+`.crepus` compiles to View IR; apps author **`.tsx`**:
 
 ```ts
-import { renderCrepusIr, createApp } from "@tschk/crepus-moonshine";
+import { createApp } from "@tschk/moonshine/react";
+import { renderCrepusIr } from "@tschk/crepus-moonshine";
 
 function App() {
   return renderCrepusIr({
@@ -65,29 +69,20 @@ function App() {
 createApp({ root: App }).mount("#app");
 ```
 
-## Jaspr
-
-`dart/moonshine_jaspr` lowers View IR JSON to a TypeScript string that imports `@tschk/crepus-moonshine`.
-
-## Components
-
-Top-level `components/` (`@tschk/moonshine-components`): catalog (44), themes, specs, Bayer dither charts, accessible primitives, motion.
-
-## Workspaces
-
-Inside this monorepo, packages depend on each other with `"workspace:*"`. That is the supported setup. If you vendor a package out-of-tree, replace those entries with a published version or a `file:` path (e.g. `"@tschk/moonshine": "file:../core"`).
-
-## Develop
+## Develop / environment
 
 ```bash
+./scripts/dev-setup.sh
 bun install
+bun run check
 bun test
-bun run typecheck
-cd examples/vite-crepus && bun run build
-cd dart/moonshine_jaspr && dart test
+cd examples/catalog-gallery && bun run dev
 ```
 
-Root `typecheck` only runs packages that ship a `tsconfig.json` (`core`, `crepus-moonshine`, `adapter-solid`, `components`). Examples are excluded.
+```bash
+export MOONSHINE_PATH=/path/to/moonshine
+bun run moonshine -- new my-app
+```
 
 ## License
 

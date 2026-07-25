@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-waku",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Waku adapter \u2014 React-first; client islands for signals.",
   "license": "ISC",
   "type": "module",

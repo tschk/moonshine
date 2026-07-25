@@ -1,5 +1,6 @@
 import { createElement, Fragment, type CSSProperties } from "react";
-import { createApp, renderCrepusIr } from "@tschk/crepus-moonshine";
+import { createApp } from "@tschk/moonshine/react";
+import { renderCrepusIr } from "@tschk/crepus-moonshine";
 import { Sparkline, BarChart } from "@tschk/moonshine-components";
 
 const sparkValues = [2, 4, 3, 7, 5, 9, 6, 8, 10, 7, 9, 11, 8];

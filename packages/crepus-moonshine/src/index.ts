@@ -10,12 +10,10 @@ export {
 
 export type * from "./types";
 
-// Re-export light moonshine surface so CLI emit can depend on one package.
+// Re-export so CLI emit can depend on one package.
+export { createSignal, createMemo, createStore } from "@tschk/moonshine";
 export {
   createApp,
   createMoonshineApp,
-  createSignal,
-  createMemo,
-  createStore,
   useSignal,
-} from "@tschk/moonshine";
+} from "@tschk/moonshine/react";

@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-next",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Next.js App Router adapter \u2014 client components for signals.",
   "license": "ISC",
   "type": "module",

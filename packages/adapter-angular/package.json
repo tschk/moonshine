@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-angular",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Angular-like API — signal bridge shaped like zoneless Angular signal(), no @angular/core peer.",
   "license": "ISC",
   "type": "module",

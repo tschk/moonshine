@@ -1,0 +1,21 @@
+{
+  "name": "@tschk/moonshine-cli",
+  "version": "0.2.0",
+  "description": "Bun CLI for moonshine — new, compile, dev, build",
+  "license": "ISC",
+  "type": "module",
+  "bin": {
+    "moonshine": "./bin/moonshine.ts"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "bun",
+    "cli",
+    "crepus"
+  ]
+}

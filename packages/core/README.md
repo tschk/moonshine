@@ -1,5 +1,11 @@
 # `@tschk/moonshine`
 
-Light React-first UI runtime: signals, `createApp`, jsx-runtime.
+Hyperminimal signal runtime — Bun-first. **No React in the default export.**
 
-Optional subpaths: `./router`, `./server`, `./shaders`.
+```ts
+import { createSignal, createMemo, createStore, batch } from "@tschk/moonshine";
+import { createApp, useSignal } from "@tschk/moonshine/react";
+import { state, derived, effect } from "@tschk/moonshine/runes";
+```
+
+Optional subpaths: `./react`, `./runes`, `./router`, `./server`, `./shaders`, `./jsx-runtime`.

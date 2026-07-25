@@ -1,8 +1,6 @@
-import { useSyncExternalStore } from "react";
-
 type Listener = () => void;
 
-type Trackable = {
+export type Trackable = {
   subscribe: (listener: Listener) => () => void;
 };
 
@@ -37,6 +35,27 @@ function track(dep: Trackable): void {
   currentTracker?.(dep);
 }
 
+/**
+ * Run `fn` while collecting signal/memo/store deps via the active tracker.
+ * Used by `@tschk/moonshine/runes` `effect`.
+ */
+export function collectDeps(fn: () => void): Trackable[] {
+  const deps: Trackable[] = [];
+  const seen = new Set<Trackable>();
+  const previous = currentTracker;
+  currentTracker = (dep) => {
+    if (seen.has(dep)) return;
+    seen.add(dep);
+    deps.push(dep);
+  };
+  try {
+    fn();
+  } finally {
+    currentTracker = previous;
+  }
+  return deps;
+}
+
 export type Signal<T> = {
   (): T;
   set: (value: T | ((prev: T) => T)) => void;
@@ -46,7 +65,7 @@ export type Signal<T> = {
 
 /**
  * Solid-inspired signal: read by calling, write via `.set`.
- * React components subscribe with `useSignal`.
+ * React apps subscribe with `useSignal` from `@tschk/moonshine/react`.
  */
 export function createSignal<T>(initial: T): Signal<T> {
   let value = initial;
@@ -151,6 +170,11 @@ export type StoreSetter<T extends object> = (fn: (state: T) => void) => void;
 
 const storeRoots = new WeakMap<object, Trackable>();
 
+/** Resolve the trackable root for a `createStore` proxy (used by `/react` hooks). */
+export function getStoreRoot(store: object): Trackable | undefined {
+  return storeRoots.get(store);
+}
+
 /**
  * Nested reactive store (Solid-inspired).
  * Mutate through the proxy (or `setStore`) to notify subscribers.
@@ -205,24 +229,4 @@ export function createStore<T extends object>(initial: T): [T, StoreSetter<T>] {
   };
 
   return [proxy, setStore];
-}
-
-/** React hook: re-render when a signal or memo changes. */
-export function useSignal<T>(source: {
-  (): T;
-  subscribe: (listener: Listener) => () => void;
-}): T {
-  const subscribe = (onStoreChange: () => void) => source.subscribe(onStoreChange);
-  const getSnapshot = () => source();
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
-
-/** React hook: re-render when a `createStore` proxy mutates. */
-export function useStore<T extends object>(store: T): T {
-  const node = storeRoots.get(store as object);
-  if (!node) {
-    throw new Error("useStore: expected a createStore() proxy");
-  }
-  useSyncExternalStore(node.subscribe, () => store, () => store);
-  return store;
 }

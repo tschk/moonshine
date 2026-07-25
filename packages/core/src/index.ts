@@ -1,24 +1,19 @@
 /**
- * @tschk/moonshine — light default surface.
+ * @tschk/moonshine — hyperminimal signal runtime (no React).
  *
  * Import what you need:
- *   import { createSignal, createApp } from "@tschk/moonshine"
+ *   import { createSignal, createMemo } from "@tschk/moonshine"
+ *   import { createApp, useSignal } from "@tschk/moonshine/react"
+ *   import { state, derived, effect } from "@tschk/moonshine/runes"
  *   import { MoonshineRouter } from "@tschk/moonshine/router"
  *   import { createMoonshineServer } from "@tschk/moonshine/server"
  *   import { useFragmentShader } from "@tschk/moonshine/shaders"
  */
-
-export { createMoonshineApp as createApp, createMoonshineApp } from "./create-app";
-export type { MoonshineApp, MoonshineAppOptions } from "./create-app";
 
 export {
   batch,
   createMemo,
   createSignal,
   createStore,
-  useSignal,
-  useStore,
 } from "./signal";
 export type { Memo, Signal, StoreSetter } from "./signal";
-
-export { jsx, jsxs, Fragment } from "./jsx-runtime";
