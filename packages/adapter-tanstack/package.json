@@ -1,0 +1,25 @@
+{
+  "name": "@tschk/moonshine-tanstack",
+  "version": "0.2.0",
+  "description": "TanStack Start / Router adapter — client re-exports for moonshine.",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "file:../core"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "files": ["src", "README.md"],
+  "keywords": ["moonshine", "tanstack", "adapter"]
+}

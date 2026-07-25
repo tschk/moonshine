@@ -70,6 +70,21 @@
         "@tschk/moonshine": "file:../core",
       },
     },
+    "packages/adapter-astro": {
+      "name": "@tschk/moonshine-astro",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "file:../core",
+      },
+      "peerDependencies": {
+        "react": ">=18",
+        "react-dom": ">=18",
+      },
+      "optionalPeers": [
+        "react",
+        "react-dom",
+      ],
+    },
     "packages/adapter-next": {
       "name": "@tschk/moonshine-next",
       "version": "0.2.0",
@@ -81,6 +96,29 @@
         "react": ">=18",
         "react-dom": ">=18",
       },
+    },
+    "packages/adapter-nuxt": {
+      "name": "@tschk/moonshine-nuxt",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "file:../core",
+        "@tschk/moonshine-vue": "file:../adapter-vue",
+      },
+    },
+    "packages/adapter-remix": {
+      "name": "@tschk/moonshine-remix",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "file:../core",
+      },
+      "peerDependencies": {
+        "react": ">=18",
+        "react-dom": ">=18",
+      },
+      "optionalPeers": [
+        "react",
+        "react-dom",
+      ],
     },
     "packages/adapter-solid": {
       "name": "@tschk/moonshine-solid",
@@ -101,6 +139,21 @@
       "peerDependencies": {
         "svelte": ">=5",
       },
+    },
+    "packages/adapter-tanstack": {
+      "name": "@tschk/moonshine-tanstack",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "file:../core",
+      },
+      "peerDependencies": {
+        "react": ">=18",
+        "react-dom": ">=18",
+      },
+      "optionalPeers": [
+        "react",
+        "react-dom",
+      ],
     },
     "packages/adapter-vue": {
       "name": "@tschk/moonshine-vue",
@@ -403,6 +456,8 @@
 
     "@tschk/moonshine-angular": ["@tschk/moonshine-angular@workspace:packages/adapter-angular"],
 
+    "@tschk/moonshine-astro": ["@tschk/moonshine-astro@workspace:packages/adapter-astro"],
+
     "@tschk/moonshine-cli": ["@tschk/moonshine-cli@workspace:packages/cli"],
 
     "@tschk/moonshine-components": ["@tschk/moonshine-components@workspace:components"],
@@ -413,9 +468,15 @@
 
     "@tschk/moonshine-next": ["@tschk/moonshine-next@workspace:packages/adapter-next"],
 
+    "@tschk/moonshine-nuxt": ["@tschk/moonshine-nuxt@workspace:packages/adapter-nuxt"],
+
+    "@tschk/moonshine-remix": ["@tschk/moonshine-remix@workspace:packages/adapter-remix"],
+
     "@tschk/moonshine-solid": ["@tschk/moonshine-solid@workspace:packages/adapter-solid"],
 
     "@tschk/moonshine-svelte": ["@tschk/moonshine-svelte@workspace:packages/adapter-svelte"],
+
+    "@tschk/moonshine-tanstack": ["@tschk/moonshine-tanstack@workspace:packages/adapter-tanstack"],
 
     "@tschk/moonshine-vue": ["@tschk/moonshine-vue@workspace:packages/adapter-vue"],
 
@@ -581,22 +642,34 @@
 
     "zimmerframe": ["zimmerframe@1.1.4", "", {}, "sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ=="],
 
-    "@tschk/crepus-moonshine/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }],
+    "@tschk/crepus-moonshine/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
-    "@tschk/moonshine-angular/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }],
+    "@tschk/moonshine-angular/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
-    "@tschk/moonshine-next/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }],
+    "@tschk/moonshine-astro/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
-    "@tschk/moonshine-solid/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }],
+    "@tschk/moonshine-next/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
-    "@tschk/moonshine-svelte/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }],
+    "@tschk/moonshine-nuxt/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
-    "@tschk/moonshine-vue/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }],
+    "@tschk/moonshine-nuxt/@tschk/moonshine-vue": ["@tschk/moonshine-vue@file:packages/adapter-vue", { "dependencies": { "@tschk/moonshine": "file:../core" }, "peerDependencies": { "vue": ">=3.4" } }],
 
-    "@tschk/moonshine-waku/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }],
+    "@tschk/moonshine-remix/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
+
+    "@tschk/moonshine-solid/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
+
+    "@tschk/moonshine-svelte/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
+
+    "@tschk/moonshine-tanstack/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
+
+    "@tschk/moonshine-vue/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
+
+    "@tschk/moonshine-waku/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "^5.8.3" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
     "next/postcss": ["postcss@8.4.31", "", { "dependencies": { "nanoid": "^3.3.6", "picocolors": "^1.0.0", "source-map-js": "^1.0.2" } }, "sha512-PS08Iboia9mts/2ygV3eLpY5ghnUcfLV/EXTOW1E2qYxJKGGBUtNjN76FYHnMs36RmARn41bC0AZmn+rR0OVpQ=="],
 
     "sharp/semver": ["semver@7.8.5", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA=="],
+
+    "@tschk/moonshine-nuxt/@tschk/moonshine-vue/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", {}],
   }
 }

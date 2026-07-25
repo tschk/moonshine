@@ -1,11 +1,25 @@
 "use client";
 
 /**
- * @tschk/moonshine-next
+ * @tschk/moonshine-astro
  *
- * Next.js App Router is React. Use this package from Client Components
- * (`"use client"`) for signals and createApp. Server Components can still
- * import static helpers via `@tschk/moonshine/server` if needed.
+ * Astro ships HTML first; hydrate interactive islands with React
+ * (`client:load` / `client:visible`). Import moonshine from this package
+ * inside those islands — same API as `@tschk/moonshine/react`.
+ *
+ * ```astro
+ * ---
+ * // Counter.tsx is a client island
+ * import Counter from "../components/Counter";
+ * ---
+ * <Counter client:load />
+ * ```
+ *
+ * ```tsx
+ * // Counter.tsx
+ * "use client";
+ * import { createSignal, useSignal } from "@tschk/moonshine-astro";
+ * ```
  */
 
 export {
@@ -38,5 +52,11 @@ export {
   useNavigate,
   useParams,
 } from "@tschk/moonshine/router";
+
+export {
+  createFullscreenFragment,
+  useFragmentShader,
+  wrapFragmentSource,
+} from "@tschk/moonshine/shaders";
 
 export { state, derived, effect } from "@tschk/moonshine/runes";

@@ -37,6 +37,18 @@ Default export is the signal runtime. React is optional (`peerDependenciesMeta.o
 1. Prefer `crepus web build --emit moonshine` when `crepus` is on `PATH`
 2. Or `moonshine compile view.json` — emit a TSX file that imports `renderCrepusIr` from `@tschk/crepus-moonshine` and mounts via `@tschk/moonshine/react`
 
+## Host adapters
+
+Thin re-export packages so apps import `@tschk/moonshine-<host>` instead of remembering subpaths:
+
+Waku, Next, Astro, Remix, TanStack, Solid, Svelte, Vue, Nuxt, Angular-like.
+
+React hosts (`"use client"` / islands) share the same re-export shape. Vue/Nuxt and Solid use their bridges. Core stays framework-free.
+
 ## Apps
 
 Scaffold with `moonshine new <name>` — Vite + React TSX, deps on `@tschk/moonshine` + `@tschk/crepus-moonshine`, entry imports from `@tschk/moonshine/react`.
+
+## Components
+
+Optional. `@tschk/moonshine-components` is a catalog that plugs into moonshine apps. The product is the runtime; the catalog is an add-on.

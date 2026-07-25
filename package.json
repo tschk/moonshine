@@ -2,7 +2,7 @@
   "name": "moonshine-monorepo",
   "private": true,
   "version": "0.2.0",
-  "description": "Moonshine — hyperminimal Bun-first signal runtime, crepus View IR bridge, and dither component kit",
+  "description": "Moonshine — hyperminimal Bun-first UI runtime; import-what-you-need signals + host adapters",
   "license": "ISC",
   "type": "module",
   "workspaces": [

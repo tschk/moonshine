@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * @tschk/moonshine-next
+ * @tschk/moonshine-remix
  *
- * Next.js App Router is React. Use this package from Client Components
- * (`"use client"`) for signals and createApp. Server Components can still
- * import static helpers via `@tschk/moonshine/server` if needed.
+ * Remix and React Router v7 are React. Prefer moonshine signals inside
+ * client components / route modules that run in the browser. Keep loaders
+ * and actions free of client-only hooks.
  */
 
 export {

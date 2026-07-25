@@ -10,8 +10,8 @@ Moonshine is a hyperminimal Bun-first signal runtime + crepus View IR bridge + d
 - `packages/core` subpaths → `./react`, `./runes`, `./router`, `./server`, `./shaders`, `./jsx-runtime`
 - `packages/cli` → `@tschk/moonshine-cli` binary `moonshine`
 - `packages/crepus-moonshine` → `@tschk/crepus-moonshine` (full View IR renderer)
-- `packages/adapter-*` → framework adapters (Waku/Next = React re-exports; Solid = separate)
-- `components/` → `@tschk/moonshine-components` (catalog, themes, specs, charts, primitives, motion)
+- `packages/adapter-*` → host re-exports (astro, next, waku, remix, tanstack, solid, svelte, vue, nuxt, …)
+- `components/` → optional `@tschk/moonshine-components` catalog
 - `dart/moonshine_jaspr` → IR → TypeScript emit
 - `examples/vite-crepus` → Vite demo mounting `renderCrepusIr`
 

@@ -1,11 +1,10 @@
 "use client";
 
 /**
- * @tschk/moonshine-next
+ * @tschk/moonshine-tanstack
  *
- * Next.js App Router is React. Use this package from Client Components
- * (`"use client"`) for signals and createApp. Server Components can still
- * import static helpers via `@tschk/moonshine/server` if needed.
+ * TanStack Start and TanStack Router are React-first. Use moonshine signals
+ * in client components; leave server functions / loaders on the server.
  */
 
 export {
