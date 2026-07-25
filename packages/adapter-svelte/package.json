@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-svelte",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Svelte 5 adapter \u2014 rune-friendly stores wrapping createSignal.",
   "license": "ISC",
   "type": "module",

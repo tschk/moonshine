@@ -19,8 +19,11 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run typecheck
+      - run: bun run check:catalog
       - run: bun run build
         working-directory: examples/vite-crepus
+      - run: bun run build
+        working-directory: examples/catalog-gallery
 
   dart:
     runs-on: ubuntu-latest

@@ -1,10 +1,11 @@
+/** View IR document types — `ViewIr` is the emit/CLI alias for `CrepusIr`. */
+export type { CrepusIr, ViewIr } from "./types";
+
 export {
   renderCrepusIr,
   renderCrepusNode,
-  type CrepusIr,
   type CrepusNode,
   type RenderCrepusOptions,
-  type ViewIr,
 } from "./render";
 
 export type * from "./types";

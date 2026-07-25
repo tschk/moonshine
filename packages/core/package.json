@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Lightweight React-first UI runtime — signals, createApp, jsx-runtime",
   "license": "ISC",
   "type": "module",

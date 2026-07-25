@@ -1,5 +1,5 @@
 {
-  "name": "@tschk/moonshine-example-vite-crepus",
+  "name": "@tschk/moonshine-example-catalog-gallery",
   "private": true,
   "version": "0.1.2",
   "type": "module",
@@ -9,8 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tschk/crepus-moonshine": "workspace:*",
-    "@tschk/moonshine": "workspace:*",
     "@tschk/moonshine-components": "workspace:*",
     "react": "19.1.0",
     "react-dom": "19.1.0"

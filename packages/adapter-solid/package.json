@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-solid",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "SolidJS adapter \u2014 separate signal bridge, no shared vnode.",
   "license": "ISC",
   "type": "module",

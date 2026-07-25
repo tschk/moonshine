@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>moonshine catalog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --ms-bg: #0a0a0c;
+        --ms-fg: #f2f2f5;
+        --ms-muted: #8b8b96;
+        --ms-accent: #358ff3;
+        --ms-border: #2a2a30;
+        --ms-surface: #141418;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(ellipse at 18% 0%, #1a2740 0%, transparent 52%),
+          radial-gradient(ellipse at 88% 100%, #152018 0%, transparent 48%),
+          var(--ms-bg);
+        color: var(--ms-fg);
+      }
+      #app {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 56px 20px 88px;
+      }
+      canvas {
+        border-radius: 4px;
+        display: block;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

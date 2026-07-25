@@ -1,6 +1,6 @@
 {
   "name": "@tschk/crepus-moonshine",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Bridge: crepuscularity View IR → moonshine React elements",
   "license": "ISC",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-vue",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Vue 3 adapter \u2014 ref/computed bridge over moonshine signals.",
   "license": "ISC",
   "type": "module",

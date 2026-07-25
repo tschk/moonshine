@@ -15,7 +15,7 @@
     },
     "components": {
       "name": "@tschk/moonshine-components",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "devDependencies": {
         "@types/bun": "1.3.14",
         "@types/react": "^19.1.0",
@@ -29,9 +29,25 @@
         "react-dom": ">=18",
       },
     },
+    "examples/catalog-gallery": {
+      "name": "@tschk/moonshine-example-catalog-gallery",
+      "version": "0.1.2",
+      "dependencies": {
+        "@tschk/moonshine-components": "workspace:*",
+        "react": "19.1.0",
+        "react-dom": "19.1.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.1.0",
+        "@types/react-dom": "^19.1.0",
+        "@vitejs/plugin-react": "^4.5.0",
+        "typescript": "^5.8.3",
+        "vite": "^6.3.5",
+      },
+    },
     "examples/vite-crepus": {
       "name": "@tschk/moonshine-example-vite-crepus",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/crepus-moonshine": "workspace:*",
         "@tschk/moonshine": "workspace:*",
@@ -49,14 +65,14 @@
     },
     "packages/adapter-angular": {
       "name": "@tschk/moonshine-angular",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/moonshine": "file:../core",
       },
     },
     "packages/adapter-next": {
       "name": "@tschk/moonshine-next",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/moonshine": "file:../core",
       },
@@ -68,7 +84,7 @@
     },
     "packages/adapter-solid": {
       "name": "@tschk/moonshine-solid",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/moonshine": "file:../core",
       },
@@ -78,7 +94,7 @@
     },
     "packages/adapter-svelte": {
       "name": "@tschk/moonshine-svelte",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/moonshine": "file:../core",
       },
@@ -88,7 +104,7 @@
     },
     "packages/adapter-vue": {
       "name": "@tschk/moonshine-vue",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/moonshine": "file:../core",
       },
@@ -98,7 +114,7 @@
     },
     "packages/adapter-waku": {
       "name": "@tschk/moonshine-waku",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/moonshine": "file:../core",
       },
@@ -109,7 +125,7 @@
     },
     "packages/core": {
       "name": "@tschk/moonshine",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "devDependencies": {
         "@types/bun": "1.3.14",
         "@types/react": "^19.1.0",
@@ -125,7 +141,7 @@
     },
     "packages/crepus-moonshine": {
       "name": "@tschk/crepus-moonshine",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@tschk/moonshine": "file:../core",
       },
@@ -377,6 +393,8 @@
     "@tschk/moonshine-angular": ["@tschk/moonshine-angular@workspace:packages/adapter-angular"],
 
     "@tschk/moonshine-components": ["@tschk/moonshine-components@workspace:components"],
+
+    "@tschk/moonshine-example-catalog-gallery": ["@tschk/moonshine-example-catalog-gallery@workspace:examples/catalog-gallery"],
 
     "@tschk/moonshine-example-vite-crepus": ["@tschk/moonshine-example-vite-crepus@workspace:examples/vite-crepus"],
 
