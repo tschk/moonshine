@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "test": "bun test packages components",
-    "typecheck": "bunx tsc --noEmit -p tsconfig.base.json"
+    "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsc --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsc --noEmit -p components/tsconfig.json"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

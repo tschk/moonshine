@@ -10,7 +10,31 @@ export type {
   CrepusIr,
   CrepusNode,
   RenderCrepusOptions,
+  ViewIr,
 } from "./types";
+
+const BADGE_TONE_COLORS: Record<string, { background: string; color: string }> = {
+  accent: {
+    background: "var(--ms-accent, #358ff3)",
+    color: "var(--ms-accent-fg, #fff)",
+  },
+  danger: {
+    background: "var(--ms-danger, #e5484d)",
+    color: "var(--ms-danger-fg, #fff)",
+  },
+  muted: {
+    background: "var(--ms-muted, #5c5c64)",
+    color: "var(--ms-muted-fg, #fff)",
+  },
+  success: {
+    background: "var(--ms-success, #30a46c)",
+    color: "var(--ms-success-fg, #fff)",
+  },
+  warning: {
+    background: "var(--ms-warning, #f5a524)",
+    color: "var(--ms-warning-fg, #111)",
+  },
+};
 
 function styleOf(node: { style?: StyleMap }): CSSProperties | undefined {
   return node.style as CSSProperties | undefined;
@@ -19,6 +43,35 @@ function styleOf(node: { style?: StyleMap }): CSSProperties | undefined {
 function asArray(nodes: CrepusNode | CrepusNode[] | undefined): CrepusNode[] {
   if (!nodes) return [];
   return Array.isArray(nodes) ? nodes : [nodes];
+}
+
+/** Replace `{item}` / `$item` placeholders in content/label (and nested) fields. */
+function bindItemTemplate(template: CrepusNode, item: unknown): CrepusNode {
+  const itemStr = item == null ? "" : String(item);
+  const clone = structuredClone(template) as CrepusNode;
+
+  const replace = (value: string) =>
+    value.replaceAll("{item}", itemStr).replaceAll("$item", itemStr);
+
+  const walk = (n: CrepusNode): void => {
+    const rec = n as CrepusNode & {
+      content?: string;
+      label?: string;
+      children?: CrepusNode[];
+      then?: CrepusNode | CrepusNode[];
+      else?: CrepusNode | CrepusNode[];
+      itemTemplate?: CrepusNode;
+    };
+    if (typeof rec.content === "string") rec.content = replace(rec.content);
+    if (typeof rec.label === "string") rec.label = replace(rec.label);
+    for (const child of rec.children ?? []) walk(child);
+    for (const child of asArray(rec.then)) walk(child);
+    for (const child of asArray(rec.else)) walk(child);
+    if (rec.itemTemplate) walk(rec.itemTemplate);
+  };
+
+  walk(clone);
+  return clone;
 }
 
 function sparklinePath(values: number[], width: number, height: number): string {
@@ -68,7 +121,7 @@ export function renderCrepusNode(
       const style: CSSProperties = {
         display: "flex",
         flexDirection: row ? "row" : "column",
-        gap: n.gap ?? 8,
+        gap: n.gap ?? n.spacing ?? 8,
         ...styleOf(n),
       };
       return createElement(
@@ -217,20 +270,22 @@ export function renderCrepusNode(
     }
     case "badge": {
       const n = node as Extract<CrepusNode, { kind: "badge" }>;
+      const toneKey = (n.tone ?? "accent").toLowerCase();
+      const toneColors = BADGE_TONE_COLORS[toneKey] ?? BADGE_TONE_COLORS.accent;
       return createElement(
         "span",
         {
           key,
           "data-crepus-kind": "badge",
-          "data-tone": n.tone,
+          "data-tone": n.tone ?? "accent",
           style: {
             display: "inline-flex",
             alignItems: "center",
             padding: "2px 8px",
             borderRadius: 999,
             fontSize: 12,
-            background: "var(--ms-accent, #358ff3)",
-            color: "var(--ms-accent-fg, #fff)",
+            background: toneColors.background,
+            color: toneColors.color,
             ...styleOf(n),
           },
         },
@@ -305,8 +360,8 @@ export function renderCrepusNode(
       const n = node as Extract<CrepusNode, { kind: "forEach" }>;
       const items = n.items ?? [];
       if (n.itemTemplate) {
-        const kids = items.map((_, i) =>
-          renderCrepusNode(n.itemTemplate!, options, `${key}.${i}`),
+        const kids = items.map((item, i) =>
+          renderCrepusNode(bindItemTemplate(n.itemTemplate!, item), options, `${key}.${i}`),
         );
         return createElement(
           "div",

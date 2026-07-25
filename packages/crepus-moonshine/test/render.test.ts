@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { renderCrepusIr } from "../src/render";
+import { renderCrepusIr, type ViewIr } from "../src/render";
 
 describe("renderCrepusIr", () => {
   test("renders text / stack / button / sparkline", () => {
@@ -26,6 +26,66 @@ describe("renderCrepusIr", () => {
     expect(html).toContain('data-onclick="doThing"');
     expect(html).toContain('data-crepus-kind="sparkline"');
     expect(html).toContain("<path");
+  });
+
+  test("maps spacing as gap alias on stacks", () => {
+    const html = renderToStaticMarkup(
+      renderCrepusIr({
+        root: [
+          {
+            kind: "stack",
+            spacing: 24,
+            children: [{ kind: "text", content: "spaced" }],
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("gap:24px");
+    expect(html).toContain("spaced");
+  });
+
+  test("badge tone maps to CSS colors", () => {
+    for (const tone of ["accent", "danger", "muted", "success", "warning"] as const) {
+      const html = renderToStaticMarkup(
+        renderCrepusIr({
+          root: [{ kind: "badge", label: tone, tone }],
+        }),
+      );
+      expect(html).toContain(`data-tone="${tone}"`);
+      expect(html).toContain(`--ms-${tone}`);
+    }
+  });
+
+  test("forEach binds {item} and $item in label/content", () => {
+    const html = renderToStaticMarkup(
+      renderCrepusIr({
+        root: [
+          {
+            kind: "forEach",
+            items: ["alpha", "beta"],
+            itemTemplate: {
+              kind: "stack",
+              children: [
+                { kind: "badge", label: "{item}" },
+                { kind: "text", content: "val=$item" },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("alpha");
+    expect(html).toContain("beta");
+    expect(html).toContain("val=alpha");
+    expect(html).toContain("val=beta");
+    expect(html).not.toContain("{item}");
+    expect(html).not.toContain("$item");
+  });
+
+  test("ViewIr is a CrepusIr alias", () => {
+    const ir: ViewIr = { version: 1, root: [{ kind: "text", content: "ok" }] };
+    const html = renderToStaticMarkup(renderCrepusIr(ir));
+    expect(html).toContain("ok");
   });
 
   test("renders expanded View IR kinds", () => {

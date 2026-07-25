@@ -4,6 +4,7 @@ export {
   type CrepusIr,
   type CrepusNode,
   type RenderCrepusOptions,
+  type ViewIr,
 } from "./render";
 
 export type * from "./types";

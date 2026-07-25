@@ -1,4 +1,5 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { useCallback, useRef, type HTMLAttributes, type ReactNode } from "react";
+import { useOverlayFocus } from "./_focus";
 
 export type DialogProps = HTMLAttributes<HTMLDivElement> & {
   open?: boolean;
@@ -7,6 +8,10 @@ export type DialogProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 export function Dialog({ open = false, onOpenChange, title, children, style, ...rest }: DialogProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useOverlayFocus(open, close, panelRef);
+
   if (!open) return null;
   return (
     <div
@@ -20,9 +25,10 @@ export function Dialog({ open = false, onOpenChange, title, children, style, ...
         placeItems: "center",
         zIndex: 50,
       }}
-      onClick={() => onOpenChange?.(false)}
+      onClick={close}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal
         data-ms="dialog"

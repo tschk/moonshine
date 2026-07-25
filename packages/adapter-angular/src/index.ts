@@ -1,8 +1,8 @@
 /**
  * @tschk/moonshine-angular
  *
- * Thin bridge: expose moonshine signals in a shape familiar to Angular
- * zoneless `signal()` consumers.
+ * Angular-like API: expose moonshine signals in a shape familiar to
+ * zoneless Angular `signal()` consumers. No `@angular/core` dependency.
  */
 
 import {

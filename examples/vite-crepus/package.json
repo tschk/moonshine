@@ -11,6 +11,7 @@
   "dependencies": {
     "@tschk/crepus-moonshine": "workspace:*",
     "@tschk/moonshine": "workspace:*",
+    "@tschk/moonshine-components": "workspace:*",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },

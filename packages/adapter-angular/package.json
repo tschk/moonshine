@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-angular",
   "version": "0.1.0",
-  "description": "Angular adapter \u2014 signal bridge for zoneless Angular.",
+  "description": "Angular-like API — signal bridge shaped like zoneless Angular signal(), no @angular/core peer.",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -18,9 +18,7 @@
   ],
   "keywords": [
     "moonshine",
-    "adapter"
-  ],
-  "peerDependencies": {
-    "@angular/core": ">=18"
-  }
+    "adapter",
+    "angular-like"
+  ]
 }

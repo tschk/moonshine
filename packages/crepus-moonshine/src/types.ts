@@ -14,6 +14,8 @@ export type CrepusStackNode = {
   children?: CrepusNode[];
   style?: StyleMap;
   gap?: number | string;
+  /** Alias for `gap` (emit / View IR compatibility). */
+  spacing?: number | string;
 };
 
 export type CrepusScrollNode = {
@@ -162,6 +164,9 @@ export type CrepusIr = {
   version?: number;
   root: CrepusNode[];
 };
+
+/** Emit / CLI compatibility alias for {@link CrepusIr}. */
+export type ViewIr = CrepusIr;
 
 export type RenderCrepusOptions = {
   /** Invoked when a button/toggle/checkbox handler name fires. */

@@ -1,4 +1,5 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { useCallback, useRef, type HTMLAttributes, type ReactNode } from "react";
+import { useOverlayFocus } from "./_focus";
 
 export type SheetProps = HTMLAttributes<HTMLDivElement> & {
   open?: boolean;
@@ -16,6 +17,10 @@ export function Sheet({
   style,
   ...rest
 }: SheetProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useOverlayFocus(open, close, panelRef);
+
   if (!open) return null;
   const pos: Record<string, unknown> =
     side === "left"
@@ -29,9 +34,10 @@ export function Sheet({
     <div
       data-ms="sheet-root"
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50 }}
-      onClick={() => onOpenChange?.(false)}
+      onClick={close}
     >
       <div
+        ref={panelRef}
         data-ms="sheet"
         role="dialog"
         aria-modal

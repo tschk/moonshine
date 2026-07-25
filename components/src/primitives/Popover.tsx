@@ -1,5 +1,5 @@
-import type { HTMLAttributes, ReactNode } from "react";
-import { useState } from "react";
+import { useCallback, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
+import { useOverlayFocus } from "./_focus";
 
 export type PopoverProps = HTMLAttributes<HTMLDivElement> & {
   trigger: ReactNode;
@@ -10,10 +10,17 @@ export type PopoverProps = HTMLAttributes<HTMLDivElement> & {
 export function Popover({ trigger, open, onOpenChange, children, style, ...rest }: PopoverProps) {
   const [internal, setInternal] = useState(false);
   const isOpen = open ?? internal;
-  const setOpen = (v: boolean) => {
-    setInternal(v);
-    onOpenChange?.(v);
-  };
+  const setOpen = useCallback(
+    (v: boolean) => {
+      setInternal(v);
+      onOpenChange?.(v);
+    },
+    [onOpenChange],
+  );
+  const contentRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), [setOpen]);
+  useOverlayFocus(isOpen, close, contentRef);
+
   return (
     <div data-ms="popover" style={{ position: "relative", display: "inline-block", ...style }} {...rest}>
       <span onClick={() => setOpen(!isOpen)} style={{ cursor: "pointer" }}>
@@ -21,7 +28,9 @@ export function Popover({ trigger, open, onOpenChange, children, style, ...rest 
       </span>
       {isOpen ? (
         <div
+          ref={contentRef}
           data-ms="popover-content"
+          role="dialog"
           style={{
             position: "absolute",
             top: "100%",

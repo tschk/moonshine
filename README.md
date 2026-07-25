@@ -16,7 +16,7 @@ Published under the `@tschk/*` scope.
 | `@tschk/moonshine-solid` | Solid adapter (separate vnode / signal bridge) |
 | `@tschk/moonshine-svelte` | Svelte 5 rune-friendly stores |
 | `@tschk/moonshine-vue` | Vue 3 ref bridge |
-| `@tschk/moonshine-angular` | Angular-like signal bridge |
+| `@tschk/moonshine-angular` | Angular-like API (no `@angular/core` peer) |
 | `moonshine_jaspr` | Dart: View IR JSON → TypeScript emit |
 
 ## Light core — import what you need
@@ -73,13 +73,21 @@ createApp({ root: App }).mount("#app");
 
 Top-level `components/` (`@tschk/moonshine-components`): catalog (44), themes, specs, Bayer dither charts, accessible primitives, motion.
 
+## Workspaces
+
+Inside this monorepo, packages depend on each other with `"workspace:*"`. That is the supported setup. If you vendor a package out-of-tree, replace those entries with a published version or a `file:` path (e.g. `"@tschk/moonshine": "file:../core"`).
+
 ## Develop
 
 ```bash
 bun install
 bun test
+bun run typecheck
+cd examples/vite-crepus && bun run build
 cd dart/moonshine_jaspr && dart test
 ```
+
+Root `typecheck` only runs packages that ship a `tsconfig.json` (`core`, `crepus-moonshine`, `adapter-solid`, `components`). Examples are excluded.
 
 ## License
 

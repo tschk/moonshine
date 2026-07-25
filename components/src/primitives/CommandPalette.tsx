@@ -1,5 +1,11 @@
-import type { HTMLAttributes, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type HTMLAttributes,
+} from "react";
+import { useOverlayFocus } from "./_focus";
 
 export type CommandItem = { id: string; label: string; onSelect?: () => void };
 
@@ -19,6 +25,10 @@ export function CommandPalette({
   ...rest
 }: CommandPaletteProps) {
   const [q, setQ] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useOverlayFocus(open, close, panelRef);
+
   const filtered = useMemo(
     () => items.filter((i) => i.label.toLowerCase().includes(q.toLowerCase())),
     [items, q],
@@ -27,10 +37,19 @@ export function CommandPalette({
   return (
     <div
       data-ms="command-palette-root"
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "grid", placeItems: "start center", paddingTop: "15vh", zIndex: 80 }}
-      onClick={() => onOpenChange?.(false)}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "grid",
+        placeItems: "start center",
+        paddingTop: "15vh",
+        zIndex: 80,
+      }}
+      onClick={close}
     >
       <div
+        ref={panelRef}
         data-ms="command-palette"
         role="dialog"
         aria-label="Command palette"
