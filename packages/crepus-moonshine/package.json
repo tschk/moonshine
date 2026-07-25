@@ -14,7 +14,7 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*"
+    "@tschk/moonshine": "file:../core"
   },
   "peerDependencies": {
     "react": ">=18",

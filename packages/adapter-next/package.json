@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*"
+    "@tschk/moonshine": "file:../core"
   },
   "files": [
     "src",
