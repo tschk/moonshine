@@ -56,5 +56,5 @@ export function effect(fn: () => void): () => void {
   };
 }
 
-export { createSignal, createMemo, createStore, batch } from "./signal";
+export { createSignal, createMemo, createStore, batch, untrack } from "./signal";
 export type { Signal, Memo, StoreSetter } from "./signal";

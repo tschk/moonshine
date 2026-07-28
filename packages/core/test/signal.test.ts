@@ -4,6 +4,7 @@ import {
   createMemo,
   createSignal,
   createStore,
+  untrack,
 } from "../src/signal";
 import { matchPath, matchRoutes } from "../src/router";
 import {
@@ -77,6 +78,118 @@ describe("createMemo", () => {
     expect(m()).toBe(12);
     expect(hits).toBeGreaterThanOrEqual(1);
   });
+
+  test("does not compute until read", () => {
+    const n = createSignal(1);
+    let runs = 0;
+    const m = createMemo(() => {
+      runs++;
+      return n() * 2;
+    });
+    expect(runs).toBe(0);
+    n.set(2);
+    n.set(3);
+    expect(runs).toBe(0);
+    expect(m()).toBe(6);
+    expect(runs).toBe(1);
+  });
+
+  test("repeat reads reuse the cached value", () => {
+    const n = createSignal(1);
+    let runs = 0;
+    const m = createMemo(() => {
+      runs++;
+      return n();
+    });
+    m();
+    m();
+    m();
+    expect(runs).toBe(1);
+  });
+
+  test("a batch of writes costs one recompute", () => {
+    const n = createSignal(0);
+    let runs = 0;
+    const m = createMemo(() => {
+      runs++;
+      return n();
+    });
+    m();
+    batch(() => {
+      n.set(1);
+      n.set(2);
+      n.set(3);
+    });
+    expect(m()).toBe(3);
+    expect(runs).toBe(2);
+  });
+
+  test("never observes a half-updated graph", () => {
+    const src = createSignal(1);
+    const left = createMemo(() => src() + 1);
+    const right = createMemo(() => src() * 2);
+    const seen: string[] = [];
+    const pair = createMemo(() => {
+      const value = `${left()}/${right()}`;
+      seen.push(value);
+      return value;
+    });
+    pair.subscribe(() => {});
+    seen.length = 0;
+
+    src.set(10);
+    expect(pair()).toBe("11/20");
+    // A glitchy graph also reports the intermediate "11/2".
+    expect(seen).toEqual(["11/20"]);
+  });
+
+  test("stays quiet when the derived value is unchanged", () => {
+    const n = createSignal(1);
+    const parity = createMemo(() => n() % 2);
+    let hits = 0;
+    parity.subscribe(() => {
+      hits++;
+    });
+    n.set(3);
+    n.set(5);
+    expect(parity()).toBe(1);
+    expect(hits).toBe(0);
+    n.set(2);
+    expect(hits).toBe(1);
+  });
+
+  test("drops dependency subscriptions once nobody listens", () => {
+    const n = createSignal(1);
+    let runs = 0;
+    const m = createMemo(() => {
+      runs++;
+      return n();
+    });
+    const unsub = m.subscribe(() => {});
+    n.set(2);
+    const whileObserved = runs;
+    unsub();
+    n.set(3);
+    expect(runs).toBe(whileObserved);
+  });
+});
+
+describe("untrack", () => {
+  test("reads without registering a dependency", () => {
+    const tracked = createSignal(1);
+    const hidden = createSignal(100);
+    let runs = 0;
+    const m = createMemo(() => {
+      runs++;
+      return tracked() + untrack(() => hidden());
+    });
+    expect(m()).toBe(101);
+    hidden.set(200);
+    expect(m()).toBe(101);
+    expect(runs).toBe(1);
+    tracked.set(2);
+    expect(m()).toBe(202);
+  });
 });
 
 describe("createStore", () => {
@@ -99,6 +212,37 @@ describe("createStore", () => {
 
     state.user.name = "Grace";
     expect(state.user.name).toBe("Grace");
+  });
+
+  test("nested reads are identity-stable", () => {
+    const [state] = createStore({ user: { name: "Ada" } });
+    expect(state.user).toBe(state.user);
+  });
+
+  test("carries values structuredClone cannot", () => {
+    class Session {
+      id = "s1";
+      describe(): string {
+        return `session ${this.id}`;
+      }
+    }
+    const [state] = createStore({
+      session: new Session(),
+      at: new Date(0),
+      onSave: () => "saved",
+    });
+
+    expect(state.session).toBeInstanceOf(Session);
+    expect(state.session.describe()).toBe("session s1");
+    expect(state.at.getTime()).toBe(0);
+    expect(state.onSave()).toBe("saved");
+  });
+
+  test("does not alias the caller's object", () => {
+    const initial = { user: { name: "Ada" } };
+    const [state] = createStore(initial);
+    state.user.name = "Grace";
+    expect(initial.user.name).toBe("Ada");
   });
 });
 

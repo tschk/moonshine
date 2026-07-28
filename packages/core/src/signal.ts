@@ -4,9 +4,30 @@ export type Trackable = {
   subscribe: (listener: Listener) => () => void;
 };
 
+/**
+ * A node in the reactive graph.
+ *
+ * `version` changes only when the node's *value* changes, which lets a consumer
+ * tell "something upstream fired" apart from "my input actually differs".
+ * `validate` brings the node's cached value up to date on demand, so reads pull
+ * rather than writes pushing all the way down.
+ */
+type Source = Trackable & {
+  version: number;
+  validate: () => void;
+};
+
+/**
+ * Bumped once per write anywhere in the graph. A node that already validated at
+ * the current epoch cannot be stale, so repeated reads stay O(1).
+ */
+let epoch = 0;
+/** Monotonic stamp handed out whenever a node's value actually changes. */
+let versionCounter = 0;
+
 let batchDepth = 0;
 const pending = new Set<Listener>();
-let currentTracker: ((dep: Trackable) => void) | null = null;
+let currentTracker: ((dep: Source) => void) | null = null;
 
 /** Coalesce nested writes into one subscriber flush. */
 export function batch(fn: () => void): void {
@@ -31,8 +52,19 @@ function notifyListeners(listeners: Set<Listener>): void {
   for (const listener of [...listeners]) listener();
 }
 
-function track(dep: Trackable): void {
+function track(dep: Source): void {
   currentTracker?.(dep);
+}
+
+/** Read without subscribing the enclosing memo or effect to what you touch. */
+export function untrack<T>(fn: () => T): T {
+  const previous = currentTracker;
+  currentTracker = null;
+  try {
+    return fn();
+  } finally {
+    currentTracker = previous;
+  }
 }
 
 /**
@@ -70,7 +102,9 @@ export type Signal<T> = {
 export function createSignal<T>(initial: T): Signal<T> {
   let value = initial;
   const listeners = new Set<Listener>();
-  const node: Trackable = {
+  const node: Source = {
+    version: ++versionCounter,
+    validate: () => {},
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -88,6 +122,8 @@ export function createSignal<T>(initial: T): Signal<T> {
     const resolved = typeof next === "function" ? (next as (prev: T) => T)(value) : next;
     if (Object.is(resolved, value)) return;
     value = resolved;
+    node.version = ++versionCounter;
+    epoch++;
     notifyListeners(listeners);
   };
   read.peek = () => value;
@@ -105,62 +141,109 @@ export type Memo<T> = {
 /**
  * Derived value that recomputes when tracked dependencies change.
  * Any `createSignal` / `createMemo` read during `compute` is tracked.
+ *
+ * Recomputation is pull-based: an unread memo with no subscribers costs nothing
+ * when its sources change, and a memo validates its whole dependency chain
+ * before answering, so it never reports a half-updated view of the graph.
  */
 export function createMemo<T>(compute: () => T): Memo<T> {
   const listeners = new Set<Listener>();
+  let deps: Array<{ node: Source; version: number }> = [];
   const unsubs: Array<() => void> = [];
   let value!: T;
+  let hasValue = false;
   let stale = true;
+  let checkedAt = -1;
 
-  const node: Trackable = {
+  const node: Source = {
+    version: ++versionCounter,
+    validate: () => validate(),
     subscribe: (listener) => {
+      // Dependencies are only observed while somebody is listening, so the
+      // push path exists solely to serve real subscribers.
+      validate();
       listeners.add(listener);
+      if (listeners.size === 1) observe();
       return () => {
         listeners.delete(listener);
+        if (listeners.size === 0) unobserve();
       };
     },
   };
 
-  const recompute = () => {
+  function observe(): void {
     for (const unsub of unsubs.splice(0)) unsub();
+    for (const dep of deps) unsubs.push(dep.node.subscribe(onDepChange));
+  }
 
+  function unobserve(): void {
+    for (const unsub of unsubs.splice(0)) unsub();
+  }
+
+  function onDepChange(): void {
+    const before = node.version;
+    validate();
+    // Only wake downstream when the derived value actually moved.
+    if (node.version !== before) notifyListeners(listeners);
+  }
+
+  function recompute(): void {
+    const collected: Array<{ node: Source; version: number }> = [];
+    const seen = new Set<Source>();
     const previous = currentTracker;
-    const seen = new Set<Trackable>();
     currentTracker = (dep) => {
       if (seen.has(dep)) return;
       seen.add(dep);
-      unsubs.push(
-        dep.subscribe(() => {
-          stale = true;
-          const next = peekFresh();
-          notifyListeners(listeners);
-          void next;
-        }),
-      );
+      collected.push({ node: dep, version: dep.version });
     };
 
+    let next: T;
     try {
-      value = compute();
-      stale = false;
+      next = compute();
     } finally {
       currentTracker = previous;
     }
-  };
 
-  const peekFresh = (): T => {
-    if (stale) recompute();
-    return value;
-  };
+    deps = collected;
+    stale = false;
+    if (listeners.size > 0) observe();
 
-  // Seed dependencies
-  recompute();
+    if (!hasValue || !Object.is(next, value)) {
+      value = next;
+      hasValue = true;
+      node.version = ++versionCounter;
+    }
+  }
+
+  function validate(): void {
+    if (!stale && checkedAt === epoch) return;
+    checkedAt = epoch;
+    if (!stale) {
+      let changed = false;
+      for (const dep of deps) {
+        dep.node.validate();
+        if (dep.node.version !== dep.version) {
+          changed = true;
+          break;
+        }
+      }
+      if (!changed) return;
+    }
+    recompute();
+  }
 
   const read = (() => {
+    // Validate before tracking, so the enclosing memo records the version this
+    // node settles on rather than the one it is about to leave behind.
+    validate();
     track(node);
-    return peekFresh();
+    return value;
   }) as Memo<T>;
 
-  read.peek = peekFresh;
+  read.peek = () => {
+    validate();
+    return value;
+  };
   read.subscribe = node.subscribe;
 
   return read;
@@ -176,14 +259,42 @@ export function getStoreRoot(store: object): Trackable | undefined {
 }
 
 /**
+ * Plain objects and arrays are the only things worth proxying. Wrapping a Date,
+ * Map or class instance would hand its methods a proxy as `this`, which breaks
+ * every implementation that reaches for internal slots.
+ */
+function isWrappable(value: unknown): value is object {
+  if (value === null || typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === Array.prototype || proto === null;
+}
+
+/**
+ * Copy the caller's plain structure so later mutations go through the proxy,
+ * and pass everything else through by reference. `structuredClone` throws on
+ * functions and DOM nodes, and silently flattens class instances.
+ */
+function clone<V>(value: V): V {
+  if (Array.isArray(value)) return value.map((entry) => clone(entry)) as V;
+  if (isWrappable(value)) {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) out[key] = clone(entry);
+    return out as V;
+  }
+  return value;
+}
+
+/**
  * Nested reactive store (Solid-inspired).
  * Mutate through the proxy (or `setStore`) to notify subscribers.
  */
 export function createStore<T extends object>(initial: T): [T, StoreSetter<T>] {
   const listeners = new Set<Listener>();
-  const state = structuredClone(initial) as T;
+  const state = clone(initial);
 
-  const node: Trackable = {
+  const node: Source = {
+    version: ++versionCounter,
+    validate: () => {},
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -192,16 +303,24 @@ export function createStore<T extends object>(initial: T): [T, StoreSetter<T>] {
     },
   };
 
-  const notify = () => notifyListeners(listeners);
+  const notify = () => {
+    node.version = ++versionCounter;
+    epoch++;
+    notifyListeners(listeners);
+  };
 
-  const wrap = <V extends object>(target: V): V =>
-    new Proxy(target, {
+  // Cached so `store.user === store.user`, which React dependency arrays and
+  // `React.memo` both compare by identity.
+  const proxies = new WeakMap<object, object>();
+
+  const wrap = <V extends object>(target: V): V => {
+    const cached = proxies.get(target);
+    if (cached) return cached as V;
+    const proxy = new Proxy(target, {
       get(obj, prop, receiver) {
         track(node);
         const value = Reflect.get(obj, prop, receiver);
-        if (value !== null && typeof value === "object") {
-          return wrap(value as object);
-        }
+        if (isWrappable(value)) return wrap(value);
         return value;
       },
       set(obj, prop, value, receiver) {
@@ -218,6 +337,9 @@ export function createStore<T extends object>(initial: T): [T, StoreSetter<T>] {
         return ok;
       },
     });
+    proxies.set(target, proxy);
+    return proxy;
+  };
 
   const proxy = wrap(state);
   storeRoots.set(proxy, node);
