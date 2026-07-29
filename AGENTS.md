@@ -2,7 +2,7 @@
 
 ## Scope
 
-Moonshine is a hyperminimal Bun-first signal runtime + crepus View IR bridge + dither component kit, published as `@tschk/*`.
+Moonshine is a hyperminimal Bun-first UI runtime (signals + opt-in imports + host adapters) with an optional component catalog, published as `@tschk/*`.
 
 ## Layout
 
@@ -21,8 +21,8 @@ Moonshine is a hyperminimal Bun-first signal runtime + crepus View IR bridge + d
 2. Apps author **`.tsx`**. `.crepus` → `.tsx` via `crepus` or `moonshine compile`.
 3. Do not invent a shared vnode for Solid — use `@tschk/moonshine-solid`.
 4. Crepus bridge must render real kinds (not stubs) for the documented IR surface.
-5. Charts must paint with Bayer dither canvas (`components/src/dither/dither-paint.ts`), not empty divs.
-6. Catalog test must assert 44 named exports matching `components/catalog/components.json`.
+5. Component catalog charts must use the real canvas paint path (not empty placeholders).
+6. Catalog test must assert named exports match `components/catalog/components.json`.
 7. Package manager: Bun workspaces. `"type": "module"` everywhere.
 8. Peer `react` / `react-dom` are optional on core; required for `/react` and React packages.
 
