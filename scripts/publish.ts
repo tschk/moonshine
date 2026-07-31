@@ -59,8 +59,8 @@ function topoSort(pkgs: { dir: string; manifest: Manifest }[]) {
     const pkg = byName.get(name);
     if (!pkg) return;
     const deps = {
-      ...(pkg.manifest.dependencies ?? {}),
-      ...(pkg.manifest.peerDependencies ?? {}),
+      ...pkg.manifest.dependencies,
+      ...pkg.manifest.peerDependencies,
     };
     for (const dep of Object.keys(deps)) {
       if (names.has(dep)) visit(dep, [...stack, name]);
