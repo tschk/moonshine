@@ -32,8 +32,7 @@ export async function cloudflareFetch(
   if (
     env.ASSETS &&
     (request.method === "GET" || request.method === "HEAD") &&
-    pathname !== "/" &&
-    !pathname.includes("..")
+    pathname !== "/"
   ) {
     const assetRes = await env.ASSETS.fetch(request);
     if (assetRes.status !== 404) return assetRes;
