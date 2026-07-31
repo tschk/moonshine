@@ -35,6 +35,7 @@ describe("adapter contracts", () => {
       [
         "adapter-angular",
         "adapter-astro",
+        "adapter-conformance",
         "adapter-next",
         "adapter-nuxt",
         "adapter-remix",
