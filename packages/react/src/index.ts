@@ -1,4 +1,4 @@
-export { reactRenderer } from "./renderer";
+export { reactRenderer, registerRouteModules } from "./renderer";
 export type { RenderContext, Renderer } from "@tschk/moonshine-framework";
 export {
   batch,

@@ -28,9 +28,22 @@ type LayoutProps = PageProps & {
   children?: ReactNode;
 };
 
+const routeModules = new Map<string, unknown>();
+
+/**
+ * Supplies statically bundled route modules. Runtimes that cannot resolve a
+ * dynamic `import(file)` — Cloudflare Workers most notably — register the map
+ * their build already produced instead.
+ */
+export function registerRouteModules(modules: Record<string, unknown>): void {
+  for (const [key, mod] of Object.entries(modules)) routeModules.set(key, mod);
+}
+
 async function loadComponent(file: string): Promise<ComponentType<unknown>> {
-  const mod = await import(file);
-  return (mod.default ?? mod) as ComponentType<unknown>;
+  const registered = routeModules.get(file);
+  const mod = registered ?? (await import(file));
+  return ((mod as { default?: unknown }).default ??
+    mod) as ComponentType<unknown>;
 }
 
 async function buildBody(

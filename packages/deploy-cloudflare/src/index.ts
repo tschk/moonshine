@@ -1,8 +1,12 @@
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { createRequestHandler, tryServeStatic } from "@tschk/moonshine-server";
+import {
+  createRequestHandler,
+  tryServeStatic,
+  type RouteModule,
+} from "@tschk/moonshine-server";
 import { matchRoutes, createRouteGraph } from "@tschk/moonshine-router";
-import { reactRenderer } from "@tschk/moonshine-react";
+import { reactRenderer, registerRouteModules } from "@tschk/moonshine-react";
 import type {
   DeploymentAdapter,
   MoonshineManifest,
@@ -25,6 +29,7 @@ export async function cloudflareFetch(
   env: CloudflareEnv,
   ctx: CloudflareContext,
   manifest: MoonshineManifest,
+  modules: Record<string, RouteModule> = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
@@ -40,7 +45,12 @@ export async function cloudflareFetch(
 
   const graph = createRouteGraph(manifest.routes);
   const match = matchRoutes(graph, pathname);
-  const handler = createRequestHandler({ manifest, renderer: reactRenderer });
+  registerRouteModules(modules);
+  const handler = createRequestHandler({
+    manifest,
+    modules,
+    renderer: reactRenderer,
+  });
   const cache =
     typeof caches !== "undefined"
       ? (caches as { default?: Cache }).default
@@ -173,14 +183,17 @@ export const cloudflareAdapter: DeploymentAdapter = {
     );
     await copyAssets(manifest.assets, outDir);
 
+    // The module map must be a static import: Workers cannot resolve the
+    // dynamic `import(route.file)` the renderer would otherwise fall back to.
     const serverEntry = `import cloudflareFetch from "@tschk/moonshine-deploy-cloudflare";
 import manifest from "./manifest.json" with { type: "json" };
+import { modules } from "./dist/server.js";
 
 type Env = { ASSETS?: { fetch: (request: Request) => Promise<Response> } };
 
 export default {
   async fetch(request: Request, env: Env, ctx: { waitUntil: (promise: Promise<unknown>) => void }) {
-    return cloudflareFetch(request, env, ctx, manifest);
+    return cloudflareFetch(request, env, ctx, manifest, modules);
   },
 };
 `;
