@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import { connect } from "node:net";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { createNodeHandler } from "../src";
 
 describe("createNodeHandler security", () => {
@@ -58,5 +67,58 @@ describe("createNodeHandler security", () => {
     expect(seen["content-length"]).toBeUndefined();
     expect(seen["transfer-encoding"]).toBeUndefined();
     expect(seen["connection"]).toBeUndefined();
+  });
+});
+
+describe("createNodeHandler static serving", () => {
+  const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-node-sec-"));
+  const staticDir = resolve(tmpDir, "public");
+
+  const handler = createNodeHandler({
+    fetch: async () => new Response("app", { status: 200 }),
+    staticDir,
+  });
+  const server = createServer(handler);
+  let port = 0;
+
+  beforeAll(async () => {
+    mkdirSync(staticDir, { recursive: true });
+    writeFileSync(resolve(staticDir, "ok.txt"), "ok");
+    writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
+    writeFileSync(resolve(staticDir, ".env"), "TOKEN=redacted");
+    symlinkSync(
+      resolve(tmpDir, "secret.txt"),
+      resolve(staticDir, "escape.txt"),
+    );
+    await new Promise<void>((done) => {
+      server.listen(0, () => {
+        port = (server.address() as { port: number }).port;
+        done();
+      });
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((done, reject) =>
+      server.close((err) => (err ? reject(err) : done())),
+    );
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("serves contained files with nosniff", async () => {
+    const res = await fetch(`http://localhost:${port}/ok.txt`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  test("does not follow a symlink escaping the static root", async () => {
+    const res = await fetch(`http://localhost:${port}/escape.txt`);
+    expect(await res.text()).toBe("app");
+  });
+
+  test("does not serve dotfiles", async () => {
+    const res = await fetch(`http://localhost:${port}/.env`);
+    expect(await res.text()).toBe("app");
   });
 });

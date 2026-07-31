@@ -11,7 +11,7 @@ import {
   type DeploymentAdapter,
   type MoonshineManifest,
 } from "@tschk/moonshine-framework";
-import { resolveStaticPath } from "@tschk/moonshine-server";
+import { isContained, resolveStaticPath } from "@tschk/moonshine-server";
 import {
   type Harness,
   type HarnessFactory,
@@ -71,12 +71,18 @@ async function tryServeNodeStatic(
     return null;
   }
   if (!stats.isFile()) return null;
+  try {
+    if (!isContained(staticDir, filePath)) return null;
+  } catch {
+    return null;
+  }
   const type = MIME[extOf(filePath)] ?? "application/octet-stream";
   const stream = createReadStream(filePath);
   return new Response(Readable.toWeb(stream) as unknown as ReadableStream, {
     headers: {
       "content-type": type,
       "content-length": String(stats.size),
+      "x-content-type-options": "nosniff",
     },
   });
 }
