@@ -10,7 +10,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core"
+    "@tschk/moonshine": "file:../core",
+    "@tschk/crepus-moonshine": "file:../crepus-moonshine"
   },
   "files": [
     "src",

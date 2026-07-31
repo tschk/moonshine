@@ -1,19 +1,43 @@
 /**
  * @tschk/moonshine-nuxt
  *
- * Nuxt is Vue. Re-export the Vue bridge so Nuxt apps import one package name.
- * Prefer `ref`/`computed` wrappers from `@tschk/moonshine-vue` in `<script setup>`.
+ * Nuxt is Vue. Re-export the Vue bridge plus Nuxt-friendly aliases
+ * (`useMoonshineRef` / `useMoonshineComputed`) for `<script setup>`.
  */
 
 export {
-  createSignal,
-  createMemo,
-  createStore,
   batch,
-} from "@tschk/moonshine";
+  computedFromMemo,
+  createMemo,
+  createSignal,
+  createStore,
+  derived,
+  effect,
+  moonshineComputed,
+  moonshineRef,
+  refFromSignal,
+  state,
+  untrack,
+} from "@tschk/moonshine-vue";
 
-export type { Memo, Signal, StoreSetter } from "@tschk/moonshine";
+export type { Memo, Signal, StoreSetter } from "@tschk/moonshine-vue";
 
-export { state, derived, effect } from "@tschk/moonshine/runes";
+import {
+  moonshineComputed,
+  moonshineRef,
+  type Memo,
+  type Signal,
+} from "@tschk/moonshine-vue";
+import type { ComputedRef, Ref } from "vue";
 
-export * from "@tschk/moonshine-vue";
+/** Nuxt/composables-style alias for `moonshineRef`. */
+export function useMoonshineRef<T>(initial: T): Ref<T> {
+  return moonshineRef(initial);
+}
+
+/** Nuxt/composables-style alias for `moonshineComputed`. */
+export function useMoonshineComputed<T>(fn: () => T): ComputedRef<T> {
+  return moonshineComputed(fn);
+}
+
+export type { ComputedRef, Ref, Memo as MoonshineMemo, Signal as MoonshineSignal };

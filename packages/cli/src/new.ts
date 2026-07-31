@@ -69,7 +69,7 @@ export async function newCommand(args: string[]): Promise<void> {
           "@types/react": "^19.1.0",
           "@types/react-dom": "^19.1.0",
           "@vitejs/plugin-react": "^4.5.0",
-          typescript: "^5.8.3",
+          typescript: "~7.0.0",
           vite: "^6.3.5",
         },
       },

@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 export type StyleMap = Record<string, string | number>;
 
 export type CrepusTextNode = {
@@ -171,8 +169,6 @@ export type ViewIr = CrepusIr;
 export type RenderCrepusOptions = {
   /** Invoked when a button/toggle/checkbox handler name fires. */
   onAction?: (handler: string, payload?: unknown) => void;
-  /** Optional key prefix for React reconciliation. */
+  /** Optional key prefix for host reconciliation. */
   keyPrefix?: string;
 };
-
-export type { CSSProperties };

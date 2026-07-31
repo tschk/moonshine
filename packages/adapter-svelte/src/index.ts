@@ -1,15 +1,15 @@
 /**
  * @tschk/moonshine-svelte
  *
- * Rune-friendly stores wrapping `@tschk/moonshine` createSignal.
+ * Store bridge wrapping `@tschk/moonshine` createSignal.
  * Use with Svelte 5 `$state` / `$derived` or classic store subscribe API.
  */
 
 import {
-  createSignal,
   createMemo,
-  type Signal,
+  createSignal,
   type Memo,
+  type Signal,
 } from "@tschk/moonshine";
 
 export type Readable<T> = {
@@ -51,8 +51,8 @@ export function moonshineDerived<T>(fn: () => T): Readable<T> {
 }
 
 /**
- * Svelte 5 rune helper: sync a `$state` field from a moonshine signal.
- * Call inside a component; returns a getter/setter pair.
+ * Svelte 5 helper: getter/setter pair over a moonshine signal.
+ * Prefer native `$state` inside pure Svelte apps.
  */
 export function runeBridge<T>(signal: Signal<T>): {
   get value(): T;
@@ -68,5 +68,12 @@ export function runeBridge<T>(signal: Signal<T>): {
   };
 }
 
-export { createSignal, createMemo };
-export type { Signal, Memo };
+export {
+  batch,
+  createMemo,
+  createSignal,
+  createStore,
+  untrack,
+} from "@tschk/moonshine";
+export type { Memo, Signal, StoreSetter } from "@tschk/moonshine";
+export { state, derived, effect } from "@tschk/moonshine/runes";

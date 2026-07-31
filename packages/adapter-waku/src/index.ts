@@ -3,9 +3,7 @@
 /**
  * @tschk/moonshine-waku
  *
- * Waku is React (RSC + client islands). Moonshine works natively —
- * mark interactive islands with `"use client"` and import signals/createApp
- * from `@tschk/moonshine/react`. No vnode translation needed.
+ * Waku client islands. Moonshine signals + optional island router/shaders.
  *
  * ```tsx
  * "use client";
@@ -13,29 +11,12 @@
  * ```
  */
 
-export {
-  createSignal,
-  createMemo,
-  createStore,
-  batch,
-} from "@tschk/moonshine";
-
-export type { Memo, Signal, StoreSetter } from "@tschk/moonshine";
-
-export {
-  createApp,
-  createMoonshineApp,
-  useSignal,
-  useStore,
-} from "@tschk/moonshine/react";
-
-export type { MoonshineApp, MoonshineAppOptions } from "@tschk/moonshine/react";
-
-export { jsx, jsxs, Fragment } from "@tschk/moonshine/jsx-runtime";
+export * from "@tschk/moonshine/host-react";
 
 export {
   Link,
   MoonshineRouter,
+  createMoonshineRouter,
   getLocation,
   matchPath,
   matchRoutes,
@@ -43,6 +24,15 @@ export {
   useLocation,
   useNavigate,
   useParams,
+  useRouter,
+} from "@tschk/moonshine/router";
+
+export type {
+  MoonshineRouterInstance,
+  MoonshineRouterProps,
+  RouteDefinition,
+  RouteMatch,
+  RouteParams,
 } from "@tschk/moonshine/router";
 
 export {
@@ -50,5 +40,3 @@ export {
   useFragmentShader,
   wrapFragmentSource,
 } from "@tschk/moonshine/shaders";
-
-export { state, derived, effect } from "@tschk/moonshine/runes";

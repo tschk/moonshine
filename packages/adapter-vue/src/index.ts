@@ -5,12 +5,12 @@
  */
 
 import {
-  createSignal,
   createMemo,
-  type Signal,
+  createSignal,
   type Memo,
+  type Signal,
 } from "@tschk/moonshine";
-import { customRef, computed, type Ref, type ComputedRef } from "vue";
+import { computed, customRef, type ComputedRef, type Ref } from "vue";
 
 /** Bind a moonshine signal to a Vue ref. */
 export function refFromSignal<T>(signal: Signal<T>): Ref<T> {
@@ -43,5 +43,13 @@ export function moonshineComputed<T>(fn: () => T): ComputedRef<T> {
   return computedFromMemo(createMemo(fn));
 }
 
-export { createSignal, createMemo };
-export type { Signal, Memo };
+export {
+  batch,
+  createMemo,
+  createSignal,
+  createStore,
+  untrack,
+} from "@tschk/moonshine";
+export type { Memo, Signal, StoreSetter } from "@tschk/moonshine";
+
+export { state, derived, effect } from "@tschk/moonshine/runes";

@@ -9,12 +9,16 @@
   "exports": {
     ".": "./src/index.ts",
     "./react": "./src/react.ts",
+    "./host-react": "./src/host-react.ts",
     "./runes": "./src/runes.ts",
     "./jsx-runtime": "./src/jsx-runtime.ts",
     "./jsx-dev-runtime": "./src/jsx-runtime.ts",
     "./router": "./src/router.ts",
     "./server": "./src/server.ts",
     "./shaders": "./src/shaders.ts"
+  },
+  "dependencies": {
+    "@tschk/moonshine-shaders": "file:../shaders"
   },
   "scripts": {
     "test": "bun test",

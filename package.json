@@ -13,6 +13,7 @@
   "scripts": {
     "test": "bun test packages components && bun run check:catalog",
     "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsc --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsc --noEmit -p components/tsconfig.json",
+    "typecheck:native": "bunx tsgo --noEmit -p packages/core/tsconfig.json && bunx tsgo --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsgo --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsgo --noEmit -p components/tsconfig.json",
     "check:catalog": "bun scripts/sync-catalog-check.ts",
     "check": "bun run typecheck && bun run check:catalog",
     "moonshine": "bun packages/cli/bin/moonshine.ts"
@@ -24,6 +25,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "solid-js": "1.9.14",
+    "@typescript/native-preview": "latest",
     "typescript": "7.0.2"
   }
 }
