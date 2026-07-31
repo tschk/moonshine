@@ -7,6 +7,7 @@ export {
 export {
   discoverRoutes,
   type DiscoverOptions,
+  type RouteConvention,
   segmentToPattern,
 } from "./discover.js";
 export { mergeRoutes } from "./inherit.js";

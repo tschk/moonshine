@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { defineConfig as baseDefineConfig } from "@tschk/moonshine-framework";
+import type { RouteConvention } from "@tschk/moonshine-compiler";
 import type {
   MoonshineConfig,
   RouteDefinition,
@@ -13,6 +14,10 @@ export type MoonshineCliConfig = MoonshineConfig & {
   adapter?: "bun" | "node" | "cloudflare" | "vercel";
   renderer?: RendererName;
   routes?: RouteDefinition[];
+  /** Route directory, relative to the project. Defaults to `src/routes`. */
+  routesDir?: string;
+  /** File-system routing dialect; `moonshine adopt` sets the `next-*` values. */
+  convention?: RouteConvention;
 };
 
 export function defineConfig<T extends MoonshineCliConfig>(config: T): T {

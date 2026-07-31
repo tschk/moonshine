@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { adoptCommand } from "../src/adopt";
 import { buildCommand } from "../src/build";
 import { compileCommand } from "../src/compile";
 import { devCommand } from "../src/dev";
@@ -18,6 +19,9 @@ Usage:
       --crepus    add Crepus renderer
       --adapter   deployment target (default: bun)
       --vite      client-only Vite SPA
+  moonshine adopt [dir]          Convert an existing Next/React app to moonshine
+      --dry-run   print the plan, write nothing
+      --force     rewrite an existing moonshine.config.ts
   moonshine compile [file]       .crepus / View IR JSON → .tsx
   moonshine build [dir]          Build project into .moonshine/manifest.json
       --adapter bun|node|cloudflare|vercel
@@ -34,6 +38,9 @@ Usage:
 switch (cmd) {
   case "new":
     await newCommand(args);
+    break;
+  case "adopt":
+    await adoptCommand(args);
     break;
   case "compile":
     await compileCommand(args);

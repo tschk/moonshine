@@ -11,6 +11,7 @@ import { analyzeModule } from "./analyze.js";
 import { buildBundles } from "./build.js";
 import { classifyRoute } from "./classify.js";
 import { discoverRoutes } from "./discover.js";
+import type { RouteConvention } from "./inherit.js";
 import { toPosix } from "./path.js";
 
 export type BuildOptions = {
@@ -19,6 +20,7 @@ export type BuildOptions = {
   outDir?: string;
   programmatic?: RouteDefinition[];
   runtime?: RuntimeTarget;
+  convention?: RouteConvention;
 };
 
 function toProjectRelative(projectDir: string, p: string): string {
@@ -94,6 +96,7 @@ export async function buildProject(
   const rawRoutes = await discoverRoutes({
     routesDir,
     programmatic: options.programmatic,
+    ...(options.convention && { convention: options.convention }),
   });
 
   const buildRoutes: RouteArtifact[] = [];

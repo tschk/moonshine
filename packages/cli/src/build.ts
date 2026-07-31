@@ -51,6 +51,10 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
   const manifest = await buildProject({
     projectDir: resolvedDir,
     runtime,
+    ...(config.routesDir && {
+      routesDir: resolve(resolvedDir, config.routesDir),
+    }),
+    ...(config.convention && { convention: config.convention }),
   });
 
   const outDir = resolve(resolvedDir, ".moonshine");

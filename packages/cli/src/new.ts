@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 type Renderer = "react" | "solid" | "crepus";
 type Adapter = "bun" | "node" | "cloudflare" | "vercel";
 
-function detectMoonshineRoot(): string | null {
+export function detectMoonshineRoot(): string | null {
   if (process.env.MOONSHINE_PATH) return resolve(process.env.MOONSHINE_PATH);
   let dir = process.cwd();
   for (let i = 0; i < 8; i++) {
@@ -25,9 +25,14 @@ function dep(root: string | null, rel: string, version = "^0.2.0"): string {
   return root ? `file:${join(root, rel)}` : version;
 }
 
-function packagePath(name: string, root: string | null): string | undefined {
+export function packagePath(
+  name: string,
+  root: string | null,
+  version = "^0.2.0",
+): string | undefined {
   const map: Record<string, string> = {
     "@tschk/moonshine": "packages/core",
+    "@tschk/moonshine-next": "packages/adapter-next",
     "@tschk/moonshine-framework": "packages/framework",
     "@tschk/moonshine-compiler": "packages/compiler",
     "@tschk/moonshine-server": "packages/server",
@@ -40,7 +45,7 @@ function packagePath(name: string, root: string | null): string | undefined {
     "@tschk/moonshine-deploy-vercel": "packages/deploy-vercel",
   };
   const rel = map[name];
-  return rel ? dep(root, rel) : undefined;
+  return rel ? dep(root, rel, version) : undefined;
 }
 
 function runtimeForAdapter(adapter: Adapter): string {
