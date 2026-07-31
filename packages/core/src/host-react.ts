@@ -1,6 +1,6 @@
 /**
  * Shared React-host surface for framework adapters.
- * Signals + hooks + runes + jsx. No host router (Next/Remix own routing).
+ * Signals + hooks + runes + jsx. No host router (foreign hosts own routing).
  *
  * ```ts
  * export * from "@tschk/moonshine/host-react";

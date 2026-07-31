@@ -34,11 +34,14 @@ optional React TSX, client router, Bun HTTP. Host adapters are escape hatches.
 ## Greenfield apps
 
 1. **Client:** `moonshine new` → Vite + `@tschk/moonshine/react`
-2. **HTTP:** `createMoonshineServer` (see `examples/bun-server`)
+2. **HTTP:** `createMoonshineServer` + `staticDir` + client hydrate (see `examples/bun-server`)
 3. **Crepus:** `moonshine compile` / `crepus web build --emit moonshine`
 
 Host packages (`adapter-*`) only when embedding moonshine signals inside an
-existing Next/Astro/Solid/… app. They do not define the product.
+existing Astro/Solid/… app. They do not define the product. There is **no**
+`@tschk/moonshine-next` — use core directly or leave Next.
+
+Vs other frameworks: [`docs/COMPARE.md`](./docs/COMPARE.md).
 
 ## Crepus IR
 

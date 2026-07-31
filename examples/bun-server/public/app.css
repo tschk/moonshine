@@ -1,0 +1,54 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+a {
+  color: #358ff3;
+}
+
+code {
+  background: color-mix(in srgb, CanvasText 12%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  border-radius: 10px;
+}
+
+.card p {
+  margin: 0;
+  flex: 1 1 100%;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+  background: Canvas;
+  cursor: pointer;
+}
+
+.muted {
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+}

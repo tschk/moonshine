@@ -54,7 +54,7 @@ Optional host adapters exist if you already sit inside Next/Astro/etc. They are
 | `@tschk/moonshine/react` | `createApp`, `useSignal`, `useStore` |
 | `@tschk/moonshine/runes` | `state` / `derived` / `effect` |
 | `@tschk/moonshine/router` | Instance client router |
-| `@tschk/moonshine/server` | Pages map + `Bun.serve` |
+| `@tschk/moonshine/server` | Pages map + `staticDir` + `Bun.serve` |
 | `@tschk/moonshine-cli` | `moonshine new\|compile\|dev\|build` |
 | `@tschk/crepus-moonshine` | View IR → React |
 | `@tschk/moonshine-shaders` | Optional WebGL (`/shaders` re-exports) |
@@ -86,7 +86,7 @@ createApp({ root: App }).mount("#app");
 
 | Path | What |
 |------|------|
-| `examples/bun-server` | **Native** Bun HTTP (`/server`) — no host framework |
+| `examples/bun-server` | **Native** Bun HTTP + static + hydrate island |
 | `examples/vite-crepus` | Vite + Crepus IR client |
 | `examples/catalog-gallery` | Component catalog |
 
@@ -97,9 +97,11 @@ Only if you already live in another host. Prefer the greenfield path above.
 | Host | Package |
 |------|---------|
 | Astro / Waku | `@tschk/moonshine-astro` / `-waku` |
-| Next / Remix / TanStack | thin client bridges (host owns routing) |
+| Remix / TanStack | thin client bridges (host owns routing) |
 | Solid / Svelte / Vue / Nuxt | reactive bridges |
 | Angular-like | API shape, no Angular dep |
+
+No first-class Next adapter — greenfield is Bun + Vite.
 
 ## Develop
 
@@ -107,7 +109,7 @@ Only if you already live in another host. Prefer the greenfield path above.
 bun install && bun run check && bun run typecheck:native && bun test
 ```
 
-See [DESIGN.md](./DESIGN.md). Repo: [`tschk/moonshine`](https://github.com/tschk/moonshine).
+See [DESIGN.md](./DESIGN.md) and [docs/COMPARE.md](./docs/COMPARE.md) (vs Next/Remix/Waku/Solid/Hono/…). Repo: [`tschk/moonshine`](https://github.com/tschk/moonshine).
 
 ## License
 

@@ -22,6 +22,8 @@ import {
   definePage,
   handleMoonshineRequest,
   resolvePage,
+  resolveStaticPath,
+  tryServeStatic,
 } from "../src/server";
 
 describe("createSignal", () => {
@@ -363,5 +365,40 @@ describe("server", () => {
       pages: {},
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("server static", () => {
+  test("resolveStaticPath rejects traversal", () => {
+    expect(resolveStaticPath("/tmp/www", "/../../etc/passwd")).toBeNull();
+    expect(resolveStaticPath("/tmp/www", "/ok.css")).toContain("ok.css");
+  });
+
+  test("tryServeStatic serves existing file", async () => {
+    const dir = await import("node:fs/promises").then(async (fs) => {
+      const os = await import("node:os");
+      const path = await import("node:path");
+      const d = await fs.mkdtemp(path.join(os.tmpdir(), "ms-static-"));
+      await fs.writeFile(path.join(d, "hi.txt"), "hello-static");
+      return d;
+    });
+    const res = await tryServeStatic(dir, "/hi.txt");
+    expect(res).not.toBeNull();
+    expect(await res!.text()).toBe("hello-static");
+    expect(res!.headers.get("content-type")).toContain("text/plain");
+  });
+
+  test("handleMoonshineRequest prefers static over 404", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ms-static-"));
+    await fs.writeFile(path.join(dir, "app.css"), "body{color:red}");
+    const res = await handleMoonshineRequest(new Request("http://x/app.css"), {
+      pages: {},
+      staticDir: dir,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("body{color:red}");
   });
 });

@@ -1,14 +1,19 @@
 # bun-server
 
-Moonshine owns the HTTP stack — **no Next / Vite host**.
+Moonshine owns the stack — **no Next / Vite host**.
+
+| Piece | How |
+|-------|-----|
+| HTML/API routes | `createMoonshineServer` pages map |
+| Static CSS/JS | `staticDir: public/` |
+| Interactive island | `src/client.tsx` → `bun build` → `/client.js` hydrate |
 
 ```bash
-# from monorepo root
+# monorepo root
 bun install
 cd examples/bun-server
 bun run dev
+# → http://localhost:3000
 ```
 
-Uses `createMoonshineServer` → `Bun.serve` with a pages map (HTML + JSON + splat routes).
-
-Client UI still lives on Vite + `@tschk/moonshine/react` when you need a SPA (`moonshine new`, `examples/vite-crepus`).
+SPA-only Vite still fine: `moonshine new` / `examples/vite-crepus`.

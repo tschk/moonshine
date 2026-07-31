@@ -1,9 +1,11 @@
 /**
- * Light server-entry helpers (Waku-inspired).
+ * Light server-entry helpers.
  *
  * Thin page-module table on top of Bun.serve (or any fetch handler).
- * This is the greenfield HTTP path — no metaframework required.
+ * Greenfield HTTP path — no metaframework required.
  */
+
+import { join, normalize, resolve, sep } from "node:path";
 
 export type MoonshineRequest = {
   url: string;
@@ -14,19 +16,43 @@ export type MoonshineRequest = {
 };
 
 export type MoonshinePageModule = {
-  /** Optional RSC/SSR-friendly data loader. */
+  /** Optional data loader hook. */
   getConfig?: () => Promise<Record<string, unknown>> | Record<string, unknown>;
-  /** Render body for the path. May return a string (HTML) or opaque UI handle. */
+  /** Render body for the path. May return a string (HTML), Response, or JSON-able. */
   render: (req: MoonshineRequest) => Promise<unknown> | unknown;
 };
 
 export type MoonshineServerOptions = {
   /** Map of pathname → page module (file-ish routing table). */
   pages: Record<string, MoonshinePageModule>;
-  /** Called when no page matches. */
+  /** Called when no page or static file matches. */
   notFound?: (req: MoonshineRequest) => Promise<Response> | Response;
   /** Port for `Bun.serve` helper (default 3000). */
   port?: number;
+  /**
+   * Directory of static assets (CSS/JS/images). Checked before pages.
+   * Path traversal outside the directory is rejected.
+   */
+  staticDir?: string;
+};
+
+const MIME: Record<string, string> = {
+  ".css": "text/css; charset=utf-8",
+  ".gif": "image/gif",
+  ".html": "text/html; charset=utf-8",
+  ".ico": "image/x-icon",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".txt": "text/plain; charset=utf-8",
+  ".wasm": "application/wasm",
+  ".webp": "image/webp",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
 };
 
 /** Normalize a Fetch API Request into a Moonshine request bag. */
@@ -52,11 +78,10 @@ export function resolvePage(
   if (pages[pathname]) return pages[pathname]!;
   if (pages["/"] && pathname === "") return pages["/"]!;
 
-  // Longest-prefix `/*` match
   let best: { key: string; mod: MoonshinePageModule } | null = null;
   for (const [key, mod] of Object.entries(pages)) {
     if (!key.endsWith("/*")) continue;
-    const prefix = key.slice(0, -1); // keep trailing /
+    const prefix = key.slice(0, -1);
     const base = prefix.endsWith("/") ? prefix.slice(0, -1) || "/" : prefix;
     if (pathname === base || pathname.startsWith(base === "/" ? "/" : `${base}/`)) {
       if (!best || key.length > best.key.length) best = { key, mod };
@@ -65,12 +90,60 @@ export function resolvePage(
   return best?.mod ?? null;
 }
 
-/** Handle one request against a pages table. */
+function extOf(path: string): string {
+  const i = path.lastIndexOf(".");
+  return i >= 0 ? path.slice(i).toLowerCase() : "";
+}
+
+/**
+ * Resolve a safe file path under `staticDir` for a URL pathname.
+ * Returns null on traversal / missing path.
+ */
+export function resolveStaticPath(
+  staticDir: string,
+  pathname: string,
+): string | null {
+  const root = resolve(staticDir);
+  const rel = decodeURIComponent(pathname).replace(/^\/+/, "");
+  if (!rel || rel.includes("\0")) return null;
+  const candidate = normalize(join(root, rel));
+  if (candidate !== root && !candidate.startsWith(root + sep)) return null;
+  return candidate;
+}
+
+/** Try to serve a static file when running under Bun. */
+export async function tryServeStatic(
+  staticDir: string,
+  pathname: string,
+): Promise<Response | null> {
+  if (typeof Bun === "undefined") return null;
+  const filePath = resolveStaticPath(staticDir, pathname);
+  if (!filePath) return null;
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) return null;
+  const type = MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
+  return new Response(file, {
+    headers: { "content-type": type },
+  });
+}
+
+/** Handle one request against static dir + pages table. */
 export async function handleMoonshineRequest(
   request: Request,
-  options: Pick<MoonshineServerOptions, "pages" | "notFound">,
+  options: Pick<MoonshineServerOptions, "pages" | "notFound" | "staticDir">,
 ): Promise<Response> {
   const req = toMoonshineRequest(request);
+
+  if (
+    options.staticDir &&
+    req.method === "GET" &&
+    req.pathname !== "/" &&
+    !req.pathname.includes("..")
+  ) {
+    const staticRes = await tryServeStatic(options.staticDir, req.pathname);
+    if (staticRes) return staticRes;
+  }
+
   const page = resolvePage(options.pages, req.pathname);
 
   if (!page) {
@@ -98,13 +171,13 @@ export type MoonshineServer = {
 };
 
 /**
- * Create a Waku-like server entry from a pages map.
+ * Create a Bun-first server entry from a pages map (+ optional static dir).
  *
  * ```ts
  * const server = createMoonshineServer({
+ *   staticDir: "./public",
  *   pages: {
- *     "/": { render: () => "<h1>Home</h1>" },
- *     "/about": { render: () => "<h1>About</h1>" },
+ *     "/": { render: () => "<h1>Home</h1><script type=module src=/client.js></script>" },
  *   },
  * });
  * server.listen();
