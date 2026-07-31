@@ -3,9 +3,14 @@
 **Hyperminimal Bun-first UI runtime.** Signals at the core. Own your app —
 no metaframework required.
 
+```bash
+bun run moonshine -- new my-app      # Bun full-stack (default)
+bun run moonshine -- new spa --vite  # client SPA only
+cd my-app && bun install && bun run dev
+```
+
 ```ts
-import { createSignal, createMemo } from "@tschk/moonshine";
-import { createApp, useSignal } from "@tschk/moonshine/react";
+import { createSignal, useSignal, createApp } from "@tschk/moonshine/react";
 
 const count = createSignal(0);
 
@@ -21,30 +26,22 @@ function App() {
 createApp({ root: App }).mount("#app");
 ```
 
-## Path (greenfield)
+## Greenfield path
 
 | Layer | Use |
 |-------|-----|
-| Client TSX | Vite + `@tschk/moonshine/react` (`moonshine new`) |
-| HTTP | `@tschk/moonshine/server` + `Bun.serve` |
+| Full-stack | `moonshine new` → Bun `/server` + static + hydrate island |
+| Client SPA | `moonshine new --vite` → Vite + `/react` |
 | Client routes | `@tschk/moonshine/router` |
 | DSL | `.crepus` → IR → `.tsx` via `moonshine compile` |
 
-```bash
-bun run moonshine -- new my-app
-cd my-app && bun install && bun run dev
-```
-
-Optional host adapters exist if you already sit inside Next/Astro/etc. They are
-**not** the product — thin bridges only.
-
 ## Why it’s different
 
-- **Tiny default.** `@tschk/moonshine` is signals only.
+- **Tiny default.** Signals only on `@tschk/moonshine`.
 - **Import what you need.** `/react`, `/runes`, `/router`, `/server`, `/shaders`.
-- **Bun as the base.** Install, test, CLI, and HTTP.
+- **Bun as the base.** Install, test, CLI, HTTP, static files.
 - **Crepus compiles in.** `.crepus` → View IR → `.tsx`.
-- **TS 7 + native checker.** `tsc` and `tsgo` (Go port).
+- **TS 7 + `tsgo`.** Native Go typechecker supported.
 
 ## Packages
 
@@ -57,51 +54,29 @@ Optional host adapters exist if you already sit inside Next/Astro/etc. They are
 | `@tschk/moonshine/server` | Pages map + `staticDir` + `Bun.serve` |
 | `@tschk/moonshine-cli` | `moonshine new\|compile\|dev\|build` |
 | `@tschk/crepus-moonshine` | View IR → React |
-| `@tschk/moonshine-shaders` | Optional WebGL (`/shaders` re-exports) |
+| `@tschk/moonshine-shaders` | Optional WebGL |
 | `@tschk/moonshine-components` | Optional UI catalog |
-
-## CLI
-
-```bash
-bun run moonshine -- new my-app
-bun run moonshine -- compile app.crepus
-bun run moonshine -- dev
-bun run moonshine -- build
-```
-
-## Crepus → TSX
-
-```tsx
-import { createApp } from "@tschk/moonshine/react";
-import { renderCrepusIr } from "@tschk/crepus-moonshine";
-
-export function App() {
-  return renderCrepusIr(/* View IR */);
-}
-
-createApp({ root: App }).mount("#app");
-```
 
 ## Examples
 
 | Path | What |
 |------|------|
-| `examples/bun-server` | **Native** Bun HTTP + static + hydrate island |
-| `examples/vite-crepus` | Vite + Crepus IR client |
+| `examples/bun-server` | Canonical Bun HTTP + static + hydrate |
+| `examples/vite-crepus` | Vite + Crepus IR |
 | `examples/catalog-gallery` | Component catalog |
 
-## Optional host adapters
+## Optional host bridges
 
-Only if you already live in another host. Prefer the greenfield path above.
+Only if already inside another UI host. Prefer greenfield above.
 
 | Host | Package |
 |------|---------|
+| Solid | `@tschk/moonshine-solid` |
+| Vue / Nuxt | `@tschk/moonshine-vue` / `-nuxt` |
+| Svelte | `@tschk/moonshine-svelte` |
 | Astro / Waku | `@tschk/moonshine-astro` / `-waku` |
-| Remix / TanStack | thin client bridges (host owns routing) |
-| Solid / Svelte / Vue / Nuxt | reactive bridges |
-| Angular-like | API shape, no Angular dep |
 
-No first-class Next adapter — greenfield is Bun + Vite.
+No Next/Remix/TanStack/Angular adapter packages — use `@tschk/moonshine/react` directly if stuck there.
 
 ## Develop
 
@@ -109,7 +84,7 @@ No first-class Next adapter — greenfield is Bun + Vite.
 bun install && bun run check && bun run typecheck:native && bun test
 ```
 
-See [DESIGN.md](./DESIGN.md) and [docs/COMPARE.md](./docs/COMPARE.md) (vs Next/Remix/Waku/Solid/Hono/…). Repo: [`tschk/moonshine`](https://github.com/tschk/moonshine).
+See [DESIGN.md](./DESIGN.md) · [docs/COMPARE.md](./docs/COMPARE.md).
 
 ## License
 

@@ -1,53 +1,50 @@
 # Moonshine design
 
 Hyperminimal, Bun-first UI runtime. **Moonshine is the app stack** — signals,
-optional React TSX, client router, Bun HTTP. Host adapters are escape hatches.
+optional React TSX, client router, Bun HTTP + static. Host bridges are escapes.
 
 ## What we take (and leave)
 
 | Inspiration | Keep | Leave |
 |-------------|------|-------|
-| **Solid** | Fine-grained signals, read-by-call, write via `.set` | Solid JSX / compiler / shared vnode |
-| **Svelte** | `/runes` sugar (`state`, `derived`, `effect`) | Compiler runes, `.svelte` files |
-| **Waku** | Tiny `/server` pages map, import-what-you-need | Full RSC metaframework |
+| **Solid** | Signals, read-by-call, `.set` | Compiler / shared vnode |
+| **Svelte** | `/runes` sugar | `.svelte` compiler |
+| **Waku** | Tiny `/server` pages map | Full RSC framework |
 
 ## Bun as base
 
-- Package manager + test + CLI + `Bun.serve`
-- Apps author **`.tsx`** (Vite) or HTML/JSON pages via `/server`
-- Typecheck: `tsc` (TS 7) + `tsgo` (native Go port)
+- Install + test + CLI + `Bun.serve` + static files
+- Scaffold: `moonshine new` (bun full-stack) or `--vite` SPA
+- Typecheck: `tsc` + `tsgo` (Go native port)
 
 ## Package surface
 
 ```
-@tschk/moonshine                 # signals only — NO React
-@tschk/moonshine/react           # useSignal, useStore, createApp
-@tschk/moonshine/host-react      # shared barrel for optional host adapters
+@tschk/moonshine            # signals
+@tschk/moonshine/react
+@tschk/moonshine/host-react # shared barrel for remaining bridges
 @tschk/moonshine/runes
-@tschk/moonshine/router          # createMoonshineRouter (instance)
-@tschk/moonshine/server          # pages map + Bun.serve
-@tschk/moonshine/shaders         # compat → @tschk/moonshine-shaders
-@tschk/moonshine/jsx-runtime
-@tschk/crepus-moonshine          # View IR → React (+ ./ir helpers)
+@tschk/moonshine/router     # createMoonshineRouter
+@tschk/moonshine/server     # pages + staticDir + Bun.serve
+@tschk/moonshine/shaders
+@tschk/crepus-moonshine     # IR → React (+ ./ir)
 ```
 
-## Greenfield apps
+## Greenfield
 
-1. **Client:** `moonshine new` → Vite + `@tschk/moonshine/react`
-2. **HTTP:** `createMoonshineServer` + `staticDir` + client hydrate (see `examples/bun-server`)
-3. **Crepus:** `moonshine compile` / `crepus web build --emit moonshine`
+1. **Full-stack:** `moonshine new app` → server + `public/` + client hydrate
+2. **SPA:** `moonshine new app --vite`
+3. **Crepus:** `moonshine compile`
 
-Host packages (`adapter-*`) only when embedding moonshine signals inside an
-existing Astro/Solid/… app. They do not define the product. There is **no**
-`@tschk/moonshine-next` — use core directly or leave Next.
+Bridges kept: solid, vue, nuxt, svelte, astro, waku.  
+Removed: next, remix, tanstack, angular (use core or YAGNI).
 
-Vs other frameworks: [`docs/COMPARE.md`](./docs/COMPARE.md).
+Vs others: [`docs/COMPARE.md`](./docs/COMPARE.md).
 
 ## Crepus IR
 
-React and Solid each own a host renderer. Shared code is IR helpers only
-(`@tschk/crepus-moonshine/ir`) — not a shared vnode.
+React and Solid own renderers. Shared = IR helpers only — not a vnode.
 
 ## Components
 
-Optional catalog: `@tschk/moonshine-components`.
+Optional `@tschk/moonshine-components`.

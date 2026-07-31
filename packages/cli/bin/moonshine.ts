@@ -7,12 +7,14 @@ import { newCommand } from "../src/new";
 const [cmd, ...args] = Bun.argv.slice(2);
 
 function usage(code = 0): never {
-  console.error(`moonshine — Bun-first hyperminimal UI
+  console.error(`moonshine — Bun-first hyperminimal UI runtime
 
 Usage:
-  moonshine new <name>           Scaffold a Vite + React TSX app
+  moonshine new <name> [--bun|--vite]
+      --bun   full-stack Bun server + static + hydrate (default)
+      --vite  client-only Vite SPA
   moonshine compile [file]       .crepus / View IR JSON → .tsx
-  moonshine dev                  Run vite (bunx)
+  moonshine dev                  Run vite (bunx) — SPA apps
   moonshine build                Build with vite (bunx)
 `);
   process.exit(code);

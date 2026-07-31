@@ -2,7 +2,7 @@
   "name": "moonshine-monorepo",
   "private": true,
   "version": "0.2.0",
-  "description": "Moonshine — hyperminimal Bun-first UI runtime; import-what-you-need signals + host adapters",
+  "description": "Moonshine — hyperminimal Bun-first UI runtime; signals + Bun server + optional bridges",
   "license": "ISC",
   "type": "module",
   "workspaces": [
