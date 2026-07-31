@@ -236,6 +236,10 @@ function runBefores(
 export function createRequestHandler(
   options: RequestHandlerOptions,
 ): (request: Request) => Promise<Response> {
+  // Compiling the route graph is linear in the route count, so build it once
+  // per handler instead of once per request.
+  let cachedGraph = options.graph;
+
   return async (request) => {
     const url = new URL(request.url);
     const pathname = url.pathname.replace(/\/+$/, "") || "/";
@@ -250,13 +254,11 @@ export function createRequestHandler(
       if (staticRes) return staticRes;
     }
 
-    const graph =
-      options.graph ??
-      (options.routes
-        ? createRouteGraph(options.routes)
-        : options.manifest
-          ? createRouteGraph(options.manifest.routes)
-          : undefined);
+    const graph = (cachedGraph ??= options.routes
+      ? createRouteGraph(options.routes)
+      : options.manifest
+        ? createRouteGraph(options.manifest.routes)
+        : undefined);
     if (!graph) {
       return new Response("No route graph configured", { status: 500 });
     }
