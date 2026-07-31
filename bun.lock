@@ -236,6 +236,9 @@
       "bin": {
         "moonshine": "./bin/moonshine.ts",
       },
+      "dependencies": {
+        "@tschk/moonshine-compiler": "^0.2.0",
+      },
     },
     "packages/compiler": {
       "name": "@tschk/moonshine-compiler",

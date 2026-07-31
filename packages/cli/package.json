@@ -18,6 +18,9 @@
     "cli",
     "crepus"
   ],
+  "dependencies": {
+    "@tschk/moonshine-compiler": "^0.2.0"
+  },
   "scripts": {
     "format": "bunx prettier --check .",
     "lint": "bunx oxlint .",

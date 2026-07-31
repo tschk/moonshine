@@ -10,3 +10,4 @@ export {
   segmentToPattern,
 } from "./discover.js";
 export { mergeRoutes } from "./inherit.js";
+export { buildProject, readManifest, type BuildOptions } from "./manifest.js";

@@ -2,6 +2,7 @@
 import { buildCommand } from "../src/build";
 import { compileCommand } from "../src/compile";
 import { devCommand } from "../src/dev";
+import { inspectCommand } from "../src/inspect";
 import { newCommand } from "../src/new";
 
 const [cmd, ...args] = Bun.argv.slice(2);
@@ -14,8 +15,10 @@ Usage:
       --bun   full-stack Bun server + static + hydrate (default)
       --vite  client-only Vite SPA
   moonshine compile [file]       .crepus / View IR JSON → .tsx
+  moonshine build [dir]          Build project into .moonshine/manifest.json
+  moonshine inspect [path]       Inspect build manifest
+      --json  print manifest JSON unchanged
   moonshine dev                  Run vite (bunx) — SPA apps
-  moonshine build                Build with vite (bunx)
 `);
   process.exit(code);
 }
@@ -27,11 +30,14 @@ switch (cmd) {
   case "compile":
     await compileCommand(args);
     break;
-  case "dev":
-    await devCommand(args);
-    break;
   case "build":
     await buildCommand(args);
+    break;
+  case "inspect":
+    await inspectCommand(args);
+    break;
+  case "dev":
+    await devCommand(args);
     break;
   case "-h":
   case "--help":
