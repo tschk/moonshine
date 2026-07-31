@@ -1,0 +1,300 @@
+import {
+  createRouteGraph,
+  matchRoutes,
+  type RouteGraph,
+} from "@tschk/moonshine-router";
+import type {
+  MoonshineManifest,
+  Renderer,
+  RenderContext,
+  RouteDefinition,
+} from "@tschk/moonshine-framework";
+import type {
+  ErrorBoundary,
+  Middleware,
+  RequestHandlerOptions,
+  RouteContext,
+  RouteModule,
+} from "./data.js";
+import { callAction, callLoader, createRouteContext } from "./data.js";
+import { errorResponse, json, Redirect } from "./errors.js";
+import { tryServeStatic } from "./static.js";
+
+type ModuleChainItem = {
+  key: string;
+  module: RouteModule;
+};
+
+function buildModuleChain(
+  route: RouteDefinition,
+  modules: Record<string, RouteModule>,
+): ModuleChainItem[] {
+  const chain: ModuleChainItem[] = [];
+
+  for (const key of route.layouts ?? []) {
+    const module = modules[key];
+    if (module) chain.push({ key, module });
+  }
+
+  for (const key of route.middleware ?? []) {
+    const module = modules[key];
+    if (module) chain.push({ key, module });
+  }
+
+  const leafKeys: string[] = [
+    ...(route.dataFile ? [route.dataFile] : []),
+    route.id,
+    ...(route.file ? [route.file] : []),
+  ];
+
+  for (const key of leafKeys) {
+    const module = modules[key];
+    if (module) {
+      chain.push({ key, module });
+      break;
+    }
+  }
+
+  return chain;
+}
+
+function mergeHeaders(
+  ...sources: (HeadersInit | Record<string, string> | undefined)[]
+): Headers {
+  const headers = new Headers();
+
+  for (const source of sources) {
+    if (!source) continue;
+
+    if (source instanceof Headers) {
+      for (const [key, value] of source.entries()) {
+        headers.set(key, value);
+      }
+    } else if (Array.isArray(source)) {
+      for (const [key, value] of source) {
+        headers.set(key, value);
+      }
+    } else {
+      for (const [key, value] of Object.entries(
+        source as Record<string, string>,
+      )) {
+        headers.set(key, value);
+      }
+    }
+  }
+
+  return headers;
+}
+
+function finalizeResponse(response: Response, baseHeaders?: HeadersInit): Response {
+  const headers = new Headers(baseHeaders);
+  for (const [key, value] of response.headers.entries()) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function findErrorBoundary(
+  chain: ModuleChainItem[],
+  route: RouteDefinition,
+  modules: Record<string, RouteModule>,
+): ErrorBoundary | undefined {
+  for (let i = chain.length - 1; i >= 0; i--) {
+    if (chain[i].module.errorBoundary) return chain[i].module.errorBoundary;
+  }
+
+  if (route.errorBoundary) {
+    const module = modules[route.errorBoundary];
+    if (module?.errorBoundary) return module.errorBoundary;
+  }
+
+  return undefined;
+}
+
+function resolveBaseHeaders(
+  chain: ModuleChainItem[],
+  route: RouteDefinition,
+  defaultMeta?: ResponseInit,
+): HeadersInit {
+  return mergeHeaders(
+    defaultMeta?.headers,
+    ...chain.map((c) => c.module.headers),
+    (route as { headers?: Record<string, string> }).headers,
+  );
+}
+
+async function runCoreAndAfters(
+  ctx: RouteContext,
+  chain: ModuleChainItem[],
+  options: RequestHandlerOptions,
+  route: RouteDefinition,
+): Promise<Response> {
+  const method = ctx.request.method;
+  const leaf = chain[chain.length - 1];
+
+  if (method !== "GET" && method !== "HEAD" && leaf?.module.action) {
+    const result = await callAction(leaf.module.action, ctx);
+    if (result instanceof Response) return result;
+    if (result !== undefined) {
+      if (leaf.module.loader) ctx.data.__action = result;
+      else ctx.data[leaf.key] = result;
+    }
+  }
+
+  const loaderEntries = chain.filter((c) => c.module.loader);
+  if (loaderEntries.length > 0) {
+    ctx.signal.throwIfAborted();
+    const results = await Promise.all(
+      loaderEntries.map(async (c) => {
+        const value = await callLoader(c.module.loader!, ctx);
+        return { key: c.key, value };
+      }),
+    );
+    for (const { key, value } of results) {
+      if (value !== undefined) ctx.data[key] = value;
+    }
+  }
+
+  ctx.signal.throwIfAborted();
+
+  let response: Response;
+  if (route.mode === "api") {
+    response = json(ctx.data);
+  } else if (route.mode === "static" && options.staticDir) {
+    const pathname = new URL(ctx.request.url).pathname;
+    const staticRes = await tryServeStatic(options.staticDir, pathname);
+    if (staticRes) {
+      response = staticRes;
+    } else if (options.renderer) {
+      response = await options.renderer.render({
+        request: ctx.request,
+        route: route as any,
+        params: ctx.params,
+        data: ctx.data,
+        signal: ctx.signal,
+      });
+    } else {
+      throw new Error("No renderer for static route");
+    }
+  } else if (options.renderer) {
+    response = await options.renderer.render({
+      request: ctx.request,
+      route: route as any,
+      params: ctx.params,
+      data: ctx.data,
+      signal: ctx.signal,
+    });
+  } else {
+    response = json(ctx.data);
+  }
+
+  for (let i = chain.length - 1; i >= 0; i--) {
+    for (const after of chain[i].module.after ?? []) {
+      const next = async () => response;
+      response = await after(ctx, next);
+    }
+  }
+
+  return response;
+}
+
+function runBefores(
+  ctx: RouteContext,
+  index: number,
+  befores: Middleware[],
+  chain: ModuleChainItem[],
+  options: RequestHandlerOptions,
+  route: RouteDefinition,
+): Promise<Response> {
+  if (index >= befores.length) {
+    return runCoreAndAfters(ctx, chain, options, route);
+  }
+
+  const mw = befores[index]!;
+  const next = () => runBefores(ctx, index + 1, befores, chain, options, route);
+  return mw(ctx, next);
+}
+
+export function createRequestHandler(
+  options: RequestHandlerOptions,
+): (request: Request) => Promise<Response> {
+  return async (request) => {
+    const url = new URL(request.url);
+    const pathname = url.pathname.replace(/\/+$/, "") || "/";
+    const method = request.method;
+
+    if (
+      options.staticDir &&
+      (method === "GET" || method === "HEAD") &&
+      pathname !== "/" &&
+      !pathname.includes("..")
+    ) {
+      const staticRes = await tryServeStatic(options.staticDir, pathname);
+      if (staticRes) return staticRes;
+    }
+
+    const graph =
+      options.graph ??
+      (options.routes
+        ? createRouteGraph(options.routes)
+        : options.manifest
+          ? createRouteGraph(options.manifest.routes)
+          : undefined);
+    if (!graph) {
+      return new Response("No route graph configured", { status: 500 });
+    }
+
+    const match = matchRoutes(graph, pathname);
+    if (!match) {
+      const ctx = createRouteContext(request, {});
+      return options.notFound
+        ? await options.notFound(ctx)
+        : new Response("Not Found", { status: 404 });
+    }
+
+    const route = match.route;
+    const ctx = createRouteContext(request, match.params);
+    const chain = buildModuleChain(route, options.modules ?? {});
+    const baseHeaders = resolveBaseHeaders(chain, route, options.defaultMeta);
+
+    try {
+      const befores: Middleware[] = [];
+      for (const c of chain) befores.push(...(c.module.before ?? []));
+      const response = await runBefores(
+        ctx,
+        0,
+        befores,
+        chain,
+        options,
+        route,
+      );
+      return finalizeResponse(response, baseHeaders);
+    } catch (error) {
+      if (error instanceof Redirect) {
+        const headers = new Headers(baseHeaders);
+        headers.set("location", error.location);
+        return new Response(null, { status: error.status, headers });
+      }
+
+      const boundary = findErrorBoundary(
+        chain,
+        route,
+        options.modules ?? {},
+      );
+      if (boundary) {
+        const res = await boundary(ctx, error);
+        return finalizeResponse(res, baseHeaders);
+      }
+
+      if (error instanceof Response) {
+        return finalizeResponse(error, baseHeaders);
+      }
+
+      return finalizeResponse(errorResponse(error, options.mode), baseHeaders);
+    }
+  };
+}

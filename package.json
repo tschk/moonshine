@@ -13,8 +13,8 @@
   "scripts": {
     "format": "bunx prettier --check .",
     "lint": "bunx oxlint .",
-    "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/router/tsconfig.json && bunx tsc --noEmit -p packages/compiler/tsconfig.json && bunx tsc --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsc --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsc --noEmit -p packages/framework/tsconfig.json && bunx tsc --noEmit -p components/tsconfig.json",
-    "typecheck:native": "bunx tsgo --noEmit -p packages/core/tsconfig.json && bunx tsgo --noEmit -p packages/router/tsconfig.json && bunx tsgo --noEmit -p packages/compiler/tsconfig.json && bunx tsgo --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsgo --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsgo --noEmit -p packages/framework/tsconfig.json && bunx tsgo --noEmit -p components/tsconfig.json",
+    "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/router/tsconfig.json && bunx tsc --noEmit -p packages/compiler/tsconfig.json && bunx tsc --noEmit -p packages/server/tsconfig.json && bunx tsc --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsc --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsc --noEmit -p packages/framework/tsconfig.json && bunx tsc --noEmit -p components/tsconfig.json",
+    "typecheck:native": "bunx tsgo --noEmit -p packages/core/tsconfig.json && bunx tsgo --noEmit -p packages/router/tsconfig.json && bunx tsgo --noEmit -p packages/compiler/tsconfig.json && bunx tsgo --noEmit -p packages/server/tsconfig.json && bunx tsgo --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsgo --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsgo --noEmit -p packages/framework/tsconfig.json && bunx tsgo --noEmit -p components/tsconfig.json",
     "test": "bun test packages components examples/bun-server examples/shaders-island packages/adapter-*/test && bun run check:catalog",
     "check": "bun run typecheck && bun run check:packages && bun run check:catalog && bun run check:adapters",
     "check:packages": "bun scripts/check-packages.ts",

@@ -5,7 +5,26 @@
  * Greenfield HTTP path — no metaframework required.
  */
 
-import { join, normalize, resolve, sep } from "node:path";
+import {
+  callAction,
+  callLoader,
+  createRequestHandler,
+  createRouteContext,
+  errorResponse,
+  json,
+  redirect,
+  Redirect,
+  resolveStaticPath,
+  serializeData,
+  tryServeStatic,
+  type Action,
+  type ErrorBoundary,
+  type Loader,
+  type Middleware,
+  type RequestHandlerOptions,
+  type RouteContext,
+  type RouteModule,
+} from "@tschk/moonshine-server";
 
 export type MoonshineRequest = {
   url: string;
@@ -34,26 +53,6 @@ export type MoonshineServerOptions = {
    * Path traversal outside the directory is rejected.
    */
   staticDir?: string;
-};
-
-const MIME: Record<string, string> = {
-  ".css": "text/css; charset=utf-8",
-  ".gif": "image/gif",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".map": "application/json; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".txt": "text/plain; charset=utf-8",
-  ".wasm": "application/wasm",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
 };
 
 /** Normalize a Fetch API Request into a Moonshine request bag. */
@@ -92,44 +91,6 @@ export function resolvePage(
     }
   }
   return best?.mod ?? null;
-}
-
-function extOf(path: string): string {
-  const i = path.lastIndexOf(".");
-  return i >= 0 ? path.slice(i).toLowerCase() : "";
-}
-
-/**
- * Resolve a safe file path under `staticDir` for a URL pathname.
- * Returns null on traversal / missing path.
- */
-export function resolveStaticPath(
-  staticDir: string,
-  pathname: string,
-): string | null {
-  const root = resolve(staticDir);
-  const rel = decodeURIComponent(pathname).replace(/^\/+/, "");
-  if (!rel || rel.includes("\0")) return null;
-  const candidate = normalize(join(root, rel));
-  if (candidate !== root && !candidate.startsWith(root + sep)) return null;
-  return candidate;
-}
-
-/** Try to serve a static file when running under Bun. */
-export async function tryServeStatic(
-  staticDir: string,
-  pathname: string,
-): Promise<Response | null> {
-  if (typeof Bun === "undefined") return null;
-  const filePath = resolveStaticPath(staticDir, pathname);
-  if (!filePath) return null;
-  const file = Bun.file(filePath);
-  if (!(await file.exists())) return null;
-  const type =
-    MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
-  return new Response(file, {
-    headers: { "content-type": type },
-  });
 }
 
 /** Handle one request against static dir + pages table. */
@@ -214,3 +175,27 @@ export function createMoonshineServer(
 export function definePage(page: MoonshinePageModule): MoonshinePageModule {
   return page;
 }
+
+export {
+  callAction,
+  callLoader,
+  createRequestHandler,
+  createRouteContext,
+  errorResponse,
+  json,
+  redirect,
+  Redirect,
+  resolveStaticPath,
+  serializeData,
+  tryServeStatic,
+};
+
+export type {
+  Action,
+  ErrorBoundary,
+  Loader,
+  Middleware,
+  RequestHandlerOptions,
+  RouteContext,
+  RouteModule,
+};
