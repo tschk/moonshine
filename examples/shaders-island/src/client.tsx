@@ -39,8 +39,8 @@ function Plasma() {
           <code>@tschk/moonshine-shaders</code>
         </p>
         <p className="muted">
-          Same module as <code>@tschk/moonshine-next/shaders</code> — use in Next
-          client islands or Bun hydrate.
+          Same module as <code>@tschk/moonshine-next/shaders</code> — use in
+          Next client islands or Bun hydrate.
         </p>
         <label>
           speed {s.toFixed(2)}

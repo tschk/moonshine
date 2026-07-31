@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
-import { paintColumn, backingSize, type AreaVariant } from "../dither/dither-paint";
+import {
+  paintColumn,
+  backingSize,
+  type AreaVariant,
+} from "../dither/dither-paint";
 import { seedOfColor, type DitherColor } from "../dither/themes";
 
 export type BarChartProps = {
@@ -66,12 +70,21 @@ export function BarChart({
   }, [values, color, variant, height, theme, intensity]);
 
   return (
-    <div ref={wrapRef} className={className} style={{ width: "100%", height, display: "block" }}>
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{ width: "100%", height, display: "block" }}
+    >
       <canvas
         ref={canvasRef}
         aria-label="bar chart"
         role="img"
-        style={{ display: "block", width: "100%", height: "100%", imageRendering: "pixelated" }}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          imageRendering: "pixelated",
+        }}
       />
     </div>
   );

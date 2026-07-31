@@ -6,10 +6,7 @@
   "props": {
     "orientation": {
       "type": "enum",
-      "values": [
-        "horizontal",
-        "vertical"
-      ],
+      "values": ["horizontal", "vertical"],
       "default": "horizontal"
     },
     "decorative": {
@@ -17,20 +14,6 @@
       "default": true
     }
   },
-  "themes": [
-    "dither-kit",
-    "kumo",
-    "night",
-    "chalk",
-    "aurora",
-    "dawn",
-    "zinc"
-  ],
-  "platforms": [
-    "flutter",
-    "svelte",
-    "moonshine",
-    "gpui",
-    "crepus"
-  ]
+  "themes": ["dither-kit", "kumo", "night", "chalk", "aurora", "dawn", "zinc"],
+  "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"]
 }

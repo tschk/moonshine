@@ -5,7 +5,12 @@ export type ProgressProps = HTMLAttributes<HTMLDivElement> & {
   max?: number;
 };
 
-export function Progress({ value = 0, max = 1, style, ...rest }: ProgressProps) {
+export function Progress({
+  value = 0,
+  max = 1,
+  style,
+  ...rest
+}: ProgressProps) {
   const pct = Math.max(0, Math.min(100, (value / (max || 1)) * 100));
   return (
     <div

@@ -14,10 +14,7 @@ import {
   navigate,
   getLocation,
 } from "../src/router";
-import {
-  createFullscreenFragment,
-  wrapFragmentSource,
-} from "../src/shaders";
+import { createFullscreenFragment, wrapFragmentSource } from "../src/shaders";
 import {
   createMoonshineServer,
   definePage,
@@ -280,7 +277,6 @@ describe("router", () => {
   });
 });
 
-
 describe("router instance", () => {
   test("createMoonshineRouter isolates path state", () => {
     const a = createMoonshineRouter("/a");
@@ -362,9 +358,12 @@ describe("server", () => {
   });
 
   test("handleMoonshineRequest 404", async () => {
-    const res = await handleMoonshineRequest(new Request("http://localhost/x"), {
-      pages: {},
-    });
+    const res = await handleMoonshineRequest(
+      new Request("http://localhost/x"),
+      {
+        pages: {},
+      },
+    );
     expect(res.status).toBe(404);
   });
 });
@@ -415,9 +414,12 @@ describe("createResource", () => {
   });
 
   test("captures errors", async () => {
-    const r = createResource(async () => {
-      throw new Error("nope");
-    }, { immediate: false });
+    const r = createResource(
+      async () => {
+        throw new Error("nope");
+      },
+      { immediate: false },
+    );
     await r.refetch();
     expect(r.error()?.message).toBe("nope");
     expect(r.status()).toBe("errored");

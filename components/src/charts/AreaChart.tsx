@@ -71,12 +71,21 @@ export function AreaChart({
   }, [values, color, variant, height, theme, intensity]);
 
   return (
-    <div ref={wrapRef} className={className} style={{ width: "100%", height, display: "block" }}>
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{ width: "100%", height, display: "block" }}
+    >
       <canvas
         ref={canvasRef}
         aria-label="area chart"
         role="img"
-        style={{ display: "block", width: "100%", height: "100%", imageRendering: "pixelated" }}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          imageRendering: "pixelated",
+        }}
       />
     </div>
   );

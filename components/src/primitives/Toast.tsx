@@ -6,7 +6,14 @@ export type ToastProps = HTMLAttributes<HTMLDivElement> & {
   description?: ReactNode;
 };
 
-export function Toast({ open = true, title, description, style, children, ...rest }: ToastProps) {
+export function Toast({
+  open = true,
+  title,
+  description,
+  style,
+  children,
+  ...rest
+}: ToastProps) {
   if (!open) return null;
   return (
     <div
@@ -29,7 +36,11 @@ export function Toast({ open = true, title, description, style, children, ...res
       {...rest}
     >
       {title ? <div style={{ fontWeight: 600 }}>{title}</div> : null}
-      {description ? <div style={{ color: "var(--ms-muted, #5c5c64)", marginTop: 4 }}>{description}</div> : null}
+      {description ? (
+        <div style={{ color: "var(--ms-muted, #5c5c64)", marginTop: 4 }}>
+          {description}
+        </div>
+      ) : null}
       {children}
     </div>
   );

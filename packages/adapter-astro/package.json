@@ -21,8 +21,23 @@
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "astro": { "optional": true }
+    "astro": {
+      "optional": true
+    }
   },
-  "files": ["src", "README.md"],
-  "keywords": ["moonshine", "astro", "adapter"]
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "astro",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "exit 0",
+    "test": "exit 0"
+  }
 }

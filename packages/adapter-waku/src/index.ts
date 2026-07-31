@@ -34,7 +34,10 @@ export function useWakuSignal<T>(signal: Signal<T>): T {
 
 const bag = new Map<string, Signal<unknown>>();
 
-export function createSharedIslandSignal<T>(key: string, initial: T): Signal<T> {
+export function createSharedIslandSignal<T>(
+  key: string,
+  initial: T,
+): Signal<T> {
   let s = bag.get(key) as Signal<T> | undefined;
   if (!s) {
     s = createIslandSignal(initial);

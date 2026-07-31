@@ -11,22 +11,28 @@
     "examples/*"
   ],
   "scripts": {
-    "test": "bun test packages components examples/bun-server examples/shaders-island packages/adapter-*/test && bun run check:catalog",
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
     "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsc --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsc --noEmit -p components/tsconfig.json",
     "typecheck:native": "bunx tsgo --noEmit -p packages/core/tsconfig.json && bunx tsgo --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsgo --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsgo --noEmit -p components/tsconfig.json",
+    "test": "bun test packages components examples/bun-server examples/shaders-island packages/adapter-*/test && bun run check:catalog",
+    "check": "bun run typecheck && bun run check:packages && bun run check:catalog && bun run check:adapters",
+    "check:packages": "bun scripts/check-packages.ts",
+    "check:size": "bun scripts/check-size.ts",
     "check:catalog": "bun scripts/sync-catalog-check.ts",
     "check:adapters": "bun scripts/check-adapters.ts",
-    "check": "bun run typecheck && bun run check:catalog && bun run check:adapters",
     "moonshine": "bun packages/cli/bin/moonshine.ts"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@typescript/native-preview": "latest",
+    "oxlint": "1.76.0",
+    "prettier": "3.9.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "solid-js": "1.9.14",
-    "@typescript/native-preview": "latest",
     "typescript": "7.0.2"
   }
 }

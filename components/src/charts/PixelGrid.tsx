@@ -33,8 +33,16 @@ export function PixelGrid({
     const flat = Array.isArray(values[0])
       ? (values as number[][]).flat()
       : (values as number[]);
-    const rows = rowsProp ?? (Array.isArray(values[0]) ? (values as number[][]).length : Math.round(Math.sqrt(flat.length)) || 8);
-    const cols = colsProp ?? (Array.isArray(values[0]) ? (values as number[][])[0]!.length : Math.ceil(flat.length / rows) || 8);
+    const rows =
+      rowsProp ??
+      (Array.isArray(values[0])
+        ? (values as number[][]).length
+        : Math.round(Math.sqrt(flat.length)) || 8);
+    const cols =
+      colsProp ??
+      (Array.isArray(values[0])
+        ? (values as number[][])[0]!.length
+        : Math.ceil(flat.length / rows) || 8);
 
     const draw = () => {
       const width = wrap.clientWidth;
@@ -77,12 +85,21 @@ export function PixelGrid({
   }, [values, colsProp, rowsProp, color, height, theme]);
 
   return (
-    <div ref={wrapRef} className={className} style={{ width: "100%", height, display: "block" }}>
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{ width: "100%", height, display: "block" }}
+    >
       <canvas
         ref={canvasRef}
         aria-label="pixel grid"
         role="img"
-        style={{ display: "block", width: "100%", height: "100%", imageRendering: "pixelated" }}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          imageRendering: "pixelated",
+        }}
       />
     </div>
   );

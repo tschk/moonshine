@@ -11,7 +11,15 @@ export type PieChartProps = {
   className?: string;
 };
 
-const DEFAULT_COLORS: DitherColor[] = ["blue", "green", "orange", "pink", "purple", "red", "grey"];
+const DEFAULT_COLORS: DitherColor[] = [
+  "blue",
+  "green",
+  "orange",
+  "pink",
+  "purple",
+  "red",
+  "grey",
+];
 
 export function PieChart({
   values,
@@ -85,8 +93,22 @@ export function PieChart({
   }, [values, colors, height, theme, variant]);
 
   return (
-    <div ref={wrapRef} className={className} style={{ width: "100%", height, display: "flex", justifyContent: "center" }}>
-      <canvas ref={canvasRef} aria-label="pie chart" role="img" style={{ imageRendering: "pixelated" }} />
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{
+        width: "100%",
+        height,
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        aria-label="pie chart"
+        role="img"
+        style={{ imageRendering: "pixelated" }}
+      />
     </div>
   );
 }

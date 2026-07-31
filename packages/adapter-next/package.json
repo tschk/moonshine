@@ -34,5 +34,11 @@
     "moonshine",
     "next",
     "adapter"
-  ]
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "exit 0",
+    "test": "bun test"
+  }
 }

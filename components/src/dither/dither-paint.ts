@@ -31,13 +31,7 @@ export function paintColumn(
   top: number,
   floor: number,
   seed: Seed,
-  {
-    variant,
-    intensity = 0,
-    dim = 1,
-    stacked = false,
-    sparse = 0,
-  }: PaintOpts,
+  { variant, intensity = 0, dim = 1, stacked = false, sparse = 0 }: PaintOpts,
 ) {
   const t = Math.round(top);
   const f = Math.round(floor);

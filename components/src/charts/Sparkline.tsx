@@ -1,8 +1,5 @@
 import { useEffect, useRef } from "react";
-import {
-  paintSparkline,
-  type AreaVariant,
-} from "../dither/dither-paint";
+import { paintSparkline, type AreaVariant } from "../dither/dither-paint";
 import { seedOfColor, type DitherColor } from "../dither/themes";
 
 export type SparklineProps = {

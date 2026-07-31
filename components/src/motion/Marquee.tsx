@@ -33,10 +33,11 @@ export function Marquee({
           animationPlayState: "running",
         }}
         onMouseEnter={(e) => {
-          if (pauseOnHover) (e.currentTarget.style.animationPlayState = "paused");
+          if (pauseOnHover) e.currentTarget.style.animationPlayState = "paused";
         }}
         onMouseLeave={(e) => {
-          if (pauseOnHover) (e.currentTarget.style.animationPlayState = "running");
+          if (pauseOnHover)
+            e.currentTarget.style.animationPlayState = "running";
         }}
       >
         <span>{children}</span>

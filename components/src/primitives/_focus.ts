@@ -17,7 +17,9 @@ export function useOverlayFocus(
     if (!open) return;
 
     previousFocus.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
 
     const container = containerRef.current;
     const first = container?.querySelector<HTMLElement>(FOCUSABLE);

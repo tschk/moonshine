@@ -1,14 +1,23 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { useState } from "react";
 
-export type AccordionItem = { id: string; title: ReactNode; content: ReactNode };
+export type AccordionItem = {
+  id: string;
+  title: ReactNode;
+  content: ReactNode;
+};
 
 export type AccordionProps = HTMLAttributes<HTMLDivElement> & {
   items: AccordionItem[];
   type?: "single" | "multiple";
 };
 
-export function Accordion({ items, type = "single", style, ...rest }: AccordionProps) {
+export function Accordion({
+  items,
+  type = "single",
+  style,
+  ...rest
+}: AccordionProps) {
   const [open, setOpen] = useState<string[]>([]);
   const toggle = (id: string) => {
     setOpen((prev) => {
@@ -22,7 +31,11 @@ export function Accordion({ items, type = "single", style, ...rest }: AccordionP
       {items.map((item) => {
         const isOpen = open.includes(item.id);
         return (
-          <div key={item.id} data-ms="accordion-item" style={{ borderBottom: "1px solid var(--ms-border, #2a2a30)" }}>
+          <div
+            key={item.id}
+            data-ms="accordion-item"
+            style={{ borderBottom: "1px solid var(--ms-border, #2a2a30)" }}
+          >
             <button
               type="button"
               aria-expanded={isOpen}
@@ -41,7 +54,9 @@ export function Accordion({ items, type = "single", style, ...rest }: AccordionP
             >
               {item.title}
             </button>
-            {isOpen ? <div style={{ paddingBottom: 12 }}>{item.content}</div> : null}
+            {isOpen ? (
+              <div style={{ paddingBottom: 12 }}>{item.content}</div>
+            ) : null}
           </div>
         );
       })}

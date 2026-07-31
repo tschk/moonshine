@@ -56,7 +56,16 @@ export function Gradient({
 
   return (
     <div ref={wrapRef} className={className} style={{ width: "100%", height }}>
-      <canvas ref={canvasRef} aria-hidden style={{ display: "block", width: "100%", height: "100%", imageRendering: "pixelated" }} />
+      <canvas
+        ref={canvasRef}
+        aria-hidden
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          imageRendering: "pixelated",
+        }}
+      />
     </div>
   );
 }

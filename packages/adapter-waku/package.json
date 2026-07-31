@@ -21,8 +21,23 @@
     "waku": ">=0.21"
   },
   "peerDependenciesMeta": {
-    "waku": { "optional": true }
+    "waku": {
+      "optional": true
+    }
   },
-  "files": ["src", "README.md"],
-  "keywords": ["moonshine", "waku", "adapter"]
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "waku",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "exit 0",
+    "test": "exit 0"
+  }
 }

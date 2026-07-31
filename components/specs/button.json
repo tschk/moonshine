@@ -10,11 +10,7 @@
     },
     "variant": {
       "type": "enum",
-      "values": [
-        "solid",
-        "outline",
-        "ghost"
-      ],
+      "values": ["solid", "outline", "ghost"],
       "default": "solid"
     },
     "color": {
@@ -26,20 +22,6 @@
       "default": false
     }
   },
-  "themes": [
-    "dither-kit",
-    "kumo",
-    "night",
-    "chalk",
-    "aurora",
-    "dawn",
-    "zinc"
-  ],
-  "platforms": [
-    "flutter",
-    "svelte",
-    "moonshine",
-    "gpui",
-    "crepus"
-  ]
+  "themes": ["dither-kit", "kumo", "night", "chalk", "aurora", "dawn", "zinc"],
+  "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"]
 }

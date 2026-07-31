@@ -24,24 +24,30 @@ describe("@tschk/moonshine-next host libraries", () => {
   });
 
   test("navigation module bridges next/navigation", () => {
-    const src = readFileSync(join(import.meta.dir, "../src/navigation.ts"), "utf8");
+    const src = readFileSync(
+      join(import.meta.dir, "../src/navigation.ts"),
+      "utf8",
+    );
     expect(src).toContain("next/navigation");
     expect(src).toContain("usePathnameSignal");
     expect(src).toContain("useSearchParamSignal");
   });
 
   test("shaders module uses moonshine-shaders", () => {
-    const src = readFileSync(join(import.meta.dir, "../src/shaders.ts"), "utf8");
+    const src = readFileSync(
+      join(import.meta.dir, "../src/shaders.ts"),
+      "utf8",
+    );
     expect(src).toContain("@tschk/moonshine-shaders");
     expect(src).toContain("useFragmentShader");
   });
 
   test("link/image re-export next packages", () => {
-    expect(readFileSync(join(import.meta.dir, "../src/link.ts"), "utf8")).toContain(
-      "next/link",
-    );
-    expect(readFileSync(join(import.meta.dir, "../src/image.ts"), "utf8")).toContain(
-      "next/image",
-    );
+    expect(
+      readFileSync(join(import.meta.dir, "../src/link.ts"), "utf8"),
+    ).toContain("next/link");
+    expect(
+      readFileSync(join(import.meta.dir, "../src/image.ts"), "utf8"),
+    ).toContain("next/image");
   });
 });

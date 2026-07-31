@@ -7,7 +7,10 @@
     "build:client": "bun build ./src/client.tsx --outdir=public --target=browser --format=esm --minify",
     "dev": "bun run build:client && bun run --watch src/server.ts",
     "start": "bun run build:client && bun run src/server.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
     "@tschk/moonshine": "workspace:*",

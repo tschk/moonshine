@@ -39,10 +39,16 @@ export { Breadcrumb, type BreadcrumbProps } from "./primitives/Breadcrumb";
 export { Button, type ButtonProps } from "./primitives/Button";
 export { Card, type CardProps } from "./primitives/Card";
 export { Checkbox, type CheckboxProps } from "./primitives/Checkbox";
-export { CommandPalette, type CommandPaletteProps } from "./primitives/CommandPalette";
+export {
+  CommandPalette,
+  type CommandPaletteProps,
+} from "./primitives/CommandPalette";
 export { ContextMenu, type ContextMenuProps } from "./primitives/ContextMenu";
 export { Dialog, type DialogProps } from "./primitives/Dialog";
-export { DropdownMenu, type DropdownMenuProps } from "./primitives/DropdownMenu";
+export {
+  DropdownMenu,
+  type DropdownMenuProps,
+} from "./primitives/DropdownMenu";
 export { EmptyState, type EmptyStateProps } from "./primitives/EmptyState";
 export { HoverCard, type HoverCardProps } from "./primitives/HoverCard";
 export { Input, type InputProps } from "./primitives/Input";
@@ -66,7 +72,10 @@ export { Tooltip, type TooltipProps } from "./primitives/Tooltip";
 
 // Motion
 export { Gradient, type GradientProps } from "./motion/Gradient";
-export { AnimatedGradient, type AnimatedGradientProps } from "./motion/AnimatedGradient";
+export {
+  AnimatedGradient,
+  type AnimatedGradientProps,
+} from "./motion/AnimatedGradient";
 export { LightRays, type LightRaysProps } from "./motion/LightRays";
 export { Marquee, type MarqueeProps } from "./motion/Marquee";
 export { TiltCard, type TiltCardProps } from "./motion/TiltCard";

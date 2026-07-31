@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as client from "../src/client";
-import {
-  moonshineHtml,
-  moonshineJson,
-  moonshineRoute,
-} from "../src/server";
+import { moonshineHtml, moonshineJson, moonshineRoute } from "../src/server";
 
 describe("@tschk/moonshine-next", () => {
   test("client has signals + resource hooks", () => {

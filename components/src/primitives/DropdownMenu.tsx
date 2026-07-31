@@ -1,17 +1,30 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { useState } from "react";
 
-export type DropdownMenuItem = { id: string; label: ReactNode; onSelect?: () => void };
+export type DropdownMenuItem = {
+  id: string;
+  label: ReactNode;
+  onSelect?: () => void;
+};
 
 export type DropdownMenuProps = HTMLAttributes<HTMLDivElement> & {
   trigger: ReactNode;
   items: DropdownMenuItem[];
 };
 
-export function DropdownMenu({ trigger, items, style, ...rest }: DropdownMenuProps) {
+export function DropdownMenu({
+  trigger,
+  items,
+  style,
+  ...rest
+}: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   return (
-    <div data-ms="dropdown-menu" style={{ position: "relative", display: "inline-block", ...style }} {...rest}>
+    <div
+      data-ms="dropdown-menu"
+      style={{ position: "relative", display: "inline-block", ...style }}
+      {...rest}
+    >
       <span onClick={() => setOpen((v) => !v)} style={{ cursor: "pointer" }}>
         {trigger}
       </span>

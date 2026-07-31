@@ -4,7 +4,12 @@ export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
   tone?: "accent" | "muted" | "danger" | "success";
 };
 
-export function Badge({ tone = "accent", style, children, ...rest }: BadgeProps) {
+export function Badge({
+  tone = "accent",
+  style,
+  children,
+  ...rest
+}: BadgeProps) {
   const bg =
     tone === "muted"
       ? "var(--ms-muted, #5c5c64)"

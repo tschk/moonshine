@@ -1,6 +1,9 @@
 import type { CrepusNode, StyleMap } from "./types";
 
-export const BADGE_TONE_COLORS: Record<string, { background: string; color: string }> = {
+export const BADGE_TONE_COLORS: Record<
+  string,
+  { background: string; color: string }
+> = {
   accent: {
     background: "var(--ms-accent, #358ff3)",
     color: "var(--ms-accent-fg, #fff)",
@@ -27,13 +30,18 @@ export function styleOf(node: { style?: StyleMap }): StyleMap | undefined {
   return node.style;
 }
 
-export function asArray(nodes: CrepusNode | CrepusNode[] | undefined): CrepusNode[] {
+export function asArray(
+  nodes: CrepusNode | CrepusNode[] | undefined,
+): CrepusNode[] {
   if (!nodes) return [];
   return Array.isArray(nodes) ? nodes : [nodes];
 }
 
 /** Replace `{item}` / `$item` placeholders in content/label (and nested) fields. */
-export function bindItemTemplate(template: CrepusNode, item: unknown): CrepusNode {
+export function bindItemTemplate(
+  template: CrepusNode,
+  item: unknown,
+): CrepusNode {
   const itemStr = item == null ? "" : String(item);
   const clone = structuredClone(template) as CrepusNode;
 
@@ -62,7 +70,11 @@ export function bindItemTemplate(template: CrepusNode, item: unknown): CrepusNod
 }
 
 /** SVG path `d` for sparkline (React path element). */
-export function sparklinePath(values: number[], width: number, height: number): string {
+export function sparklinePath(
+  values: number[],
+  width: number,
+  height: number,
+): string {
   if (values.length === 0) return "";
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -78,7 +90,11 @@ export function sparklinePath(values: number[], width: number, height: number): 
 }
 
 /** SVG polyline `points` for sparkline (Solid polyline element). */
-export function sparklinePoints(values: number[], width: number, height: number): string {
+export function sparklinePoints(
+  values: number[],
+  width: number,
+  height: number,
+): string {
   if (values.length === 0) return "";
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -100,5 +116,9 @@ export function badgeToneStyle(tone: string | undefined): {
 } {
   const key = (tone ?? "accent").toLowerCase();
   const colors = BADGE_TONE_COLORS[key] ?? BADGE_TONE_COLORS.accent!;
-  return { tone: tone ?? "accent", background: colors.background, color: colors.color };
+  return {
+    tone: tone ?? "accent",
+    background: colors.background,
+    color: colors.color,
+  };
 }

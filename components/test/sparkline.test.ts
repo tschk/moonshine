@@ -45,7 +45,15 @@ describe("dither sparkline paint", () => {
       },
     } as unknown as CanvasRenderingContext2D;
 
-    paintSparkline(ctx, w, h, [1, 2, 4, 3, 5], seedOfColor("blue"), "gradient", 0);
+    paintSparkline(
+      ctx,
+      w,
+      h,
+      [1, 2, 4, 3, 5],
+      seedOfColor("blue"),
+      "gradient",
+      0,
+    );
     expect(painted).toBeGreaterThan(0);
     expect(buf).toHaveLength(w * h * 4);
   });

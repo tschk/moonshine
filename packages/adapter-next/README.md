@@ -13,15 +13,15 @@ import { useFragmentShader } from "@tschk/moonshine-next/shaders";
 import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 ```
 
-| Subpath | Provides |
-|---------|----------|
-| `.` / `./client` | moonshine signals + resources (`"use client"`) |
-| `./navigation` | `next/navigation` + pathname/search signals |
-| `./link` | `next/link` |
-| `./image` | `next/image` |
-| `./headers` | `next/headers` (server only) |
-| `./dynamic` | `next/dynamic` |
-| `./shaders` | moonshine WebGL helpers |
-| `./server` | `moonshineRoute` / `Json` / `Html` + pages helpers |
+| Subpath          | Provides                                           |
+| ---------------- | -------------------------------------------------- |
+| `.` / `./client` | moonshine signals + resources (`"use client"`)     |
+| `./navigation`   | `next/navigation` + pathname/search signals        |
+| `./link`         | `next/link`                                        |
+| `./image`        | `next/image`                                       |
+| `./headers`      | `next/headers` (server only)                       |
+| `./dynamic`      | `next/dynamic`                                     |
+| `./shaders`      | moonshine WebGL helpers                            |
+| `./server`       | `moonshineRoute` / `Json` / `Html` + pages helpers |
 
 Does **not** export MoonshineRouter — App Router owns routing.

@@ -115,12 +115,7 @@ export {
   createStore,
   untrack,
 } from "@tschk/moonshine";
-export type {
-  Memo,
-  Resource,
-  Signal,
-  StoreSetter,
-} from "@tschk/moonshine";
+export type { Memo, Resource, Signal, StoreSetter } from "@tschk/moonshine";
 
 export { state, derived, effect } from "@tschk/moonshine/runes";
 

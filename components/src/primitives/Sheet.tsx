@@ -1,4 +1,9 @@
-import { useCallback, useRef, type HTMLAttributes, type ReactNode } from "react";
+import {
+  useCallback,
+  useRef,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 import { useOverlayFocus } from "./_focus";
 
 export type SheetProps = HTMLAttributes<HTMLDivElement> & {
@@ -33,7 +38,12 @@ export function Sheet({
   return (
     <div
       data-ms="sheet-root"
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50 }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        zIndex: 50,
+      }}
       onClick={close}
     >
       <div
@@ -53,7 +63,9 @@ export function Sheet({
         }}
         {...rest}
       >
-        {title ? <div style={{ fontWeight: 600, marginBottom: 12 }}>{title}</div> : null}
+        {title ? (
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>{title}</div>
+        ) : null}
         {children}
       </div>
     </div>

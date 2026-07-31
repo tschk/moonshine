@@ -52,12 +52,12 @@ declare module "@tanstack/react-router" {
     replace?: boolean;
     search?: object;
   }) => void;
-  export function useParams<T extends Record<string, string> = Record<string, string>>(
-    opts?: { from?: string; strict?: boolean },
-  ): T;
-  export function useRouterState<T = { location: { pathname: string; search: object } }>(
-    opts?: { select?: (s: unknown) => T },
-  ): T;
+  export function useParams<
+    T extends Record<string, string> = Record<string, string>,
+  >(opts?: { from?: string; strict?: boolean }): T;
+  export function useRouterState<
+    T = { location: { pathname: string; search: object } },
+  >(opts?: { select?: (s: unknown) => T }): T;
   export function useSearch<T extends object = object>(opts?: {
     from?: string;
     strict?: boolean;

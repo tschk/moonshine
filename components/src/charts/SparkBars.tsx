@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
-import { paintColumn, backingSize, type AreaVariant } from "../dither/dither-paint";
+import {
+  paintColumn,
+  backingSize,
+  type AreaVariant,
+} from "../dither/dither-paint";
 import { seedOfColor, type DitherColor } from "../dither/themes";
 
 export type SparkBarsProps = {
@@ -52,7 +56,11 @@ export function SparkBars({
       values.forEach((v, i) => {
         const top = Math.round(rows - 1 - (v / max) * (rows - 1));
         const x = Math.min(i * barW, cols - 1);
-        paintColumn(ctx, x, top, floor, seed, { variant, intensity, sparse: 0.05 });
+        paintColumn(ctx, x, top, floor, seed, {
+          variant,
+          intensity,
+          sparse: 0.05,
+        });
       });
       ctx.restore();
     };
@@ -64,12 +72,21 @@ export function SparkBars({
   }, [values, color, variant, height, theme, intensity]);
 
   return (
-    <div ref={wrapRef} className={className} style={{ width: "100%", height, display: "block" }}>
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{ width: "100%", height, display: "block" }}
+    >
       <canvas
         ref={canvasRef}
         aria-label="spark bars"
         role="img"
-        style={{ display: "block", width: "100%", height: "100%", imageRendering: "pixelated" }}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          imageRendering: "pixelated",
+        }}
       />
     </div>
   );

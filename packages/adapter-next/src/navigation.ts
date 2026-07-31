@@ -19,11 +19,7 @@ import {
   useSelectedLayoutSegment,
   useSelectedLayoutSegments,
 } from "next/navigation";
-import {
-  createSignal,
-  useSignal,
-  type Signal,
-} from "@tschk/moonshine/react";
+import { createSignal, useSignal, type Signal } from "@tschk/moonshine/react";
 
 export {
   useNextRouter as useRouter,
@@ -61,7 +57,10 @@ export function useSearchSignal(): Signal<string> {
 }
 
 /** Read a single search param as signal. */
-export function useSearchParamSignal(name: string, fallback = ""): Signal<string> {
+export function useSearchParamSignal(
+  name: string,
+  fallback = "",
+): Signal<string> {
   const sp = useNextSearchParams();
   const value = sp?.get(name) ?? fallback;
   const signal = useMemo(() => createSignal(value), []);

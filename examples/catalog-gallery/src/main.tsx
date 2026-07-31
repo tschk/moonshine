@@ -81,7 +81,14 @@ function App() {
       </Section>
 
       <Section title="primitives">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            alignItems: "center",
+          }}
+        >
           <Button variant="solid" onClick={() => setDialogOpen(true)}>
             Open dialog
           </Button>
@@ -102,11 +109,7 @@ function App() {
           </div>
         </Card>
 
-        <Dialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          title="Dialog"
-        >
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen} title="Dialog">
           <p style={{ margin: "0 0 16px", color: "var(--ms-muted)" }}>
             Modal dialog surface with focus trap.
           </p>

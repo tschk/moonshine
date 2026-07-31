@@ -80,7 +80,15 @@ export function CommandPalette({
             outline: "none",
           }}
         />
-        <ul style={{ listStyle: "none", margin: 0, padding: 6, maxHeight: 280, overflow: "auto" }}>
+        <ul
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 6,
+            maxHeight: 280,
+            overflow: "auto",
+          }}
+        >
           {filtered.map((item) => (
             <li key={item.id}>
               <button

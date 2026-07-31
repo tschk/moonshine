@@ -20,7 +20,10 @@ import type {
   CrepusNode,
   RenderCrepusOptions,
 } from "@tschk/crepus-moonshine/types";
-import { createSignal as msCreateSignal, type Signal as MsSignal } from "@tschk/moonshine";
+import {
+  createSignal as msCreateSignal,
+  type Signal as MsSignal,
+} from "@tschk/moonshine";
 import {
   createEffect,
   createSignal as solidCreateSignal,
@@ -91,7 +94,11 @@ function renderNode(
   switch (node.kind) {
     case "text": {
       const n = node as Extract<CrepusNode, { kind: "text" }>;
-      return el("span", { "data-crepus-kind": "text", style: styleOf(n) }, n.content ?? "");
+      return el(
+        "span",
+        { "data-crepus-kind": "text", style: styleOf(n) },
+        n.content ?? "",
+      );
     }
     case "stack": {
       const n = node as Extract<CrepusNode, { kind: "stack" }>;
@@ -122,8 +129,10 @@ function renderNode(
           "data-crepus-kind": "scroll",
           "data-axis": axis,
           style: {
-            "overflow-x": axis === "horizontal" || axis === "both" ? "auto" : "hidden",
-            "overflow-y": axis === "vertical" || axis === "both" ? "auto" : "hidden",
+            "overflow-x":
+              axis === "horizontal" || axis === "both" ? "auto" : "hidden",
+            "overflow-y":
+              axis === "vertical" || axis === "both" ? "auto" : "hidden",
             ...styleOf(n),
           },
         },
@@ -332,7 +341,11 @@ function renderNode(
           "div",
           { "data-crepus-kind": "forEach", style: styleOf(n) },
           ...items.map((item, i) =>
-            renderNode(bindItemTemplate(n.itemTemplate!, item), options, `${key}.${i}`),
+            renderNode(
+              bindItemTemplate(n.itemTemplate!, item),
+              options,
+              `${key}.${i}`,
+            ),
           ),
         );
       }
@@ -359,7 +372,11 @@ function renderNode(
         n.children && n.children.length > 0
           ? renderChildren(n.children, options, key)
           : [n.label ?? ""];
-      return el("li", { "data-crepus-kind": "listItem", style: styleOf(n) }, ...kids);
+      return el(
+        "li",
+        { "data-crepus-kind": "listItem", style: styleOf(n) },
+        ...kids,
+      );
     }
     default:
       return el("div", {
@@ -378,7 +395,9 @@ export function renderCrepusIrSolid(
   options: RenderCrepusOptions = {},
 ): JSX.Element {
   const prefix = options.keyPrefix ?? "s";
-  const kids = (ir.root ?? []).map((n, i) => renderNode(n, options, `${prefix}.${i}`));
+  const kids = (ir.root ?? []).map((n, i) =>
+    renderNode(n, options, `${prefix}.${i}`),
+  );
   return el(
     "div",
     {
@@ -394,5 +413,11 @@ export { msCreateSignal as createMoonshineSignal };
 export type { MsSignal as MoonshineSignal };
 
 // Core re-exports for Solid apps that share moonshine resources
-export { createResource, createSignal as createMsSignal, createMemo, batch, untrack } from "@tschk/moonshine";
+export {
+  createResource,
+  createSignal as createMsSignal,
+  createMemo,
+  batch,
+  untrack,
+} from "@tschk/moonshine";
 export type { Resource, ResourceStatus } from "@tschk/moonshine";

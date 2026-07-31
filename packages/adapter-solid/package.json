@@ -19,6 +19,19 @@
   "peerDependencies": {
     "solid-js": ">=1.8"
   },
-  "files": ["src", "README.md"],
-  "keywords": ["moonshine", "solid", "adapter"]
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "solid",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  }
 }

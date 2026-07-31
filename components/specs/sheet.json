@@ -10,32 +10,13 @@
     },
     "side": {
       "type": "enum",
-      "values": [
-        "top",
-        "right",
-        "bottom",
-        "left"
-      ],
+      "values": ["top", "right", "bottom", "left"],
       "default": "right"
     },
     "title": {
       "type": "string"
     }
   },
-  "themes": [
-    "dither-kit",
-    "kumo",
-    "night",
-    "chalk",
-    "aurora",
-    "dawn",
-    "zinc"
-  ],
-  "platforms": [
-    "flutter",
-    "svelte",
-    "moonshine",
-    "gpui",
-    "crepus"
-  ]
+  "themes": ["dither-kit", "kumo", "night", "chalk", "aurora", "dawn", "zinc"],
+  "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"]
 }

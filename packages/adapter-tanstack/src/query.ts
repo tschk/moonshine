@@ -22,9 +22,7 @@ export {
 export type { UseQueryOptions, UseQueryResult };
 
 /** Mirror query data into a moonshine signal. */
-export function useQuerySignal<TData>(
-  options: UseQueryOptions<TData>,
-): {
+export function useQuerySignal<TData>(options: UseQueryOptions<TData>): {
   data: Signal<TData | undefined>;
   isLoading: Signal<boolean>;
   error: Signal<Error | null>;

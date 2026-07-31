@@ -2,22 +2,8 @@
   "name": "moonshine-components",
   "version": "0.1.2",
   "description": "Multi-target dither / primitive / motion component registry",
-  "themes": [
-    "dither-kit",
-    "kumo",
-    "night",
-    "chalk",
-    "aurora",
-    "dawn",
-    "zinc"
-  ],
-  "platforms": [
-    "flutter",
-    "svelte",
-    "moonshine",
-    "gpui",
-    "crepus"
-  ],
+  "themes": ["dither-kit", "kumo", "night", "chalk", "aurora", "dawn", "zinc"],
+  "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
   "components": [
     {
       "id": "accordion",
@@ -25,13 +11,7 @@
       "title": "Accordion",
       "description": "Collapsible sections.",
       "spec": "specs/accordion.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -48,21 +28,8 @@
       "title": "Animated Gradient",
       "description": "Moving dither/mesh gradient plane.",
       "spec": "specs/animated-gradient.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
-      "themes": [
-        "dither-kit",
-        "night",
-        "aurora",
-        "chalk",
-        "dawn",
-        "zinc"
-      ]
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
+      "themes": ["dither-kit", "night", "aurora", "chalk", "dawn", "zinc"]
     },
     {
       "id": "area-chart",
@@ -70,13 +37,7 @@
       "title": "Area Chart",
       "description": "Dithered area fill under a series line.",
       "spec": "specs/area-chart.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -93,13 +54,7 @@
       "title": "Avatar",
       "description": "Circular or rounded avatar with dither fallback initials.",
       "spec": "specs/avatar.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -116,13 +71,7 @@
       "title": "Badge",
       "description": "Compact status / count badge.",
       "spec": "specs/badge.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -139,13 +88,7 @@
       "title": "Bar Chart",
       "description": "Dithered vertical bars for discrete values.",
       "spec": "specs/bar-chart.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -162,13 +105,7 @@
       "title": "Breadcrumb",
       "description": "Hierarchical path navigation trail.",
       "spec": "specs/breadcrumb.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -185,13 +122,7 @@
       "title": "Button",
       "description": "Base UI\u2013style pressable button with dither accent options.",
       "spec": "specs/button.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -208,13 +139,7 @@
       "title": "Card",
       "description": "Surface container for interactive content groups.",
       "spec": "specs/card.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -231,13 +156,7 @@
       "title": "Checkbox",
       "description": "Binary checkbox control.",
       "spec": "specs/checkbox.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -254,13 +173,7 @@
       "title": "Command Palette",
       "description": "Searchable command / action palette (Spell-inspired).",
       "spec": "specs/command-palette.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -277,13 +190,7 @@
       "title": "Context Menu",
       "description": "Pointer-triggered contextual action menu.",
       "spec": "specs/context-menu.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -300,13 +207,7 @@
       "title": "Dialog",
       "description": "Modal dialog surface (Base UI pattern).",
       "spec": "specs/dialog.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -323,13 +224,7 @@
       "title": "Dropdown Menu",
       "description": "Menu of actions triggered from a button (Base UI Menu).",
       "spec": "specs/dropdown-menu.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -346,13 +241,7 @@
       "title": "Empty State",
       "description": "Placeholder for vacant lists, panels, or search results.",
       "spec": "specs/empty-state.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -369,13 +258,7 @@
       "title": "Dither Gradient",
       "description": "Ordered-dither gradient plane for fills and backgrounds.",
       "spec": "specs/gradient.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -392,13 +275,7 @@
       "title": "Heatmap",
       "description": "2D dithered intensity grid for matrix / calendar data.",
       "spec": "specs/heatmap.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -415,13 +292,7 @@
       "title": "Hover Card",
       "description": "Rich preview card shown on hover/focus (Base UI Hover Card).",
       "spec": "specs/hover-card.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -438,13 +309,7 @@
       "title": "Input",
       "description": "Single-line text field.",
       "spec": "specs/input.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -461,20 +326,8 @@
       "title": "Light Rays",
       "description": "Spell UI\u2013inspired animated light-ray backdrop.",
       "spec": "specs/light-rays.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
-      "themes": [
-        "dither-kit",
-        "night",
-        "aurora",
-        "dawn",
-        "zinc"
-      ]
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
+      "themes": ["dither-kit", "night", "aurora", "dawn", "zinc"]
     },
     {
       "id": "marquee",
@@ -482,13 +335,7 @@
       "title": "Marquee",
       "description": "Horizontal looping marquee track.",
       "spec": "specs/marquee.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -505,13 +352,7 @@
       "title": "Meter",
       "description": "Scalar meter with optional min/max.",
       "spec": "specs/meter.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -528,13 +369,7 @@
       "title": "Pagination",
       "description": "Page navigation controls for lists and tables.",
       "spec": "specs/pagination.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -551,13 +386,7 @@
       "title": "Pie Chart",
       "description": "Dithered polar slices for categorical proportions.",
       "spec": "specs/pie-chart.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -574,13 +403,7 @@
       "title": "Pixel Grid",
       "description": "Fixed-resolution Bayer pixel plane driven by density or mask data.",
       "spec": "specs/pixel-grid.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -597,13 +420,7 @@
       "title": "Popover",
       "description": "Anchored floating surface for rich content (Base UI Popover).",
       "spec": "specs/popover.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -620,13 +437,7 @@
       "title": "Progress",
       "description": "Determinate progress bar (0\u20131).",
       "spec": "specs/progress.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -643,13 +454,7 @@
       "title": "Radar Chart",
       "description": "Dithered polar radar / spider chart.",
       "spec": "specs/radar-chart.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -666,13 +471,7 @@
       "title": "Radio Group",
       "description": "Single-selection radio set (Base UI Radio Group).",
       "spec": "specs/radio-group.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -689,13 +488,7 @@
       "title": "Scroll Area",
       "description": "Scrollable viewport with optional dithered scrollbars.",
       "spec": "specs/scroll-area.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -712,13 +505,7 @@
       "title": "Select",
       "description": "Single-select dropdown.",
       "spec": "specs/select.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -735,13 +522,7 @@
       "title": "Separator",
       "description": "Horizontal or vertical visual divider (Base UI Separator).",
       "spec": "specs/separator.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -758,13 +539,7 @@
       "title": "Sheet",
       "description": "Slide-over panel from an edge (mobile-friendly dialog alternative).",
       "spec": "specs/sheet.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -781,13 +556,7 @@
       "title": "Skeleton",
       "description": "Placeholder shimmer / dither pulse while content loads.",
       "spec": "specs/skeleton.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -804,13 +573,7 @@
       "title": "Slider",
       "description": "Continuous or stepped range input.",
       "spec": "specs/slider.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -827,13 +590,7 @@
       "title": "Spark Bars",
       "description": "Compact dithered column spark for a short numeric series.",
       "spec": "specs/spark-bars.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -850,13 +607,7 @@
       "title": "Sparkline",
       "description": "Compact dithered area sparkline for a single numeric series.",
       "spec": "specs/sparkline.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -873,13 +624,7 @@
       "title": "Switch",
       "description": "Binary on/off switch control (distinct from Toggle pressable).",
       "spec": "specs/switch.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -896,13 +641,7 @@
       "title": "Tabs",
       "description": "Tab list + panels.",
       "spec": "specs/tabs.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -919,13 +658,7 @@
       "title": "Textarea",
       "description": "Multi-line text field.",
       "spec": "specs/textarea.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -942,13 +675,7 @@
       "title": "Tilt Card",
       "description": "Pointer-reactive 3D tilt surface.",
       "spec": "specs/tilt-card.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -965,13 +692,7 @@
       "title": "Toast",
       "description": "Transient notification surface (Spell / Base UI toast pattern).",
       "spec": "specs/toast.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -988,13 +709,7 @@
       "title": "Toggle",
       "description": "Binary switch.",
       "spec": "specs/toggle.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",
@@ -1011,13 +726,7 @@
       "title": "Tooltip",
       "description": "Hover/focus tooltip.",
       "spec": "specs/tooltip.json",
-      "platforms": [
-        "flutter",
-        "svelte",
-        "moonshine",
-        "gpui",
-        "crepus"
-      ],
+      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
         "kumo",

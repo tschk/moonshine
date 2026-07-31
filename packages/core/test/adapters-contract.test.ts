@@ -3,7 +3,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const packagesRoot = join(import.meta.dir, "..", "..");
-const adapters = readdirSync(packagesRoot).filter((n) => n.startsWith("adapter-"));
+const adapters = readdirSync(packagesRoot).filter((n) =>
+  n.startsWith("adapter-"),
+);
 
 /** Host library subpaths that must exist for stack fidelity. */
 const REQUIRED_HOST_EXPORTS: Record<string, string[]> = {

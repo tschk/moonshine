@@ -6,11 +6,7 @@
  * ```
  */
 import { useSyncExternalStore } from "react";
-import {
-  createSignal,
-  getStoreRoot,
-  type Signal,
-} from "./signal";
+import { createSignal, getStoreRoot, type Signal } from "./signal";
 import type { Resource } from "./resource";
 
 export {
@@ -49,7 +45,8 @@ export function useSignal<T>(
   source: Readable<T>,
   getServerSnapshot?: () => T,
 ): T {
-  const subscribe = (onStoreChange: () => void) => source.subscribe(onStoreChange);
+  const subscribe = (onStoreChange: () => void) =>
+    source.subscribe(onStoreChange);
   const getSnapshot = () => source();
   const server =
     getServerSnapshot ??
@@ -63,7 +60,11 @@ export function useStore<T extends object>(store: T): T {
   if (!node) {
     throw new Error("useStore: expected a createStore() proxy");
   }
-  useSyncExternalStore(node.subscribe, () => store, () => store);
+  useSyncExternalStore(
+    node.subscribe,
+    () => store,
+    () => store,
+  );
   return store;
 }
 

@@ -13,7 +13,10 @@
     "./catalog": "./catalog/components.json"
   },
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit"
   },
   "peerDependencies": {
     "react": ">=18",

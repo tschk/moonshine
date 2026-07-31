@@ -53,7 +53,9 @@ export function moonshineDerived<T>(fn: () => T): Readable<T> {
 }
 
 /** Readable view of a Resource's data. */
-export function readableResource<T>(resource: Resource<T>): Readable<T | undefined> & {
+export function readableResource<T>(resource: Resource<T>): Readable<
+  T | undefined
+> & {
   loading: Readable<boolean>;
   error: Readable<Error | undefined>;
   refetch: () => Promise<T | undefined>;
@@ -122,7 +124,9 @@ export function signalFromWritable<T>(store: {
     const set = signal.set.bind(signal);
     signal.set = (value) => {
       const next =
-        typeof value === "function" ? (value as (p: T) => T)(signal.peek()) : value;
+        typeof value === "function"
+          ? (value as (p: T) => T)(signal.peek())
+          : value;
       set(next);
       store.set!(next);
     };

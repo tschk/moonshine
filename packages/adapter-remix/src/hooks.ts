@@ -22,7 +22,10 @@ export function useLoaderDataSignal<T>(): Signal<T> {
   return signal;
 }
 
-export function useLocationSignal(): Signal<{ pathname: string; search: string }> {
+export function useLocationSignal(): Signal<{
+  pathname: string;
+  search: string;
+}> {
   const loc = useLocation();
   const signal = useMemo(
     () => createSignal({ pathname: loc.pathname, search: loc.search }),

@@ -2,10 +2,10 @@
 
 Moonshine owns the stack — **no Next / Vite host**.
 
-| Piece | How |
-|-------|-----|
-| HTML/API routes | `createMoonshineServer` pages map |
-| Static CSS/JS | `staticDir: public/` |
+| Piece              | How                                                   |
+| ------------------ | ----------------------------------------------------- |
+| HTML/API routes    | `createMoonshineServer` pages map                     |
+| Static CSS/JS      | `staticDir: public/`                                  |
 | Interactive island | `src/client.tsx` → `bun build` → `/client.js` hydrate |
 
 ```bash

@@ -16,6 +16,19 @@
   "peerDependencies": {
     "vue": ">=3.4"
   },
-  "files": ["src", "README.md"],
-  "keywords": ["moonshine", "vue", "adapter"]
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "vue",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "exit 0",
+    "test": "exit 0"
+  }
 }

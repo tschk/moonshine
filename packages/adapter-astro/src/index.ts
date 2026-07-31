@@ -35,7 +35,10 @@ export {
 } from "@tschk/moonshine/shaders";
 
 import type { ComponentType } from "react";
-import { createIslandSignal, createResource } from "@tschk/moonshine/host-react";
+import {
+  createIslandSignal,
+  createResource,
+} from "@tschk/moonshine/host-react";
 
 export type IslandOptions = {
   /** Optional debug name for Astro island boundaries. */
@@ -50,7 +53,11 @@ export function defineIsland<P extends object>(
   Component: ComponentType<P>,
   options: IslandOptions = {},
 ): ComponentType<P> {
-  const name = options.name ?? Component.displayName ?? Component.name ?? "MoonshineIsland";
+  const name =
+    options.name ??
+    Component.displayName ??
+    Component.name ??
+    "MoonshineIsland";
   const Island = Component;
   Island.displayName = name;
   return Island;

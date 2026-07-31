@@ -5,11 +5,11 @@ optional React TSX, client router, Bun HTTP + static. Host bridges are escapes.
 
 ## What we take (and leave)
 
-| Inspiration | Keep | Leave |
-|-------------|------|-------|
-| **Solid** | Signals, read-by-call, `.set` | Compiler / shared vnode |
-| **Svelte** | `/runes` sugar | `.svelte` compiler |
-| **Waku** | Tiny `/server` pages map | Full RSC framework |
+| Inspiration | Keep                          | Leave                   |
+| ----------- | ----------------------------- | ----------------------- |
+| **Solid**   | Signals, read-by-call, `.set` | Compiler / shared vnode |
+| **Svelte**  | `/runes` sugar                | `.svelte` compiler      |
+| **Waku**    | Tiny `/server` pages map      | Full RSC framework      |
 
 ## Bun as base
 

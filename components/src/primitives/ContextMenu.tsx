@@ -1,13 +1,22 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { useState } from "react";
 
-export type ContextMenuItem = { id: string; label: ReactNode; onSelect?: () => void };
+export type ContextMenuItem = {
+  id: string;
+  label: ReactNode;
+  onSelect?: () => void;
+};
 
 export type ContextMenuProps = HTMLAttributes<HTMLDivElement> & {
   items: ContextMenuItem[];
 };
 
-export function ContextMenu({ items, children, style, ...rest }: ContextMenuProps) {
+export function ContextMenu({
+  items,
+  children,
+  style,
+  ...rest
+}: ContextMenuProps) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   return (
     <div

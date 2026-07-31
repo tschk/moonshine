@@ -7,7 +7,11 @@ export function Slider({ style, ...rest }: SliderProps) {
     <input
       type="range"
       data-ms="slider"
-      style={{ width: "100%", accentColor: "var(--ms-accent, #358ff3)", ...style }}
+      style={{
+        width: "100%",
+        accentColor: "var(--ms-accent, #358ff3)",
+        ...style,
+      }}
       {...rest}
     />
   );

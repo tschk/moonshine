@@ -57,7 +57,11 @@ export function Heatmap({
           for (let y = y0; y < y1; y++) {
             for (let x = x0; x < x1; x++) {
               const lit = t > BAYER[y & 3]![x & 3]!;
-              ctx.fillStyle = rgb(seed.fill, 1, clamp01(lit ? 0.35 + t * 0.65 : t * 0.2));
+              ctx.fillStyle = rgb(
+                seed.fill,
+                1,
+                clamp01(lit ? 0.35 + t * 0.65 : t * 0.2),
+              );
               ctx.fillRect(x, y, 1, 1);
             }
           }
@@ -72,12 +76,21 @@ export function Heatmap({
   }, [data, color, height, theme]);
 
   return (
-    <div ref={wrapRef} className={className} style={{ width: "100%", height, display: "block" }}>
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{ width: "100%", height, display: "block" }}
+    >
       <canvas
         ref={canvasRef}
         aria-label="heatmap"
         role="img"
-        style={{ display: "block", width: "100%", height: "100%", imageRendering: "pixelated" }}
+        style={{
+          display: "block",
+          width: "100%",
+          height: "100%",
+          imageRendering: "pixelated",
+        }}
       />
     </div>
   );

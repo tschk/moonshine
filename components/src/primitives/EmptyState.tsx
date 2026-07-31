@@ -6,7 +6,14 @@ export type EmptyStateProps = HTMLAttributes<HTMLDivElement> & {
   action?: ReactNode;
 };
 
-export function EmptyState({ title, description, action, style, children, ...rest }: EmptyStateProps) {
+export function EmptyState({
+  title,
+  description,
+  action,
+  style,
+  children,
+  ...rest
+}: EmptyStateProps) {
   return (
     <div
       data-ms="empty-state"
@@ -18,8 +25,20 @@ export function EmptyState({ title, description, action, style, children, ...res
       }}
       {...rest}
     >
-      {title ? <div style={{ color: "var(--ms-fg, #f2f2f5)", fontWeight: 600, marginBottom: 8 }}>{title}</div> : null}
-      {description ? <div style={{ marginBottom: 16 }}>{description}</div> : null}
+      {title ? (
+        <div
+          style={{
+            color: "var(--ms-fg, #f2f2f5)",
+            fontWeight: 600,
+            marginBottom: 8,
+          }}
+        >
+          {title}
+        </div>
+      ) : null}
+      {description ? (
+        <div style={{ marginBottom: 16 }}>{description}</div>
+      ) : null}
       {action}
       {children}
     </div>

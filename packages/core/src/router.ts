@@ -25,7 +25,10 @@ export type RouteDefinition = {
 };
 
 /** Compile `/users/:id` → matcher with named params. */
-export function matchPath(pattern: string, pathname: string): RouteMatch | null {
+export function matchPath(
+  pattern: string,
+  pathname: string,
+): RouteMatch | null {
   const patternParts = splitPath(pattern);
   const pathParts = splitPath(pathname);
 
@@ -192,9 +195,7 @@ export type MoonshineRouterProps = {
 export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
   const owned = useRef<MoonshineRouterInstance | null>(null);
   if (!owned.current && !props.runtime) {
-    owned.current = createMoonshineRouter(
-      props.path ?? getBrowserPath(),
-    );
+    owned.current = createMoonshineRouter(props.path ?? getBrowserPath());
   }
   const runtime = props.runtime ?? owned.current!;
 
@@ -204,7 +205,9 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
     () => props.path ?? "/",
   );
   const pathname = props.path ?? browserPath;
-  const [ready, setReady] = useState(typeof window === "undefined" || props.path !== undefined);
+  const [ready, setReady] = useState(
+    typeof window === "undefined" || props.path !== undefined,
+  );
 
   useEffect(() => {
     const prev = activeRouter;

@@ -46,7 +46,11 @@ export function LightRays({
           for (let i = 0; i < rays; i++) {
             const a = (i / rays) * Math.PI + Math.sin(t + i) * 0.08;
             const len = height * 1.2;
-            ctx.strokeStyle = rgb(seed.fill, 1, clamp01(0.15 + 0.1 * Math.sin(t * 2 + i)));
+            ctx.strokeStyle = rgb(
+              seed.fill,
+              1,
+              clamp01(0.15 + 0.1 * Math.sin(t * 2 + i)),
+            );
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
@@ -63,7 +67,11 @@ export function LightRays({
 
   return (
     <div ref={wrapRef} className={className} style={{ width: "100%", height }}>
-      <canvas ref={canvasRef} aria-hidden style={{ display: "block", width: "100%", height: "100%" }} />
+      <canvas
+        ref={canvasRef}
+        aria-hidden
+        style={{ display: "block", width: "100%", height: "100%" }}
+      />
     </div>
   );
 }

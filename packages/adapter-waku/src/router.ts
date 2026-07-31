@@ -4,10 +4,7 @@
  * waku/router/client + moonshine signal bridge.
  */
 import { useEffect, useMemo } from "react";
-import {
-  Link,
-  useRouter_UNSTABLE,
-} from "waku/router/client";
+import { Link, useRouter_UNSTABLE } from "waku/router/client";
 import { createSignal, type Signal } from "@tschk/moonshine/react";
 
 export { Link, useRouter_UNSTABLE as useWakuRouter };

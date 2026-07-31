@@ -21,16 +21,21 @@ describe("bun-server example contract", () => {
   };
 
   test("home is html", async () => {
-    const res = await handleMoonshineRequest(new Request("http://x/"), { pages });
+    const res = await handleMoonshineRequest(new Request("http://x/"), {
+      pages,
+    });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     expect(await res.text()).toContain("home");
   });
 
   test("api is json", async () => {
-    const res = await handleMoonshineRequest(new Request("http://x/api/hello"), {
-      pages,
-    });
+    const res = await handleMoonshineRequest(
+      new Request("http://x/api/hello"),
+      {
+        pages,
+      },
+    );
     expect(await res.json()).toEqual({ ok: true });
   });
 

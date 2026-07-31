@@ -5,7 +5,12 @@ export type HoverCardProps = HTMLAttributes<HTMLDivElement> & {
   trigger: ReactNode;
 };
 
-export function HoverCard({ trigger, children, style, ...rest }: HoverCardProps) {
+export function HoverCard({
+  trigger,
+  children,
+  style,
+  ...rest
+}: HoverCardProps) {
   const [open, setOpen] = useState(false);
   return (
     <div

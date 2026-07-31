@@ -40,7 +40,9 @@ export function createMoonshineApp(options: MoonshineAppOptions): MoonshineApp {
       }
 
       const el =
-        typeof container === "string" ? document.querySelector(container) : container;
+        typeof container === "string"
+          ? document.querySelector(container)
+          : container;
       if (!el) {
         throw new Error(
           `createMoonshineApp: mount target not found: ${String(container)}`,

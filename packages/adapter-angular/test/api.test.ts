@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  computed,
-  effect,
-  resource,
-  signal,
-  untracked,
-} from "../src/index";
+import { computed, effect, resource, signal, untracked } from "../src/index";
 
 describe("@tschk/moonshine-angular", () => {
   test("signal set/update/asReadonly", () => {

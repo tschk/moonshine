@@ -30,7 +30,10 @@ function parseComponentExports(source: string): Set<string> {
     for (const part of clause.split(",")) {
       const trimmed = part.trim();
       if (!trimmed || trimmed.startsWith("type ")) continue;
-      const name = trimmed.split(/\s+as\s+/).at(-1)!.trim();
+      const name = trimmed
+        .split(/\s+as\s+/)
+        .at(-1)!
+        .trim();
       if (name) names.add(name);
     }
   }

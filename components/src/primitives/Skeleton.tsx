@@ -5,7 +5,12 @@ export type SkeletonProps = HTMLAttributes<HTMLDivElement> & {
   height?: number | string;
 };
 
-export function Skeleton({ width = "100%", height = 16, style, ...rest }: SkeletonProps) {
+export function Skeleton({
+  width = "100%",
+  height = 16,
+  style,
+  ...rest
+}: SkeletonProps) {
   return (
     <div
       data-ms="skeleton"

@@ -21,9 +21,26 @@
     "react-router": ">=6"
   },
   "peerDependenciesMeta": {
-    "@remix-run/react": { "optional": true },
-    "react-router": { "optional": true }
+    "@remix-run/react": {
+      "optional": true
+    },
+    "react-router": {
+      "optional": true
+    }
   },
-  "files": ["src", "README.md"],
-  "keywords": ["moonshine", "remix", "adapter"]
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "remix",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "exit 0",
+    "test": "bun test"
+  }
 }

@@ -12,12 +12,18 @@
     "./types": "./src/types.ts"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "scripts": {
     "test": "bun test",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint ."
   },
   "dependencies": {
     "@tschk/moonshine": "file:../core"

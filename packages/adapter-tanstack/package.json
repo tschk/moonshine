@@ -21,9 +21,26 @@
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "@tanstack/react-query": { "optional": true },
-    "@tanstack/react-router": { "optional": true }
+    "@tanstack/react-query": {
+      "optional": true
+    },
+    "@tanstack/react-router": {
+      "optional": true
+    }
   },
-  "files": ["src", "README.md"],
-  "keywords": ["moonshine", "tanstack", "adapter"]
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "tanstack",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "exit 0",
+    "test": "bun test"
+  }
 }

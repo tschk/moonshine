@@ -10,7 +10,9 @@ declare module "next/navigation" {
   };
   export function usePathname(): string;
   export function useSearchParams(): URLSearchParams;
-  export function useParams<T extends Record<string, string | string[]> = Record<string, string>>(): T;
+  export function useParams<
+    T extends Record<string, string | string[]> = Record<string, string>,
+  >(): T;
   export function redirect(url: string): never;
   export function notFound(): never;
   export function permanentRedirect(url: string): never;
@@ -19,7 +21,12 @@ declare module "next/navigation" {
 }
 
 declare module "next/link" {
-  import type { ComponentType, ReactNode, CSSProperties, MouseEventHandler } from "react";
+  import type {
+    ComponentType,
+    ReactNode,
+    CSSProperties,
+    MouseEventHandler,
+  } from "react";
   export type LinkProps = {
     href: string;
     children?: ReactNode;
@@ -63,7 +70,11 @@ declare module "next/headers" {
     set(name: string, value: string): void;
     delete(name: string): void;
   };
-  export function draftMode(): { isEnabled: boolean; enable(): void; disable(): void };
+  export function draftMode(): {
+    isEnabled: boolean;
+    enable(): void;
+    disable(): void;
+  };
 }
 
 declare module "next/dynamic" {

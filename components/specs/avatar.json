@@ -19,20 +19,6 @@
       "default": "blue"
     }
   },
-  "themes": [
-    "dither-kit",
-    "kumo",
-    "night",
-    "chalk",
-    "aurora",
-    "dawn",
-    "zinc"
-  ],
-  "platforms": [
-    "flutter",
-    "svelte",
-    "moonshine",
-    "gpui",
-    "crepus"
-  ]
+  "themes": ["dither-kit", "kumo", "night", "chalk", "aurora", "dawn", "zinc"],
+  "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"]
 }

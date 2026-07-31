@@ -10,7 +10,13 @@ export function Checkbox({ label, style, id, ...rest }: CheckboxProps) {
     <label
       data-ms="checkbox"
       htmlFor={inputId}
-      style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", ...style }}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        cursor: "pointer",
+        ...style,
+      }}
     >
       <input id={inputId} type="checkbox" {...rest} />
       {label ? <span>{label}</span> : null}

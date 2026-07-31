@@ -35,7 +35,10 @@ export type UseFragmentShaderOptions = {
   /** Uniform `u_time` in seconds from mount. */
   animate?: boolean;
   /** Called each frame after draw (when animate). */
-  onFrame?: (t: number, gl: WebGLRenderingContext | WebGL2RenderingContext) => void;
+  onFrame?: (
+    t: number,
+    gl: WebGLRenderingContext | WebGL2RenderingContext,
+  ) => void;
 };
 
 function compileShader(
@@ -132,7 +135,9 @@ function buildProgram(
     isWebgl2 = !!gl;
   }
   if (!gl) {
-    const gl1 = canvas.getContext("webgl", attrs) ?? canvas.getContext("experimental-webgl", attrs);
+    const gl1 =
+      canvas.getContext("webgl", attrs) ??
+      canvas.getContext("experimental-webgl", attrs);
     gl = gl1 as WebGLRenderingContext | null;
     isWebgl2 = false;
   }
@@ -180,10 +185,7 @@ function resizeCanvas(
   gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
-function drawFrame(
-  bundle: ProgramBundle,
-  time: number,
-): void {
+function drawFrame(bundle: ProgramBundle, time: number): void {
   const { gl, program, isWebgl2 } = bundle;
   gl.useProgram(program);
   const resLoc = gl.getUniformLocation(program, "u_resolution");
@@ -219,7 +221,9 @@ export function useFragmentShader(
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const bundleRef = useRef<ProgramBundle | null>(null);
   const sourceRef = useRef(source);
-  const glRef = useRef<WebGLRenderingContext | WebGL2RenderingContext | null>(null);
+  const glRef = useRef<WebGLRenderingContext | WebGL2RenderingContext | null>(
+    null,
+  );
   const optsRef = useRef(options);
   optsRef.current = options;
 
@@ -244,7 +248,9 @@ export function useFragmentShader(
     if (!canvas) return;
 
     const preferWebgl2 = options.webgl2 !== false;
-    const dpr = options.dpr ?? (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
+    const dpr =
+      options.dpr ??
+      (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
     const animate = options.animate !== false;
 
     let bundle: ProgramBundle;
@@ -298,7 +304,10 @@ export function useFragmentShader(
 }
 
 /** Pure helper for tests / SSR: compile wrap without a GL context. */
-export function createFullscreenFragment(source: string, webgl2 = true): {
+export function createFullscreenFragment(
+  source: string,
+  webgl2 = true,
+): {
   vertex: string;
   fragment: string;
 } {

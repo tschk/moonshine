@@ -31,9 +31,4 @@ export {
   watch,
   watchEffect,
 } from "vue";
-export type {
-  ComputedRef,
-  Ref,
-  ShallowRef,
-  WritableComputedRef,
-} from "vue";
+export type { ComputedRef, Ref, ShallowRef, WritableComputedRef } from "vue";

@@ -5,9 +5,16 @@ export type TiltCardProps = HTMLAttributes<HTMLDivElement> & {
   maxTilt?: number;
 };
 
-export function TiltCard({ maxTilt = 10, children, style, ...rest }: TiltCardProps) {
+export function TiltCard({
+  maxTilt = 10,
+  children,
+  style,
+  ...rest
+}: TiltCardProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [transform, setTransform] = useState("perspective(800px) rotateX(0deg) rotateY(0deg)");
+  const [transform, setTransform] = useState(
+    "perspective(800px) rotateX(0deg) rotateY(0deg)",
+  );
 
   return (
     <div
@@ -23,7 +30,9 @@ export function TiltCard({ maxTilt = 10, children, style, ...rest }: TiltCardPro
           `perspective(800px) rotateX(${(-py * maxTilt).toFixed(2)}deg) rotateY(${(px * maxTilt).toFixed(2)}deg)`,
         );
       }}
-      onMouseLeave={() => setTransform("perspective(800px) rotateX(0deg) rotateY(0deg)")}
+      onMouseLeave={() =>
+        setTransform("perspective(800px) rotateX(0deg) rotateY(0deg)")
+      }
       style={{
         transform,
         transition: "transform 120ms ease-out",

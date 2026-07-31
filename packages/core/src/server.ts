@@ -84,7 +84,10 @@ export function resolvePage(
     if (!key.endsWith("/*")) continue;
     const prefix = key.slice(0, -1);
     const base = prefix.endsWith("/") ? prefix.slice(0, -1) || "/" : prefix;
-    if (pathname === base || pathname.startsWith(base === "/" ? "/" : `${base}/`)) {
+    if (
+      pathname === base ||
+      pathname.startsWith(base === "/" ? "/" : `${base}/`)
+    ) {
       if (!best || key.length > best.key.length) best = { key, mod };
     }
   }
@@ -122,7 +125,8 @@ export async function tryServeStatic(
   if (!filePath) return null;
   const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
-  const type = MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
+  const type =
+    MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
   return new Response(file, {
     headers: { "content-type": type },
   });
@@ -184,7 +188,9 @@ export type MoonshineServer = {
  * server.listen();
  * ```
  */
-export function createMoonshineServer(options: MoonshineServerOptions): MoonshineServer {
+export function createMoonshineServer(
+  options: MoonshineServerOptions,
+): MoonshineServer {
   const port = options.port ?? 3000;
 
   const fetch = (request: Request) => handleMoonshineRequest(request, options);

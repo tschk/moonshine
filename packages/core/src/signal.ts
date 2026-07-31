@@ -119,7 +119,8 @@ export function createSignal<T>(initial: T): Signal<T> {
   }) as Signal<T>;
 
   read.set = (next) => {
-    const resolved = typeof next === "function" ? (next as (prev: T) => T)(value) : next;
+    const resolved =
+      typeof next === "function" ? (next as (prev: T) => T)(value) : next;
     if (Object.is(resolved, value)) return;
     value = resolved;
     node.version = ++versionCounter;
@@ -266,7 +267,9 @@ export function getStoreRoot(store: object): Trackable | undefined {
 function isWrappable(value: unknown): value is object {
   if (value === null || typeof value !== "object") return false;
   const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === Array.prototype || proto === null;
+  return (
+    proto === Object.prototype || proto === Array.prototype || proto === null
+  );
 }
 
 /**

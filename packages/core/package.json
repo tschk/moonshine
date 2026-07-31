@@ -22,7 +22,9 @@
   },
   "scripts": {
     "test": "bun test",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint ."
   },
   "peerDependencies": {
     "react": ">=18",

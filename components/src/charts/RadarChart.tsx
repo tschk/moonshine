@@ -61,7 +61,9 @@ export function RadarChart({
       }
       ctx.strokeStyle = rgb(seed.line, 1, 0.9);
       ctx.beginPath();
-      pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      pts.forEach(([x, y], i) =>
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y),
+      );
       ctx.closePath();
       ctx.stroke();
     };
@@ -73,20 +75,39 @@ export function RadarChart({
   }, [values, max, color, height, theme]);
 
   return (
-    <div ref={wrapRef} className={className} style={{ width: "100%", height, display: "flex", justifyContent: "center" }}>
-      <canvas ref={canvasRef} aria-label="radar chart" role="img" style={{ imageRendering: "pixelated" }} />
+    <div
+      ref={wrapRef}
+      className={className}
+      style={{
+        width: "100%",
+        height,
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        aria-label="radar chart"
+        role="img"
+        style={{ imageRendering: "pixelated" }}
+      />
     </div>
   );
 }
 
-function pointInPoly(x: number, y: number, pts: ReadonlyArray<readonly [number, number]>) {
+function pointInPoly(
+  x: number,
+  y: number,
+  pts: ReadonlyArray<readonly [number, number]>,
+) {
   let inside = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
     const xi = pts[i]![0];
     const yi = pts[i]![1];
     const xj = pts[j]![0];
     const yj = pts[j]![1];
-    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-12) + xi;
+    const intersect =
+      yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-12) + xi;
     if (intersect) inside = !inside;
   }
   return inside;

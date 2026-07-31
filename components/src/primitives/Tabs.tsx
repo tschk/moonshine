@@ -22,7 +22,14 @@ export function Tabs({
   const active = value ?? internal;
   return (
     <div data-ms="tabs" style={style} {...rest}>
-      <div role="tablist" style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--ms-border, #2a2a30)" }}>
+      <div
+        role="tablist"
+        style={{
+          display: "flex",
+          gap: 4,
+          borderBottom: "1px solid var(--ms-border, #2a2a30)",
+        }}
+      >
         {items.map((item) => (
           <button
             key={item.id}
@@ -37,7 +44,10 @@ export function Tabs({
               padding: "8px 12px",
               background: "transparent",
               border: "none",
-              borderBottom: active === item.id ? "2px solid var(--ms-accent, #358ff3)" : "2px solid transparent",
+              borderBottom:
+                active === item.id
+                  ? "2px solid var(--ms-accent, #358ff3)"
+                  : "2px solid transparent",
               color: "var(--ms-fg, #f2f2f5)",
               cursor: "pointer",
               font: "inherit",
@@ -49,7 +59,12 @@ export function Tabs({
       </div>
       {items.map((item) =>
         active === item.id ? (
-          <div key={item.id} role="tabpanel" data-ms="tab-panel" style={{ paddingTop: 12 }}>
+          <div
+            key={item.id}
+            role="tabpanel"
+            data-ms="tab-panel"
+            style={{ paddingTop: 12 }}
+          >
             {item.content}
           </div>
         ) : null,

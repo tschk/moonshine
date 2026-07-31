@@ -6,7 +6,13 @@
  * import { state, derived, effect } from "@tschk/moonshine/runes";
  * ```
  */
-import { collectDeps, createMemo, createSignal, type Memo, type Signal } from "./signal";
+import {
+  collectDeps,
+  createMemo,
+  createSignal,
+  type Memo,
+  type Signal,
+} from "./signal";
 
 /** Alias for `createSignal` — readable `$state`-like naming. */
 export function state<T>(initial: T): Signal<T> {
@@ -56,5 +62,11 @@ export function effect(fn: () => void): () => void {
   };
 }
 
-export { createSignal, createMemo, createStore, batch, untrack } from "./signal";
+export {
+  createSignal,
+  createMemo,
+  createStore,
+  batch,
+  untrack,
+} from "./signal";
 export type { Signal, Memo, StoreSetter } from "./signal";

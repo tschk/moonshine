@@ -1,11 +1,19 @@
 import type { ButtonHTMLAttributes } from "react";
 
-export type SwitchProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> & {
+export type SwitchProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onChange"
+> & {
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
 };
 
-export function Switch({ checked = false, onCheckedChange, style, ...rest }: SwitchProps) {
+export function Switch({
+  checked = false,
+  onCheckedChange,
+  style,
+  ...rest
+}: SwitchProps) {
   return (
     <button
       type="button"
@@ -22,7 +30,9 @@ export function Switch({ checked = false, onCheckedChange, style, ...rest }: Swi
         borderRadius: 999,
         border: "none",
         padding: 2,
-        background: checked ? "var(--ms-accent, #358ff3)" : "var(--ms-border, #2a2a30)",
+        background: checked
+          ? "var(--ms-accent, #358ff3)"
+          : "var(--ms-border, #2a2a30)",
         cursor: "pointer",
         display: "inline-flex",
         alignItems: "center",

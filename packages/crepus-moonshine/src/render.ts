@@ -1,4 +1,9 @@
-import { createElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import {
+  createElement,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import {
   asArray,
   badgeToneStyle,
@@ -6,11 +11,7 @@ import {
   sparklinePath,
   styleOf,
 } from "./ir-shared";
-import type {
-  CrepusIr,
-  CrepusNode,
-  RenderCrepusOptions,
-} from "./types";
+import type { CrepusIr, CrepusNode, RenderCrepusOptions } from "./types";
 
 export type {
   CrepusIr,
@@ -294,7 +295,11 @@ export function renderCrepusNode(
       const items = n.items ?? [];
       if (n.itemTemplate) {
         const kids = items.map((item, i) =>
-          renderCrepusNode(bindItemTemplate(n.itemTemplate!, item), options, `${key}.${i}`),
+          renderCrepusNode(
+            bindItemTemplate(n.itemTemplate!, item),
+            options,
+            `${key}.${i}`,
+          ),
         );
         return createElement(
           "div",

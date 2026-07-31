@@ -45,7 +45,13 @@ describe("renderCrepusIr", () => {
   });
 
   test("badge tone maps to CSS colors", () => {
-    for (const tone of ["accent", "danger", "muted", "success", "warning"] as const) {
+    for (const tone of [
+      "accent",
+      "danger",
+      "muted",
+      "success",
+      "warning",
+    ] as const) {
       const html = renderToStaticMarkup(
         renderCrepusIr({
           root: [{ kind: "badge", label: tone, tone }],
@@ -95,8 +101,16 @@ describe("renderCrepusIr", () => {
           {
             kind: "stack",
             children: [
-              { kind: "scroll", children: [{ kind: "text", content: "scrolled" }] },
-              { kind: "toggle", label: "Dark", value: true, onChange: "setDark" },
+              {
+                kind: "scroll",
+                children: [{ kind: "text", content: "scrolled" }],
+              },
+              {
+                kind: "toggle",
+                label: "Dark",
+                value: true,
+                onChange: "setDark",
+              },
               { kind: "checkbox", label: "Agree", value: false },
               { kind: "progress", value: 0.4, max: 1 },
               { kind: "meter", value: 0.6, min: 0, max: 1 },
