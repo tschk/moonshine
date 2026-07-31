@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 import { dirname, basename, join, relative, resolve } from "node:path";
 import type { RouteDefinition, RenderMode } from "@tschk/moonshine-framework";
 import { mergeRoutes } from "./inherit.js";
+import { toPosix } from "./path.js";
 
 export type DiscoverOptions = {
   routesDir: string;
@@ -16,10 +17,6 @@ export function segmentToPattern(segment: string): string {
 }
 
 type FileSuffix = "server" | "client" | undefined;
-
-function toPosix(p: string): string {
-  return p.replace(/\\/g, "/");
-}
 
 function parseRouteFile(
   name: string,

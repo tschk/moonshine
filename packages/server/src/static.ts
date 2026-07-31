@@ -1,5 +1,13 @@
 import { join, normalize, resolve, sep } from "node:path";
 
+function decodeSegment(part: string): string | null {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return null;
+  }
+}
+
 const MIME: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".gif": "image/gif",
@@ -30,9 +38,23 @@ export function resolveStaticPath(
   pathname: string,
 ): string | null {
   const root = resolve(staticDir);
-  const rel = decodeURIComponent(pathname).replace(/^\/+/, "");
-  if (!rel || rel.includes("\0")) return null;
-  const candidate = normalize(join(root, rel));
+  const parts = pathname.split("/").filter(Boolean);
+  const decoded: string[] = [];
+  for (const part of parts) {
+    const d = decodeSegment(part);
+    if (
+      d === null ||
+      d === "." ||
+      d === ".." ||
+      d.includes("\0") ||
+      d.includes(sep) ||
+      d.includes("/")
+    )
+      return null;
+    decoded.push(d);
+  }
+  if (decoded.length === 0) return null;
+  const candidate = normalize(join(root, ...decoded));
   if (candidate !== root && !candidate.startsWith(root + sep)) return null;
   return candidate;
 }

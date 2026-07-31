@@ -11,6 +11,7 @@ import { analyzeModule } from "./analyze.js";
 import { buildBundles } from "./build.js";
 import { classifyRoute } from "./classify.js";
 import { discoverRoutes } from "./discover.js";
+import { toPosix } from "./path.js";
 
 export type BuildOptions = {
   projectDir: string;
@@ -19,10 +20,6 @@ export type BuildOptions = {
   programmatic?: RouteDefinition[];
   runtime?: RuntimeTarget;
 };
-
-function toPosix(p: string): string {
-  return p.replace(/\\/g, "/");
-}
 
 function toProjectRelative(projectDir: string, p: string): string {
   const rel = toPosix(relative(projectDir, resolve(p)));

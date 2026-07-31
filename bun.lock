@@ -1067,6 +1067,8 @@
 
     "zimmerframe": ["zimmerframe@1.1.4", "", {}, "sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ=="],
 
+    "@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
+
     "@tschk/moonshine-astro/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
 
     "@tschk/moonshine-compiler/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],

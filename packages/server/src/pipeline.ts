@@ -11,6 +11,16 @@ import { callAction, callLoader, createRouteContext } from "./data.js";
 import { errorResponse, json, Redirect } from "./errors.js";
 import { tryServeStatic } from "./static.js";
 
+function isSafeRedirect(location: string, request: Request): boolean {
+  try {
+    const base = new URL(request.url);
+    const url = new URL(location, request.url);
+    return url.origin === base.origin;
+  } catch {
+    return false;
+  }
+}
+
 type ModuleChainItem = {
   key: string;
   module: RouteModule;
@@ -225,8 +235,7 @@ export function createRequestHandler(
     if (
       options.staticDir &&
       (method === "GET" || method === "HEAD") &&
-      pathname !== "/" &&
-      !pathname.includes("..")
+      pathname !== "/"
     ) {
       const staticRes = await tryServeStatic(options.staticDir, pathname);
       if (staticRes) return staticRes;
@@ -263,6 +272,12 @@ export function createRequestHandler(
       return finalizeResponse(response, baseHeaders);
     } catch (error) {
       if (error instanceof Redirect) {
+        if (!isSafeRedirect(error.location, request)) {
+          return new Response("Invalid redirect", {
+            status: 400,
+            headers: baseHeaders,
+          });
+        }
         const headers = new Headers(baseHeaders);
         headers.set("location", error.location);
         return new Response(null, { status: error.status, headers });

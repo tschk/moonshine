@@ -54,7 +54,7 @@ describe("adapter contracts", () => {
         readFileSync(join(packagesRoot, name, "package.json"), "utf8"),
       ) as { exports?: Record<string, string> };
       const exports = pkg.exports ?? {};
-      for (const [key, target] of Object.entries(exports)) {
+      for (const target of Object.values(exports)) {
         expect(existsSync(join(packagesRoot, name, target))).toBe(true);
       }
       const required = REQUIRED_HOST_EXPORTS[name] ?? [];

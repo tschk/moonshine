@@ -197,8 +197,7 @@ export const cloudflareHarness: HarnessFactory = (fetch, options) => {
       const pathname = url.pathname.replace(/\/+$/, "") || "/";
       if (
         (request.method === "GET" || request.method === "HEAD") &&
-        pathname !== "/" &&
-        !pathname.includes("..")
+        pathname !== "/"
       ) {
         const res = await tryServeStatic(options.staticDir, pathname);
         if (res) return res;

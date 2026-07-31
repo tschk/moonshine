@@ -29,8 +29,7 @@ export function createBunServer(options: BunServerOptions): BunServer {
     if (
       options.staticDir &&
       (request.method === "GET" || request.method === "HEAD") &&
-      pathname !== "/" &&
-      !pathname.includes("..")
+      pathname !== "/"
     ) {
       const res = await tryServeStatic(options.staticDir, pathname);
       if (res) return res;

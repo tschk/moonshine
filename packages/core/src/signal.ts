@@ -49,7 +49,7 @@ function notifyListeners(listeners: Set<Listener>): void {
     for (const listener of listeners) pending.add(listener);
     return;
   }
-  for (const listener of [...listeners]) listener();
+  for (const listener of Array.from(listeners)) listener();
 }
 
 function track(dep: Source): void {

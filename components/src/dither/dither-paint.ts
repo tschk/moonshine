@@ -64,7 +64,7 @@ export function paintColumn(
 }
 
 export function resample(src: number[], cols: number): number[] {
-  const out = new Array<number>(cols);
+  const out: number[] = Array.from({ length: cols });
   const last = Math.max(src.length - 1, 1);
   for (let c = 0; c < cols; c++) {
     const t = (c / Math.max(cols - 1, 1)) * last;

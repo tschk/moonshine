@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import type { RouteArtifact } from "@tschk/moonshine-framework";
+import { toPosix } from "./path.js";
 
 export type BundleAsset = {
   file: string;
@@ -16,10 +17,6 @@ export type BundleOutput = {
     client?: string;
   };
 };
-
-function toPosix(p: string): string {
-  return p.replace(/\\/g, "/");
-}
 
 function importPath(from: string, to: string): string {
   const rel = toPosix(relative(from, to));

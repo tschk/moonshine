@@ -2,10 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import type { RouteDefinition } from "@tschk/moonshine-framework";
 import { createRouteGraph } from "@tschk/moonshine-router";
-
-function toPosix(p: string): string {
-  return p.replace(/\\/g, "/");
-}
+import { toPosix } from "./path.js";
 
 type SpecialKind = "layout" | "error" | "middleware";
 

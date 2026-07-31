@@ -17,6 +17,22 @@ import {
   type HarnessFactory,
 } from "@tschk/moonshine-adapter-conformance";
 
+const HOP_BY_HOP = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "content-length",
+]);
+
+function isHopByHopHeader(key: string): boolean {
+  return HOP_BY_HOP.has(key.toLowerCase());
+}
+
 const MIME: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".gif": "image/gif",
@@ -69,7 +85,11 @@ async function sendNodeResponse(
   res: ServerResponse,
   response: Response,
 ): Promise<void> {
-  const headers = Object.fromEntries(response.headers.entries());
+  const headers: Record<string, string> = {};
+  for (const [key, value] of response.headers.entries()) {
+    if (isHopByHopHeader(key)) continue;
+    headers[key] = value;
+  }
   res.writeHead(response.status, headers);
   if (!response.body) {
     res.end();
@@ -102,8 +122,7 @@ export function createNodeHandler(
     if (
       options.staticDir &&
       (method === "GET" || method === "HEAD") &&
-      pathname !== "/" &&
-      !pathname.includes("..")
+      pathname !== "/"
     ) {
       const staticRes = await tryServeNodeStatic(options.staticDir, pathname);
       if (staticRes) {
@@ -125,6 +144,7 @@ export function createNodeHandler(
     const headers = new Headers();
     for (const [key, value] of Object.entries(req.headers)) {
       if (value === undefined) continue;
+      if (isHopByHopHeader(key)) continue;
       if (Array.isArray(value)) {
         for (const v of value) {
           headers.append(key, v);
