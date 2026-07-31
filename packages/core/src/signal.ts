@@ -205,9 +205,15 @@ export function createMemo<T>(compute: () => T): Memo<T> {
       currentTracker = previous;
     }
 
+    // Re-subscribing tears down and rebuilds the whole upstream chain, so only
+    // do it when the dependency set actually moved.
+    const sameDeps =
+      collected.length === deps.length &&
+      collected.every((entry, index) => entry.node === deps[index]!.node);
+
     deps = collected;
     stale = false;
-    if (listeners.size > 0) observe();
+    if (listeners.size > 0 && (!sameDeps || unsubs.length === 0)) observe();
 
     if (!hasValue || !Object.is(next, value)) {
       value = next;
