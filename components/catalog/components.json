@@ -120,7 +120,7 @@
       "id": "button",
       "category": "primitive",
       "title": "Button",
-      "description": "Base UI\u2013style pressable button with dither accent options.",
+      "description": "Base UI–style pressable button with dither accent options.",
       "spec": "specs/button.json",
       "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
@@ -304,27 +304,10 @@
       ]
     },
     {
-      "id": "input",
-      "category": "primitive",
-      "title": "Input",
-      "description": "Single-line text field.",
-      "spec": "specs/input.json",
-      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
-      "themes": [
-        "dither-kit",
-        "kumo",
-        "night",
-        "chalk",
-        "aurora",
-        "dawn",
-        "zinc"
-      ]
-    },
-    {
       "id": "light-rays",
       "category": "motion",
       "title": "Light Rays",
-      "description": "Spell UI\u2013inspired animated light-ray backdrop.",
+      "description": "Spell UI–inspired animated light-ray backdrop.",
       "spec": "specs/light-rays.json",
       "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": ["dither-kit", "night", "aurora", "dawn", "zinc"]
@@ -335,23 +318,6 @@
       "title": "Marquee",
       "description": "Horizontal looping marquee track.",
       "spec": "specs/marquee.json",
-      "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
-      "themes": [
-        "dither-kit",
-        "kumo",
-        "night",
-        "chalk",
-        "aurora",
-        "dawn",
-        "zinc"
-      ]
-    },
-    {
-      "id": "meter",
-      "category": "primitive",
-      "title": "Meter",
-      "description": "Scalar meter with optional min/max.",
-      "spec": "specs/meter.json",
       "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [
         "dither-kit",
@@ -435,7 +401,7 @@
       "id": "progress",
       "category": "primitive",
       "title": "Progress",
-      "description": "Determinate progress bar (0\u20131).",
+      "description": "Determinate progress bar (0–1).",
       "spec": "specs/progress.json",
       "platforms": ["flutter", "svelte", "moonshine", "gpui", "crepus"],
       "themes": [

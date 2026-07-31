@@ -13,8 +13,8 @@ const ID_TO_EXPORT: Record<string, string> = Object.fromEntries(
 );
 
 describe("catalog exports", () => {
-  test("catalog has 44 components", () => {
-    expect(catalog.components).toHaveLength(44);
+  test("catalog has 42 components", () => {
+    expect(catalog.components).toHaveLength(42);
   });
 
   test("every catalog id has a named export", () => {

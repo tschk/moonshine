@@ -51,8 +51,6 @@ export {
 } from "./primitives/DropdownMenu";
 export { EmptyState, type EmptyStateProps } from "./primitives/EmptyState";
 export { HoverCard, type HoverCardProps } from "./primitives/HoverCard";
-export { Input, type InputProps } from "./primitives/Input";
-export { Meter, type MeterProps } from "./primitives/Meter";
 export { Pagination, type PaginationProps } from "./primitives/Pagination";
 export { Popover, type PopoverProps } from "./primitives/Popover";
 export { Progress, type ProgressProps } from "./primitives/Progress";
