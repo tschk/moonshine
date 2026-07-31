@@ -1,8 +1,7 @@
 # moonshine
 
-A **hyperminimal** UI runtime for the web — Bun-first, signals at the core, everything else an import.
-
-Moonshine stays small on purpose. You get fine-grained reactivity without adopting a whole metaframework. Bring your own host (Vite, Waku, Next, Astro, Remix, …) through thin adapter packages. Author apps in **`.tsx`**. Compile **`.crepus`** into moonshine when you want a lighter DSL on top.
+**Hyperminimal Bun-first UI runtime.** Signals at the core. Own your app —
+no metaframework required.
 
 ```ts
 import { createSignal, createMemo } from "@tschk/moonshine";
@@ -22,75 +21,55 @@ function App() {
 createApp({ root: App }).mount("#app");
 ```
 
+## Path (greenfield)
+
+| Layer | Use |
+|-------|-----|
+| Client TSX | Vite + `@tschk/moonshine/react` (`moonshine new`) |
+| HTTP | `@tschk/moonshine/server` + `Bun.serve` |
+| Client routes | `@tschk/moonshine/router` |
+| DSL | `.crepus` → IR → `.tsx` via `moonshine compile` |
+
+```bash
+bun run moonshine -- new my-app
+cd my-app && bun install && bun run dev
+```
+
+Optional host adapters exist if you already sit inside Next/Astro/etc. They are
+**not** the product — thin bridges only.
+
 ## Why it’s different
 
-- **Tiny default.** `@tschk/moonshine` is signals only — no React, no router, no bundler opinion in the core.
-- **Import what you need.** `/react`, `/host-react`, `/runes`, `/router`, `/server`, `/shaders` are opt-in.
-- **Bun as the base.** Install, test, and CLI (`moonshine new|compile|dev|build`) all run on Bun.
-- **Works with the hosts you already use.** React islands where the host is React; Vue/Solid bridges where it isn’t.
-- **Crepus compiles in.** `.crepus` → View IR → `.tsx` via `crepus` or `moonshine compile`.
-- **TS 7 + native checker.** `bun run typecheck` (`tsc`) and `bun run typecheck:native` (`tsgo`, Go port).
-
-Inspired by Solid’s signals, Svelte’s approachability, and Waku’s lightness — without locking you into those compilers.
+- **Tiny default.** `@tschk/moonshine` is signals only.
+- **Import what you need.** `/react`, `/runes`, `/router`, `/server`, `/shaders`.
+- **Bun as the base.** Install, test, CLI, and HTTP.
+- **Crepus compiles in.** `.crepus` → View IR → `.tsx`.
+- **TS 7 + native checker.** `tsc` and `tsgo` (Go port).
 
 ## Packages
 
 | Package | Role |
 |--------|------|
-| `@tschk/moonshine` | Core signals (`createSignal` / `createMemo` / `createStore`) |
-| `@tschk/moonshine/react` | `createApp`, `useSignal`, `useStore` for TSX |
-| `@tschk/moonshine/host-react` | Shared React-host barrel used by adapters |
-| `@tschk/moonshine/runes` | Approachable sugar (`state` / `derived` / `effect`) |
-| `@tschk/moonshine/router` | Instance client router (`createMoonshineRouter`) |
-| `@tschk/moonshine/server` | Minimal server / page helpers |
-| `@tschk/moonshine/shaders` | Compat re-export of WebGL helpers |
-| `@tschk/moonshine-shaders` | Optional WebGL fragment helpers |
-| `@tschk/moonshine-cli` | Bun CLI |
-| `@tschk/crepus-moonshine` | View IR → React tree (`./ir` helpers shared) |
-
-## Host adapters
-
-| Host | Package | Notes |
-|------|---------|--------|
-| Waku | `@tschk/moonshine-waku` | islands + optional router/shaders |
-| Next.js | `@tschk/moonshine-next` | client signals; `./server` for RSC-safe helpers; **no** MoonshineRouter |
-| Astro | `@tschk/moonshine-astro` | islands + optional router/shaders |
-| Remix / React Router | `@tschk/moonshine-remix` | client signals; host owns routing |
-| TanStack Start | `@tschk/moonshine-tanstack` | client signals; host owns routing |
-| Solid | `@tschk/moonshine-solid` | separate IR renderer (`renderCrepusIrSolid`) |
-| Svelte | `@tschk/moonshine-svelte` | store bridge |
-| Vue | `@tschk/moonshine-vue` | `ref` / `computed` bridge |
-| Nuxt | `@tschk/moonshine-nuxt` | Vue bridge + `useMoonshineRef` aliases |
-| Angular-like API | `@tschk/moonshine-angular` | `signal` / `computed` shape, no Angular dep |
-
-```tsx
-// Next App Router — Client Component only
-"use client";
-import { createSignal, useSignal } from "@tschk/moonshine-next";
-```
-
-```tsx
-// Astro client island
-"use client";
-import { createSignal, useSignal } from "@tschk/moonshine-astro";
-```
+| `@tschk/moonshine` | Core signals |
+| `@tschk/moonshine/react` | `createApp`, `useSignal`, `useStore` |
+| `@tschk/moonshine/runes` | `state` / `derived` / `effect` |
+| `@tschk/moonshine/router` | Instance client router |
+| `@tschk/moonshine/server` | Pages map + `Bun.serve` |
+| `@tschk/moonshine-cli` | `moonshine new\|compile\|dev\|build` |
+| `@tschk/crepus-moonshine` | View IR → React |
+| `@tschk/moonshine-shaders` | Optional WebGL (`/shaders` re-exports) |
+| `@tschk/moonshine-components` | Optional UI catalog |
 
 ## CLI
 
 ```bash
 bun run moonshine -- new my-app
-bun run moonshine -- compile app.crepus   # → .tsx
+bun run moonshine -- compile app.crepus
 bun run moonshine -- dev
 bun run moonshine -- build
 ```
 
 ## Crepus → TSX
-
-```bash
-crepus web build --emit moonshine
-# or
-moonshine compile view.json
-```
 
 ```tsx
 import { createApp } from "@tschk/moonshine/react";
@@ -103,29 +82,32 @@ export function App() {
 createApp({ root: App }).mount("#app");
 ```
 
-## Components (optional)
-
-Need UI beyond the runtime? `@tschk/moonshine-components` is a separate catalog of charts, primitives, and motion pieces.
-
-```ts
-import { Sparkline, Button } from "@tschk/moonshine-components";
-```
-
 ## Examples
 
 | Path | What |
 |------|------|
-| `examples/vite-crepus` | Vite + Crepus IR |
+| `examples/bun-server` | **Native** Bun HTTP (`/server`) — no host framework |
+| `examples/vite-crepus` | Vite + Crepus IR client |
 | `examples/catalog-gallery` | Component catalog |
+
+## Optional host adapters
+
+Only if you already live in another host. Prefer the greenfield path above.
+
+| Host | Package |
+|------|---------|
+| Astro / Waku | `@tschk/moonshine-astro` / `-waku` |
+| Next / Remix / TanStack | thin client bridges (host owns routing) |
+| Solid / Svelte / Vue / Nuxt | reactive bridges |
+| Angular-like | API shape, no Angular dep |
 
 ## Develop
 
 ```bash
-./scripts/dev-setup.sh
 bun install && bun run check && bun run typecheck:native && bun test
 ```
 
-See [DESIGN.md](./DESIGN.md) for architecture notes. Repo: [`tschk/moonshine`](https://github.com/tschk/moonshine).
+See [DESIGN.md](./DESIGN.md). Repo: [`tschk/moonshine`](https://github.com/tschk/moonshine).
 
 ## License
 

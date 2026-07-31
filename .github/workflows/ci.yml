@@ -18,6 +18,8 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun test
+      - run: bun test
+        working-directory: examples/bun-server
       - run: bun run typecheck
       - run: bun run typecheck:native
       - run: bun run check:catalog

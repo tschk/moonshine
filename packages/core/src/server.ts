@@ -1,8 +1,8 @@
 /**
  * Light server-entry helpers (Waku-inspired).
  *
- * These are intentionally thin: crepuscularity / Bun / Next can own the
- * actual HTTP server; Moonshine only standardizes page modules and adapters.
+ * Thin page-module table on top of Bun.serve (or any fetch handler).
+ * This is the greenfield HTTP path — no metaframework required.
  */
 
 export type MoonshineRequest = {

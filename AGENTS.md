@@ -14,6 +14,7 @@ Moonshine is a hyperminimal Bun-first UI runtime (signals + opt-in imports + hos
 - `packages/adapter-*` → host packages (astro, next, waku, remix, tanstack, solid, svelte, vue, nuxt, angular, …)
 - `components/` → optional `@tschk/moonshine-components` catalog
 - `dart/moonshine_jaspr` → IR → TypeScript emit
+- `examples/bun-server` → native Bun HTTP via `@tschk/moonshine/server` (no host framework)
 - `examples/vite-crepus` → Vite demo mounting `renderCrepusIr`
 - `examples/catalog-gallery` → optional components catalog demo
 
@@ -27,8 +28,9 @@ Moonshine is a hyperminimal Bun-first UI runtime (signals + opt-in imports + hos
 6. Catalog test must assert named exports match `components/catalog/components.json`.
 7. Package manager: Bun workspaces. `"type": "module"` everywhere.
 8. Peer `react` / `react-dom` are optional on core; required for `/react` and React packages.
-9. React host adapters that own routing (Next, Remix, TanStack) must **not** re-export `MoonshineRouter`. Use `@tschk/moonshine/host-react`.
-10. Prefer native TypeScript Go checker (`bun run typecheck:native` / `tsgo`) alongside `tsc`.
+9. Greenfield path is Vite + `/react` + `/server` on Bun. Host adapters are optional bridges only.
+10. React host adapters that own routing (Next, Remix, TanStack) must **not** re-export `MoonshineRouter`. Use `@tschk/moonshine/host-react`.
+11. Prefer native TypeScript Go checker (`bun run typecheck:native` / `tsgo`) alongside `tsc`.
 
 ## Tests
 

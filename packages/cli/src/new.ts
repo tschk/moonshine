@@ -83,7 +83,7 @@ export async function newCommand(args: string[]): Promise<void> {
     JSON.stringify(
       {
         compilerOptions: {
-          target: "ES2022",
+          target: "ES2024",
           module: "ESNext",
           moduleResolution: "Bundler",
           jsx: "react-jsx",
@@ -154,14 +154,14 @@ createApp({ root: App }).mount("#app");
     join(dir, "README.md"),
     `# ${name}
 
-Scaffolded with \`moonshine new\`.
+Greenfield moonshine app (Vite + signals). No Next/metaframework.
 
 \`\`\`bash
 bun install
 bun run dev
 \`\`\`
 
-Uses \`@tschk/moonshine/react\` for TSX apps.
+HTTP without a host framework: see monorepo \`examples/bun-server\`.
 `,
   );
 

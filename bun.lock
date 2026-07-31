@@ -31,6 +31,17 @@
         "react-dom": ">=18",
       },
     },
+    "examples/bun-server": {
+      "name": "@tschk/moonshine-example-bun-server",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "7.0.2",
+      },
+    },
     "examples/catalog-gallery": {
       "name": "@tschk/moonshine-example-catalog-gallery",
       "version": "0.2.0",
@@ -482,6 +493,8 @@
 
     "@tschk/moonshine-components": ["@tschk/moonshine-components@workspace:components"],
 
+    "@tschk/moonshine-example-bun-server": ["@tschk/moonshine-example-bun-server@workspace:examples/bun-server"],
+
     "@tschk/moonshine-example-catalog-gallery": ["@tschk/moonshine-example-catalog-gallery@workspace:examples/catalog-gallery"],
 
     "@tschk/moonshine-example-vite-crepus": ["@tschk/moonshine-example-vite-crepus@workspace:examples/vite-crepus"],
@@ -754,34 +767,10 @@
 
     "sharp/semver": ["semver@7.8.5", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA=="],
 
-    "@tschk/crepus-moonshine/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-angular/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-astro/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-next/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-nuxt/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
     "@tschk/moonshine-nuxt/@tschk/moonshine-vue/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "dependencies": { "@tschk/moonshine-shaders": "file:../shaders" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "7.0.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
-    "@tschk/moonshine-remix/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-solid/@tschk/crepus-moonshine/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", {}],
-
-    "@tschk/moonshine-solid/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-svelte/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-tanstack/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-vue/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
-
-    "@tschk/moonshine-waku/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
+    "@tschk/moonshine-solid/@tschk/crepus-moonshine/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "dependencies": { "@tschk/moonshine-shaders": "file:../shaders" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "7.0.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
     "bun-types/@types/node/undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
-
-    "@tschk/moonshine-nuxt/@tschk/moonshine-vue/@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", {}],
   }
 }

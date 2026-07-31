@@ -195,11 +195,11 @@ function drawFrame(
 }
 
 /**
- * Next-compatible fragment-shader helper.
+ * Fragment-shader helper for moonshine React canvases.
  *
  * Compiles/links a fullscreen-triangle program and draws into a canvas ref.
  * Fragment source may be a full shader or a `shade(uv, time)` body snippet
- * (auto-wrapped — similar to Next.js shader island patterns).
+ * (auto-wrapped).
  *
  * ```tsx
  * function Plasma() {

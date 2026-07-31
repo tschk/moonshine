@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["bun"],
+    "jsx": "preserve"
+  },
+  "include": ["src/**/*", "test/**/*"]
+}
