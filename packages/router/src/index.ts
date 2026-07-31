@@ -20,6 +20,7 @@ export {
   useRouter,
   MoonshineRouter,
   Link,
+  safeHref,
 } from "./navigation.js";
 export type {
   MoonshineRouterInstance,

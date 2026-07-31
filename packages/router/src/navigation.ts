@@ -214,6 +214,35 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
   );
 }
 
+function stripControls(value: string): string {
+  let out = "";
+  for (const ch of value) {
+    const code = ch.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) continue;
+    out += ch;
+  }
+  return out;
+}
+
+const SAFE_SCHEMES = new Set(["http:", "https:", "mailto:", "tel:", "ftp:"]);
+
+/**
+ * A scheme-bearing href reaches the browser on modifier/middle click, where
+ * the click handler deliberately does nothing, so `javascript:` and friends
+ * would execute. Allow relative targets and known-safe schemes only.
+ */
+export function safeHref(href: string): string {
+  // Browsers strip embedded control characters before parsing the scheme, so
+  // strip them here too or "java\tscript:" would slip past the check.
+  const trimmed = stripControls(href).trim();
+  if (trimmed === "") return "#";
+  // Leading "/", "?", "#" are unambiguously relative and cannot carry a scheme.
+  if (/^[/?#]/.test(trimmed)) return trimmed;
+  const scheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.exec(trimmed);
+  if (!scheme) return trimmed;
+  return SAFE_SCHEMES.has(scheme[0].toLowerCase()) ? trimmed : "#";
+}
+
 /** Anchor that uses client-side navigation. */
 export function Link(props: {
   href: string;
@@ -222,10 +251,11 @@ export function Link(props: {
   replace?: boolean;
 }): ReactNode {
   const nav = useNavigate();
+  const href = safeHref(props.href);
   return createElement(
     "a",
     {
-      href: props.href,
+      href,
       className: props.className,
       onClick: (event: MouseEvent) => {
         if (
@@ -239,7 +269,7 @@ export function Link(props: {
           return;
         }
         event.preventDefault();
-        nav(props.href, { replace: props.replace });
+        nav(href, { replace: props.replace });
       },
     },
     props.children,
