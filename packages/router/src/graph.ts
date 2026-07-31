@@ -48,6 +48,21 @@ function compareMatches(
   return 0;
 }
 
+/**
+ * First path segment, or null when it is absent or percent-encoded. Callers use
+ * it to skip routes that begin with a different literal segment; decoding is
+ * the identity for segments without `%`, so the comparison is exact.
+ */
+function firstSegment(pathname: string): string | null {
+  let start = 0;
+  while (start < pathname.length && pathname.charCodeAt(start) === 47) start++;
+  if (start >= pathname.length) return null;
+  let end = pathname.indexOf("/", start);
+  if (end === -1) end = pathname.length;
+  const part = pathname.slice(start, end);
+  return part.includes("%") ? null : part;
+}
+
 export type RouteMatch<T = RouteDefinition> = {
   route: T;
   path: string;
@@ -59,27 +74,31 @@ export function matchRoutes<T extends RouteDefinition>(
   graph: RouteGraph<T>,
   pathname: string,
 ): RouteMatch<T> | null {
-  const matches: {
+  const first = firstSegment(pathname);
+  let best: {
     route: T;
     pattern: string;
     params: Record<string, string>;
     score: number[];
-  }[] = [];
+  } | null = null;
 
   for (const { route, compiled } of graph.routes) {
+    if (first !== null) {
+      const head = compiled.segments[0];
+      if (head && head.kind === "static" && head.value !== first) continue;
+    }
     const m = compiled.match(pathname);
     if (!m) continue;
-    matches.push({
+    const candidate = {
       route,
       pattern: compiled.pattern,
       params: m.params,
       score: m.score,
-    });
+    };
+    if (best === null || compareMatches(candidate, best) < 0) best = candidate;
   }
 
-  if (matches.length === 0) return null;
-  matches.sort(compareMatches);
-  const best = matches[0]!;
+  if (best === null) return null;
   return {
     route: best.route,
     path: pathname,
