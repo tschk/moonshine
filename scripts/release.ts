@@ -130,6 +130,9 @@ async function checkVersions(packages: PackageInfo[], target: string) {
 
 async function checkDependencyRanges(packages: PackageInfo[], target: string) {
   const expected = `^${target}`;
+  // Only packages released from this repo move in lockstep. Other @tschk
+  // packages (crepuscularity-wasm) version independently.
+  const internal = new Set(packages.map((p) => p.name));
   const bad: string[] = [];
   for (const pkg of packages) {
     const manifest = JSON.parse(readFileSync(pkg.path, "utf8")) as {
@@ -147,7 +150,7 @@ async function checkDependencyRanges(packages: PackageInfo[], target: string) {
       const deps = manifest[field];
       if (!deps) continue;
       for (const [name, range] of Object.entries(deps)) {
-        if (!name.startsWith("@tschk/")) continue;
+        if (!internal.has(name)) continue;
         if (range !== expected) {
           bad.push(`${pkg.name} ${field}.${name}: ${range}`);
         }
