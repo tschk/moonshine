@@ -266,9 +266,9 @@ const fetch = createRequestHandler({
   manifest: resolvedManifest,
   modules,
   renderer: reactRenderer,
-  staticDir: import.meta.dir,
+  staticDir: import.meta.dir + "/public",
 });
-const server = createServer(createNodeHandler({ fetch, staticDir: import.meta.dir }));
+const server = createServer(createNodeHandler({ fetch, staticDir: import.meta.dir + "/public" }));
 server.listen(Number(process.env.PORT) || 0, () => {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;

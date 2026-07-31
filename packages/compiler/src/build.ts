@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import type { RouteArtifact } from "@tschk/moonshine-framework";
+import { PUBLIC_DIR, type RouteArtifact } from "@tschk/moonshine-framework";
 import { toPosix } from "./path.js";
 
 export type BundleAsset = {
@@ -125,13 +125,14 @@ function toOutRelative(outDir: string, outputPath: string): string {
 async function buildBundleAssets(
   outDir: string,
   outputPaths: string[],
+  urlBase?: string,
 ): Promise<BundleAsset[]> {
   const assets: BundleAsset[] = [];
   for (const outputPath of outputPaths) {
     const file = toOutRelative(outDir, outputPath);
     assets.push({
       file,
-      path: `/${file}`,
+      path: `/${toOutRelative(urlBase ?? outDir, outputPath)}`,
       integrity: await hashFile(outputPath),
     });
   }
@@ -159,6 +160,11 @@ export async function buildBundles(options: {
   const distDir = resolve(options.outDir, "dist");
   await mkdir(distDir, { recursive: true });
 
+  // Client output goes in its own directory because that directory is what the
+  // server exposes over HTTP; the server bundle must never sit inside it.
+  const publicDir = resolve(options.outDir, PUBLIC_DIR);
+  await mkdir(publicDir, { recursive: true });
+
   const serverOutputs = await runBuild(
     serverEntry,
     distDir,
@@ -166,11 +172,15 @@ export async function buildBundles(options: {
     "bun",
   );
   const clientOutputs = clientEntry
-    ? await runBuild(clientEntry, distDir, options.root, "browser")
+    ? await runBuild(clientEntry, publicDir, options.root, "browser")
     : [];
 
   const serverAssets = await buildBundleAssets(options.outDir, serverOutputs);
-  const clientAssets = await buildBundleAssets(options.outDir, clientOutputs);
+  const clientAssets = await buildBundleAssets(
+    options.outDir,
+    clientOutputs,
+    publicDir,
+  );
 
   return {
     server: serverAssets,

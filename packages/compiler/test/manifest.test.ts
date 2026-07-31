@@ -48,14 +48,19 @@ describe("buildProject", () => {
     ]);
     expect(manifest.routes.every((r) => r.runtime === "bun")).toBe(true);
     expect(manifest.entries.server).toBe("dist/server.js");
-    expect(manifest.entries.client).toBe("/dist/client.js");
+    expect(manifest.entries.client).toBe("/client.js");
     expect(manifest.capabilities).toEqual(["islands", "streaming"]);
+    // Client assets build into public/ because that is the only directory the
+    // server exposes; the server bundle must stay outside it.
     expect(manifest.assets.map((a) => a.file)).toEqual([
-      "dist/client.js",
       "dist/server.js",
+      "public/client.js",
     ]);
     for (const asset of manifest.assets) {
-      expect(asset.path).toBe(`/${asset.file}`);
+      const served = asset.file.startsWith("public/");
+      expect(asset.path).toBe(
+        served ? `/${asset.file.slice("public/".length)}` : `/${asset.file}`,
+      );
       expect(asset.integrity).toMatch(/^sha256-[A-Za-z0-9+/]+=?$/);
     }
 

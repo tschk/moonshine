@@ -117,12 +117,12 @@ const fetch = createRequestHandler({
   manifest: resolvedManifest,
   modules,
   renderer: reactRenderer,
-  staticDir: import.meta.dir,
+  staticDir: import.meta.dir + "/public",
 });
 const server = createBunServer({
   fetch,
   port: Number(process.env.PORT) || 0,
-  staticDir: import.meta.dir,
+  staticDir: import.meta.dir + "/public",
 });
 console.log(server.url.origin);
 `;

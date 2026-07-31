@@ -2,6 +2,12 @@ import type { RenderMode, RouteDefinition, RuntimeTarget } from "./routes";
 
 export const MANIFEST_VERSION = 1 as const;
 
+/**
+ * Build subdirectory holding client assets. It is the only part of the build
+ * output a server may expose over HTTP.
+ */
+export const PUBLIC_DIR = "public" as const;
+
 export type RouteArtifact = RouteDefinition & {
   mode: Exclude<RenderMode, "auto">;
   runtime: RuntimeTarget;

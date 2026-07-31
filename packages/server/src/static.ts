@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { join, normalize, resolve, sep } from "node:path";
 
 function decodeSegment(part: string): string | null {
@@ -59,6 +60,16 @@ export function resolveStaticPath(
   return candidate;
 }
 
+/**
+ * Lexical containment cannot see through symlinks, so compare real paths too:
+ * a link inside the root pointing outside it would otherwise be served.
+ */
+export function isContained(root: string, filePath: string): boolean {
+  const realRoot = realpathSync.native(resolve(root));
+  const real = realpathSync.native(filePath);
+  return real === realRoot || real.startsWith(realRoot + sep);
+}
+
 export async function tryServeStatic(
   staticDir: string,
   pathname: string,
@@ -68,6 +79,11 @@ export async function tryServeStatic(
   if (!filePath) return null;
   const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
+  try {
+    if (!isContained(staticDir, filePath)) return null;
+  } catch {
+    return null;
+  }
   const type =
     MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
   return new Response(file, {

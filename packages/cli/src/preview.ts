@@ -3,10 +3,11 @@ import { resolve } from "node:path";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
 import { readManifest } from "@tschk/moonshine-compiler";
 import { createRequestHandler } from "@tschk/moonshine-server";
-import type {
-  MoonshineManifest,
-  Renderer,
-  RouteArtifact,
+import {
+  PUBLIC_DIR,
+  type MoonshineManifest,
+  type Renderer,
+  type RouteArtifact,
 } from "@tschk/moonshine-framework";
 import { findConfig, loadConfig, type MoonshineCliConfig } from "./config.js";
 
@@ -75,7 +76,7 @@ export async function startPreview(options: {
   const manifest = resolveManifest(projectDir, raw);
   const config = await loadConfigMaybe(projectDir);
   const renderer = await resolveRenderer(config.renderer);
-  const staticDir = resolve(projectDir, ".moonshine");
+  const staticDir = resolve(projectDir, ".moonshine", PUBLIC_DIR);
   const serverBundlePath = resolve(
     projectDir,
     ".moonshine",

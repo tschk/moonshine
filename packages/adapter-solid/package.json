@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-solid",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Solid adapter — moonshine IR bridge + solid-js library re-exports",
   "license": "ISC",
   "type": "module",
@@ -14,9 +14,9 @@
   },
   "dependencies": {
     "@tschk/crepuscularity-wasm": "^0.1.0",
-    "@tschk/moonshine": "^0.3.1",
-    "@tschk/moonshine-framework": "^0.3.1",
-    "@tschk/crepus-moonshine": "^0.3.1"
+    "@tschk/moonshine": "^0.3.2",
+    "@tschk/moonshine-framework": "^0.3.2",
+    "@tschk/crepus-moonshine": "^0.3.2"
   },
   "devDependencies": {
     "typescript": "7.0.2"
