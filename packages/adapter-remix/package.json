@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-remix",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Remix adapter — moonshine + @remix-run/react libraries",
   "license": "ISC",
   "type": "module",
@@ -12,7 +12,7 @@
     "./hooks": "./src/hooks.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*"
+    "@tschk/moonshine": "^0.3.0"
   },
   "peerDependencies": {
     "@remix-run/react": ">=2",

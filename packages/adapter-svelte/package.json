@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-svelte",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Svelte adapter — moonshine bridges + svelte/store",
   "license": "ISC",
   "type": "module",
@@ -11,7 +11,7 @@
     "./store": "./src/store.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*"
+    "@tschk/moonshine": "^0.3.0"
   },
   "peerDependencies": {
     "svelte": ">=5"

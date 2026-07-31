@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-waku",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Waku adapter — moonshine + waku/router + shaders",
   "license": "ISC",
   "type": "module",
@@ -12,8 +12,8 @@
     "./shaders": "./src/shaders.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*",
-    "@tschk/moonshine-shaders": "file:../shaders"
+    "@tschk/moonshine": "^0.3.0",
+    "@tschk/moonshine-shaders": "^0.3.0"
   },
   "peerDependencies": {
     "react": ">=18",

@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-nuxt",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Nuxt adapter — moonshine + #app composables",
   "license": "ISC",
   "type": "module",
@@ -12,8 +12,8 @@
     "./vue": "./src/vue-reexport.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*",
-    "@tschk/moonshine-vue": "file:../adapter-vue"
+    "@tschk/moonshine": "^0.3.0",
+    "@tschk/moonshine-vue": "^0.3.0"
   },
   "peerDependencies": {
     "nuxt": ">=3",

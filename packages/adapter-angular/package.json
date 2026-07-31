@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-angular",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Angular-like signal/computed/effect API over moonshine (no @angular/core)",
   "license": "ISC",
   "type": "module",
@@ -11,7 +11,7 @@
     "./rxjs": "./src/rxjs.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*"
+    "@tschk/moonshine": "^0.3.0"
   },
   "files": [
     "src",

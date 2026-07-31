@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-vue",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Vue adapter — moonshine bridges + vue runtime re-exports",
   "license": "ISC",
   "type": "module",
@@ -11,7 +11,7 @@
     "./vue": "./src/vue.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*"
+    "@tschk/moonshine": "^0.3.0"
   },
   "peerDependencies": {
     "vue": ">=3.4"

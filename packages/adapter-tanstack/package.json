@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-tanstack",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TanStack adapter — moonshine + react-query + react-router",
   "license": "ISC",
   "type": "module",
@@ -12,7 +12,7 @@
     "./router": "./src/router.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*"
+    "@tschk/moonshine": "^0.3.0"
   },
   "peerDependencies": {
     "@tanstack/react-query": ">=5",

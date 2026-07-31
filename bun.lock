@@ -28,7 +28,7 @@
     },
     "components": {
       "name": "@tschk/moonshine-components",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "devDependencies": {
         "@types/bun": "1.3.14",
         "@types/react": "^19.1.0",
@@ -159,17 +159,17 @@
     },
     "packages/adapter-angular": {
       "name": "@tschk/moonshine-angular",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine": "workspace:*",
       },
     },
     "packages/adapter-astro": {
       "name": "@tschk/moonshine-astro",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "workspace:*",
-        "@tschk/moonshine-shaders": "file:../shaders",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-shaders": "^0.3.0",
       },
       "peerDependencies": {
         "astro": ">=4",
@@ -182,7 +182,7 @@
     },
     "packages/adapter-conformance": {
       "name": "@tschk/moonshine-adapter-conformance",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine-framework": "^0.2.0",
         "@tschk/moonshine-react": "^0.2.0",
@@ -199,10 +199,10 @@
     },
     "packages/adapter-next": {
       "name": "@tschk/moonshine-next",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "workspace:*",
-        "@tschk/moonshine-shaders": "file:../shaders",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-shaders": "^0.3.0",
       },
       "peerDependencies": {
         "next": ">=15",
@@ -212,10 +212,10 @@
     },
     "packages/adapter-nuxt": {
       "name": "@tschk/moonshine-nuxt",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "workspace:*",
-        "@tschk/moonshine-vue": "file:../adapter-vue",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-vue": "^0.3.0",
       },
       "peerDependencies": {
         "nuxt": ">=3",
@@ -227,7 +227,7 @@
     },
     "packages/adapter-remix": {
       "name": "@tschk/moonshine-remix",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine": "workspace:*",
       },
@@ -244,11 +244,11 @@
     },
     "packages/adapter-solid": {
       "name": "@tschk/moonshine-solid",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/crepus-moonshine": "file:../crepus-moonshine",
-        "@tschk/moonshine": "workspace:*",
-        "@tschk/moonshine-framework": "^0.2.0",
+        "@tschk/crepus-moonshine": "^0.3.0",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-framework": "^0.3.0",
       },
       "devDependencies": {
         "typescript": "7.0.2",
@@ -259,7 +259,7 @@
     },
     "packages/adapter-svelte": {
       "name": "@tschk/moonshine-svelte",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine": "workspace:*",
       },
@@ -269,7 +269,7 @@
     },
     "packages/adapter-tanstack": {
       "name": "@tschk/moonshine-tanstack",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine": "workspace:*",
       },
@@ -286,9 +286,9 @@
     },
     "packages/adapter-vue": {
       "name": "@tschk/moonshine-vue",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "workspace:*",
+        "@tschk/moonshine": "^0.3.0",
       },
       "peerDependencies": {
         "vue": ">=3.4",
@@ -296,10 +296,10 @@
     },
     "packages/adapter-waku": {
       "name": "@tschk/moonshine-waku",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "workspace:*",
-        "@tschk/moonshine-shaders": "file:../shaders",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-shaders": "^0.3.0",
       },
       "peerDependencies": {
         "react": ">=18",
@@ -312,7 +312,7 @@
     },
     "packages/cli": {
       "name": "@tschk/moonshine-cli",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "bin": {
         "moonshine": "./bin/moonshine.ts",
       },
@@ -326,7 +326,7 @@
     },
     "packages/compiler": {
       "name": "@tschk/moonshine-compiler",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine-framework": "^0.2.0",
         "@tschk/moonshine-router": "^0.2.0",
@@ -338,12 +338,12 @@
     },
     "packages/core": {
       "name": "@tschk/moonshine",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine-react": "^0.2.0",
-        "@tschk/moonshine-router": "^0.2.0",
-        "@tschk/moonshine-server": "^0.2.0",
-        "@tschk/moonshine-shaders": "file:../shaders",
+        "@tschk/moonshine-react": "^0.3.0",
+        "@tschk/moonshine-router": "^0.3.0",
+        "@tschk/moonshine-server": "^0.3.0",
+        "@tschk/moonshine-shaders": "^0.3.0",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -364,11 +364,11 @@
     },
     "packages/crepus-moonshine": {
       "name": "@tschk/crepus-moonshine",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "workspace:*",
-        "@tschk/moonshine-framework": "^0.2.0",
-        "@tschk/moonshine-react": "^0.2.0",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-framework": "^0.3.0",
+        "@tschk/moonshine-react": "^0.3.0",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -389,7 +389,7 @@
     },
     "packages/deploy-bun": {
       "name": "@tschk/moonshine-deploy-bun",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine-compiler": "^0.2.0",
         "@tschk/moonshine-framework": "^0.2.0",
@@ -404,7 +404,7 @@
     },
     "packages/deploy-cloudflare": {
       "name": "@tschk/moonshine-deploy-cloudflare",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine-compiler": "^0.2.0",
         "@tschk/moonshine-framework": "^0.2.0",
@@ -420,7 +420,7 @@
     },
     "packages/deploy-node": {
       "name": "@tschk/moonshine-deploy-node",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine-compiler": "^0.2.0",
         "@tschk/moonshine-framework": "^0.2.0",
@@ -436,7 +436,7 @@
     },
     "packages/deploy-vercel": {
       "name": "@tschk/moonshine-deploy-vercel",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@tschk/moonshine-compiler": "^0.2.0",
         "@tschk/moonshine-framework": "^0.2.0",
@@ -452,9 +452,9 @@
     },
     "packages/framework": {
       "name": "@tschk/moonshine-framework",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "^0.2.0",
+        "@tschk/moonshine": "^0.3.0",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -463,10 +463,10 @@
     },
     "packages/react": {
       "name": "@tschk/moonshine-react",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "^0.2.0",
-        "@tschk/moonshine-framework": "^0.2.0",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-framework": "^0.3.0",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
       },
@@ -479,10 +479,10 @@
     },
     "packages/router": {
       "name": "@tschk/moonshine-router",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine": "^0.2.0",
-        "@tschk/moonshine-framework": "^0.2.0",
+        "@tschk/moonshine": "^0.3.0",
+        "@tschk/moonshine-framework": "^0.3.0",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -497,10 +497,10 @@
     },
     "packages/server": {
       "name": "@tschk/moonshine-server",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
-        "@tschk/moonshine-framework": "^0.2.0",
-        "@tschk/moonshine-router": "^0.2.0",
+        "@tschk/moonshine-framework": "^0.3.0",
+        "@tschk/moonshine-router": "^0.3.0",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -509,7 +509,7 @@
     },
     "packages/shaders": {
       "name": "@tschk/moonshine-shaders",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "peerDependencies": {
         "react": ">=18",
       },
@@ -1067,19 +1067,7 @@
 
     "zimmerframe": ["zimmerframe@1.1.4", "", {}, "sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ=="],
 
-    "@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
-
-    "@tschk/moonshine-astro/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
-
     "@tschk/moonshine-compiler/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
-
-    "@tschk/moonshine-next/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
-
-    "@tschk/moonshine-nuxt/@tschk/moonshine-vue": ["@tschk/moonshine-vue@file:packages/adapter-vue", { "dependencies": { "@tschk/moonshine": "workspace:*" }, "peerDependencies": { "vue": ">=3.4" } }],
-
-    "@tschk/moonshine-solid/@tschk/crepus-moonshine": ["@tschk/crepus-moonshine@file:packages/crepus-moonshine", { "dependencies": { "@tschk/moonshine": "workspace:*", "@tschk/moonshine-framework": "^0.2.0", "@tschk/moonshine-react": "^0.2.0" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "7.0.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
-
-    "@tschk/moonshine-waku/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
 
     "bun-types/@types/node": ["@types/node@26.1.1", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-nxAkRSVkN1Y0JC1W8ky/fTfkGsMmcrRsbx+3XoZE+rMOX71kLYTV7fLXpqud1GpbpP5TuffXFqfX7fH2GgZREw=="],
 
