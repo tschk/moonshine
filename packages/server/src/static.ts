@@ -49,7 +49,8 @@ export function resolveStaticPath(
       d === ".." ||
       d.includes("\0") ||
       d.includes(sep) ||
-      d.includes("/")
+      d.includes("/") ||
+      (d.startsWith(".") && d !== ".well-known")
     )
       return null;
     decoded.push(d);
@@ -87,6 +88,6 @@ export async function tryServeStatic(
   const type =
     MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
   return new Response(file, {
-    headers: { "content-type": type },
+    headers: { "content-type": type, "x-content-type-options": "nosniff" },
   });
 }
