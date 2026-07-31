@@ -71,7 +71,7 @@ function topoSort(pkgs: { dir: string; manifest: Manifest }[]) {
 
   for (const pkg of pkgs) visit(pkg.manifest.name, []);
   if (cycles.length) {
-    for (const cycle of [...new Set(cycles)]) {
+    for (const cycle of new Set(cycles)) {
       console.warn(`warning: dependency cycle ${cycle}`);
     }
   }
