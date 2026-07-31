@@ -1,5 +1,5 @@
 import { createElement, type ReactElement, type ReactNode } from "react";
-import type { TabItem, ViewIr, ViewNode } from "@tschk/crepus-wasm";
+import type { TabItem, ViewIr, ViewNode } from "@tschk/crepuscularity-wasm";
 
 export type CrepusNode = ViewNode;
 

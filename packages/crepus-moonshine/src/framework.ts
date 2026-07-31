@@ -1,7 +1,7 @@
 import { createElement, type ReactElement } from "react";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import type { RenderContext, Renderer } from "@tschk/moonshine-framework";
-import { parseCrepus, IR_VERSION, type ViewIr } from "@tschk/crepus-wasm";
+import { parseCrepus, IR_VERSION, type ViewIr } from "@tschk/crepuscularity-wasm";
 import { renderCrepusIr } from "./render";
 
 const EMPTY_IR: ViewIr = { version: IR_VERSION, root: [] };

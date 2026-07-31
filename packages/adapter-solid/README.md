@@ -19,7 +19,7 @@ const view = renderCrepusIrSolid(parseCrepus(source), { rootTag: "main" });
 | `./h`     | `solid-js/h` factory                      |
 | `./store` | Solid store helpers                       |
 
-View IR types come from `@tschk/crepus-wasm`, the same source of truth the React
+View IR types come from `@tschk/crepuscularity-wasm`, the same source of truth the React
 renderer uses. Template class tokens (`style.classes`) are emitted verbatim as
 `class`; View IR style hints are never converted to inline CSS.
 

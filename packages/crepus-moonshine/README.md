@@ -1,7 +1,7 @@
 # `@tschk/crepus-moonshine`
 
 `.crepus` source → Crepuscularity View IR → React. Parsing is done by the Rust
-parser compiled to WASM (`@tschk/crepus-wasm`); it is never reimplemented here.
+parser compiled to WASM (`@tschk/crepuscularity-wasm`); it is never reimplemented here.
 Solid renders the same IR through its own adapter — no shared vnode.
 
 ```ts
@@ -14,7 +14,7 @@ const element = renderCrepusIr(ir);
 
 The package has a single export (`.`). IR types (`ViewIr`, `ViewNode`,
 `ViewStyle`, `StackAxis`, `PickerOption`, `TabItem`) come from
-`@tschk/crepus-wasm` and are re-exported here.
+`@tschk/crepuscularity-wasm` and are re-exported here.
 
 Template class tokens travel on `style.classes` and are emitted verbatim as
 `className` / `class`, so UnoCSS or Tailwind styles the output. The lowered

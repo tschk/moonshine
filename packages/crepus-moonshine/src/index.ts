@@ -1,5 +1,5 @@
 /** The `.crepus` parser is the Rust one, compiled to WASM — never reimplemented here. */
-export { parseCrepus, IR_VERSION } from "@tschk/crepus-wasm";
+export { parseCrepus, IR_VERSION } from "@tschk/crepuscularity-wasm";
 export type {
   CrepusContext,
   PickerOption,
@@ -9,10 +9,10 @@ export type {
   ViewNode,
   ViewNodeKind,
   ViewStyle,
-} from "@tschk/crepus-wasm";
+} from "@tschk/crepuscularity-wasm";
 
 /** Document alias kept for consumers that predate the WASM parser. */
-export type { ViewIr as CrepusIr } from "@tschk/crepus-wasm";
+export type { ViewIr as CrepusIr } from "@tschk/crepuscularity-wasm";
 
 export {
   renderCrepusIr,

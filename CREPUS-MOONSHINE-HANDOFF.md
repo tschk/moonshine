@@ -42,7 +42,7 @@ crepus-wasm   (web build --emit moonshine)
      │
      ▼
 @tschk/crepus-moonshine
-  - imports parseCrepus from @tschk/crepus-wasm
+  - imports parseCrepus from @tschk/crepuscularity-wasm
   - renders ViewIr → React elements
   - preserves CSS classes (className)
   - NO inline style conversion
@@ -160,7 +160,7 @@ Create a new crate or use an existing one in `~/projects/crepuscularity/crates/`
 1. Depends on `crepuscularity-core` and `crepuscularity-native`
 2. Exports a `parse_crepus(source: &str) -> ViewIr` function via `wasm-bindgen`
 3. Is built with `wasm-pack build --target web --out-dir pkg`
-4. The `pkg/` output is published to npm as `@tschk/crepus-wasm`
+4. The `pkg/` output is published to npm as `@tschk/crepuscularity-wasm`
 
 Steps:
 
@@ -200,11 +200,11 @@ Build and publish:
 ```bash
 cd ~/projects/crepuscularity
 wasm-pack build crates/crepuscularity-wasm --target web --out-dir pkg
-# Create package.json in pkg/ with name "@tschk/crepus-wasm"
+# Create package.json in pkg/ with name "@tschk/crepuscularity-wasm"
 # Publish: cd pkg && npm publish
 ```
 
-Create a TS shim package `@tschk/crepus-wasm` that exports:
+Create a TS shim package `@tschk/crepuscularity-wasm` that exports:
 
 ```typescript
 export function parseCrepus(source: string): ViewIr;
@@ -221,8 +221,8 @@ New files:
 ### `src/index.ts`
 
 ```typescript
-export { parseCrepus } from "@tschk/crepus-wasm";
-export type { ViewIr, ViewNode } from "@tschk/crepus-wasm";
+export { parseCrepus } from "@tschk/crepuscularity-wasm";
+export type { ViewIr, ViewNode } from "@tschk/crepuscularity-wasm";
 export { renderCrepusIr } from "./render";
 export { crepusRenderer } from "./framework";
 export { createApp, useSignal } from "@tschk/moonshine/react";
@@ -235,7 +235,7 @@ Renders `ViewIr` → React elements. Uses `className` from the preserved classes
 
 ```typescript
 import { createElement, type ReactElement, type ReactNode } from "react";
-import type { ViewIr, ViewNode } from "@tschk/crepus-wasm";
+import type { ViewIr, ViewNode } from "@tschk/crepuscularity-wasm";
 
 function classes(node: { classes?: string[] }): string | undefined {
   const cls = node.classes?.filter(Boolean) ?? [];
@@ -265,7 +265,7 @@ Updated `crepusRenderer` that:
 
 ### `package.json`
 
-Add dependency: `"@tschk/crepus-wasm": "^0.1.0"`
+Add dependency: `"@tschk/crepuscularity-wasm": "^0.1.0"`
 Remove the old View IR type exports.
 
 ### `test/render.test.ts`
@@ -285,11 +285,11 @@ New tests that verify:
 2. Delete `src/ir.ts` (the manual CrepusIr construction)
 3. Create `src/server.ts` that:
    - Reads `index.crepus` at startup
-   - Uses `parseCrepus` from `@tschk/crepus-wasm` to parse it
+   - Uses `parseCrepus` from `@tschk/crepuscularity-wasm` to parse it
    - Uses `crepusRenderer` from `@tschk/crepus-moonshine` to render
    - Includes UnoCSS runtime in the HTML head
    - Serves static files from `public/`
-4. Update `package.json` to depend on `@tschk/crepus-wasm` and `@tschk/crepus-moonshine`
+4. Update `package.json` to depend on `@tschk/crepuscularity-wasm` and `@tschk/crepus-moonshine`
 5. Run `bun install`, `bunx tsc --noEmit`, `bun test` — all must pass
 6. Commit and push
 
@@ -306,7 +306,7 @@ Same as tsc.hk — keep `index.crepus`, delete `src/ir.ts`, update server to par
 1. Delete `src/ir.ts` (the manual CrepusIr construction)
 2. Create `src/App.tsx` — a real React component with JSX, using UnoCSS classes
 3. Update `src/server.ts` to use `reactRenderer` from `@tschk/moonshine-react` instead of `crepusRenderer`
-4. Remove `@tschk/crepus-moonshine` and `@tschk/crepus-wasm` from dependencies
+4. Remove `@tschk/crepus-moonshine` and `@tschk/crepuscularity-wasm` from dependencies
 5. Add UnoCSS to the project (or Tailwind)
 6. Run `bun install`, `bunx tsc --noEmit`, `bun test` — all must pass
 7. Commit and push

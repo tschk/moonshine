@@ -2,13 +2,13 @@
  * @tschk/moonshine-solid
  *
  * Solid gets a separate adapter — no shared vnode with React (AGENTS.md).
- * IR types come from `@tschk/crepus-wasm`; host elements via solid-js/h.
+ * IR types come from `@tschk/crepuscularity-wasm`; host elements via solid-js/h.
  *
  * Prefer Solid signals in Solid apps. Bridge helpers exist only when sharing
  * a moonshine signal across host boundaries.
  */
 
-import type { TabItem, ViewIr, ViewNode } from "@tschk/crepus-wasm";
+import type { TabItem, ViewIr, ViewNode } from "@tschk/crepuscularity-wasm";
 import {
   createSignal as msCreateSignal,
   type Signal as MsSignal,

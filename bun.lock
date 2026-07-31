@@ -153,7 +153,7 @@
       "version": "0.3.1",
       "dependencies": {
         "@tschk/crepus-moonshine": "^0.3.1",
-        "@tschk/crepus-wasm": "file:../../../crepuscularity/crates/crepuscularity-wasm/npm",
+        "@tschk/crepuscularity-wasm": "file:../../../crepuscularity/crates/crepuscularity-wasm/npm",
         "@tschk/moonshine": "^0.3.1",
         "@tschk/moonshine-framework": "^0.3.1",
       },
@@ -220,7 +220,7 @@
       "name": "@tschk/crepus-moonshine",
       "version": "0.3.1",
       "dependencies": {
-        "@tschk/crepus-wasm": "file:../../../crepuscularity/crates/crepuscularity-wasm/npm",
+        "@tschk/crepuscularity-wasm": "file:../../../crepuscularity/crates/crepuscularity-wasm/npm",
         "@tschk/moonshine": "^0.3.1",
         "@tschk/moonshine-framework": "^0.3.1",
       },
@@ -743,11 +743,11 @@
 
     "@babel/helper-compilation-targets/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
-    "@tschk/crepus-moonshine/@tschk/crepus-wasm": ["@tschk/crepus-wasm@file:../crepuscularity/crates/crepuscularity-wasm/npm", {}],
+    "@tschk/crepus-moonshine/@tschk/crepuscularity-wasm": ["@tschk/crepuscularity-wasm@file:../crepuscularity/crates/crepuscularity-wasm/npm", {}],
 
     "@tschk/moonshine-compiler/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@tschk/moonshine-solid/@tschk/crepus-wasm": ["@tschk/crepus-wasm@file:../crepuscularity/crates/crepuscularity-wasm/npm", {}],
+    "@tschk/moonshine-solid/@tschk/crepuscularity-wasm": ["@tschk/crepuscularity-wasm@file:../crepuscularity/crates/crepuscularity-wasm/npm", {}],
 
     "bun-types/@types/node": ["@types/node@26.1.1", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-nxAkRSVkN1Y0JC1W8ky/fTfkGsMmcrRsbx+3XoZE+rMOX71kLYTV7fLXpqud1GpbpP5TuffXFqfX7fH2GgZREw=="],
 

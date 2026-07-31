@@ -24,7 +24,7 @@
     "lint": "bunx oxlint ."
   },
   "dependencies": {
-    "@tschk/crepus-wasm": "file:../../../crepuscularity/crates/crepuscularity-wasm/npm",
+    "@tschk/crepuscularity-wasm": "file:../../../crepuscularity/crates/crepuscularity-wasm/npm",
     "@tschk/moonshine": "^0.3.1",
     "@tschk/moonshine-framework": "^0.3.1"
   },
