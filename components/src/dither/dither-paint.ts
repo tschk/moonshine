@@ -1,4 +1,4 @@
-import { rgb, type Seed } from "./themes";
+import { rgb, rgbPrefix, type Seed } from "./themes";
 
 export type AreaVariant = "gradient" | "dotted" | "hatched" | "solid";
 
@@ -42,6 +42,8 @@ export function paintColumn(
     return;
   }
   const bias = (variant === "dotted" ? 0.12 : 0) + (stacked ? 0.2 : 0) - sparse;
+  // Only the alpha varies down the column, and this loop runs once per pixel.
+  const prefix = rgbPrefix(seed.fill);
   for (let y = t; y < f; y++) {
     let density = (y - t) / depth;
     if (stacked) density = 0.5 + 0.5 * density;
@@ -52,7 +54,7 @@ export function paintColumn(
     if (variant === "dotted" && !lit) continue;
     const k = (0.3 + density * 0.7) * (1 + 0.22 * intensity);
     const alpha = clamp01((lit ? k : k * OFF_TIER) * dim);
-    octx.fillStyle = rgb(seed.fill, 1, alpha);
+    octx.fillStyle = `${prefix}${alpha})`;
     octx.fillRect(x, y, 1, 1);
   }
   octx.fillStyle = rgb(seed.fill, 1, BORDER_ALPHA * dim);

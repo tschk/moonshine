@@ -27,6 +27,9 @@ export function AnimatedGradient({
     let raf = 0;
     let start = performance.now();
     const seeds = colors.map((c) => seedOfColor(c, theme));
+    // Two colour strings per seed; building one per pixel per frame is the cost.
+    const litStyles = seeds.map((s) => rgb(s.fill, 1, 0.9));
+    const dimStyles = seeds.map((s) => rgb(s.fill, 1, 0.3));
 
     const frame = (now: number) => {
       const width = wrap.clientWidth;
@@ -46,7 +49,7 @@ export function AnimatedGradient({
                 0.5 + 0.5 * Math.sin(x * 0.02 + y * 0.03 + t * Math.PI * 2);
               const idx = Math.floor(wave * (seeds.length - 1e-6));
               const lit = wave > BAYER[y & 3]![x & 3]!;
-              ctx.fillStyle = rgb(seeds[idx]!.fill, 1, lit ? 0.9 : 0.3);
+              ctx.fillStyle = lit ? litStyles[idx]! : dimStyles[idx]!;
               ctx.fillRect(x, y, 2, 2);
             }
           }

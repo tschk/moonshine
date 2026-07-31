@@ -47,6 +47,9 @@ export function PixelGrid({
         const seed = seedOfColor(color, theme);
         const cellW = width / cols;
         const cellH = h / rows;
+        // Two alphas only; building the colour string per pixel is the cost.
+        const litStyle = rgb(seed.fill, 1, 0.9);
+        const dimStyle = rgb(seed.fill, 1, 0.25);
         for (let r = 0; r < rows; r++) {
           for (let c = 0; c < cols; c++) {
             const t = clamp01(flat[r * cols + c] ?? 0);
@@ -58,7 +61,7 @@ export function PixelGrid({
               for (let x = x0; x < x1; x++) {
                 const lit = t > BAYER[y & 3]![x & 3]!;
                 if (!lit && t < 0.05) continue;
-                ctx.fillStyle = rgb(seed.fill, 1, clamp01(lit ? 0.9 : 0.25));
+                ctx.fillStyle = lit ? litStyle : dimStyle;
                 ctx.fillRect(x, y, 1, 1);
               }
             }

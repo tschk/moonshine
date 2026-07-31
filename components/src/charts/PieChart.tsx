@@ -1,4 +1,4 @@
-import { BAYER, clamp01, type AreaVariant } from "../dither/dither-paint";
+import { BAYER, type AreaVariant } from "../dither/dither-paint";
 import { seedOfColor, rgb, type DitherColor } from "../dither/themes";
 import { DitherCanvas } from "./canvas";
 
@@ -49,6 +49,9 @@ export function PieChart({
           const seed = seedOfColor(colors[i % colors.length]!, theme);
           // dithered wedge via pixel scan
           const end = angle + sweep;
+          // Two alphas only; building the colour string per pixel is the cost.
+          const litStyle = rgb(seed.fill, 1, 0.85);
+          const dimStyle = rgb(seed.fill, 1, 0.3);
           for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
               const dx = x + 0.5 - cx;
@@ -66,8 +69,7 @@ export function PieChart({
                 variant === "solid" || dens > BAYER[y & 3]![x & 3]! - 0.05;
               if (variant === "dotted" && !lit) continue;
               if (variant === "hatched" && ((x + y) & 3) >= 2) continue;
-              const alpha = clamp01(lit ? 0.85 : 0.3);
-              ctx.fillStyle = rgb(seed.fill, 1, alpha);
+              ctx.fillStyle = lit ? litStyle : dimStyle;
               ctx.fillRect(x, y, 1, 1);
             }
           }

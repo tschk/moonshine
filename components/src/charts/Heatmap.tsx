@@ -43,14 +43,13 @@ export function Heatmap({
             const y0 = Math.floor(r * cellH);
             const x1 = Math.floor((c + 1) * cellW);
             const y1 = Math.floor((r + 1) * cellH);
+            // Both alphas are fixed within a cell, so build the strings once.
+            const litStyle = rgb(seed.fill, 1, clamp01(0.35 + t * 0.65));
+            const dimStyle = rgb(seed.fill, 1, clamp01(t * 0.2));
             for (let y = y0; y < y1; y++) {
               for (let x = x0; x < x1; x++) {
                 const lit = t > BAYER[y & 3]![x & 3]!;
-                ctx.fillStyle = rgb(
-                  seed.fill,
-                  1,
-                  clamp01(lit ? 0.35 + t * 0.65 : t * 0.2),
-                );
+                ctx.fillStyle = lit ? litStyle : dimStyle;
                 ctx.fillRect(x, y, 1, 1);
               }
             }

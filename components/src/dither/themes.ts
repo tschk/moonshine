@@ -183,8 +183,13 @@ export const themes: Record<string, Theme> = {
   },
 };
 
-export const rgb = ([r, g, b]: Rgb, k = 1, a = 1) =>
-  `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${a})`;
+/**
+ * `rgba(r,g,b,` for a fixed colour, so per-pixel loops build only the alpha.
+ */
+export const rgbPrefix = ([r, g, b]: Rgb, k = 1) =>
+  `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},`;
+
+export const rgb = (color: Rgb, k = 1, a = 1) => `${rgbPrefix(color, k)}${a})`;
 
 export const seedOfColor = (color: string, themeName = "dither-kit"): Seed => {
   const theme = themes[themeName] ?? themes["dither-kit"]!;

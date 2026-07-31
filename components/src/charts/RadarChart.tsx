@@ -1,4 +1,4 @@
-import { BAYER, clamp01 } from "../dither/dither-paint";
+import { BAYER } from "../dither/dither-paint";
 import { seedOfColor, rgb, type DitherColor } from "../dither/themes";
 import { DitherCanvas } from "./canvas";
 
@@ -40,11 +40,14 @@ export function RadarChart({
           const rr = (v / m) * r;
           return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr] as const;
         });
+        // Two alphas only; building the colour string per pixel is the cost.
+        const litStyle = rgb(seed.fill, 1, 0.8);
+        const dimStyle = rgb(seed.fill, 1, 0.25);
         for (let y = 0; y < size; y++) {
           for (let x = 0; x < size; x++) {
             if (!pointInPoly(x + 0.5, y + 0.5, pts)) continue;
             const lit = BAYER[y & 3]![x & 3]! < 0.55;
-            ctx.fillStyle = rgb(seed.fill, 1, clamp01(lit ? 0.8 : 0.25));
+            ctx.fillStyle = lit ? litStyle : dimStyle;
             ctx.fillRect(x, y, 1, 1);
           }
         }

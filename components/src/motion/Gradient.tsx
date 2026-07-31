@@ -37,13 +37,18 @@ export function Gradient({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const a = seedOfColor(from, theme);
       const b = seedOfColor(to, theme);
+      // Four possible colour strings; building one per pixel is the cost.
+      const aLit = rgb(a.fill, 1, 0.85);
+      const aDim = rgb(a.fill, 1, 0.25);
+      const bLit = rgb(b.fill, 1, 0.85);
+      const bDim = rgb(b.fill, 1, 0.25);
       for (let y = 0; y < height; y++) {
         const t = y / Math.max(height - 1, 1);
         for (let x = 0; x < width; x++) {
           const mix = t + (BAYER[y & 3]![x & 3]! - 0.5) * 0.15;
-          const seed = mix < 0.5 ? a : b;
+          const first = mix < 0.5;
           const lit = clamp01(mix) > BAYER[y & 3]![x & 3]!;
-          ctx.fillStyle = rgb(seed.fill, 1, lit ? 0.85 : 0.25);
+          ctx.fillStyle = first ? (lit ? aLit : aDim) : lit ? bLit : bDim;
           ctx.fillRect(x, y, 1, 1);
         }
       }
