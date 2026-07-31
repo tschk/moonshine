@@ -21,7 +21,7 @@ bun run moonshine -- inspect
 | `@tschk/moonshine-framework`         | Public contracts: routes, manifest, renderer, adapter, config |
 | `@tschk/moonshine-react`             | React SSR, streaming, islands, and hydration                  |
 | `@tschk/moonshine-solid`             | Solid renderer and signal bridges                             |
-| `@tschk/crepus-moonshine`            | Crepus View IR rendering and emit integration                 |
+| `@tschk/crepus-moonshine`            | `.crepus` parsing (Rust parser via WASM) and View IR renderer |
 | `@tschk/moonshine-cli`               | `new`, `dev`, `build`, `preview`, `inspect`                   |
 | `@tschk/moonshine-deploy-bun`        | Bun server deployment                                         |
 | `@tschk/moonshine-deploy-node`       | Node HTTP deployment                                          |
@@ -53,8 +53,14 @@ import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 
 ```ts
 import { createSignal as solidSignal, For } from "@tschk/moonshine-solid/solid";
+import { parseCrepus } from "@tschk/crepus-moonshine";
 import { renderCrepusIrSolid } from "@tschk/moonshine-solid";
+
+const view = renderCrepusIrSolid(parseCrepus(source));
 ```
+
+Class tokens from the template are emitted verbatim as `class`; the renderers
+never turn View IR style hints into inline CSS.
 
 ## Examples
 

@@ -2,24 +2,13 @@
  * @tschk/moonshine-solid
  *
  * Solid gets a separate adapter — no shared vnode with React (AGENTS.md).
- * IR helpers come from `@tschk/crepus-moonshine/ir`; host elements via solid-js/h.
+ * IR types come from `@tschk/crepus-wasm`; host elements via solid-js/h.
  *
  * Prefer Solid signals in Solid apps. Bridge helpers exist only when sharing
  * a moonshine signal across host boundaries.
  */
 
-import {
-  asArray,
-  badgeToneStyle,
-  bindItemTemplate,
-  sparklinePoints,
-  styleOf,
-} from "@tschk/crepus-moonshine/ir";
-import type {
-  CrepusIr,
-  CrepusNode,
-  RenderCrepusOptions,
-} from "@tschk/crepus-moonshine/types";
+import type { TabItem, ViewIr, ViewNode } from "@tschk/crepus-wasm";
 import {
   createSignal as msCreateSignal,
   type Signal as MsSignal,
@@ -31,15 +20,20 @@ import {
   type JSX,
   type Setter,
 } from "solid-js";
-import h from "solid-js/h";
+import { createComponent, Dynamic } from "solid-js/web";
 
-/** Cast solid-js/h output through unknown (h returns ExpandableNode factories). */
+/** Host elements go through `Dynamic` so the same tree renders on server and client. */
 function el(
   type: string,
   props: Record<string, unknown> | null,
   ...children: unknown[]
 ): JSX.Element {
-  return h(type, props, ...children) as unknown as JSX.Element;
+  const merged: Record<string, unknown> = { component: type };
+  for (const [name, value] of Object.entries(props ?? {})) {
+    if (value !== undefined) merged[name] = value;
+  }
+  if (children.length > 0) merged.children = children;
+  return createComponent(Dynamic, merged as never) as unknown as JSX.Element;
 }
 
 /**
@@ -72,338 +66,225 @@ export function createBridgedSignal<T>(initial: T): [Accessor<T>, Setter<T>] {
   return fromMoonshineSignal(msCreateSignal(initial));
 }
 
-export type { CrepusIr, CrepusNode, RenderCrepusOptions };
-/** @deprecated use CrepusNode */
-export type CrepusSolidNode = CrepusNode;
-/** @deprecated use CrepusIr */
-export type CrepusSolidIr = CrepusIr;
+export type CrepusNode = ViewNode;
+export type CrepusIr = ViewIr;
 
-function renderChildren(
-  children: CrepusNode[] | undefined,
-  options: RenderCrepusOptions,
-  key: string,
-): JSX.Element[] {
-  return (children ?? []).map((c, i) => renderNode(c, options, `${key}.${i}`));
+export interface RenderCrepusOptions {
+  /** Wrapper element for the document root. */
+  rootTag?: string;
 }
 
-function renderNode(
-  node: CrepusNode,
-  options: RenderCrepusOptions,
-  key: string,
-): JSX.Element {
+/**
+ * Class tokens are carried verbatim from the template, so UnoCSS/Tailwind
+ * styles the output. The lowered `style` hints exist for native targets and are
+ * deliberately not converted to inline CSS here.
+ */
+function classOf(node: ViewNode): string | undefined {
+  const classes = (node as { style?: { classes?: string[] } }).style?.classes;
+  if (!classes || classes.length === 0) return undefined;
+  const joined = classes.filter(Boolean).join(" ");
+  return joined.length > 0 ? joined : undefined;
+}
+
+function renderChildren(children: ViewNode[]): JSX.Element[] {
+  return children.map((child) => renderCrepusNodeSolid(child));
+}
+
+export function renderCrepusNodeSolid(node: ViewNode): JSX.Element {
+  const cls = classOf(node);
+
   switch (node.kind) {
-    case "text": {
-      const n = node as Extract<CrepusNode, { kind: "text" }>;
+    case "text":
+      return el("span", { class: cls }, node.content);
+
+    case "link":
       return el(
-        "span",
-        { "data-crepus-kind": "text", style: styleOf(n) },
-        n.content ?? "",
+        "a",
+        { class: cls, href: node.href, target: node.target, rel: node.rel },
+        ...renderChildren(node.children),
       );
-    }
-    case "stack": {
-      const n = node as Extract<CrepusNode, { kind: "stack" }>;
-      const axis = n.axis ?? "column";
-      const row = axis === "horizontal" || axis === "row";
-      const gap = n.gap ?? n.spacing ?? 8;
-      return el(
-        "div",
-        {
-          "data-crepus-kind": "stack",
-          "data-axis": row ? "row" : "column",
-          style: {
-            display: "flex",
-            "flex-direction": row ? "row" : "column",
-            gap: typeof gap === "number" ? `${gap}px` : gap,
-            ...styleOf(n),
-          },
-        },
-        ...renderChildren(n.children, options, key),
-      );
-    }
-    case "scroll": {
-      const n = node as Extract<CrepusNode, { kind: "scroll" }>;
-      const axis = n.axis ?? "vertical";
+
+    case "stack":
+    case "scroll":
+      return el("div", { class: cls }, ...renderChildren(node.children));
+
+    case "dropzone":
       return el(
         "div",
-        {
-          "data-crepus-kind": "scroll",
-          "data-axis": axis,
-          style: {
-            "overflow-x":
-              axis === "horizontal" || axis === "both" ? "auto" : "hidden",
-            "overflow-y":
-              axis === "vertical" || axis === "both" ? "auto" : "hidden",
-            ...styleOf(n),
-          },
-        },
-        ...renderChildren(n.children, options, key),
+        { class: cls, "aria-label": node.label },
+        ...renderChildren(node.children),
       );
-    }
-    case "button": {
-      const n = node as Extract<CrepusNode, { kind: "button" }>;
+
+    case "list":
+      return el(
+        node.ordered ? "ol" : "ul",
+        { class: cls },
+        ...renderChildren(node.children),
+      );
+
+    case "listItem":
+      return el("li", { class: cls }, ...renderChildren(node.children));
+
+    case "button":
+      return el("button", { class: cls, type: "button" }, node.label);
+
+    case "badge":
+      return el("span", { class: cls, "data-tone": node.tone }, node.label);
+
+    case "divider":
+      return el("hr", { class: cls });
+
+    case "spacer":
+      return el("div", { class: cls, "aria-hidden": true });
+
+    case "image":
+      return el("img", { class: cls, src: node.src, alt: node.alt ?? "" });
+
+    case "webView":
+      return el("iframe", { class: cls, src: node.src });
+
+    case "toggle":
       return el(
         "button",
         {
-          type: "button",
-          "data-crepus-kind": "button",
-          "data-onclick": n.onClick,
-          disabled: Boolean(n.disabled),
-          style: styleOf(n),
-          onClick: () => {
-            if (n.onClick) options.onAction?.(n.onClick);
-          },
-        },
-        n.label ?? "",
-      );
-    }
-    case "toggle": {
-      const n = node as Extract<CrepusNode, { kind: "toggle" }>;
-      const pressed = Boolean(n.value);
-      return el(
-        "button",
-        {
+          class: cls,
           type: "button",
           role: "switch",
-          "aria-checked": pressed,
-          "data-crepus-kind": "toggle",
-          "data-onchange": n.onChange,
-          style: styleOf(n),
-          onClick: () => {
-            if (n.onChange) options.onAction?.(n.onChange, !pressed);
-          },
+          "aria-checked": node.checked,
         },
-        n.label ?? (pressed ? "On" : "Off"),
+        node.label,
       );
-    }
-    case "checkbox": {
-      const n = node as Extract<CrepusNode, { kind: "checkbox" }>;
-      const checked = Boolean(n.value);
+
+    case "checkbox":
       return el(
         "label",
-        {
-          "data-crepus-kind": "checkbox",
-          style: {
-            display: "inline-flex",
-            "align-items": "center",
-            gap: "6px",
-            ...styleOf(n),
-          },
-        },
+        { class: cls },
         el("input", {
           type: "checkbox",
-          checked,
-          "data-onchange": n.onChange,
-          onChange: (e: Event) => {
-            const t = e.target as HTMLInputElement;
-            if (n.onChange) options.onAction?.(n.onChange, t.checked);
-          },
+          checked: node.checked,
+          name: node.bind,
         }),
-        n.label ? el("span", null, n.label) : null,
+        node.label,
       );
-    }
-    case "progress": {
-      const n = node as Extract<CrepusNode, { kind: "progress" }>;
-      return el("progress", {
-        "data-crepus-kind": "progress",
-        value: n.value ?? 0,
-        max: n.max ?? 1,
-        style: styleOf(n),
+
+    case "slider":
+      return el("input", {
+        class: cls,
+        type: "range",
+        value: node.value,
+        min: node.min,
+        max: node.max,
+        step: node.step,
+        name: node.bind,
       });
-    }
-    case "meter": {
-      const n = node as Extract<CrepusNode, { kind: "meter" }>;
+
+    case "progress":
+      return el("progress", { class: cls, value: node.value, max: node.max });
+
+    case "meter":
       return el("meter", {
-        "data-crepus-kind": "meter",
-        value: n.value ?? 0,
-        min: n.min ?? 0,
-        max: n.max ?? 1,
-        low: n.low,
-        high: n.high,
-        optimum: n.optimum,
-        style: styleOf(n),
+        class: cls,
+        value: node.value,
+        min: node.min,
+        max: node.max,
       });
-    }
-    case "sparkline": {
-      const n = node as Extract<CrepusNode, { kind: "sparkline" }>;
-      const values = n.values ?? [];
-      const width = n.width ?? 120;
-      const height = n.height ?? 32;
-      const color = n.color ?? "currentColor";
-      const points = sparklinePoints(values, width, height);
+
+    case "input":
+      return el(node.multiline ? "textarea" : "input", {
+        class: cls,
+        type: node.multiline ? undefined : node.secure ? "password" : "text",
+        placeholder: node.placeholder,
+        name: node.bind,
+      });
+
+    case "picker":
       return el(
-        "svg",
-        {
-          "data-crepus-kind": "sparkline",
-          width,
-          height,
-          viewBox: `0 0 ${width} ${height}`,
-          role: "img",
-          "aria-label": "sparkline",
-          style: { display: "block", ...styleOf(n) },
-        },
-        el("polyline", {
-          points,
-          fill: "none",
-          stroke: color,
-          "stroke-width": 1.5,
-          "stroke-linejoin": "round",
-          "stroke-linecap": "round",
-        }),
+        "select",
+        { class: cls, name: node.bind },
+        ...node.options.map((option) =>
+          el("option", { value: option.value }, option.label),
+        ),
       );
-    }
-    case "badge": {
-      const n = node as Extract<CrepusNode, { kind: "badge" }>;
-      const tone = badgeToneStyle(n.tone);
+
+    case "filePicker":
+      return el(
+        "label",
+        { class: cls },
+        el("input", {
+          type: "file",
+          accept: node.accept?.join(","),
+          multiple: node.multiple,
+        }),
+        node.label,
+      );
+
+    case "slotRotate":
       return el(
         "span",
         {
-          "data-crepus-kind": "badge",
-          "data-tone": tone.tone,
-          style: {
-            display: "inline-flex",
-            "align-items": "center",
-            padding: "2px 8px",
-            "border-radius": "999px",
-            "font-size": "12px",
-            background: tone.background,
-            color: tone.color,
-            ...styleOf(n),
-          },
+          class: cls,
+          "data-crepus-slot-rotate": node.phrases.join("|"),
+          "data-interval-ms": node.intervalMs,
         },
-        n.label ?? "",
+        node.phrases[0] ?? "",
       );
-    }
-    case "divider": {
-      const n = node as Extract<CrepusNode, { kind: "divider" }>;
-      const vertical = n.orientation === "vertical";
-      return el(vertical ? "div" : "hr", {
-        "data-crepus-kind": "divider",
-        role: "separator",
-        "aria-orientation": vertical ? "vertical" : "horizontal",
-        style: vertical
-          ? {
-              width: "1px",
-              "align-self": "stretch",
-              background: "var(--ms-border, #333)",
-              border: "none",
-              ...styleOf(n),
-            }
-          : {
-              border: "none",
-              "border-top": "1px solid var(--ms-border, #333)",
-              margin: "8px 0",
-              ...styleOf(n),
-            },
-      });
-    }
-    case "spacer": {
-      const n = node as Extract<CrepusNode, { kind: "spacer" }>;
-      return el("div", {
-        "data-crepus-kind": "spacer",
-        "aria-hidden": true,
-        style: {
-          flex: n.flex ?? (n.size == null ? 1 : undefined),
-          width: n.size,
-          height: n.size,
-          ...styleOf(n),
-        },
-      });
-    }
-    case "image": {
-      const n = node as Extract<CrepusNode, { kind: "image" }>;
-      return el("img", {
-        "data-crepus-kind": "image",
-        src: n.src ?? "",
-        alt: n.alt ?? "",
-        width: n.width,
-        height: n.height,
-        style: styleOf(n),
-      });
-    }
-    case "if": {
-      const n = node as Extract<CrepusNode, { kind: "if" }>;
-      const branch = n.condition ? asArray(n.then) : asArray(n.else);
+
+    case "tabs":
       return el(
         "div",
-        {
-          "data-crepus-kind": "if",
-          "data-condition": String(Boolean(n.condition)),
-          style: styleOf(n),
-        },
-        ...renderChildren(branch, options, key),
-      );
-    }
-    case "forEach": {
-      const n = node as Extract<CrepusNode, { kind: "forEach" }>;
-      const items = n.items ?? [];
-      if (n.itemTemplate) {
-        return el(
+        { class: cls },
+        el(
           "div",
-          { "data-crepus-kind": "forEach", style: styleOf(n) },
-          ...items.map((item, i) =>
-            renderNode(
-              bindItemTemplate(n.itemTemplate!, item),
-              options,
-              `${key}.${i}`,
-            ),
+          { role: "tablist" },
+          ...node.tabs.map((tab: TabItem) =>
+            el("button", { type: "button", role: "tab" }, tab.label),
           ),
-        );
-      }
+        ),
+        ...node.tabs.map((tab: TabItem) =>
+          el("div", { role: "tabpanel" }, ...renderChildren(tab.children)),
+        ),
+      );
+
+    // Control flow the parser could not resolve statically. The chosen branch is
+    // rendered and the source expression kept as a data attribute.
+    case "if":
       return el(
         "div",
-        { "data-crepus-kind": "forEach", style: styleOf(n) },
-        ...renderChildren(n.children, options, key),
+        { class: cls, "data-crepus-if": node.condition },
+        ...renderChildren(node.thenChildren),
       );
-    }
-    case "list": {
-      const n = node as Extract<CrepusNode, { kind: "list" }>;
+
+    case "forEach":
       return el(
-        n.ordered ? "ol" : "ul",
+        "div",
         {
-          "data-crepus-kind": "list",
-          style: { margin: 0, "padding-left": "20px", ...styleOf(n) },
+          class: cls,
+          "data-crepus-for-each": node.bind,
+          "data-crepus-item": node.itemName,
         },
-        ...renderChildren(n.children, options, key),
+        ...renderChildren(node.itemBody),
       );
-    }
-    case "listItem": {
-      const n = node as Extract<CrepusNode, { kind: "listItem" }>;
-      const kids =
-        n.children && n.children.length > 0
-          ? renderChildren(n.children, options, key)
-          : [n.label ?? ""];
-      return el(
-        "li",
-        { "data-crepus-kind": "listItem", style: styleOf(n) },
-        ...kids,
-      );
-    }
+
     default:
-      return el("div", {
-        "data-crepus-kind": String((node as { kind: string }).kind),
-        "data-crepus-unknown": "true",
-      });
+      return null as unknown as JSX.Element;
   }
 }
 
 /**
  * Map View IR → Solid elements (separate from the React renderer).
- * Same kind surface as `@tschk/crepus-moonshine` via shared IR helpers.
+ * Same kind surface as `@tschk/crepus-moonshine`, one IR source of truth.
  */
 export function renderCrepusIrSolid(
-  ir: CrepusIr,
+  ir: ViewIr,
   options: RenderCrepusOptions = {},
 ): JSX.Element {
-  const prefix = options.keyPrefix ?? "s";
-  const kids = (ir.root ?? []).map((n, i) =>
-    renderNode(n, options, `${prefix}.${i}`),
-  );
+  const kids = (ir.root ?? []).map((node) => renderCrepusNodeSolid(node));
   return el(
-    "div",
+    options.rootTag ?? "div",
     {
-      "data-crepus-root": true,
+      "data-crepus-root": "true",
       "data-crepus-target": "solid",
-      "data-crepus-ir-version": ir.version ?? 1,
+      "data-crepus-ir-version": ir.version,
     },
     ...kids,
   );
