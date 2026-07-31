@@ -1,0 +1,42 @@
+{
+  "name": "@tschk/moonshine-tanstack",
+  "version": "0.3.2",
+  "description": "TanStack Router / Start client API reimplemented on moonshine — drop @tanstack/react-router, keep the imports",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts",
+    "./navigation": "./src/navigation.ts",
+    "./link": "./src/link.ts",
+    "./outlet": "./src/outlet.ts",
+    "./aliases": "./src/aliases.ts"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "^0.3.2",
+    "@tschk/moonshine-router": "^0.3.2"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "tanstack",
+    "router",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  }
+}

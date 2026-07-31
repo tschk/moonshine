@@ -1,0 +1,43 @@
+{
+  "name": "@tschk/moonshine-react-router",
+  "version": "0.3.2",
+  "description": "react-router / Remix client API reimplemented on moonshine — drop react-router, keep the imports",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts",
+    "./navigation": "./src/navigation.ts",
+    "./link": "./src/link.ts",
+    "./outlet": "./src/outlet.ts",
+    "./responses": "./src/responses.ts",
+    "./aliases": "./src/aliases.ts"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "^0.3.2",
+    "@tschk/moonshine-router": "^0.3.2"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "react-router",
+    "remix",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  }
+}

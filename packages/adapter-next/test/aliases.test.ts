@@ -1,11 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import {
-  moonshineNextPlugin,
-  nextAliases,
-  resolveAlias,
-  tsconfigPaths,
-} from "../src/aliases";
+import { nextAliases, resolveAlias, tsconfigPaths } from "../src/aliases";
 
 const specifiers = Object.keys(nextAliases);
 
@@ -75,15 +70,14 @@ describe("next/* aliases", () => {
   });
 
   test("the Bun plugin rewrites next/* without touching app source", async () => {
-    const entry = `${import.meta.dir}/fixtures/next-app.ts`;
-    const built = await Bun.build({
-      entrypoints: [entry],
-      plugins: [moonshineNextPlugin()],
-      target: "browser",
-      external: ["react", "react-dom"],
-    });
-    expect(built.success).toBe(true);
-    const code = await built.outputs[0]!.text();
+    const proc = Bun.spawnSync([
+      "bun",
+      `${import.meta.dir}/build-fixture.ts`,
+      "moonshineNextPlugin",
+      "fixtures/next-app.ts",
+    ]);
+    expect(proc.exitCode, proc.stderr.toString()).toBe(0);
+    const code = proc.stdout.toString();
     // The bundle must contain this package's implementation, not a next import.
     expect(code).not.toMatch(/from\s*["']next\//);
     expect(code).toContain("__moonshine_font_");
