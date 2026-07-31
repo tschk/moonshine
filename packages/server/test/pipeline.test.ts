@@ -103,7 +103,7 @@ describe("createRequestHandler", () => {
 
     const res = await handler(req);
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "aborted" });
+    expect(await res.json()).toEqual({ error: "Internal Server Error" });
     expect(rendered).toBe(false);
   });
 
@@ -156,7 +156,7 @@ describe("createRequestHandler", () => {
     expect(await res.text()).toBe("child:child fail");
   });
 
-  test("production error response omits stack", async () => {
+  test("production error response omits message and stack", async () => {
     const routes = graph([{ id: "err", path: "/err", file: "err.tsx" }]);
     const handler = createRequestHandler({
       graph: routes,
@@ -173,7 +173,7 @@ describe("createRequestHandler", () => {
     const res = await handler(new Request("http://x/err"));
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toBe("secret");
+    expect(body.error).toBe("Internal Server Error");
     expect(body.stack).toBeUndefined();
   });
 

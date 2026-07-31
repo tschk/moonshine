@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { createRequestHandler, redirect, resolveStaticPath } from "../src";
+import {
+  createRequestHandler,
+  errorResponse,
+  redirect,
+  resolveStaticPath,
+} from "../src";
 import { tryServeStatic } from "../src/static";
 import type { RouteModule } from "../src/data";
 
@@ -61,6 +66,33 @@ describe("resolveStaticPath", () => {
     expect(resolveStaticPath(staticDir, "/.well-known/probe.txt")).toBe(
       resolve(staticDir, ".well-known", "probe.txt"),
     );
+  });
+});
+
+describe("errorResponse", () => {
+  const secret = "connect ECONNREFUSED /var/run/db.sock user=root";
+
+  test("does not leak the thrown message outside development", async () => {
+    for (const mode of ["production", undefined] as const) {
+      const res = errorResponse(new Error(secret), mode);
+      expect(res.status).toBe(500);
+      const text = await res.text();
+      expect(text).not.toContain("db.sock");
+      expect(text).not.toContain("root");
+      expect(JSON.parse(text)).toEqual({ error: "Internal Server Error" });
+    }
+  });
+
+  test("keeps message and stack in development", async () => {
+    const res = errorResponse(new Error(secret), "development");
+    const body = (await res.json()) as { error: string; stack?: string };
+    expect(body.error).toBe(secret);
+    expect(body.stack).toBeTruthy();
+  });
+
+  test("does not leak non-Error thrown values", async () => {
+    const res = errorResponse(secret, "production");
+    expect(await res.text()).not.toContain("db.sock");
   });
 });
 

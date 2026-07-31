@@ -26,9 +26,14 @@ export function errorResponse(
   error: unknown,
   mode?: "development" | "production",
 ): Response {
-  const isDev = mode === "development";
+  // Anything but an explicit development mode is treated as production: the
+  // thrown value can carry file paths, queries, or secrets, so only the
+  // generic status text crosses the boundary.
+  if (mode !== "development") {
+    return json({ error: "Internal Server Error" }, { status: 500 });
+  }
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
-  const body = isDev && stack ? { error: message, stack } : { error: message };
+  const body = stack ? { error: message, stack } : { error: message };
   return json(body, { status: 500 });
 }
