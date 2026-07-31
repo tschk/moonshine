@@ -283,6 +283,17 @@
         "react-dom",
       ],
     },
+    "packages/framework": {
+      "name": "@tschk/moonshine-framework",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "^0.2.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "7.0.2",
+      },
+    },
     "packages/shaders": {
       "name": "@tschk/moonshine-shaders",
       "version": "0.2.0",
@@ -578,6 +589,8 @@
     "@tschk/moonshine-example-shaders-island": ["@tschk/moonshine-example-shaders-island@workspace:examples/shaders-island"],
 
     "@tschk/moonshine-example-vite-crepus": ["@tschk/moonshine-example-vite-crepus@workspace:examples/vite-crepus"],
+
+    "@tschk/moonshine-framework": ["@tschk/moonshine-framework@workspace:packages/framework"],
 
     "@tschk/moonshine-next": ["@tschk/moonshine-next@workspace:packages/adapter-next"],
 
