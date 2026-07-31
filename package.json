@@ -8,8 +8,7 @@
   "workspaces": [
     "packages/*",
     "components",
-    "examples/vite-crepus",
-    "examples/catalog-gallery"
+    "examples/*"
   ],
   "scripts": {
     "test": "bun test packages components && bun run check:catalog",

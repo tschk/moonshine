@@ -117,7 +117,7 @@ import { Sparkline, Button } from "@tschk/moonshine-components";
 |------|------|
 | `examples/vite-crepus` | Vite + Crepus IR |
 | `examples/catalog-gallery` | Component catalog |
-| `examples/next-counter` | Next App Router client island (standalone `bun install` in that folder) |
+| `examples/next-counter` | Next App Router client island |
 
 ## Develop
 

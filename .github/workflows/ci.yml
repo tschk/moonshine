@@ -25,8 +25,8 @@ jobs:
         working-directory: examples/vite-crepus
       - run: bun run build
         working-directory: examples/catalog-gallery
-      # next-counter is source example (not a workspace) — avoid pulling next/swc in CI
-      - run: test -f examples/next-counter/app/counter.tsx && test -f examples/next-counter/app/page.tsx
+      - run: bun run build
+        working-directory: examples/next-counter
 
   dart:
     runs-on: ubuntu-latest

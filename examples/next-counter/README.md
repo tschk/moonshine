@@ -7,11 +7,10 @@ Minimal App Router example:
 
 Moonshine does **not** replace the App Router. Import signals only from client files.
 
-Standalone example (not a monorepo workspace — Next/SWC is large).
-
 ```bash
-cd examples/next-counter
+# from monorepo root
 bun install
+cd examples/next-counter
 bun run dev
 ```
 
