@@ -1,20 +1,23 @@
 # `@tschk/moonshine-cli`
 
-Bun CLI for moonshine.
+Bun CLI for scaffolding, building, and inspecting Moonshine projects.
 
 ```bash
 bun packages/cli/bin/moonshine.ts new my-app
-# or from monorepo root:
-bun run moonshine -- new my-app
+bun packages/cli/bin/moonshine.ts build
+bun packages/cli/bin/moonshine.ts inspect
+bun packages/cli/bin/moonshine.ts preview
 ```
 
-## Commands
+Commands:
 
-| Command                    | What                                                         |
-| -------------------------- | ------------------------------------------------------------ |
-| `moonshine new <name>`     | Scaffold Vite + React TSX app using `@tschk/moonshine/react` |
-| `moonshine compile [file]` | `.crepus` → TSX via `crepus`, or View IR `.json` → `.tsx`    |
-| `moonshine dev`            | `bunx vite`                                                  |
-| `moonshine build`          | `bunx vite build`                                            |
+- `new <name> [--react|--solid|--crepus] [--adapter bun|node|cloudflare|vercel] [--vite]`
+- `build [dir] [--adapter bun|node|cloudflare|vercel]`
+- `inspect [path] [--json]`
+- `preview [dir] [--port <n>]`
+- `dev [dir]`
+- `compile [file]`
 
-When `MOONSHINE_PATH` is set (or the monorepo root is detected), `new` links packages with `file:` deps.
+See [DESIGN.md](../../DESIGN.md), [docs/ROUTING.md](../../docs/ROUTING.md),
+[docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md), and
+[docs/MANIFEST.md](../../docs/MANIFEST.md).

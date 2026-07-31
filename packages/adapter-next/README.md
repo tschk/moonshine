@@ -1,19 +1,19 @@
-# @tschk/moonshine-next
+# `@tschk/moonshine-next`
 
-**Use Next libraries inside moonshine** (peer-install `next`).
+Next.js adapter for Moonshine. Re-exports real Next.js libraries on subpaths
+plus moonshine signal bridges.
 
 ```ts
 import { createSignal, useSignal } from "@tschk/moonshine-next";
 import { useRouter, usePathnameSignal } from "@tschk/moonshine-next/navigation";
 import Link from "@tschk/moonshine-next/link";
 import Image from "@tschk/moonshine-next/image";
-import { headers, cookies } from "@tschk/moonshine-next/headers";
-import dynamic from "@tschk/moonshine-next/dynamic";
+import { headers } from "@tschk/moonshine-next/headers";
 import { useFragmentShader } from "@tschk/moonshine-next/shaders";
 import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 ```
 
-| Subpath          | Provides                                           |
+| Subpath          | Host library                                       |
 | ---------------- | -------------------------------------------------- |
 | `.` / `./client` | moonshine signals + resources (`"use client"`)     |
 | `./navigation`   | `next/navigation` + pathname/search signals        |
@@ -24,4 +24,8 @@ import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 | `./shaders`      | moonshine WebGL helpers                            |
 | `./server`       | `moonshineRoute` / `Json` / `Html` + pages helpers |
 
-Does **not** export MoonshineRouter — App Router owns routing.
+Peer: `next` >= 15, `react` >= 18, `react-dom` >= 18.
+
+Does **not** export `MoonshineRouter` — use the Next.js App Router.
+
+See [Moonshine README](../../README.md).

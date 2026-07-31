@@ -1,82 +1,53 @@
 # Moonshine vs other web stacks
 
-Honest map: **what moonshine is**, what it is not, where it wins/loses.
+Honest map: what Moonshine is, what it is not, and where the trade-offs sit.
 
-## One-line map
+## One-line identity
 
-| Stack                | One line                                         | Moonshine relation                                                                                             |
-| -------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **Next.js**          | Full-stack React metaframework (RSC, App Router) | **Not competing on platform features.** Greenfield = Bun + `/server` + Vite/`--vite`. No Next adapter package. |
-| **Remix / RR7**      | Nested routes, loaders/actions                   | Web-fetch spirit; we stay smaller. No dedicated adapter — import `@tschk/moonshine/react`.                     |
-| **Waku**             | Minimal React 19 / RSC                           | Cousin on lightness; optional `-waku` bridge only.                                                             |
-| **Astro**            | Content-first islands                            | Better content sites; optional `-astro` island bridge.                                                         |
-| **Solid**            | Fine-grained reactive compiler                   | We take signals, not compiler. `-solid` = IR + bridge.                                                         |
-| **Svelte/SvelteKit** | Compiler UI + kit                                | `/runes` naming only; `-svelte` store bridge.                                                                  |
-| **Vue/Nuxt**         | Progressive + batteries                          | `-vue` / `-nuxt` bridges only.                                                                                 |
-| **Hono**             | Tiny fetch router                                | Complements HTTP; or use our pages map alone.                                                                  |
-| **Vite + React**     | Bundler + library                                | SPA path via `moonshine new app --vite`.                                                                       |
+> Moonshine is a ground-up, Bun-first web framework built from a hyperminimal
+> signal kernel. Start with signals; add only the routing, rendering, server,
+> compiler, and deployment layers your project needs.
 
-## Capability matrix
+## Comparison matrix
 
-| Capability           | Moonshine                 | Next 16         | Remix        | Waku      | SolidStart | Hono    |
-| -------------------- | ------------------------- | --------------- | ------------ | --------- | ---------- | ------- |
-| Fine-grained signals | **yes**                   | no              | no           | no        | Solid yes  | n/a     |
-| React TSX            | opt-in `/react`           | yes             | yes          | yes       | no         | n/a     |
-| Bun-native HTTP      | **`/server` + staticDir** | adapter         | adapters     | node-ish  | adapters   | **yes** |
-| App/file router      | pages map                 | **yes**         | **yes**      | yes       | yes        | manual  |
-| RSC                  | **no**                    | **yes**         | partial      | **yes**   | no         | n/a     |
-| Client router        | mini `/router`            | App Router      | yes          | yes       | yes        | n/a     |
-| Deploy defaults      | DIY                       | **strong**      | many         | many      | many       | many    |
-| Surface size         | **tiny core**             | large           | medium       | small-med | med        | tiny    |
-| Crepus View IR       | **yes**                   | no              | no           | no        | no         | no      |
-| Scaffold             | `new --bun\|--vite`       | create-next-app | create-remix | —         | —          | —       |
+| Dimension             | Moonshine                                                             | Astro                                           | Waku                                             | SolidStart                                                   | SvelteKit                                                          | Next.js                                                        | OpenNext                                    |
+| --------------------- | --------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------- |
+| Default kernel weight | ~2.83 KiB minified (`scripts/check-size.ts`)                          | 0 KB client JS for `.astro`; per-island runtime | React 19 / RSC; client JS scales with components | Solid runtime + Vinxi / Nitro                                | Svelte compiler + runtime; reported ~32.5 KiB gzipped client entry | React + Next runtime; reported ~57 KiB gzipped framework chunk | Next.js output; adapter adds no runtime     |
+| Route modes           | `static`, `ssr`, `island`, `spa`, `api` (per route, auto or explicit) | Static, SSR, islands via `client:*` directives  | RSC + client components                          | SSR, SPA, API, experimental islands                          | `+page`, `+page.server`, `+page.client`, `+server`                 | RSC, SSR, static, client, route handlers                       | Next.js modes, built for serverless/edge    |
+| Deployment targets    | Bun, Node, Cloudflare, Vercel                                         | Netlify, Vercel, Node, Cloudflare, Deno, static | Node, Cloudflare, Vercel                         | Nitro presets (Node, Cloudflare, Vercel, Netlify, Deno, ...) | Node, Cloudflare, Vercel, Netlify, static                          | Vercel-first; Node, Docker, static                             | AWS, Cloudflare (Next.js build wrapper)     |
+| Renderer model        | Renderer contract; React / Solid / Crepus own output; no shared vnode | `.astro` compiler + framework islands           | React Server Components                          | Solid SSR / hydration via Vinxi                              | Svelte compiler + server/client data                               | React (RSC / SSR / CSR)                                        | Next.js renderer unchanged                  |
+| Opt-in capabilities   | Router, compiler, server, renderers, deploy adapters, host adapters   | Images, content collections, view transitions   | RSC, middleware, client islands                  | Server functions, actions, serialization, islands            | Forms, server loads, actions, adapters                             | RSC, image/font, cache, PPR, platform integrations             | Edge, serverless, static, incremental cache |
 
-## When pick moonshine
+No speed ranking is included; the repository only reports the core bundle size
+measured by `scripts/check-size.ts`.
 
-- Solid-like **signals** + optional React, no new JSX compiler.
-- **Bun** as install/test/HTTP runtime.
-- Interactive UI + simple pages/API — not MDX marketing farm or RSC org platform.
-- OK composing auth/DB/deploy yourself.
+## When to pick Moonshine
 
-## When not
+- You want Solid-like signals first and React/Solid/Crepus only when you opt in.
+- Bun is the install, test, bundler, and HTTP runtime.
+- You want one project to mix static pages, SSR, islands, SPAs, and API routes.
+- You are comfortable composing auth, databases, caches, and deployment yourself.
 
-- RSC / PPR / image-font pipelines → **Next**.
-- Content islands site → **Astro**.
-- All-in Solid compiler → **Solid**.
-- HTTP-only → **Hono**.
+## When not to pick Moonshine
 
-## Architecture
+- You need a full RSC / PPR / image pipeline platform → **Next.js**.
+- Your site is content-first with many framework-island pages → **Astro**.
+- You want a single-vendor edge platform with managed primitives → **Vercel + Next.js** or **SvelteKit**.
+- You are only building an HTTP API → **Hono** or a router of choice.
 
-```
-moonshine core     = signals
-+ /react           = React bindings + createApp
-+ /router          = instance client router
-+ /server          = pages + staticDir + Bun.serve
-+ crepus           = View IR → React/Solid
-+ adapters         = optional: solid, vue, nuxt, svelte, astro, waku
-```
+## Primary documentation
 
-**Scaffold**
-
-```bash
-moonshine new app          # default: Bun full-stack
-moonshine new spa --vite   # client SPA only
-```
-
-## Audit (ponytail) — applied
-
-| Tag        | Item                                                | Status                               |
-| ---------- | --------------------------------------------------- | ------------------------------------ |
-| `delete:`  | `@tschk/moonshine-next`                             | done                                 |
-| `restore:` | next/remix/tanstack/angular with **real host APIs** | **done**                             |
-| `native:`  | `staticDir` + path guard                            | done                                 |
-| `keep:`    | signals, crepus IR, bun-server example              | done                                 |
-| `yagni:`   | auth/DB/RSC in core                                 | skipped (compose)                    |
-| `gap:`     | hydrate via `bun build` script                      | intentional, not a bundler framework |
+- [Moonshine — README](../README.md) · [DESIGN.md](../DESIGN.md) · [ROUTING.md](./ROUTING.md) · [DEPLOYMENT.md](./DEPLOYMENT.md) · [MANIFEST.md](./MANIFEST.md)
+- [Astro](https://docs.astro.build)
+- [Waku](https://waku.gg)
+- [SolidStart](https://start.solidjs.com)
+- [SvelteKit](https://kit.svelte.dev)
+- [Next.js](https://nextjs.org)
+- [OpenNext](https://opennext.js.org)
 
 ## Bottom line
 
-Moonshine = **runtime + small batteries**, not an app platform.  
-Vs Next: simpler Bun/signals path; no RSC platform.  
-Vs Hono: we add UI reactivity.  
-Vs Solid/Svelte: ideas without compilers.
+Moonshine is a framework built from a signal kernel: install only the pieces you
+need, mix route modes, and deploy to Bun, Node, Cloudflare, or Vercel from the
+same manifest. It is not a platform, not a compiler monopoly, and not a host
+framework replacement.

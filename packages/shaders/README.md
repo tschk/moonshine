@@ -1,9 +1,11 @@
-# @tschk/moonshine-shaders
+# `@tschk/moonshine-shaders`
 
-Optional WebGL fragment helpers for moonshine React apps.
+Optional WebGL fragment helpers for Moonshine React apps.
 
 ```ts
 import { useFragmentShader } from "@tschk/moonshine-shaders";
-// or compat re-export:
+// compat re-export:
 import { useFragmentShader } from "@tschk/moonshine/shaders";
 ```
+
+See [Moonshine README](../../README.md).

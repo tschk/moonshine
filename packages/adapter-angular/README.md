@@ -1,3 +1,11 @@
-# @tschk/moonshine-angular
+# `@tschk/moonshine-angular`
 
-Real host API over moonshine signals/resources. See `src/` and package tests.
+Angular-like signal / computed / effect API over moonshine. No `@angular/core`
+dependency.
+
+```ts
+import { signal, computed, effect } from "@tschk/moonshine-angular";
+import { fromSignal } from "@tschk/moonshine-angular/rxjs";
+```
+
+See [Moonshine README](../../README.md).
