@@ -31,7 +31,9 @@ function generateServerEntry(
   routes: RouteArtifact[],
 ): string {
   const imports: string[] = [];
-  const body: string[] = [];
+  const bodies: string[] = [];
+  const moduleHelpers: string[] = [];
+  const moduleBodys: string[] = [];
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i]!;
     const modulePath = importPath(buildDir, route.file);
@@ -41,9 +43,30 @@ function generateServerEntry(
       imports.push(`import * as data_${i} from "${dataPath}";`);
     }
     const dataRef = route.dataFile ? `data_${i}` : "undefined";
-    body.push(`  "${route.path}": { module: route_${i}, data: ${dataRef} }`);
+    bodies.push(`  "${route.path}": { module: route_${i}, data: ${dataRef} }`);
+    moduleHelpers.push(`function makeModule_${i}(mod, data) {
+  const m = { ...mod, ...data };
+  if (!m.loader && typeof mod.GET === "function") {
+    m.loader = (ctx) => mod.GET(ctx.request);
   }
-  return `${imports.join("\n")}\n\nexport const routes = {\n${body.join(",\n")}\n};\n`;
+  if (!m.action && typeof mod.POST === "function") {
+    m.action = (ctx) => mod.POST(ctx.request);
+  }
+  if (!m.loader && !m.action && typeof mod.handler === "function") {
+    m.loader = (ctx) => mod.handler(ctx.request);
+  }
+  return m;
+}`);
+    const moduleVar = `module_${i}`;
+    moduleBodys.push(`  "${route.id}": ${moduleVar},
+  "${toPosix(route.file)}": ${moduleVar}${
+    route.dataFile
+      ? `,
+  "${toPosix(route.dataFile)}": ${moduleVar}`
+      : ""
+  }`);
+  }
+  return `${imports.join("\n")}\n\n${moduleHelpers.join("\n")}\n\nconst ${routes.map((_, i) => `module_${i} = makeModule_${i}(route_${i}, ${routes[i]!.dataFile ? `data_${i}` : "undefined"})`).join(";\nconst ")};\n\nexport const routes = {\n${bodies.join(",\n")}\n};\n\nexport const modules = {\n${moduleBodys.join(",\n")}\n};\n`;
 }
 
 function generateClientEntry(
@@ -157,7 +180,7 @@ export async function buildBundles(options: {
     client: clientAssets,
     entryFiles: {
       server: serverAssets[0]?.file ?? "",
-      client: clientAssets[0]?.file,
+      client: clientAssets[0]?.path,
     },
   };
 }

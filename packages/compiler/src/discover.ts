@@ -9,7 +9,7 @@ export type DiscoverOptions = {
 };
 
 export function segmentToPattern(segment: string): string {
-  if (/^\[\.\.\.[^\]]+\]$/.test(segment)) return `*${segment.slice(4, -1)}`;
+  if (/^\[\.\.\.[^\]]*\]$/.test(segment)) return `*${segment.slice(4, -1)}`;
   if (/^\[\[[^\]]+\]\]$/.test(segment)) return `:${segment.slice(2, -2)}?`;
   if (/^\[[^\]]+\]$/.test(segment)) return `:${segment.slice(1, -1)}`;
   return segment;

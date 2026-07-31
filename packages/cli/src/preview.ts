@@ -76,7 +76,24 @@ export async function startPreview(options: {
   const config = await loadConfigMaybe(projectDir);
   const renderer = await resolveRenderer(config.renderer);
   const staticDir = resolve(projectDir, ".moonshine");
-  const fetch = createRequestHandler({ manifest, renderer, staticDir });
+  const serverBundlePath = resolve(
+    projectDir,
+    ".moonshine",
+    raw.entries.server ?? "dist/server.js",
+  );
+  let modules: Record<string, unknown> = {};
+  try {
+    const bundle = (await import(serverBundlePath)) as {
+      modules?: Record<string, unknown>;
+    };
+    modules = bundle.modules ?? {};
+  } catch {}
+  const fetch = createRequestHandler({
+    manifest,
+    modules,
+    renderer,
+    staticDir,
+  });
   const server = createBunServer({
     fetch,
     port: options.port ?? 0,

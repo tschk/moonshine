@@ -1,0 +1,29 @@
+{
+  "name": "@tschk/moonshine-example-hybrid-app",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "build": "moonshine build",
+    "dev": "moonshine dev",
+    "preview": "moonshine preview",
+    "test": "bun test",
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "workspace:*",
+    "@tschk/moonshine-cli": "workspace:*",
+    "@tschk/moonshine-compiler": "workspace:*",
+    "@tschk/moonshine-react": "workspace:*",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,14 +1,5 @@
-import {
-  createRouteGraph,
-  matchRoutes,
-  type RouteGraph,
-} from "@tschk/moonshine-router";
-import type {
-  MoonshineManifest,
-  Renderer,
-  RenderContext,
-  RouteDefinition,
-} from "@tschk/moonshine-framework";
+import { createRouteGraph, matchRoutes } from "@tschk/moonshine-router";
+import type { RouteDefinition } from "@tschk/moonshine-framework";
 import type {
   ErrorBoundary,
   Middleware,
@@ -166,7 +157,8 @@ async function runCoreAndAfters(
 
   let response: Response;
   if (route.mode === "api") {
-    response = json(ctx.data);
+    const leafData = leaf ? ctx.data[leaf.key] : undefined;
+    response = leafData instanceof Response ? leafData : json(ctx.data);
   } else if (route.mode === "static" && options.staticDir) {
     const pathname = new URL(ctx.request.url).pathname;
     const staticRes = await tryServeStatic(options.staticDir, pathname);

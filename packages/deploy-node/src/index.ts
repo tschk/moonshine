@@ -224,11 +224,36 @@ export const nodeAdapter: DeploymentAdapter = {
 import { createRequestHandler } from "@tschk/moonshine-server";
 import { reactRenderer } from "@tschk/moonshine-react";
 import { createNodeHandler } from "@tschk/moonshine-deploy-node";
+import { resolve } from "node:path";
 import manifest from "./manifest.json" with { type: "json" };
+import { modules } from "./dist/server.js";
 
-const fetch = createRequestHandler({ manifest, renderer: reactRenderer });
+const projectDir = resolve(import.meta.dir, "..");
+const abs = (p) => (p ? resolve(projectDir, p) : undefined);
+const resolvedManifest = {
+  ...manifest,
+  routes: manifest.routes.map((r) => ({
+    ...r,
+    file: resolve(projectDir, r.file),
+    dataFile: abs(r.dataFile),
+    layouts: r.layouts?.map(abs).filter(Boolean),
+    middleware: r.middleware?.map(abs).filter(Boolean),
+    errorBoundary: abs(r.errorBoundary),
+  })),
+};
+
+const fetch = createRequestHandler({
+  manifest: resolvedManifest,
+  modules,
+  renderer: reactRenderer,
+  staticDir: import.meta.dir,
+});
 const server = createServer(createNodeHandler({ fetch, staticDir: import.meta.dir }));
-server.listen(Number(process.env.PORT) || 0);
+server.listen(Number(process.env.PORT) || 0, () => {
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  console.log("http://localhost:" + port + "/");
+});
 `;
     await writeFile(resolve(outDir, "server.ts"), entry);
   },

@@ -5,6 +5,15 @@
     "": {
       "name": "moonshine-monorepo",
       "devDependencies": {
+        "@tschk/moonshine": "workspace:*",
+        "@tschk/moonshine-cli": "workspace:*",
+        "@tschk/moonshine-compiler": "workspace:*",
+        "@tschk/moonshine-deploy-bun": "workspace:*",
+        "@tschk/moonshine-framework": "workspace:*",
+        "@tschk/moonshine-react": "workspace:*",
+        "@tschk/moonshine-router": "workspace:*",
+        "@tschk/moonshine-server": "workspace:*",
+        "@tschk/moonshine-shaders": "workspace:*",
         "@types/bun": "1.3.14",
         "@types/react": "^19.1.0",
         "@types/react-dom": "^19.1.0",
@@ -93,6 +102,24 @@
         "@types/react-dom": "^19.1.0",
         "react": "19.1.0",
         "react-dom": "19.1.0",
+        "typescript": "7.0.2",
+      },
+    },
+    "examples/hybrid-app": {
+      "name": "@tschk/moonshine-example-hybrid-app",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "workspace:*",
+        "@tschk/moonshine-cli": "workspace:*",
+        "@tschk/moonshine-compiler": "workspace:*",
+        "@tschk/moonshine-react": "workspace:*",
+        "react": "19.1.0",
+        "react-dom": "19.1.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "@types/react": "^19.1.0",
+        "@types/react-dom": "^19.1.0",
         "typescript": "7.0.2",
       },
     },
@@ -788,6 +815,8 @@
 
     "@tschk/moonshine-example-deploy-vercel": ["@tschk/moonshine-example-deploy-vercel@workspace:examples/deploy-vercel"],
 
+    "@tschk/moonshine-example-hybrid-app": ["@tschk/moonshine-example-hybrid-app@workspace:examples/hybrid-app"],
+
     "@tschk/moonshine-example-shaders-island": ["@tschk/moonshine-example-shaders-island@workspace:examples/shaders-island"],
 
     "@tschk/moonshine-example-vite-crepus": ["@tschk/moonshine-example-vite-crepus@workspace:examples/vite-crepus"],
@@ -1037,8 +1066,6 @@
     "yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 
     "zimmerframe": ["zimmerframe@1.1.4", "", {}, "sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ=="],
-
-    "@tschk/moonshine/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
 
     "@tschk/moonshine-astro/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
 

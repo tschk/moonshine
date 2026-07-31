@@ -7,6 +7,7 @@ coverage/
 build/
 dist/
 out/
+.moonshine/
 node_modules/
 *.log
 *.lock

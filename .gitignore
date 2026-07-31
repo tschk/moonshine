@@ -18,6 +18,7 @@ pubspec.lock
 # Next.js
 **/.next/
 out/
+.moonshine/
 
 # bun-server client bundle (rebuilt in scripts/tests)
 examples/bun-server/public/client.js

@@ -96,10 +96,36 @@ export const bunAdapter: DeploymentAdapter = {
     const entry = `import { createRequestHandler } from "@tschk/moonshine-server";
 import { reactRenderer } from "@tschk/moonshine-react";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
+import { resolve } from "node:path";
 import manifest from "./manifest.json" with { type: "json" };
+import { modules } from "./dist/server.js";
 
-const fetch = createRequestHandler({ manifest, renderer: reactRenderer });
-createBunServer({ fetch, port: Number(process.env.PORT) || 0 });
+const projectDir = resolve(import.meta.dir, "..");
+const abs = (p) => (p ? resolve(projectDir, p) : undefined);
+const resolvedManifest = {
+  ...manifest,
+  routes: manifest.routes.map((r) => ({
+    ...r,
+    file: resolve(projectDir, r.file),
+    dataFile: abs(r.dataFile),
+    layouts: r.layouts?.map(abs).filter(Boolean),
+    middleware: r.middleware?.map(abs).filter(Boolean),
+    errorBoundary: abs(r.errorBoundary),
+  })),
+};
+
+const fetch = createRequestHandler({
+  manifest: resolvedManifest,
+  modules,
+  renderer: reactRenderer,
+  staticDir: import.meta.dir,
+});
+const server = createBunServer({
+  fetch,
+  port: Number(process.env.PORT) || 0,
+  staticDir: import.meta.dir,
+});
+console.log(server.url.origin);
 `;
     await writeFile(resolve(outDir, "server.ts"), entry);
   },

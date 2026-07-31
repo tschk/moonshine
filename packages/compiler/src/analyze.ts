@@ -100,6 +100,16 @@ function isJsxEventAttribute(node: ts.Node): boolean {
   return !!name && /^on[A-Z]/.test(name);
 }
 
+function isIslandCall(node: ts.Node): boolean {
+  if (!ts.isCallExpression(node)) return false;
+  const expr = node.expression;
+  if (ts.isIdentifier(expr)) return expr.text === "island";
+  if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.name)) {
+    return expr.name.text === "island";
+  }
+  return false;
+}
+
 function getFileSuffix(file: string): "server" | "client" | undefined {
   const lower = file.toLowerCase();
   if (lower.endsWith(".server.ts") || lower.endsWith(".server.tsx"))
@@ -131,6 +141,7 @@ export function analyzeModule(file: string, program?: ts.Program): ModuleFacts {
     if (isRequestBoundImport(node)) facts.requestBound = true;
     if (isNonLiteralDynamicImport(node)) facts.unresolvedDynamicImport = true;
     if (isJsxEventAttribute(node)) facts.interactive = true;
+    if (isIslandCall(node)) facts.interactive = true;
     ts.forEachChild(node, visit);
   }
 

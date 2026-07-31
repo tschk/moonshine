@@ -48,7 +48,7 @@ describe("buildProject", () => {
     ]);
     expect(manifest.routes.every((r) => r.runtime === "bun")).toBe(true);
     expect(manifest.entries.server).toBe("dist/server.js");
-    expect(manifest.entries.client).toBe("dist/client.js");
+    expect(manifest.entries.client).toBe("/dist/client.js");
     expect(manifest.capabilities).toEqual(["islands", "streaming"]);
     expect(manifest.assets.map((a) => a.file)).toEqual([
       "dist/client.js",
