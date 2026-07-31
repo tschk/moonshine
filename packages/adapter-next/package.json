@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-next",
   "version": "0.3.2",
-  "description": "Next.js adapter — moonshine signals + next/navigation|link|image|headers|shaders",
+  "description": "Next.js API surface reimplemented on moonshine \u2014 drop Next, keep the imports",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -13,16 +13,19 @@
     "./navigation": "./src/navigation.ts",
     "./link": "./src/link.ts",
     "./image": "./src/image.ts",
+    "./script": "./src/script.ts",
     "./headers": "./src/headers.ts",
     "./dynamic": "./src/dynamic.ts",
+    "./font/google": "./src/font/google.ts",
+    "./aliases": "./src/aliases.ts",
     "./shaders": "./src/shaders.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "^0.3.2",
+    "@tschk/moonshine-router": "^0.3.2",
     "@tschk/moonshine-shaders": "^0.3.2"
   },
   "peerDependencies": {
-    "next": ">=15",
     "react": ">=18",
     "react-dom": ">=18"
   },
@@ -38,7 +41,7 @@
   "scripts": {
     "format": "bunx prettier --check .",
     "lint": "bunx oxlint .",
-    "typecheck": "exit 0",
+    "typecheck": "bunx tsc --noEmit",
     "test": "bun test"
   }
 }
