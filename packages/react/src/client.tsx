@@ -1,5 +1,6 @@
 import {
   createElement,
+  useCallback,
   useSyncExternalStore,
   type ComponentType,
   type ReactNode,
@@ -93,9 +94,14 @@ export function useSignal<T>(
   source: Subscribable<T>,
   getServerSnapshot?: () => T,
 ): T {
-  const subscribe = (onStoreChange: () => void) =>
-    source.subscribe(onStoreChange);
-  const getSnapshot = () => source();
+  // A fresh `subscribe` identity makes useSyncExternalStore resubscribe on
+  // every render, and dropping a memo's last listener tears down its whole
+  // upstream chain, so keep it stable for as long as the source is.
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => source.subscribe(onStoreChange),
+    [source],
+  );
+  const getSnapshot = useCallback(() => source(), [source]);
   const server =
     getServerSnapshot ??
     (() =>
