@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-next",
-  "version": "0.3.2",
-  "description": "Next.js API surface reimplemented on moonshine \u2014 drop Next, keep the imports",
+  "version": "0.3.3",
+  "description": "Next.js API surface reimplemented on moonshine — drop Next, keep the imports",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -21,9 +21,9 @@
     "./shaders": "./src/shaders.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.3.2",
-    "@tschk/moonshine-router": "^0.3.2",
-    "@tschk/moonshine-shaders": "^0.3.2"
+    "@tschk/moonshine": "^0.3.3",
+    "@tschk/moonshine-router": "^0.3.3",
+    "@tschk/moonshine-shaders": "^0.3.3"
   },
   "peerDependencies": {
     "react": ">=18",

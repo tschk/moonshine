@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-adapter-conformance",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -15,9 +15,9 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine-framework": "^0.3.2",
-    "@tschk/moonshine-server": "^0.3.2",
-    "@tschk/moonshine-react": "^0.3.2",
+    "@tschk/moonshine-framework": "^0.3.3",
+    "@tschk/moonshine-server": "^0.3.3",
+    "@tschk/moonshine-react": "^0.3.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
