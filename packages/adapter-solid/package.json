@@ -14,7 +14,11 @@
   },
   "dependencies": {
     "@tschk/moonshine": "workspace:*",
+    "@tschk/moonshine-framework": "^0.2.0",
     "@tschk/crepus-moonshine": "file:../crepus-moonshine"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "solid-js": ">=1.8"

@@ -421,3 +421,4 @@ export {
   untrack,
 } from "@tschk/moonshine";
 export type { Resource, ResourceStatus } from "@tschk/moonshine";
+export { hydrateSolid, solidRenderer } from "./framework";
