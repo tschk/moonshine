@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Publishes every @tschk package, prompting for a 2FA code only when npm asks.
+# Publishes every @tschk package using npm's browser auth (passkey).
+# Each publish opens a browser tab to confirm; no codes to type.
 set -uo pipefail
 
 CREPUS="$HOME/projects/crepuscularity"
@@ -27,17 +28,16 @@ MOONSHINE_DIRS=(
     components
 )
 
-OTP=""
 published=0
 skipped=0
 failed=()
 
 publish_dir() {
     local dir="$1"
-    local name version out status
+    local name version
 
     if [ ! -f "$dir/package.json" ]; then
-        echo "skip      $dir (no package.json)"
+        echo "skip      $dir (not prepared yet)"
         return 0
     fi
     name=$(node -p "require('$dir/package.json').name")
@@ -49,28 +49,17 @@ publish_dir() {
         return 0
     fi
 
-    while true; do
-        if [ -z "$OTP" ]; then
-            printf '\nnpm 2FA code: ' >&2
-            read -r OTP
-        fi
-        out=$(cd "$dir" && npm publish --access public --otp="$OTP" 2>&1)
-        status=$?
-        if [ $status -eq 0 ]; then
-            echo "published $name@$version"
-            published=$((published + 1))
-            return 0
-        fi
-        if echo "$out" | grep -qiE 'EOTP|one-time password'; then
-            echo "  code expired or wrong, need a new one" >&2
-            OTP=""
-            continue
-        fi
-        echo "FAILED    $name@$version" >&2
-        echo "$out" | tail -5 >&2
-        failed+=("$name@$version")
-        return 1
-    done
+    echo
+    echo ">>> publishing $name@$version"
+    # stdio is inherited so npm can run its browser auth prompt.
+    if (cd "$dir" && npm publish --access public --auth-type=web); then
+        echo "published $name@$version"
+        published=$((published + 1))
+        return 0
+    fi
+    echo "FAILED    $name@$version" >&2
+    failed+=("$name@$version")
+    return 1
 }
 
 echo "=== 1/3  @tschk/crepuscularity-wasm ==="
@@ -108,6 +97,7 @@ echo
 echo "done: $published published, $skipped already current"
 if [ ${#failed[@]} -gt 0 ]; then
     echo "failed: ${failed[*]}" >&2
+    echo "re-run this script to retry; anything already published is skipped." >&2
     exit 1
 fi
 echo
