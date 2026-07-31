@@ -21,6 +21,43 @@ Honest map: what Moonshine is, what it is not, and where the trade-offs sit.
 No speed ranking is included; the repository only reports the core bundle size
 measured by `scripts/check-size.ts`.
 
+## Measured on this machine
+
+Reproducible via `bun scripts/benchmark-competitive.ts` and
+`bun scripts/benchmark.ts`. Full methodology and caveats at
+[docs/audits/competitive-benchmarks.md](./audits/competitive-benchmarks.md).
+
+### Bundle size (minified ESM, browser target)
+
+| bundle                                                    |  bytes |    KiB |
+| --------------------------------------------------------- | -----: | -----: |
+| Moonshine kernel (signals only)                           |   2903 |   2.83 |
+| Moonshine island (signals + react bridge, react external) |    412 |   0.40 |
+| React 19 + react-dom client (tiny fixture, bundled)       | 361879 | 353.40 |
+| Solid 1.9 client (tiny fixture, bundled)                  |  38561 |  37.66 |
+
+### Request latency (localhost, single process, Bun.serve, 50 runs)
+
+| handler                                                   | p50 (ms) | p95 (ms) |
+| --------------------------------------------------------- | -------: | -------: |
+| Bare Bun.serve text response                              |    0.093 |    0.180 |
+| Moonshine static route (loader + reactRenderer prerender) |    0.148 |    0.268 |
+| Moonshine SSR route (loader + stream render)              |    0.105 |    0.218 |
+
+### Internal compiler / server paths (median of 10 runs)
+
+| routes | discovery (ms) | classification (ms) | manifest (ms) | cold build (ms) | incremental build (ms) | server startup (ms) | static request (ms) | SSR request (ms) |
+| -----: | -------------: | ------------------: | ------------: | --------------: | ---------------------: | ------------------: | ------------------: | ---------------: |
+|     10 |           0.25 |                1.16 |          0.89 |            4.96 |                   5.51 |                1.07 |                0.21 |             0.20 |
+|    100 |           1.50 |                4.33 |          6.10 |           13.14 |                  13.06 |                0.05 |                0.13 |             0.23 |
+|   1000 |          11.61 |               37.01 |         51.24 |          107.73 |                  99.74 |                0.98 |                0.14 |             0.78 |
+
+Astro, Next.js, SvelteKit, Waku, and SolidStart were not measured here because
+they are not installed in this workspace. The React and Solid "tiny fixture"
+sizes are reference points for what each renderer adds when bundled, not full
+applications. Server latency is localhost single-process and excludes network
+and TLS overhead.
+
 ## When to pick Moonshine
 
 - You want Solid-like signals first and React/Solid/Crepus only when you opt in.

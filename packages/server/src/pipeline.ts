@@ -11,8 +11,17 @@ import { callAction, callLoader, createRouteContext } from "./data.js";
 import { errorResponse, json, Redirect } from "./errors.js";
 import { tryServeStatic } from "./static.js";
 
+function hasControlChars(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
 function isSafeRedirect(location: string, request: Request): boolean {
   try {
+    if (hasControlChars(location)) return false;
     const base = new URL(request.url);
     const url = new URL(location, request.url);
     return url.origin === base.origin;

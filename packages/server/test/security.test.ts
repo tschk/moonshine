@@ -110,6 +110,25 @@ describe("createRequestHandler security", () => {
     expect(res.headers.get("x-injected")).toBeNull();
   });
 
+  test("rejects same-origin path with embedded CR/LF", async () => {
+    const modulesWithCr: Record<string, RouteModule> = {
+      ...modules,
+      crlf: {
+        loader: () => {
+          throw redirect("/home\r\nX-Injected: 1");
+        },
+      },
+    };
+    const h = createRequestHandler({
+      routes,
+      modules: modulesWithCr,
+      notFound: () => new Response("Not Found", { status: 404 }),
+    });
+    const res = await h(new Request("http://localhost/crlf"));
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
   test("isolates request context across concurrent requests", async () => {
     const [r1, r2] = await Promise.all([
       handler(new Request("http://localhost/hello/alice")),
