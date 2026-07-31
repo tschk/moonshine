@@ -15,7 +15,7 @@ Moonshine is a hyperminimal Bun-first UI runtime (signals + opt-in imports + hos
 - `components/` → optional `@tschk/moonshine-components` catalog
 - `dart/moonshine_jaspr` → IR → TypeScript emit
 - `examples/vite-crepus` → Vite demo mounting `renderCrepusIr`
-- `examples/next-counter` → Next App Router client-island signals
+- `examples/catalog-gallery` → optional components catalog demo
 
 ## Rules
 

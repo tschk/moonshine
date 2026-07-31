@@ -62,7 +62,6 @@ Next also exports `@tschk/moonshine-next/server` for RSC-safe server helpers.
 
 - `moonshine new <name>` — Vite + React TSX (TypeScript ~7)
 - `examples/vite-crepus` — Crepus IR demo
-- `examples/next-counter` — App Router client island
 - `examples/catalog-gallery` — components catalog
 
 ## Components

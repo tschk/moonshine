@@ -25,8 +25,6 @@ jobs:
         working-directory: examples/vite-crepus
       - run: bun run build
         working-directory: examples/catalog-gallery
-      - run: bun run build
-        working-directory: examples/next-counter
 
   dart:
     runs-on: ubuntu-latest

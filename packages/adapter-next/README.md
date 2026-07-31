@@ -1,14 +1,13 @@
 # @tschk/moonshine-next
 
-Next.js App Router adapter.
+Optional thin bridge if an app still runs on Next.js App Router.
 
-- **Client:** `import { createSignal, useSignal } from "@tschk/moonshine-next"` in `"use client"` files.
-- **Server:** `import { definePage } from "@tschk/moonshine-next/server"` (no client hooks).
-- Does **not** export `MoonshineRouter` — use the App Router.
+Moonshine is the runtime — not a Next replacement layer. Prefer Vite +
+`@tschk/moonshine/react` for greenfield apps (`moonshine new`, `examples/vite-crepus`).
 
-See `examples/next-counter` (Next **16.2+** if monorepo uses TypeScript 7).
+If you must stay on Next:
 
-```bash
-bun install
-cd examples/next-counter && bun run dev
-```
+- **Client:** `import { createSignal, useSignal } from "@tschk/moonshine-next"` in `"use client"` files
+- **Server:** `import { definePage } from "@tschk/moonshine-next/server"`
+- Does **not** export `MoonshineRouter` — App Router owns routing
+- TypeScript 7 needs Next **16.2+**
