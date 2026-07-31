@@ -6,7 +6,13 @@ import {
   createStore,
   untrack,
 } from "../src/signal";
-import { matchPath, matchRoutes } from "../src/router";
+import {
+  createMoonshineRouter,
+  matchPath,
+  matchRoutes,
+  navigate,
+  getLocation,
+} from "../src/router";
 import {
   createFullscreenFragment,
   wrapFragmentSource,
@@ -268,6 +274,36 @@ describe("router", () => {
     );
     expect(hit?.element).toBe("user");
     expect(hit?.params.id).toBe("7");
+  });
+});
+
+
+describe("router instance", () => {
+  test("createMoonshineRouter isolates path state", () => {
+    const a = createMoonshineRouter("/a");
+    const b = createMoonshineRouter("/b");
+    expect(a.getLocation()).toBe("/a");
+    expect(b.getLocation()).toBe("/b");
+    a.navigate("/a2");
+    expect(a.getLocation()).toBe("/a2");
+    expect(b.getLocation()).toBe("/b");
+  });
+
+  test("navigate on instance updates only that runtime", () => {
+    const r = createMoonshineRouter("/start");
+    let hits = 0;
+    r.location.subscribe(() => {
+      hits++;
+    });
+    r.navigate("/next");
+    expect(r.getLocation()).toBe("/next");
+    expect(hits).toBeGreaterThanOrEqual(1);
+  });
+
+  test("module navigate falls back when nothing mounted", () => {
+    // Should not throw; uses fallback runtime.
+    navigate("/fallback-path");
+    expect(typeof getLocation()).toBe("string");
   });
 });
 

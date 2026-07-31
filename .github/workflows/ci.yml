@@ -20,12 +20,13 @@ jobs:
       - run: bun test
       - run: bun run typecheck
       - run: bun run typecheck:native
-        continue-on-error: true
       - run: bun run check:catalog
       - run: bun run build
         working-directory: examples/vite-crepus
       - run: bun run build
         working-directory: examples/catalog-gallery
+      # next-counter is source example (not a workspace) — avoid pulling next/swc in CI
+      - run: test -f examples/next-counter/app/counter.tsx && test -f examples/next-counter/app/page.tsx
 
   dart:
     runs-on: ubuntu-latest
