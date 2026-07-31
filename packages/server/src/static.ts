@@ -65,8 +65,18 @@ export function resolveStaticPath(
  * Lexical containment cannot see through symlinks, so compare real paths too:
  * a link inside the root pointing outside it would otherwise be served.
  */
+const realRoots = new Map<string, string>();
+
 export function isContained(root: string, filePath: string): boolean {
-  const realRoot = realpathSync.native(resolve(root));
+  const absRoot = resolve(root);
+  // The served root is fixed for the life of the process, so resolve it once;
+  // the file itself is still resolved on every request, which is what keeps a
+  // symlink escaping the root from being served.
+  let realRoot = realRoots.get(absRoot);
+  if (realRoot === undefined) {
+    realRoot = realpathSync.native(absRoot);
+    realRoots.set(absRoot, realRoot);
+  }
   const real = realpathSync.native(filePath);
   return real === realRoot || real.startsWith(realRoot + sep);
 }
