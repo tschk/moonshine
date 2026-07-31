@@ -22,6 +22,8 @@ export type CreateResourceOptions<T> = {
   initial?: T;
   /** If false, do not fetch until `refetch()` (default true). */
   immediate?: boolean;
+  /** Invoked when fetcher throws. */
+  onError?: (error: Error) => void;
 };
 
 /**
@@ -58,6 +60,7 @@ export function createResource<T>(
       const err = e instanceof Error ? e : new Error(String(e));
       error.set(err);
       status.set("errored");
+      options.onError?.(err);
       return undefined;
     } finally {
       loading.set(false);

@@ -15,7 +15,8 @@
     "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsc --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsc --noEmit -p components/tsconfig.json",
     "typecheck:native": "bunx tsgo --noEmit -p packages/core/tsconfig.json && bunx tsgo --noEmit -p packages/crepus-moonshine/tsconfig.json && bunx tsgo --noEmit -p packages/adapter-solid/tsconfig.json && bunx tsgo --noEmit -p components/tsconfig.json",
     "check:catalog": "bun scripts/sync-catalog-check.ts",
-    "check": "bun run typecheck && bun run check:catalog",
+    "check:adapters": "bun scripts/check-adapters.ts",
+    "check": "bun run typecheck && bun run check:catalog && bun run check:adapters",
     "moonshine": "bun packages/cli/bin/moonshine.ts"
   },
   "devDependencies": {

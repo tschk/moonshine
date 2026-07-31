@@ -23,6 +23,7 @@ jobs:
       - run: bun run typecheck
       - run: bun run typecheck:native
       - run: bun run check:catalog
+      - run: bun run check:adapters
       - run: bun run build
         working-directory: examples/vite-crepus
       - run: bun run build

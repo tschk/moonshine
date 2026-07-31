@@ -85,3 +85,5 @@ export {
 } from "@tschk/moonshine";
 export type { Memo, Signal, StoreSetter, Resource } from "@tschk/moonshine";
 export { state, derived } from "@tschk/moonshine/runes";
+export { fromSignal, toSignal } from "./rxjs";
+export type { ObservableLike } from "./rxjs";

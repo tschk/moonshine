@@ -1,25 +1,27 @@
 # @tschk/moonshine-next
 
-Use **Next libraries inside moonshine** (and moonshine signals inside Next).
+**Use Next libraries inside moonshine** (peer-install `next`).
 
-| Import | Provides |
-|--------|----------|
-| `@tschk/moonshine-next` | Client signals / resources (`"use client"`) |
-| `@tschk/moonshine-next/navigation` | `next/navigation` + `usePathnameSignal` / `useSearchParamSignal` |
-| `@tschk/moonshine-next/link` | `next/link` |
-| `@tschk/moonshine-next/image` | `next/image` |
-| `@tschk/moonshine-next/headers` | `next/headers` (server) |
-| `@tschk/moonshine-next/dynamic` | `next/dynamic` |
-| `@tschk/moonshine-next/shaders` | moonshine WebGL helpers |
-| `@tschk/moonshine-next/server` | `moonshineRoute` / `moonshineJson` / pages helpers |
-
-```tsx
-"use client";
+```ts
 import { createSignal, useSignal } from "@tschk/moonshine-next";
 import { useRouter, usePathnameSignal } from "@tschk/moonshine-next/navigation";
 import Link from "@tschk/moonshine-next/link";
 import Image from "@tschk/moonshine-next/image";
+import { headers, cookies } from "@tschk/moonshine-next/headers";
+import dynamic from "@tschk/moonshine-next/dynamic";
 import { useFragmentShader } from "@tschk/moonshine-next/shaders";
+import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 ```
 
-Peer: `next`, `react`, `react-dom`.
+| Subpath | Provides |
+|---------|----------|
+| `.` / `./client` | moonshine signals + resources (`"use client"`) |
+| `./navigation` | `next/navigation` + pathname/search signals |
+| `./link` | `next/link` |
+| `./image` | `next/image` |
+| `./headers` | `next/headers` (server only) |
+| `./dynamic` | `next/dynamic` |
+| `./shaders` | moonshine WebGL helpers |
+| `./server` | `moonshineRoute` / `Json` / `Html` + pages helpers |
+
+Does **not** export MoonshineRouter — App Router owns routing.
