@@ -4,6 +4,7 @@ import { compileCommand } from "../src/compile";
 import { devCommand } from "../src/dev";
 import { inspectCommand } from "../src/inspect";
 import { newCommand } from "../src/new";
+import { previewCommand } from "../src/preview";
 
 const [cmd, ...args] = Bun.argv.slice(2);
 
@@ -11,14 +12,21 @@ function usage(code = 0): never {
   console.error(`moonshine — Bun-first hyperminimal UI runtime
 
 Usage:
-  moonshine new <name> [--bun|--vite]
-      --bun   full-stack Bun server + static + hydrate (default)
-      --vite  client-only Vite SPA
+  moonshine new <name> [--react|--solid|--crepus] [--adapter bun|node|cloudflare|vercel] [--vite]
+      --react     add React renderer
+      --solid     add Solid renderer
+      --crepus    add Crepus renderer
+      --adapter   deployment target (default: bun)
+      --vite      client-only Vite SPA
   moonshine compile [file]       .crepus / View IR JSON → .tsx
   moonshine build [dir]          Build project into .moonshine/manifest.json
+      --adapter bun|node|cloudflare|vercel
   moonshine inspect [path]       Inspect build manifest
       --json  print manifest JSON unchanged
-  moonshine dev                  Run vite (bunx) — SPA apps
+  moonshine preview [dir]        Run built manifest on port 0
+      --port <n>
+  moonshine dev [dir]            Build and preview with watch
+      --vite  run vite (bunx) instead
 `);
   process.exit(code);
 }
@@ -35,6 +43,9 @@ switch (cmd) {
     break;
   case "inspect":
     await inspectCommand(args);
+    break;
+  case "preview":
+    await previewCommand(args);
     break;
   case "dev":
     await devCommand(args);

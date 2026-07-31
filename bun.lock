@@ -291,6 +291,10 @@
       },
       "dependencies": {
         "@tschk/moonshine-compiler": "^0.2.0",
+        "@tschk/moonshine-deploy-bun": "^0.2.0",
+        "@tschk/moonshine-framework": "^0.2.0",
+        "@tschk/moonshine-react": "^0.2.0",
+        "@tschk/moonshine-server": "^0.2.0",
       },
     },
     "packages/compiler": {

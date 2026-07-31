@@ -1,6 +1,9 @@
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+type Renderer = "react" | "solid" | "crepus";
+type Adapter = "bun" | "node" | "cloudflare" | "vercel";
+
 function detectMoonshineRoot(): string | null {
   if (process.env.MOONSHINE_PATH) return resolve(process.env.MOONSHINE_PATH);
   let dir = process.cwd();
@@ -18,32 +21,265 @@ function detectMoonshineRoot(): string | null {
   return null;
 }
 
-type Stack = "bun" | "vite";
-
-function parseArgs(args: string[]): { name: string; stack: Stack } {
-  let stack: Stack = "bun";
-  const positional: string[] = [];
-  for (const a of args) {
-    if (a === "--bun") stack = "bun";
-    else if (a === "--vite") stack = "vite";
-    else if (a.startsWith("-")) {
-      console.error(`Unknown flag: ${a}`);
-      console.error("Usage: moonshine new <name> [--bun|--vite]");
-      process.exit(1);
-    } else positional.push(a);
-  }
-  const name = positional[0];
-  if (!name) {
-    console.error("Usage: moonshine new <name> [--bun|--vite]");
-    console.error("  --bun   full-stack Bun server + hydrate (default)");
-    console.error("  --vite  client-only Vite SPA");
-    process.exit(1);
-  }
-  return { name, stack };
-}
-
 function dep(root: string | null, rel: string, version = "^0.2.0"): string {
   return root ? `file:${join(root, rel)}` : version;
+}
+
+function packagePath(name: string, root: string | null): string | undefined {
+  const map: Record<string, string> = {
+    "@tschk/moonshine": "packages/core",
+    "@tschk/moonshine-framework": "packages/framework",
+    "@tschk/moonshine-compiler": "packages/compiler",
+    "@tschk/moonshine-server": "packages/server",
+    "@tschk/moonshine-react": "packages/react",
+    "@tschk/moonshine-solid": "packages/adapter-solid",
+    "@tschk/crepus-moonshine": "packages/crepus-moonshine",
+    "@tschk/moonshine-deploy-bun": "packages/deploy-bun",
+    "@tschk/moonshine-deploy-node": "packages/deploy-node",
+    "@tschk/moonshine-deploy-cloudflare": "packages/deploy-cloudflare",
+    "@tschk/moonshine-deploy-vercel": "packages/deploy-vercel",
+  };
+  const rel = map[name];
+  return rel ? dep(root, rel) : undefined;
+}
+
+function runtimeForAdapter(adapter: Adapter): string {
+  switch (adapter) {
+    case "node":
+      return "node";
+    case "cloudflare":
+      return "cloudflare";
+    case "vercel":
+      return "vercel-edge";
+    case "bun":
+    default:
+      return "bun";
+  }
+}
+
+function parseArgs(args: string[]): {
+  name: string;
+  renderer?: Renderer;
+  adapter: Adapter;
+  vite: boolean;
+} {
+  let name = "";
+  let renderer: Renderer | undefined;
+  let adapter: Adapter = "bun";
+  let vite = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === "--react") renderer = "react";
+    else if (a === "--solid") renderer = "solid";
+    else if (a === "--crepus") renderer = "crepus";
+    else if (a === "--adapter") {
+      const next = args[++i];
+      if (next && ["bun", "node", "cloudflare", "vercel"].includes(next)) {
+        adapter = next as Adapter;
+      } else {
+        console.error(`Invalid --adapter: ${next}`);
+        process.exit(1);
+      }
+    } else if (a === "--vite") vite = true;
+    else if (a.startsWith("-")) {
+      console.error(`Unknown flag: ${a}`);
+      process.exit(1);
+    } else if (!name) {
+      name = a;
+    } else {
+      console.error(`Unknown flag: ${a}`);
+      process.exit(1);
+    }
+  }
+  if (!name) {
+    console.error(
+      "Usage: moonshine new <name> [--react|--solid|--crepus] [--adapter bun|node|cloudflare|vercel] [--vite]",
+    );
+    process.exit(1);
+  }
+  return { name, renderer, adapter, vite };
+}
+
+function writePackageJson(
+  dir: string,
+  name: string,
+  root: string | null,
+  renderer: Renderer | undefined,
+  adapter: Adapter,
+): void {
+  const dependencies: Record<string, string> = {
+    "@tschk/moonshine": packagePath("@tschk/moonshine", root)!,
+    "@tschk/moonshine-framework": packagePath(
+      "@tschk/moonshine-framework",
+      root,
+    )!,
+    "@tschk/moonshine-compiler": packagePath(
+      "@tschk/moonshine-compiler",
+      root,
+    )!,
+    "@tschk/moonshine-server": packagePath("@tschk/moonshine-server", root)!,
+  };
+  dependencies[`@tschk/moonshine-deploy-${adapter}`] = packagePath(
+    `@tschk/moonshine-deploy-${adapter}`,
+    root,
+  )!;
+
+  const devDependencies: Record<string, string> = {
+    "@types/bun": "^1.3.14",
+    typescript: "~7.0.0",
+  };
+
+  if (renderer === "react") {
+    dependencies["@tschk/moonshine-react"] = packagePath(
+      "@tschk/moonshine-react",
+      root,
+    )!;
+    dependencies.react = "^19.1.0";
+    dependencies["react-dom"] = "^19.1.0";
+    devDependencies["@types/react"] = "^19.1.0";
+    devDependencies["@types/react-dom"] = "^19.1.0";
+  } else if (renderer === "solid") {
+    dependencies["@tschk/moonshine-solid"] = packagePath(
+      "@tschk/moonshine-solid",
+      root,
+    )!;
+    dependencies["solid-js"] = "^1.9.14";
+  } else if (renderer === "crepus") {
+    dependencies["@tschk/crepus-moonshine"] = packagePath(
+      "@tschk/crepus-moonshine",
+      root,
+    )!;
+    dependencies["@tschk/moonshine-react"] = packagePath(
+      "@tschk/moonshine-react",
+      root,
+    )!;
+    dependencies.react = "^19.1.0";
+    dependencies["react-dom"] = "^19.1.0";
+    devDependencies["@types/react"] = "^19.1.0";
+    devDependencies["@types/react-dom"] = "^19.1.0";
+  }
+
+  writeFileSync(
+    join(dir, "package.json"),
+    JSON.stringify(
+      {
+        name,
+        private: true,
+        version: "0.0.0",
+        type: "module",
+        scripts: {
+          build: "moonshine build",
+          dev: "moonshine dev",
+          preview: "moonshine preview",
+        },
+        dependencies,
+        devDependencies,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
+
+function writeTsconfig(dir: string, renderer: Renderer | undefined): void {
+  const compilerOptions: Record<string, unknown> = {
+    target: "ES2024",
+    module: "ESNext",
+    moduleResolution: "Bundler",
+    jsx: renderer === "solid" ? "preserve" : "react-jsx",
+    strict: true,
+    skipLibCheck: true,
+    noEmit: true,
+    types: ["bun"],
+    lib: ["ES2024", "DOM"],
+  };
+  if (renderer === "solid") {
+    compilerOptions.jsxImportSource = "solid-js";
+  }
+  writeFileSync(
+    join(dir, "tsconfig.json"),
+    JSON.stringify(
+      {
+        compilerOptions,
+        include: ["src"],
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
+
+function writeConfig(
+  dir: string,
+  renderer: Renderer | undefined,
+  adapter: Adapter,
+): void {
+  const runtime = runtimeForAdapter(adapter);
+  const entries: Record<string, unknown> = { runtime, adapter };
+  if (renderer) entries.renderer = renderer;
+  writeFileSync(
+    join(dir, "moonshine.config.ts"),
+    `import { defineConfig } from "@tschk/moonshine-framework";
+
+export default defineConfig(${JSON.stringify(entries)});
+`,
+  );
+}
+
+function writeRoute(dir: string, renderer: Renderer | undefined): void {
+  mkdirSync(join(dir, "src", "routes"), { recursive: true });
+  if (renderer === "react") {
+    writeFileSync(
+      join(dir, "src", "routes", "index.tsx"),
+      `export default function Home({ data }: { data?: unknown }) {
+  const d = (data ?? {}) as Record<string, string>;
+  return (
+    <main data-moonshine-mode={d.mode ?? "default"}>
+      <h1>Moonshine</h1>
+    </main>
+  );
+}
+`,
+    );
+  } else if (renderer === "solid") {
+    writeFileSync(
+      join(dir, "src", "routes", "index.ts"),
+      `import h from "@tschk/moonshine-solid/h";
+
+export default function Home({ data }: { data?: unknown }) {
+  const d = (data ?? {}) as Record<string, string>;
+  return h(
+    "main",
+    { "data-moonshine-mode": d.mode ?? "default" },
+    h("h1", null, "Moonshine"),
+  );
+}
+`,
+    );
+  } else if (renderer === "crepus") {
+    writeFileSync(join(dir, "src", "routes", "index.ts"), "\n");
+  } else {
+    writeFileSync(
+      join(dir, "src", "routes", "index.server.ts"),
+      `export function loader() {
+  return { ok: true };
+}
+`,
+    );
+  }
+}
+
+function writeReadme(
+  dir: string,
+  name: string,
+  renderer: Renderer | undefined,
+  adapter: Adapter,
+): void {
+  const runtime = runtimeForAdapter(adapter);
+  let body = `# ${name}\n\nMoonshine on **${adapter}** (${runtime}).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n`;
+  if (!renderer)
+    body += `\nAdd \`--react\`, \`--solid\`, or \`--crepus\` for a UI renderer.\n`;
+  writeFileSync(join(dir, "README.md"), body);
 }
 
 function writeViteApp(dir: string, name: string, root: string | null): void {
@@ -154,248 +390,32 @@ createApp({ root: App }).mount("#app");
 
   writeFileSync(
     join(dir, "README.md"),
-    `# ${name}
-
-Vite + moonshine signals (client SPA).
-
-\`\`\`bash
-bun install
-bun run dev
-\`\`\`
-
-Full-stack Bun (server + static + hydrate): \`moonshine new app --bun\`.
-`,
+    `# ${name}\n\nVite + moonshine signals (client SPA).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n\nFull-stack Bun (server + static + hydrate): \`moonshine new app --bun\`.\n`,
   );
 }
 
-function writeBunApp(dir: string, name: string, root: string | null): void {
-  mkdirSync(join(dir, "src"), { recursive: true });
-  mkdirSync(join(dir, "public"), { recursive: true });
+function writeBunApp(
+  dir: string,
+  name: string,
+  root: string | null,
+  renderer: Renderer | undefined,
+  adapter: Adapter,
+): void {
+  mkdirSync(join(dir, "src", "routes"), { recursive: true });
 
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify(
-      {
-        name,
-        private: true,
-        version: "0.0.0",
-        type: "module",
-        scripts: {
-          "build:client":
-            "bun build ./src/client.tsx --outdir=public --target=browser --format=esm --minify",
-          dev: "bun run build:client && bun run --watch src/server.ts",
-          start: "bun run build:client && bun run src/server.ts",
-        },
-        dependencies: {
-          "@tschk/moonshine": dep(root, "packages/core"),
-          react: "^19.1.0",
-          "react-dom": "^19.1.0",
-        },
-        devDependencies: {
-          "@types/bun": "^1.3.14",
-          "@types/react": "^19.1.0",
-          "@types/react-dom": "^19.1.0",
-          typescript: "~7.0.0",
-        },
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-
-  writeFileSync(
-    join(dir, "tsconfig.json"),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          target: "ES2024",
-          module: "ESNext",
-          moduleResolution: "Bundler",
-          jsx: "react-jsx",
-          strict: true,
-          skipLibCheck: true,
-          noEmit: true,
-          types: ["bun"],
-          lib: ["ES2024", "DOM"],
-        },
-        include: ["src"],
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-
-  writeFileSync(
-    join(dir, "src/server.ts"),
-    `import { join } from "node:path";
-import {
-  createMoonshineServer,
-  definePage,
-  type MoonshineRequest,
-} from "@tschk/moonshine/server";
-
-const publicDir = join(import.meta.dir, "..", "public");
-
-function shell(body: string, title = ${JSON.stringify(name)}): string {
-  return \`<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>\${title}</title>
-  <link rel="stylesheet" href="/app.css" />
-</head>
-<body>
-\${body}
-</body>
-</html>\`;
-}
-
-const server = createMoonshineServer({
-  port: Number(process.env.PORT) || 3000,
-  staticDir: publicDir,
-  pages: {
-    "/": definePage({
-      render: () =>
-        shell(\`
-  <main>
-    <h1>${name}</h1>
-    <p>Bun-native moonshine: pages + static + hydrate island.</p>
-    <ul>
-      <li><a href="/about">about</a></li>
-      <li><a href="/api/hello">api/hello</a></li>
-    </ul>
-    <div id="counter"><p class="muted">loading…</p></div>
-    <script type="module" src="/client.js"></script>
-  </main>
-\`),
-    }),
-    "/about": definePage({
-      render: () =>
-        shell(
-          \`
-  <main>
-    <h1>about</h1>
-    <p><code>createMoonshineServer</code> → <code>Bun.serve</code>. No metaframework.</p>
-    <p><a href="/">home</a></p>
-  </main>
-\`,
-          "about",
-        ),
-    }),
-    "/api/hello": definePage({
-      render: (req: MoonshineRequest) => ({
-        ok: true,
-        path: req.pathname,
-        method: req.method,
-      }),
-    }),
-  },
-  notFound: (req) =>
-    new Response(
-      shell(
-        \`<main><h1>404</h1><p>\${req.pathname}</p><p><a href="/">home</a></p></main>\`,
-        "404",
-      ),
-      { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
-    ),
-});
-
-const handle = server.listen() as { port?: number } | undefined;
-console.log(\`${name} → http://localhost:\${handle?.port ?? server.port}\`);
-`,
-  );
-
-  writeFileSync(
-    join(dir, "src/client.tsx"),
-    `import { createApp, createSignal, useSignal } from "@tschk/moonshine/react";
-
-const count = createSignal(0);
-
-function Counter() {
-  const n = useSignal(count);
-  return (
-    <div className="card">
-      <p>
-        count: <strong>{n}</strong>
-      </p>
-      <button type="button" onClick={() => count.set((c) => c + 1)}>
-        +1
-      </button>
-      <button type="button" onClick={() => count.set(0)}>
-        reset
-      </button>
-    </div>
-  );
-}
-
-createApp({ root: Counter }).mount("#counter");
-`,
-  );
-
-  writeFileSync(
-    join(dir, "public/app.css"),
-    `:root {
-  color-scheme: light dark;
-  font-family: system-ui, sans-serif;
-  line-height: 1.5;
-}
-body { margin: 0; }
-main { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
-a { color: #358ff3; }
-code {
-  background: color-mix(in srgb, CanvasText 12%, transparent);
-  padding: 0.1em 0.35em;
-  border-radius: 4px;
-}
-.card {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  margin-top: 1.25rem;
-  padding: 1rem;
-  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
-  border-radius: 10px;
-}
-.card p { margin: 0; flex: 1 1 100%; }
-button {
-  font: inherit;
-  padding: 0.4rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-  background: Canvas;
-  cursor: pointer;
-}
-.muted { color: color-mix(in srgb, CanvasText 55%, transparent); }
-`,
-  );
-
-  writeFileSync(
-    join(dir, "README.md"),
-    `# ${name}
-
-Full-stack moonshine on **Bun** (no Next/Vite host).
-
-| Piece | Path |
-|-------|------|
-| HTTP + pages | \`src/server.ts\` |
-| Static CSS | \`public/app.css\` |
-| Hydrate island | \`src/client.tsx\` → \`public/client.js\` |
-
-\`\`\`bash
-bun install
-bun run dev
-# → http://localhost:3000
-\`\`\`
-
-Client-only SPA: \`moonshine new app --vite\`.
-`,
-  );
+  writePackageJson(dir, name, root, renderer, adapter);
+  writeTsconfig(dir, renderer);
+  writeConfig(dir, renderer, adapter);
+  writeRoute(dir, renderer);
+  writeReadme(dir, name, renderer, adapter);
 }
 
 export async function newCommand(args: string[]): Promise<void> {
-  const { name, stack } = parseArgs(args);
+  const { name, renderer, adapter, vite } = parseArgs(args);
+  if (vite && (renderer === "solid" || renderer === "crepus")) {
+    console.error("--vite only supports React scaffolds");
+    process.exit(1);
+  }
   const root = detectMoonshineRoot();
   const dir = resolve(process.cwd(), name);
   if (existsSync(dir)) {
@@ -404,10 +424,10 @@ export async function newCommand(args: string[]): Promise<void> {
   }
 
   mkdirSync(dir, { recursive: true });
-  if (stack === "vite") writeViteApp(dir, name, root);
-  else writeBunApp(dir, name, root);
+  if (vite) writeViteApp(dir, name, root);
+  else writeBunApp(dir, name, root, renderer, adapter);
 
-  console.log(`Created ${name}/ (${stack})`);
+  console.log(`Created ${name}/ (${vite ? "vite" : adapter})`);
   if (root) console.log(`Linked moonshine from ${root}`);
   console.log(`\n  cd ${name} && bun install && bun run dev\n`);
 }
