@@ -14,3 +14,7 @@ pubspec.lock
 .env
 .env.*
 !examples/**/.env.example
+
+# Next.js
+**/.next/
+out/
