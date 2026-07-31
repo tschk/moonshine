@@ -70,6 +70,70 @@ describe("createNodeHandler security", () => {
   });
 });
 
+describe("createNodeHandler request URL", () => {
+  let seenUrl = "";
+  const handler = createNodeHandler({
+    fetch: async (request) => {
+      seenUrl = request.url;
+      return new Response("ok");
+    },
+  });
+  const server = createServer(handler);
+  let port = 0;
+
+  beforeAll(async () => {
+    await new Promise<void>((done) => {
+      server.listen(0, () => {
+        port = (server.address() as { port: number }).port;
+        done();
+      });
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((done, reject) =>
+      server.close((err) => (err ? reject(err) : done())),
+    );
+  });
+
+  async function requestWithHost(host: string): Promise<string> {
+    seenUrl = "";
+    await new Promise<void>((done, reject) => {
+      const socket = connect({ port }, () => {
+        socket.write(
+          `GET /p HTTP/1.1\r\nHost: ${host}\r\nConnection: close\r\n\r\n`,
+        );
+      });
+      socket.on("error", reject);
+      socket.on("end", () => done());
+      socket.resume();
+    });
+    return seenUrl;
+  }
+
+  test("ignores a Host header that is not a bare host", async () => {
+    for (const host of [
+      "evil.example/x?",
+      "evil.example:80@other.example",
+      "e vil.example",
+      "evil.example/../..",
+    ]) {
+      expect(new URL(await requestWithHost(host)).origin).toBe(
+        "http://localhost",
+      );
+    }
+  });
+
+  test("keeps a well-formed Host header", async () => {
+    expect(await requestWithHost("app.example:8080")).toBe(
+      "http://app.example:8080/p",
+    );
+    expect(new URL(await requestWithHost("[::1]:8080")).origin).toBe(
+      "http://[::1]:8080",
+    );
+  });
+});
+
 describe("createNodeHandler static serving", () => {
   const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-node-sec-"));
   const staticDir = resolve(tmpDir, "public");

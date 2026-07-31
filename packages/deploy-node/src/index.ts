@@ -110,6 +110,18 @@ async function sendNodeResponse(
   stream.pipe(res);
 }
 
+const HOST_PATTERN = /^(?:[a-zA-Z0-9._-]+|\[[0-9a-fA-F:.]+\])(?::\d{1,5})?$/;
+
+/**
+ * Node hands the Host header through unvalidated, so a client-supplied value
+ * can smuggle userinfo, a path, or a query into the base URL and change the
+ * origin every downstream URL comparison is made against.
+ */
+function safeHost(host: string | undefined): string {
+  if (!host) return "localhost";
+  return HOST_PATTERN.test(host) ? host : "localhost";
+}
+
 export type NodeHandlerOptions = {
   fetch: (request: Request) => Promise<Response>;
   staticDir?: string;
@@ -121,7 +133,7 @@ export function createNodeHandler(
   return async (req, res) => {
     const method = req.method ?? "GET";
     const reqUrl = req.url ?? "/";
-    const host = req.headers.host ?? "localhost";
+    const host = safeHost(req.headers.host);
     const requestUrl = new URL(reqUrl, `http://${host}`);
     const pathname = requestUrl.pathname;
 
