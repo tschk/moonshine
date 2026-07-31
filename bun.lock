@@ -237,6 +237,18 @@
         "moonshine": "./bin/moonshine.ts",
       },
     },
+    "packages/compiler": {
+      "name": "@tschk/moonshine-compiler",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine-framework": "^0.2.0",
+        "@tschk/moonshine-router": "^0.2.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "^5.8.2",
+      },
+    },
     "packages/core": {
       "name": "@tschk/moonshine",
       "version": "0.2.0",
@@ -599,6 +611,8 @@
 
     "@tschk/moonshine-cli": ["@tschk/moonshine-cli@workspace:packages/cli"],
 
+    "@tschk/moonshine-compiler": ["@tschk/moonshine-compiler@workspace:packages/compiler"],
+
     "@tschk/moonshine-components": ["@tschk/moonshine-components@workspace:components"],
 
     "@tschk/moonshine-example-bun-server": ["@tschk/moonshine-example-bun-server@workspace:examples/bun-server"],
@@ -860,6 +874,8 @@
     "@tschk/moonshine-astro/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "dependencies": { "@tschk/moonshine-shaders": "file:../shaders" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "7.0.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
     "@tschk/moonshine-astro/@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@file:packages/shaders", { "peerDependencies": { "react": ">=18" }, "optionalPeers": ["react"] }],
+
+    "@tschk/moonshine-compiler/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tschk/moonshine-next/@tschk/moonshine": ["@tschk/moonshine@file:packages/core", { "dependencies": { "@tschk/moonshine-shaders": "file:../shaders" }, "devDependencies": { "@types/bun": "1.3.14", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "react": "19.1.0", "react-dom": "19.1.0", "typescript": "7.0.2" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }],
 
