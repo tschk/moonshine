@@ -241,6 +241,7 @@
       "name": "@tschk/moonshine",
       "version": "0.2.0",
       "dependencies": {
+        "@tschk/moonshine-router": "^0.2.0",
         "@tschk/moonshine-shaders": "file:../shaders",
       },
       "devDependencies": {
@@ -293,6 +294,24 @@
         "@types/bun": "1.3.14",
         "typescript": "7.0.2",
       },
+    },
+    "packages/router": {
+      "name": "@tschk/moonshine-router",
+      "version": "0.2.0",
+      "dependencies": {
+        "@tschk/moonshine": "^0.2.0",
+        "@tschk/moonshine-framework": "^0.2.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "7.0.2",
+      },
+      "peerDependencies": {
+        "react": ">=18",
+      },
+      "optionalPeers": [
+        "react",
+      ],
     },
     "packages/shaders": {
       "name": "@tschk/moonshine-shaders",
@@ -597,6 +616,8 @@
     "@tschk/moonshine-nuxt": ["@tschk/moonshine-nuxt@workspace:packages/adapter-nuxt"],
 
     "@tschk/moonshine-remix": ["@tschk/moonshine-remix@workspace:packages/adapter-remix"],
+
+    "@tschk/moonshine-router": ["@tschk/moonshine-router@workspace:packages/router"],
 
     "@tschk/moonshine-shaders": ["@tschk/moonshine-shaders@workspace:packages/shaders"],
 
