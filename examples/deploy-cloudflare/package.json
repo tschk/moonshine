@@ -1,0 +1,25 @@
+{
+  "name": "@tschk/moonshine-example-deploy-cloudflare",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test",
+    "build": "moonshine build --adapter cloudflare"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "workspace:*",
+    "@tschk/moonshine-deploy-cloudflare": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "typescript": "7.0.2"
+  }
+}
