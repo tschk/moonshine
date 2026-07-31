@@ -96,6 +96,7 @@ import { fromSignal } from "@tschk/moonshine-angular/rxjs";
 | Path | What |
 |------|------|
 | `examples/bun-server` | Bun HTTP + static + hydrate |
+| `examples/shaders-island` | WebGL via `@tschk/moonshine-shaders` (same as Next `/shaders`) |
 | `examples/vite-crepus` | Vite + Crepus IR |
 | `examples/catalog-gallery` | Component catalog |
 
