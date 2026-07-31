@@ -1,19 +1,13 @@
 "use client";
 
 /**
- * Next.js Client Component surface.
- * Use only from files with `"use client"`. App Router owns routing.
+ * Next Client Component surface: moonshine signals + resources.
+ * Stack libraries live on subpaths: `/navigation`, `/link`, `/image`, `/shaders`.
  */
 export * from "@tschk/moonshine/host-react";
 
 export {
-  createResource,
   createIslandSignal,
+  createResource,
   useResource,
 } from "@tschk/moonshine/host-react";
-
-/**
- * SSR-friendly signal read for Client Components.
- * Pass `serverValue` when the server rendered a known initial.
- */
-export { useSignal as useClientSignal } from "@tschk/moonshine/host-react";

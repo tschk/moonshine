@@ -1,33 +1,29 @@
 {
   "name": "@tschk/moonshine-tanstack",
   "version": "0.2.0",
-  "description": "TanStack Start/Router adapter \u2014 signals + async resources",
+  "description": "TanStack adapter — moonshine + react-query + react-router",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./query": "./src/query.ts",
+    "./router": "./src/router.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "file:../core"
   },
-  "files": [
-    "src",
-    "README.md"
-  ],
-  "keywords": [
-    "moonshine",
-    "adapter"
-  ],
   "peerDependencies": {
+    "@tanstack/react-query": ">=5",
+    "@tanstack/react-router": ">=1",
     "react": ">=18",
-    "react-dom": ">=18",
-    "@tanstack/react-router": ">=1"
+    "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "@tanstack/react-router": {
-      "optional": true
-    }
-  }
+    "@tanstack/react-query": { "optional": true },
+    "@tanstack/react-router": { "optional": true }
+  },
+  "files": ["src", "README.md"],
+  "keywords": ["moonshine", "tanstack", "adapter"]
 }

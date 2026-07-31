@@ -1,7 +1,7 @@
 /**
  * @tschk/moonshine-nuxt
  *
- * Nuxt / Vue composable-style API over moonshine.
+ * Moonshine + Nuxt libraries (`/app` → `#app` composables).
  */
 export {
   batch,
@@ -33,20 +33,14 @@ import {
 } from "@tschk/moonshine-vue";
 import type { ComputedRef, Ref, ShallowRef } from "vue";
 
-/** Nuxt composable alias for `moonshineRef`. */
 export function useMoonshineRef<T>(initial: T): Ref<T> {
   return moonshineRef(initial);
 }
 
-/** Nuxt composable alias for `moonshineComputed`. */
 export function useMoonshineComputed<T>(fn: () => T): ComputedRef<T> {
   return moonshineComputed(fn);
 }
 
-/**
- * Shared client state by key (useState-like, module scope).
- * Survives component remounts within the same JS realm.
- */
 const stateBag = new Map<string, Ref<unknown>>();
 
 export function useMoonshineState<T>(key: string, init: () => T): Ref<T> {
@@ -58,7 +52,8 @@ export function useMoonshineState<T>(key: string, init: () => T): Ref<T> {
   return ref;
 }
 
-/** Async data composable → resource + vue refs. */
+const asyncBag = new Map<string, Resource<unknown>>();
+
 export function useMoonshineAsyncData<T>(
   key: string,
   fetcher: () => Promise<T>,
@@ -86,9 +81,6 @@ export function useMoonshineAsyncData<T>(
   };
 }
 
-const asyncBag = new Map<string, Resource<unknown>>();
-
-/** Test helper */
 export function clearMoonshineNuxtState(): void {
   stateBag.clear();
   asyncBag.clear();

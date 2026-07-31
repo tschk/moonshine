@@ -2,30 +2,22 @@
 
 ## Scope
 
-Moonshine is a hyperminimal Bun-first UI runtime with optional **real** host
-adapters (`@tschk/moonshine-*`), published as `@tschk/*`.
-
-## Layout
-
-- `packages/core` — signals, `createResource`, `/react`, `/server`, `/router`, …
-- `packages/adapter-next|remix|tanstack|angular|solid|vue|nuxt|svelte|astro|waku`
-- `packages/crepus-moonshine` — View IR (+ `./ir` helpers)
-- `packages/cli` — `moonshine new --bun|--vite`
-- `examples/bun-server` — canonical full-stack
-- `docs/COMPARE.md` — framework comparison
+Moonshine is a Bun-first UI runtime. **Adapters expose each host stack’s real
+libraries** (Next navigation/image/link, TanStack Query/Router, Remix react,
+Vue/Nuxt/Svelte/Solid runtimes, etc.) plus moonshine signal bridges.
 
 ## Rules
 
 1. Default export signal-only. React on `/react`.
-2. Adapters expose **host-shaped real APIs** (not bare re-export only).
-3. Next/Remix/TanStack adapters must **not** re-export `MoonshineRouter`.
-4. Next splits `./client` and `./server`.
-5. Solid: no shared vnode; use IR helpers from crepus `/ir`.
-6. Crepus kinds real (not stubs). Catalog canvas real.
-7. Bun workspaces, `"type": "module"`.
-8. Greenfield = Bun `/server` and/or Vite `/react`.
-9. `moonshine new` defaults to `--bun`.
-10. `tsc` + `tsgo` typecheck.
+2. Adapters must re-export **host libraries on subpaths** (peer deps), not only moonshine.
+3. Next: `/navigation`, `/link`, `/image`, `/headers`, `/dynamic`, `/shaders`, `/server`.
+4. Remix: `/react` (`@remix-run/react`), `/hooks` (signal bridges).
+5. TanStack: `/query`, `/router`.
+6. Vue: `/vue`. Svelte: `/store`. Solid: `/solid`, `/h`. Nuxt: `/app`.
+7. Next/Remix/TanStack root must not export `MoonshineRouter`.
+8. Use ambient `shims.d.ts` so monorepo tests run without installing every host.
+9. Greenfield: `moonshine new` (Bun) / `--vite`.
+10. Crepus real kinds; catalog canvas real; Bun workspaces.
 
 ## Tests
 

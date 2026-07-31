@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-next",
   "version": "0.2.0",
-  "description": "Next.js adapter \u2014 client islands + server helpers",
+  "description": "Next.js adapter — moonshine signals + next/navigation|link|image|headers|shaders",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -9,10 +9,22 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./navigation": "./src/navigation.ts",
+    "./link": "./src/link.ts",
+    "./image": "./src/image.ts",
+    "./headers": "./src/headers.ts",
+    "./dynamic": "./src/dynamic.ts",
+    "./shaders": "./src/shaders.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core"
+    "@tschk/moonshine": "file:../core",
+    "@tschk/moonshine-shaders": "file:../shaders"
+  },
+  "peerDependencies": {
+    "next": ">=15",
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "files": [
     "src",
@@ -20,16 +32,7 @@
   ],
   "keywords": [
     "moonshine",
+    "next",
     "adapter"
-  ],
-  "peerDependencies": {
-    "react": ">=18",
-    "react-dom": ">=18",
-    "next": ">=15"
-  },
-  "peerDependenciesMeta": {
-    "next": {
-      "optional": true
-    }
-  }
+  ]
 }

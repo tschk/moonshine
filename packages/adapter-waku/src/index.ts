@@ -3,12 +3,12 @@
 /**
  * @tschk/moonshine-waku
  *
- * Waku client islands + optional mini-router/shaders.
+ * Moonshine + Waku libraries (`/router`, `/shaders`).
  */
 export * from "@tschk/moonshine/host-react";
 
 export {
-  Link,
+  Link as MoonshineLink,
   MoonshineRouter,
   createMoonshineRouter,
   getLocation,
@@ -21,20 +21,6 @@ export {
   useRouter,
 } from "@tschk/moonshine/router";
 
-export type {
-  MoonshineRouterInstance,
-  MoonshineRouterProps,
-  RouteDefinition,
-  RouteMatch,
-  RouteParams,
-} from "@tschk/moonshine/router";
-
-export {
-  createFullscreenFragment,
-  useFragmentShader,
-  wrapFragmentSource,
-} from "@tschk/moonshine/shaders";
-
 import {
   createIslandSignal,
   createResource,
@@ -42,15 +28,10 @@ import {
   type Signal,
 } from "@tschk/moonshine/host-react";
 
-/**
- * RSC-friendly client read: uses signal.peek() as server snapshot automatically
- * via useSignal.
- */
 export function useWakuSignal<T>(signal: Signal<T>): T {
   return useSignal(signal, () => signal.peek());
 }
 
-/** Client-only shared signal bag for Waku islands in one page. */
 const bag = new Map<string, Signal<unknown>>();
 
 export function createSharedIslandSignal<T>(key: string, initial: T): Signal<T> {

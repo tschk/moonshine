@@ -1,26 +1,21 @@
 {
   "name": "@tschk/moonshine-vue",
   "version": "0.2.0",
-  "description": "Vue 3 adapter \u2014 ref/computed bridge over moonshine signals.",
+  "description": "Vue adapter — moonshine bridges + vue runtime re-exports",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./vue": "./src/vue.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "file:../core"
   },
-  "files": [
-    "src",
-    "README.md"
-  ],
-  "keywords": [
-    "moonshine",
-    "adapter"
-  ],
   "peerDependencies": {
     "vue": ">=3.4"
-  }
+  },
+  "files": ["src", "README.md"],
+  "keywords": ["moonshine", "vue", "adapter"]
 }
