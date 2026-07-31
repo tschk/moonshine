@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Bun CLI for moonshine — new, dev, build, preview, inspect, compile",
   "license": "ISC",
   "type": "module",
@@ -19,11 +19,11 @@
     "crepus"
   ],
   "dependencies": {
-    "@tschk/moonshine-compiler": "^0.3.0",
-    "@tschk/moonshine-framework": "^0.3.0",
-    "@tschk/moonshine-server": "^0.3.0",
-    "@tschk/moonshine-deploy-bun": "^0.3.0",
-    "@tschk/moonshine-react": "^0.3.0"
+    "@tschk/moonshine-compiler": "^0.3.1",
+    "@tschk/moonshine-framework": "^0.3.1",
+    "@tschk/moonshine-server": "^0.3.1",
+    "@tschk/moonshine-deploy-bun": "^0.3.1",
+    "@tschk/moonshine-react": "^0.3.1"
   },
   "scripts": {
     "format": "bunx prettier --check .",

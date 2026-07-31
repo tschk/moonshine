@@ -1,3 +1,26 @@
+# Moonshine 0.3.1
+
+## Security
+
+- `isSafeRedirect` now explicitly rejects embedded CR/LF control characters in redirect locations (AUD-007).
+- Full re-audit confirmed no regressions in route precedence, request cancellation, serialization, static traversal, cache isolation, adapter capability rejection, or compatibility exports.
+
+## Benchmarks
+
+- Added `scripts/benchmark-competitive.ts` measuring kernel, island, React, and Solid bundle sizes plus Bun.serve / Moonshine static / SSR request latency.
+- Refreshed internal benchmark results in `docs/audits/benchmark-results.md`.
+- Added `docs/audits/competitive-benchmarks.md` with methodology and caveats.
+- Updated `docs/COMPARE.md` with a "Measured on this machine" section.
+
+## Audit
+
+- Added `docs/audits/0.3.1-framework-audit.md` with full correctness, security, complexity, and gate results.
+
+## Migration from 0.3.0
+
+- All public packages now use version `0.3.1` and internal dependencies use `^0.3.1`.
+- No breaking changes; drop-in upgrade from 0.3.0.
+
 # Moonshine 0.3.0
 
 ## Kernel compatibility

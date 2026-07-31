@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-astro",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Astro adapter — moonshine islands + shaders + optional router",
   "license": "ISC",
   "type": "module",
@@ -12,8 +12,8 @@
     "./shaders": "./src/shaders.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.3.0",
-    "@tschk/moonshine-shaders": "^0.3.0"
+    "@tschk/moonshine": "^0.3.1",
+    "@tschk/moonshine-shaders": "^0.3.1"
   },
   "peerDependencies": {
     "astro": ">=4",
