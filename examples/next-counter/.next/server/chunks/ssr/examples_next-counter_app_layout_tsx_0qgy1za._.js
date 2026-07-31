@@ -1,3 +1,0 @@
-module.exports=[22722,a=>{"use strict";var b=a.i(42275);a.s(["default",0,function({children:a}){return(0,b.jsx)("html",{lang:"en",children:(0,b.jsx)("body",{style:{fontFamily:"system-ui",margin:0},children:a})})},"metadata",0,{title:"moonshine + Next",description:"Client-island signals via @tschk/moonshine-next"}])},88757,a=>{a.n(a.i(22722))}];
-
-//# sourceMappingURL=examples_next-counter_app_layout_tsx_0qgy1za._.js.map
