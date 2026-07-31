@@ -320,9 +320,11 @@ export async function scanProject(projectDir: string): Promise<AdoptScan> {
 }
 
 /**
- * Where the project will find `@tschk/moonshine-next` on disk. The
- * `node_modules` walk comes first because `Bun.resolveSync` returns the
- * realpath, which in a workspace points outside the project entirely.
+ * Where the project will find `@tschk/moonshine-next` on disk. Only installed
+ * `node_modules` trees count: adopt normally runs before `bun install`, and
+ * `Bun.resolveSync` would then answer with whatever version happens to sit in
+ * the global module cache — a copy that can predate the adapter's current
+ * surface, leaving specifiers pointing at files that do not exist.
  */
 function adapterDir(projectDir: string): string {
   let dir = projectDir;
@@ -333,13 +335,7 @@ function adapterDir(projectDir: string): string {
     if (parent === dir) break;
     dir = parent;
   }
-  try {
-    return dirname(
-      Bun.resolveSync("@tschk/moonshine-next/package.json", projectDir),
-    );
-  } catch {
-    return join(projectDir, "node_modules", "@tschk", "moonshine-next");
-  }
+  return join(projectDir, "node_modules", "@tschk", "moonshine-next");
 }
 
 /**
