@@ -4,6 +4,7 @@ import {
   createElement,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -162,12 +163,18 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
     typeof window === "undefined" || props.path !== undefined,
   );
 
-  const graph = createRouteGraph<InternalRoute>(
-    props.routes.map((route) => ({
-      ...route,
-      id: route.id ?? route.path,
-      file: route.file ?? "",
-    })),
+  // Compiling every pattern is a sizeable share of this component's render, and
+  // the result depends only on the route list.
+  const graph = useMemo(
+    () =>
+      createRouteGraph<InternalRoute>(
+        props.routes.map((route) => ({
+          ...route,
+          id: route.id ?? route.path,
+          file: route.file ?? "",
+        })),
+      ),
+    [props.routes],
   );
 
   useEffect(() => {
