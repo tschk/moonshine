@@ -392,3 +392,7 @@ export function renderCrepusIrSolid(
 
 export { msCreateSignal as createMoonshineSignal };
 export type { MsSignal as MoonshineSignal };
+
+// Core re-exports for Solid apps that share moonshine resources
+export { createResource, createSignal as createMsSignal, createMemo, batch, untrack } from "@tschk/moonshine";
+export type { Resource, ResourceStatus } from "@tschk/moonshine";

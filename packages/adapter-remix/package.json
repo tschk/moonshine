@@ -1,0 +1,37 @@
+{
+  "name": "@tschk/moonshine-remix",
+  "version": "0.2.0",
+  "description": "Remix / React Router adapter \u2014 signals + loader bridges",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "file:../core"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "adapter"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@remix-run/react": ">=2",
+    "react-router": ">=6"
+  },
+  "peerDependenciesMeta": {
+    "@remix-run/react": {
+      "optional": true
+    },
+    "react-router": {
+      "optional": true
+    }
+  }
+}

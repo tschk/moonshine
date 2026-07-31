@@ -1,7 +1,7 @@
 {
-  "name": "@tschk/moonshine-nuxt",
+  "name": "@tschk/moonshine-tanstack",
   "version": "0.2.0",
-  "description": "Nuxt adapter \u2014 re-exports Vue bridge + moonshine signals.",
+  "description": "TanStack Start/Router adapter \u2014 signals + async resources",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -10,7 +10,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@tschk/moonshine-vue": "file:../adapter-vue",
     "@tschk/moonshine": "file:../core"
   },
   "files": [
@@ -19,11 +18,16 @@
   ],
   "keywords": [
     "moonshine",
-    "nuxt",
-    "vue",
     "adapter"
   ],
   "peerDependencies": {
-    "vue": ">=3.4"
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@tanstack/react-router": ">=1"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-router": {
+      "optional": true
+    }
   }
 }

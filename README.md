@@ -9,74 +9,50 @@ bun run moonshine -- new spa --vite  # client SPA only
 cd my-app && bun install && bun run dev
 ```
 
-```ts
-import { createSignal, useSignal, createApp } from "@tschk/moonshine/react";
-
-const count = createSignal(0);
-
-function App() {
-  const n = useSignal(count);
-  return (
-    <button type="button" onClick={() => count.set((x) => x + 1)}>
-      {n}
-    </button>
-  );
-}
-
-createApp({ root: App }).mount("#app");
-```
-
 ## Greenfield path
 
 | Layer | Use |
 |-------|-----|
-| Full-stack | `moonshine new` → Bun `/server` + static + hydrate island |
+| Full-stack | `moonshine new` → Bun `/server` + static + hydrate |
 | Client SPA | `moonshine new --vite` → Vite + `/react` |
-| Client routes | `@tschk/moonshine/router` |
-| DSL | `.crepus` → IR → `.tsx` via `moonshine compile` |
-
-## Why it’s different
-
-- **Tiny default.** Signals only on `@tschk/moonshine`.
-- **Import what you need.** `/react`, `/runes`, `/router`, `/server`, `/shaders`.
-- **Bun as the base.** Install, test, CLI, HTTP, static files.
-- **Crepus compiles in.** `.crepus` → View IR → `.tsx`.
-- **TS 7 + `tsgo`.** Native Go typechecker supported.
+| Async data | `createResource` / `useResource` |
+| DSL | `.crepus` → IR → `.tsx` |
 
 ## Packages
 
 | Package | Role |
 |--------|------|
-| `@tschk/moonshine` | Core signals |
-| `@tschk/moonshine/react` | `createApp`, `useSignal`, `useStore` |
-| `@tschk/moonshine/runes` | `state` / `derived` / `effect` |
+| `@tschk/moonshine` | Signals + `createResource` |
+| `@tschk/moonshine/react` | `createApp`, `useSignal`, `useResource` |
+| `@tschk/moonshine/server` | Pages + `staticDir` + `Bun.serve` |
 | `@tschk/moonshine/router` | Instance client router |
-| `@tschk/moonshine/server` | Pages map + `staticDir` + `Bun.serve` |
-| `@tschk/moonshine-cli` | `moonshine new\|compile\|dev\|build` |
+| `@tschk/moonshine-cli` | CLI |
 | `@tschk/crepus-moonshine` | View IR → React |
-| `@tschk/moonshine-shaders` | Optional WebGL |
-| `@tschk/moonshine-components` | Optional UI catalog |
+
+## Host adapters (real APIs)
+
+| Host | Package | Real API highlights |
+|------|---------|---------------------|
+| **Next** | `@tschk/moonshine-next` | `/client` islands, `/server` `moonshineRoute`/`Json`/`Html` |
+| **Remix** | `@tschk/moonshine-remix` | `useLoaderSignal`, `createSearchParamSignal`, resources |
+| **TanStack** | `@tschk/moonshine-tanstack` | `createQuerySignal`, `createMutationSignal`, pathname |
+| **Angular-like** | `@tschk/moonshine-angular` | `signal`/`computed`/`effect`/`resource` |
+| **Solid** | `@tschk/moonshine-solid` | IR renderer + signal bridge + resources |
+| **Vue** | `@tschk/moonshine-vue` | `refFromSignal`, `watchSignal`, `resourceRefs` |
+| **Nuxt** | `@tschk/moonshine-nuxt` | `useMoonshineState`, `useMoonshineAsyncData` |
+| **Svelte** | `@tschk/moonshine-svelte` | writable/readable + `readableResource` |
+| **Astro** | `@tschk/moonshine-astro` | `defineIsland`, `preloadIslandData`, router/shaders |
+| **Waku** | `@tschk/moonshine-waku` | `useWakuSignal`, `createSharedIslandSignal` |
+
+Greenfield still prefers Bun + Vite. Adapters are for embedding in foreign hosts.
 
 ## Examples
 
 | Path | What |
 |------|------|
-| `examples/bun-server` | Canonical Bun HTTP + static + hydrate |
+| `examples/bun-server` | Bun HTTP + static + hydrate |
 | `examples/vite-crepus` | Vite + Crepus IR |
 | `examples/catalog-gallery` | Component catalog |
-
-## Optional host bridges
-
-Only if already inside another UI host. Prefer greenfield above.
-
-| Host | Package |
-|------|---------|
-| Solid | `@tschk/moonshine-solid` |
-| Vue / Nuxt | `@tschk/moonshine-vue` / `-nuxt` |
-| Svelte | `@tschk/moonshine-svelte` |
-| Astro / Waku | `@tschk/moonshine-astro` / `-waku` |
-
-No Next/Remix/TanStack/Angular adapter packages — use `@tschk/moonshine/react` directly if stuck there.
 
 ## Develop
 

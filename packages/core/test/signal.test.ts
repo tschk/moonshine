@@ -6,6 +6,7 @@ import {
   createStore,
   untrack,
 } from "../src/signal";
+import { createResource } from "../src/resource";
 import {
   createMoonshineRouter,
   matchPath,
@@ -400,5 +401,25 @@ describe("server static", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("body{color:red}");
+  });
+});
+
+describe("createResource", () => {
+  test("fetches and exposes status", async () => {
+    const r = createResource(async () => 7, { immediate: false });
+    expect(r()).toBeUndefined();
+    await r.refetch();
+    expect(r()).toBe(7);
+    expect(r.status()).toBe("ready");
+    expect(r.loading()).toBe(false);
+  });
+
+  test("captures errors", async () => {
+    const r = createResource(async () => {
+      throw new Error("nope");
+    }, { immediate: false });
+    await r.refetch();
+    expect(r.error()?.message).toBe("nope");
+    expect(r.status()).toBe("errored");
   });
 });

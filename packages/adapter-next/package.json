@@ -1,0 +1,35 @@
+{
+  "name": "@tschk/moonshine-next",
+  "version": "0.2.0",
+  "description": "Next.js adapter \u2014 client islands + server helpers",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "file:../core"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "adapter"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "next": ">=15"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  }
+}

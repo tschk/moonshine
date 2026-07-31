@@ -1,10 +1,6 @@
 /**
  * Shared React-host surface for framework adapters.
- * Signals + hooks + runes + jsx. No host router (foreign hosts own routing).
- *
- * ```ts
- * export * from "@tschk/moonshine/host-react";
- * ```
+ * Signals + hooks + resources + runes + jsx. No host router.
  */
 export {
   batch,
@@ -15,10 +11,19 @@ export {
 } from "./signal";
 export type { Memo, Signal, StoreSetter } from "./signal";
 
+export { createResource } from "./resource";
+export type {
+  CreateResourceOptions,
+  Resource,
+  ResourceStatus,
+} from "./resource";
+
 export {
   createApp,
+  createIslandSignal,
   createMoonshineApp,
   renderToNode,
+  useResource,
   useSignal,
   useStore,
 } from "./react";

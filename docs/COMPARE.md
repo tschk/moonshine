@@ -68,7 +68,7 @@ moonshine new spa --vite   # client SPA only
 | Tag | Item | Status |
 |-----|------|--------|
 | `delete:` | `@tschk/moonshine-next` | done |
-| `delete:` | remix / tanstack / angular adapters (thin or fake) | **done** |
+| `restore:` | next/remix/tanstack/angular with **real host APIs** | **done** |
 | `native:` | `staticDir` + path guard | done |
 | `keep:` | signals, crepus IR, bun-server example | done |
 | `yagni:` | auth/DB/RSC in core | skipped (compose) |

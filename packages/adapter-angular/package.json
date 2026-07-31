@@ -1,7 +1,7 @@
 {
-  "name": "@tschk/moonshine-nuxt",
+  "name": "@tschk/moonshine-angular",
   "version": "0.2.0",
-  "description": "Nuxt adapter \u2014 re-exports Vue bridge + moonshine signals.",
+  "description": "Angular-like signal/computed/effect API over moonshine (no @angular/core)",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -10,7 +10,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@tschk/moonshine-vue": "file:../adapter-vue",
     "@tschk/moonshine": "file:../core"
   },
   "files": [
@@ -19,11 +18,6 @@
   ],
   "keywords": [
     "moonshine",
-    "nuxt",
-    "vue",
     "adapter"
-  ],
-  "peerDependencies": {
-    "vue": ">=3.4"
-  }
+  ]
 }
