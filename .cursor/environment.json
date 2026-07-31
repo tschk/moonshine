@@ -5,23 +5,6 @@
     "context": ".."
   },
   "install": "chmod +x scripts/cloud-agent-install.sh && ./scripts/cloud-agent-install.sh",
-  "terminals": [
-    {
-      "name": "catalog gallery",
-      "command": "cd examples/catalog-gallery && bun run dev -- --host 0.0.0.0 --port 5173",
-      "description": "Vite gallery for @tschk/moonshine-components (Bayer charts + primitives)"
-    }
-  ],
-  "ports": [
-    {
-      "name": "catalog gallery",
-      "port": 5173
-    },
-    {
-      "name": "vite-crepus",
-      "port": 5174
-    }
-  ],
   "repositoryDependencies": [
     "github.com/tschk/crepuscularity"
   ],

@@ -26,11 +26,6 @@ jobs:
       - run: bun run typecheck:native
       - run: bun test
       - run: bun run check:size
-      - run: bun run test:packed
-      - run: bun run build
-        working-directory: examples/vite-crepus
-      - run: bun run build
-        working-directory: examples/catalog-gallery
 
   dart:
     runs-on: ubuntu-latest

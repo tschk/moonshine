@@ -16,5 +16,3 @@ node_modules/
 .vscode/
 examples/bun-server/public/client.js
 examples/bun-server/public/client.js.map
-examples/shaders-island/public/client.js
-examples/shaders-island/public/client.js.map

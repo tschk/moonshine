@@ -10,8 +10,6 @@ echo "==> local moonshine setup"
 command -v bun >/dev/null || { echo "install bun: https://bun.sh"; exit 1; }
 bun install
 bun run check
-cd examples/catalog-gallery && bun run build && cd "$ROOT"
-cd examples/vite-crepus && bun run build && cd "$ROOT"
 
 if command -v dart >/dev/null; then
   (cd dart/moonshine_jaspr && dart pub get && dart test)
