@@ -18,33 +18,13 @@ const REQUIRED_HOST_EXPORTS: Record<string, string[]> = {
     "./server",
     "./client",
   ],
-  "adapter-remix": ["./react", "./hooks"],
-  "adapter-tanstack": ["./query", "./router"],
-  "adapter-vue": ["./vue"],
-  "adapter-svelte": ["./store"],
   "adapter-solid": ["./solid", "./store", "./h"],
-  "adapter-nuxt": ["./app", "./vue"],
-  "adapter-astro": ["./react", "./shaders"],
-  "adapter-waku": ["./router", "./shaders"],
-  "adapter-angular": ["./rxjs"],
 };
 
 describe("adapter contracts", () => {
   test("discovers all adapters", () => {
     expect(adapters.sort()).toEqual(
-      [
-        "adapter-angular",
-        "adapter-astro",
-        "adapter-conformance",
-        "adapter-next",
-        "adapter-nuxt",
-        "adapter-remix",
-        "adapter-solid",
-        "adapter-svelte",
-        "adapter-tanstack",
-        "adapter-vue",
-        "adapter-waku",
-      ].sort(),
+      ["adapter-conformance", "adapter-next", "adapter-solid"].sort(),
     );
   });
 
@@ -64,8 +44,8 @@ describe("adapter contracts", () => {
     }
   });
 
-  test("next/remix/tanstack roots do not export MoonshineRouter", () => {
-    for (const name of ["adapter-next", "adapter-remix", "adapter-tanstack"]) {
+  test("next root does not export MoonshineRouter", () => {
+    for (const name of ["adapter-next"]) {
       const index = readFileSync(
         join(packagesRoot, name, "src/index.ts"),
         "utf8",

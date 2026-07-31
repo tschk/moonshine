@@ -49,67 +49,19 @@ import { useFragmentShader } from "@tschk/moonshine-next/shaders";
 import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 ```
 
-### Remix
+### Solid
 
 ```ts
-import { useLoaderSignal } from "@tschk/moonshine-remix";
-import { Link, useFetcher, useLoaderData } from "@tschk/moonshine-remix/react";
-import {
-  useFetcherSignals,
-  useLocationSignal,
-} from "@tschk/moonshine-remix/hooks";
-```
-
-### TanStack
-
-```ts
-import { createQuerySignal } from "@tschk/moonshine-tanstack";
-import { useQuery, useQuerySignal } from "@tschk/moonshine-tanstack/query";
-import {
-  Link,
-  useNavigate,
-  usePathnameSignal,
-} from "@tschk/moonshine-tanstack/router";
-```
-
-### Vue / Nuxt / Svelte / Solid
-
-```ts
-import { ref, computed } from "@tschk/moonshine-vue/vue";
-import { refFromSignal } from "@tschk/moonshine-vue";
-
-import { useFetch, navigateTo } from "@tschk/moonshine-nuxt/app";
-import { useMoonshineAsyncData } from "@tschk/moonshine-nuxt";
-
-import { writable, get } from "@tschk/moonshine-svelte/store";
-import { moonshineWritable } from "@tschk/moonshine-svelte";
-
 import { createSignal as solidSignal, For } from "@tschk/moonshine-solid/solid";
 import { renderCrepusIrSolid } from "@tschk/moonshine-solid";
 ```
 
-### Astro / Waku / Angular-like
-
-```ts
-import { defineIsland } from "@tschk/moonshine-astro";
-import { useFragmentShader } from "@tschk/moonshine-astro/shaders";
-
-import { createSharedIslandSignal } from "@tschk/moonshine-waku";
-import { Link, useWakuPathSignal } from "@tschk/moonshine-waku/router";
-
-import { signal, computed, effect } from "@tschk/moonshine-angular";
-import { fromSignal } from "@tschk/moonshine-angular/rxjs";
-```
-
 ## Examples
 
-| Path                       | What                                                    |
-| -------------------------- | ------------------------------------------------------- |
-| `examples/hybrid-app`      | Static, SSR, island, SPA, and API routes in one project |
-| `examples/bun-server`      | Bun HTTP + static + hydrate                             |
-| `examples/shaders-island`  | WebGL via `@tschk/moonshine-shaders`                    |
-| `examples/vite-crepus`     | Vite + Crepus IR                                        |
-| `examples/catalog-gallery` | Component catalog                                       |
+| Path                  | What                                                    |
+| --------------------- | ------------------------------------------------------- |
+| `examples/hybrid-app` | Static, SSR, island, SPA, and API routes in one project |
+| `examples/bun-server` | Bun HTTP + static + hydrate                             |
 
 ## Documentation
 
