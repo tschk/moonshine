@@ -276,6 +276,21 @@ export function renderCrepusNode(
         style: css(styleOf(n)),
       });
     }
+    case "link": {
+      const n = node as Extract<CrepusNode, { kind: "link" }>;
+      return createElement(
+        "a",
+        {
+          key,
+          "data-crepus-kind": "link",
+          href: n.href ?? "#",
+          target: n.target,
+          rel: n.rel,
+          style: css(styleOf(n)),
+        },
+        n.content ?? renderChildren(n.children, options, key),
+      );
+    }
     case "if": {
       const n = node as Extract<CrepusNode, { kind: "if" }>;
       const branch = n.condition ? asArray(n.then) : asArray(n.else);

@@ -174,4 +174,41 @@ describe("renderCrepusIr", () => {
     expect(html).toContain('data-crepus-kind="picker"');
     expect(html).toContain("data-crepus-unknown");
   });
+
+  test("link renders an anchor with href and children", () => {
+    const html = renderToStaticMarkup(
+      renderCrepusIr({
+        root: [
+          {
+            kind: "link",
+            href: "https://example.com",
+            target: "_blank",
+            rel: "noreferrer",
+            children: [{ kind: "text", content: "go" }],
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('data-crepus-kind="link"');
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noreferrer"');
+    expect(html).toContain(">go<");
+  });
+
+  test("link renders content string when no children", () => {
+    const html = renderToStaticMarkup(
+      renderCrepusIr({
+        root: [
+          {
+            kind: "link",
+            href: "/about",
+            content: "About",
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('href="/about"');
+    expect(html).toContain(">About<");
+  });
 });

@@ -103,6 +103,16 @@ export type CrepusImageNode = {
   style?: StyleMap;
 };
 
+export type CrepusLinkNode = {
+  kind: "link";
+  href?: string;
+  target?: string;
+  rel?: string;
+  content?: string;
+  children?: CrepusNode[];
+  style?: StyleMap;
+};
+
 export type CrepusIfNode = {
   kind: "if";
   condition?: boolean;
@@ -152,6 +162,7 @@ export type CrepusNode =
   | CrepusDividerNode
   | CrepusSpacerNode
   | CrepusImageNode
+  | CrepusLinkNode
   | CrepusIfNode
   | CrepusForEachNode
   | CrepusListNode
