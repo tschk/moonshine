@@ -12,7 +12,7 @@
     "./shaders": "./src/shaders.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core",
+    "@tschk/moonshine": "workspace:*",
     "@tschk/moonshine-shaders": "file:../shaders"
   },
   "peerDependencies": {

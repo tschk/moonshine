@@ -15,6 +15,7 @@ export {
   createMemo,
   createSignal,
   createStore,
+  getStoreRoot,
   untrack,
 } from "./signal";
 export type { Memo, Signal, StoreSetter } from "./signal";

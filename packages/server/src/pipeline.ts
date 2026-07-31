@@ -86,7 +86,10 @@ function mergeHeaders(
   return headers;
 }
 
-function finalizeResponse(response: Response, baseHeaders?: HeadersInit): Response {
+function finalizeResponse(
+  response: Response,
+  baseHeaders?: HeadersInit,
+): Response {
   const headers = new Headers(baseHeaders);
   for (const [key, value] of response.headers.entries()) {
     headers.set(key, value);
@@ -264,14 +267,7 @@ export function createRequestHandler(
     try {
       const befores: Middleware[] = [];
       for (const c of chain) befores.push(...(c.module.before ?? []));
-      const response = await runBefores(
-        ctx,
-        0,
-        befores,
-        chain,
-        options,
-        route,
-      );
+      const response = await runBefores(ctx, 0, befores, chain, options, route);
       return finalizeResponse(response, baseHeaders);
     } catch (error) {
       if (error instanceof Redirect) {
@@ -280,11 +276,7 @@ export function createRequestHandler(
         return new Response(null, { status: error.status, headers });
       }
 
-      const boundary = findErrorBoundary(
-        chain,
-        route,
-        options.modules ?? {},
-      );
+      const boundary = findErrorBoundary(chain, route, options.modules ?? {});
       if (boundary) {
         const res = await boundary(ctx, error);
         return finalizeResponse(res, baseHeaders);

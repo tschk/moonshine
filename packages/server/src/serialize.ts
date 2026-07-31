@@ -21,7 +21,8 @@ export function serializeData(value: unknown): string {
 
     if (type === "string") {
       const raw = JSON.stringify(v);
-      if (raw === undefined) throw new TypeError("serializeData: cannot serialize");
+      if (raw === undefined)
+        throw new TypeError("serializeData: cannot serialize");
       return raw;
     }
 
@@ -50,7 +51,8 @@ export function serializeData(value: unknown): string {
       seen.add(v);
       try {
         const raw = JSON.stringify(v);
-        if (raw === undefined) throw new TypeError("serializeData: cannot serialize");
+        if (raw === undefined)
+          throw new TypeError("serializeData: cannot serialize");
         return raw;
       } finally {
         seen.delete(v);
@@ -67,7 +69,9 @@ export function serializeData(value: unknown): string {
       const parts: string[] = [];
       for (const [key, val] of Object.entries(v as Record<string, unknown>)) {
         if (typeof val === "function" || typeof val === "symbol") {
-          throw new TypeError("serializeData: cannot serialize function/symbol");
+          throw new TypeError(
+            "serializeData: cannot serialize function/symbol",
+          );
         }
         parts.push(`${visit(key)}:${visit(val)}`);
       }

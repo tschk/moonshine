@@ -11,7 +11,7 @@
     "./store": "./src/store.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core"
+    "@tschk/moonshine": "workspace:*"
   },
   "peerDependencies": {
     "svelte": ">=5"

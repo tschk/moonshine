@@ -12,7 +12,7 @@
     "./router": "./src/router.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core"
+    "@tschk/moonshine": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/react-query": ">=5",

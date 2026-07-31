@@ -46,7 +46,8 @@ export async function tryServeStatic(
   if (!filePath) return null;
   const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
-  const type = MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
+  const type =
+    MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
   return new Response(file, {
     headers: { "content-type": type },
   });

@@ -13,7 +13,7 @@
     "./h": "./src/h.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core",
+    "@tschk/moonshine": "workspace:*",
     "@tschk/crepus-moonshine": "file:../crepus-moonshine"
   },
   "peerDependencies": {

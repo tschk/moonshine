@@ -12,7 +12,7 @@
     "./vue": "./src/vue-reexport.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core",
+    "@tschk/moonshine": "workspace:*",
     "@tschk/moonshine-vue": "file:../adapter-vue"
   },
   "peerDependencies": {

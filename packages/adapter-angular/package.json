@@ -11,7 +11,7 @@
     "./rxjs": "./src/rxjs.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "file:../core"
+    "@tschk/moonshine": "workspace:*"
   },
   "files": [
     "src",

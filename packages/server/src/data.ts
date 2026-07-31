@@ -1,4 +1,8 @@
-import type { MoonshineManifest, Renderer, RouteDefinition } from "@tschk/moonshine-framework";
+import type {
+  MoonshineManifest,
+  Renderer,
+  RouteDefinition,
+} from "@tschk/moonshine-framework";
 import type { RouteGraph } from "@tschk/moonshine-router";
 
 export type RouteContext = {

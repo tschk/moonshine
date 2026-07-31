@@ -18,6 +18,7 @@
     "./shaders": "./src/shaders.ts"
   },
   "dependencies": {
+    "@tschk/moonshine-react": "^0.2.0",
     "@tschk/moonshine-router": "^0.2.0",
     "@tschk/moonshine-server": "^0.2.0",
     "@tschk/moonshine-shaders": "file:../shaders"
