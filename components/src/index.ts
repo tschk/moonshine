@@ -11,20 +11,9 @@ export { Heatmap, type HeatmapProps } from "./charts/Heatmap";
 export { PixelGrid, type PixelGridProps } from "./charts/PixelGrid";
 
 // Dither
+export { type AreaVariant } from "./dither/dither-paint";
 export {
-  BAYER,
-  paintColumn,
-  paintSparkline,
-  resample,
-  backingSize,
-  sparklineColumnTops,
-  type AreaVariant,
-} from "./dither/dither-paint";
-export {
-  PALETTE,
   themes,
-  rgb,
-  seedOfColor,
   type DitherColor,
   type Seed,
   type Theme,
