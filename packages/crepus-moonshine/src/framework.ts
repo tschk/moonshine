@@ -1,20 +1,29 @@
 import { createElement, type ReactElement } from "react";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import type { RenderContext, Renderer } from "@tschk/moonshine-framework";
+import { parseCrepus, IR_VERSION, type ViewIr } from "@tschk/crepus-wasm";
 import { renderCrepusIr } from "./render";
-import type { CrepusIr } from "./types";
 
-function getCrepusIr(context: RenderContext): CrepusIr {
+const EMPTY_IR: ViewIr = { version: IR_VERSION, root: [] };
+
+/**
+ * Route data may be `.crepus` source or already-parsed View IR. Source is
+ * parsed by the Rust parser via WASM.
+ */
+function getCrepusIr(context: RenderContext): ViewIr {
   const data = context.data;
+  if (typeof data === "string") {
+    return data.trim().length > 0 ? parseCrepus(data) : EMPTY_IR;
+  }
   if (
     data &&
     typeof data === "object" &&
     "root" in data &&
-    Array.isArray((data as CrepusIr).root)
+    Array.isArray((data as ViewIr).root)
   ) {
-    return data as CrepusIr;
+    return data as ViewIr;
   }
-  return { root: [] };
+  return EMPTY_IR;
 }
 
 function buildRoot(context: RenderContext, body: ReactElement): ReactElement {

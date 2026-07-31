@@ -1,214 +1,75 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { renderCrepusIr, type ViewIr } from "../src/render";
+import { IR_VERSION, parseCrepus, renderCrepusIr } from "../src/index";
+
+function html(source: string, context?: Record<string, string>): string {
+  return renderToStaticMarkup(renderCrepusIr(parseCrepus(source, context)));
+}
+
+describe("parseCrepus", () => {
+  test("parses .crepus source through the Rust parser", () => {
+    const ir = parseCrepus('div flex\n  span\n    "hi"');
+    expect(ir.version).toBe(IR_VERSION);
+    expect(ir.root).toHaveLength(1);
+    expect(ir.root[0]!.kind).toBe("stack");
+  });
+
+  test("binds template variables from a context", () => {
+    const ir = parseCrepus('span\n  "hello {name}"', { name: "Ada" });
+    expect(JSON.stringify(ir)).toContain("hello Ada");
+  });
+});
 
 describe("renderCrepusIr", () => {
-  test("renders text / stack / button / sparkline", () => {
-    const el = renderCrepusIr({
-      version: 1,
-      root: [
-        {
-          kind: "stack",
-          axis: "column",
-          children: [
-            { kind: "text", content: "Hello" },
-            { kind: "button", label: "Click", onClick: "doThing" },
-            { kind: "sparkline", values: [1, 2, 3], width: 40, height: 10 },
-          ],
-        },
-      ],
-    });
-
-    const html = renderToStaticMarkup(el);
-    expect(html).toContain("data-crepus-root");
-    expect(html).toContain("Hello");
-    expect(html).toContain("Click");
-    expect(html).toContain('data-onclick="doThing"');
-    expect(html).toContain('data-crepus-kind="sparkline"');
-    expect(html).toContain("<path");
+  test("preserves class tokens as className", () => {
+    const out = html('div flex flex-col gap-4\n  span text-lg\n    "hi"');
+    expect(out).toContain('class="flex flex-col gap-4"');
+    expect(out).toContain('class="text-lg"');
   });
 
-  test("maps spacing as gap alias on stacks", () => {
-    const html = renderToStaticMarkup(
-      renderCrepusIr({
-        root: [
-          {
-            kind: "stack",
-            spacing: 24,
-            children: [{ kind: "text", content: "spaced" }],
-          },
-        ],
-      }),
+  test("emits no inline styles", () => {
+    const out = html(
+      'div flex flex-col gap-4 text-zinc-100 bg-zinc-950\n  span\n    "hi"',
     );
-    expect(html).toContain("gap:24px");
-    expect(html).toContain("spaced");
+    expect(out).not.toContain("style=");
   });
 
-  test("badge tone maps to CSS colors", () => {
-    for (const tone of [
-      "accent",
-      "danger",
-      "muted",
-      "success",
-      "warning",
-    ] as const) {
-      const html = renderToStaticMarkup(
-        renderCrepusIr({
-          root: [{ kind: "badge", label: tone, tone }],
-        }),
-      );
-      expect(html).toContain(`data-tone="${tone}"`);
-      expect(html).toContain(`--ms-${tone}`);
+  test("renders anchors with href, target and rel", () => {
+    const out = html(
+      'a href="https://example.com" target="_blank" rel="noopener" text-zinc-100\n  span\n    "crepuscularity"',
+    );
+    expect(out).toContain('href="https://example.com"');
+    expect(out).toContain('target="_blank"');
+    expect(out).toContain('rel="noopener"');
+    expect(out).toContain('class="text-zinc-100"');
+  });
+
+  test("stamps the IR version on the root", () => {
+    const out = html('span\n  "hi"');
+    expect(out).toContain('data-crepus-root="true"');
+    expect(out).toContain(`data-crepus-ir-version="${IR_VERSION}"`);
+  });
+
+  test.each([
+    ['ul\n  li\n    "a"', ["<ul", "<li"]],
+    ['ol\n  li\n    "a"', ["<ol", "<li"]],
+    ['button\n  "Go"', ['<button type="button"', "Go"]],
+    ['img src="/a.png" alt="a"', ['<img src="/a.png"', 'alt="a"']],
+    [
+      'iframe src="https://example.com"',
+      ["<iframe", 'src="https://example.com"'],
+    ],
+  ])("renders %p to the right html element", (source, expected) => {
+    const out = html(source as string);
+    for (const fragment of expected as string[]) {
+      expect(out).toContain(fragment);
     }
   });
 
-  test("forEach binds {item} and $item in label/content", () => {
-    const html = renderToStaticMarkup(
-      renderCrepusIr({
-        root: [
-          {
-            kind: "forEach",
-            items: ["alpha", "beta"],
-            itemTemplate: {
-              kind: "stack",
-              children: [
-                { kind: "badge", label: "{item}" },
-                { kind: "text", content: "val=$item" },
-              ],
-            },
-          },
-        ],
-      }),
+  test("renders an empty document without throwing", () => {
+    const out = renderToStaticMarkup(
+      renderCrepusIr({ version: IR_VERSION, root: [] }),
     );
-    expect(html).toContain("alpha");
-    expect(html).toContain("beta");
-    expect(html).toContain("val=alpha");
-    expect(html).toContain("val=beta");
-    expect(html).not.toContain("{item}");
-    expect(html).not.toContain("$item");
-  });
-
-  test("ViewIr is a CrepusIr alias", () => {
-    const ir: ViewIr = { version: 1, root: [{ kind: "text", content: "ok" }] };
-    const html = renderToStaticMarkup(renderCrepusIr(ir));
-    expect(html).toContain("ok");
-  });
-
-  test("renders expanded View IR kinds", () => {
-    const html = renderToStaticMarkup(
-      renderCrepusIr({
-        root: [
-          {
-            kind: "stack",
-            children: [
-              {
-                kind: "scroll",
-                children: [{ kind: "text", content: "scrolled" }],
-              },
-              {
-                kind: "toggle",
-                label: "Dark",
-                value: true,
-                onChange: "setDark",
-              },
-              { kind: "checkbox", label: "Agree", value: false },
-              { kind: "progress", value: 0.4, max: 1 },
-              { kind: "meter", value: 0.6, min: 0, max: 1 },
-              { kind: "badge", label: "NEW", tone: "accent" },
-              { kind: "divider" },
-              { kind: "spacer", size: 12 },
-              { kind: "image", src: "/x.png", alt: "x" },
-              {
-                kind: "if",
-                condition: true,
-                then: [{ kind: "text", content: "yes" }],
-                else: [{ kind: "text", content: "no" }],
-              },
-              {
-                kind: "forEach",
-                items: [1, 2],
-                itemTemplate: { kind: "badge", label: "item" },
-              },
-              {
-                kind: "list",
-                children: [
-                  { kind: "listItem", label: "One" },
-                  { kind: "listItem", label: "Two" },
-                ],
-              },
-            ],
-          },
-        ],
-      }),
-    );
-
-    for (const kind of [
-      "scroll",
-      "toggle",
-      "checkbox",
-      "progress",
-      "meter",
-      "badge",
-      "divider",
-      "spacer",
-      "image",
-      "if",
-      "forEach",
-      "list",
-      "listItem",
-    ]) {
-      expect(html).toContain(`data-crepus-kind="${kind}"`);
-    }
-    expect(html).toContain("scrolled");
-    expect(html).toContain("yes");
-    expect(html).toContain("One");
-    expect(html).not.toContain(">no<");
-  });
-
-  test("unknown kinds render a stub", () => {
-    const html = renderToStaticMarkup(
-      renderCrepusIr({
-        root: [{ kind: "picker", options: [] }],
-      }),
-    );
-    expect(html).toContain('data-crepus-kind="picker"');
-    expect(html).toContain("data-crepus-unknown");
-  });
-
-  test("link renders an anchor with href and children", () => {
-    const html = renderToStaticMarkup(
-      renderCrepusIr({
-        root: [
-          {
-            kind: "link",
-            href: "https://example.com",
-            target: "_blank",
-            rel: "noreferrer",
-            children: [{ kind: "text", content: "go" }],
-          },
-        ],
-      }),
-    );
-    expect(html).toContain('data-crepus-kind="link"');
-    expect(html).toContain('href="https://example.com"');
-    expect(html).toContain('target="_blank"');
-    expect(html).toContain('rel="noreferrer"');
-    expect(html).toContain(">go<");
-  });
-
-  test("link renders content string when no children", () => {
-    const html = renderToStaticMarkup(
-      renderCrepusIr({
-        root: [
-          {
-            kind: "link",
-            href: "/about",
-            content: "About",
-          },
-        ],
-      }),
-    );
-    expect(html).toContain('href="/about"');
-    expect(html).toContain(">About<");
+    expect(out).toContain('data-crepus-root="true"');
   });
 });

@@ -1,15 +1,13 @@
 {
   "name": "@tschk/crepus-moonshine",
   "version": "0.3.1",
-  "description": "Bridge: crepuscularity View IR → moonshine React elements",
+  "description": "Bridge: .crepus (parsed by the Rust parser via WASM) to moonshine React elements",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./ir": "./src/ir-shared.ts",
-    "./types": "./src/types.ts"
+    ".": "./src/index.ts"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -26,9 +24,9 @@
     "lint": "bunx oxlint ."
   },
   "dependencies": {
+    "@tschk/crepus-wasm": "file:../../../crepuscularity/crates/crepuscularity-wasm/npm",
     "@tschk/moonshine": "^0.3.1",
-    "@tschk/moonshine-framework": "^0.3.1",
-    "@tschk/moonshine-react": "^0.3.1"
+    "@tschk/moonshine-framework": "^0.3.1"
   },
   "peerDependencies": {
     "react": ">=18",

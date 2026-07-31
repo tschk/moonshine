@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { CrepusIr } from "../src/types";
-import { crepusRenderer } from "../src/index";
+import type { CrepusIr } from "../src/index";
+import { crepusRenderer, parseCrepus } from "../src/index";
 import type { RenderContext, RouteArtifact } from "@tschk/moonshine-framework";
 
 function makeRoute(
@@ -33,86 +33,61 @@ function makeContext(
   };
 }
 
+const SOURCE = `div flex flex-col gap-4 text-zinc-100
+  span text-lg
+    "Hello"
+  a href="https://example.com" no-underline
+    span
+      "crepuscularity"
+  button
+    "Click"
+  ul
+    li
+      "One"
+    li
+      "Two"
+  img src="/x.png" alt="x"
+  hr
+`;
+
 function allKindsIr(): CrepusIr {
-  return {
-    version: 1,
-    root: [
-      {
-        kind: "stack",
-        children: [
-          { kind: "text", content: "Hello" },
-          {
-            kind: "scroll",
-            children: [{ kind: "text", content: "scrolled" }],
-          },
-          { kind: "button", label: "Click", onClick: "doThing" },
-          { kind: "toggle", label: "Dark", value: true, onChange: "setDark" },
-          { kind: "checkbox", label: "Agree", value: false },
-          { kind: "progress", value: 0.4, max: 1 },
-          { kind: "meter", value: 0.6, min: 0, max: 1 },
-          { kind: "sparkline", values: [1, 2, 3], width: 40, height: 10 },
-          { kind: "badge", label: "NEW", tone: "accent" },
-          { kind: "divider" },
-          { kind: "spacer", size: 12 },
-          { kind: "image", src: "/x.png", alt: "x" },
-          {
-            kind: "if",
-            condition: true,
-            then: [{ kind: "text", content: "yes" }],
-            else: [{ kind: "text", content: "no" }],
-          },
-          {
-            kind: "forEach",
-            items: [1, 2],
-            itemTemplate: { kind: "badge", label: "item" },
-          },
-          {
-            kind: "list",
-            children: [
-              { kind: "listItem", label: "One" },
-              { kind: "listItem", label: "Two" },
-            ],
-          },
-        ],
-      },
-    ],
-  };
+  return parseCrepus(SOURCE);
 }
 
 describe("crepus renderer", () => {
-  test("prerender renders all documented View IR kinds", async () => {
+  test("prerender renders IR to real html elements with classes", async () => {
     const html = await crepusRenderer.prerender(
       makeContext(makeRoute({ mode: "static" }), allKindsIr()),
     );
     expect(html).toContain("<!DOCTYPE html>");
-    for (const kind of [
-      "text",
-      "stack",
-      "scroll",
-      "button",
-      "toggle",
-      "checkbox",
-      "progress",
-      "meter",
-      "sparkline",
-      "badge",
-      "divider",
-      "spacer",
-      "image",
-      "if",
-      "forEach",
-      "list",
-      "listItem",
-    ]) {
-      expect(html).toContain(`data-crepus-kind="${kind}"`);
-    }
-    expect(html).toContain("scrolled");
-    expect(html).toContain("yes");
+    expect(html).toContain('class="flex flex-col gap-4 text-zinc-100"');
+    expect(html).toContain(
+      '<a class="no-underline" href="https://example.com"',
+    );
+    expect(html).toContain('<button type="button"');
+    expect(html).toContain("<ul>");
+    expect(html).toContain("<li>");
+    expect(html).toContain('<img src="/x.png"');
+    expect(html).toContain("<hr");
+    expect(html).toContain("Hello");
     expect(html).toContain("One");
-    expect(html).not.toContain(">no<");
+    // Classes are the styling channel; hints must not leak as inline CSS.
+    expect(html).not.toContain("style=");
   });
 
-  test("render returns an HTML response with all IR kinds", async () => {
+  test("render accepts raw .crepus source as route data", async () => {
+    const res = await crepusRenderer.render(
+      makeContext(makeRoute({ mode: "ssr" }), SOURCE),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const text = await res.text();
+    expect(text).toContain("<!DOCTYPE html>");
+    expect(text).toContain('class="flex flex-col gap-4 text-zinc-100"');
+    expect(text).toContain("crepuscularity");
+  });
+
+  test("render returns an HTML response from parsed IR", async () => {
     const res = await crepusRenderer.render(
       makeContext(makeRoute({ mode: "ssr" }), allKindsIr()),
     );
@@ -121,8 +96,7 @@ describe("crepus renderer", () => {
     expect(res.body).toBeInstanceOf(ReadableStream);
     const text = await res.text();
     expect(text).toContain("<!DOCTYPE html>");
-    expect(text).toContain('data-crepus-kind="sparkline"');
-    expect(text).toContain("scrolled");
+    expect(text).toContain("Hello");
   });
 
   test("render api route does not render IR", async () => {

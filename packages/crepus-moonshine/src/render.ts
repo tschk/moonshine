@@ -1,388 +1,273 @@
-import {
-  createElement,
-  type CSSProperties,
-  type ReactElement,
-  type ReactNode,
-} from "react";
-import {
-  asArray,
-  badgeToneStyle,
-  bindItemTemplate,
-  sparklinePath,
-  styleOf,
-} from "./ir-shared";
-import type { CrepusIr, CrepusNode, RenderCrepusOptions } from "./types";
+import { createElement, type ReactElement, type ReactNode } from "react";
+import type { TabItem, ViewIr, ViewNode } from "@tschk/crepus-wasm";
 
-export type {
-  CrepusIr,
-  CrepusNode,
-  RenderCrepusOptions,
-  ViewIr,
-} from "./types";
+export type CrepusNode = ViewNode;
 
-function css(style: ReturnType<typeof styleOf>): CSSProperties | undefined {
-  return style as CSSProperties | undefined;
+export interface RenderCrepusOptions {
+  /** Wrapper element for the document root. */
+  rootTag?: string;
 }
 
-function renderChildren(
-  children: CrepusNode[] | undefined,
-  options: RenderCrepusOptions,
-  key: string,
-): ReactNode[] {
-  return (children ?? []).map((child, i) =>
-    renderCrepusNode(child, options, `${key}.${i}`),
+/**
+ * Class tokens are carried verbatim from the template, so UnoCSS/Tailwind
+ * styles the output. The lowered `style` hints exist for native targets and are
+ * deliberately not converted to inline CSS here.
+ */
+function classNameOf(node: ViewNode): string | undefined {
+  const classes = (node as { style?: { classes?: string[] } }).style?.classes;
+  if (!classes || classes.length === 0) return undefined;
+  const joined = classes.filter(Boolean).join(" ");
+  return joined.length > 0 ? joined : undefined;
+}
+
+function renderChildren(children: ViewNode[], keyPrefix: string): ReactNode[] {
+  return children.map((child, i) =>
+    renderCrepusNode(child, `${keyPrefix}.${i}`),
   );
 }
 
-/** Map one IR node to a moonshine/React element. */
-export function renderCrepusNode(
-  node: CrepusNode,
-  options: RenderCrepusOptions = {},
-  key = "0",
-): ReactNode {
+export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
+  const className = classNameOf(node);
+
   switch (node.kind) {
-    case "text": {
-      const n = node as Extract<CrepusNode, { kind: "text" }>;
-      return createElement(
-        "span",
-        { key, "data-crepus-kind": "text", style: css(styleOf(n)) },
-        n.content ?? "",
-      );
-    }
-    case "stack": {
-      const n = node as Extract<CrepusNode, { kind: "stack" }>;
-      const axis = n.axis ?? "column";
-      const row = axis === "horizontal" || axis === "row";
-      const style: CSSProperties = {
-        display: "flex",
-        flexDirection: row ? "row" : "column",
-        gap: n.gap ?? n.spacing ?? 8,
-        ...css(styleOf(n)),
-      };
-      return createElement(
-        "div",
-        {
-          key,
-          "data-crepus-kind": "stack",
-          "data-axis": row ? "row" : "column",
-          style,
-        },
-        renderChildren(n.children, options, key),
-      );
-    }
-    case "scroll": {
-      const n = node as Extract<CrepusNode, { kind: "scroll" }>;
-      const axis = n.axis ?? "vertical";
-      const style: CSSProperties = {
-        overflowX: axis === "horizontal" || axis === "both" ? "auto" : "hidden",
-        overflowY: axis === "vertical" || axis === "both" ? "auto" : "hidden",
-        ...css(styleOf(n)),
-      };
-      return createElement(
-        "div",
-        { key, "data-crepus-kind": "scroll", "data-axis": axis, style },
-        renderChildren(n.children, options, key),
-      );
-    }
-    case "button": {
-      const n = node as Extract<CrepusNode, { kind: "button" }>;
-      return createElement(
-        "button",
-        {
-          key,
-          type: "button",
-          "data-crepus-kind": "button",
-          "data-onclick": n.onClick,
-          disabled: n.disabled,
-          style: css(styleOf(n)),
-          onClick: () => {
-            if (n.onClick) options.onAction?.(n.onClick);
-          },
-        },
-        n.label ?? "",
-      );
-    }
-    case "toggle": {
-      const n = node as Extract<CrepusNode, { kind: "toggle" }>;
-      const pressed = Boolean(n.value);
-      return createElement(
-        "button",
-        {
-          key,
-          type: "button",
-          role: "switch",
-          "aria-checked": pressed,
-          "data-crepus-kind": "toggle",
-          "data-onchange": n.onChange,
-          style: css(styleOf(n)),
-          onClick: () => {
-            if (n.onChange) options.onAction?.(n.onChange, !pressed);
-          },
-        },
-        n.label ?? (pressed ? "On" : "Off"),
-      );
-    }
-    case "checkbox": {
-      const n = node as Extract<CrepusNode, { kind: "checkbox" }>;
-      const checked = Boolean(n.value);
-      return createElement(
-        "label",
-        {
-          key,
-          "data-crepus-kind": "checkbox",
-          style: {
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            ...css(styleOf(n)),
-          },
-        },
-        createElement("input", {
-          type: "checkbox",
-          checked,
-          "data-onchange": n.onChange,
-          onChange: (e: { target: { checked: boolean } }) => {
-            if (n.onChange) options.onAction?.(n.onChange, e.target.checked);
-          },
-        }),
-        n.label ? createElement("span", null, n.label) : null,
-      );
-    }
-    case "progress": {
-      const n = node as Extract<CrepusNode, { kind: "progress" }>;
-      const max = n.max ?? 1;
-      const value = n.value ?? 0;
-      return createElement("progress", {
-        key,
-        "data-crepus-kind": "progress",
-        value,
-        max,
-        style: css(styleOf(n)),
-      });
-    }
-    case "meter": {
-      const n = node as Extract<CrepusNode, { kind: "meter" }>;
-      return createElement("meter", {
-        key,
-        "data-crepus-kind": "meter",
-        value: n.value ?? 0,
-        min: n.min ?? 0,
-        max: n.max ?? 1,
-        low: n.low,
-        high: n.high,
-        optimum: n.optimum,
-        style: css(styleOf(n)),
-      });
-    }
-    case "sparkline": {
-      const n = node as Extract<CrepusNode, { kind: "sparkline" }>;
-      const width = n.width ?? 120;
-      const height = n.height ?? 32;
-      const values = n.values ?? [];
-      const color = n.color ?? "currentColor";
-      const d = sparklinePath(values, width, height);
-      return createElement(
-        "svg",
-        {
-          key,
-          "data-crepus-kind": "sparkline",
-          width,
-          height,
-          viewBox: `0 0 ${width} ${height}`,
-          style: { display: "block", ...css(styleOf(n)) },
-          role: "img",
-          "aria-label": "sparkline",
-        },
-        createElement("path", {
-          d,
-          fill: "none",
-          stroke: color,
-          strokeWidth: 1.5,
-          strokeLinejoin: "round",
-          strokeLinecap: "round",
-        }),
-      );
-    }
-    case "badge": {
-      const n = node as Extract<CrepusNode, { kind: "badge" }>;
-      const tone = badgeToneStyle(n.tone);
-      return createElement(
-        "span",
-        {
-          key,
-          "data-crepus-kind": "badge",
-          "data-tone": tone.tone,
-          style: {
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "2px 8px",
-            borderRadius: 999,
-            fontSize: 12,
-            background: tone.background,
-            color: tone.color,
-            ...css(styleOf(n)),
-          },
-        },
-        n.label ?? "",
-      );
-    }
-    case "divider": {
-      const n = node as Extract<CrepusNode, { kind: "divider" }>;
-      const vertical = n.orientation === "vertical";
-      return createElement(vertical ? "div" : "hr", {
-        key,
-        "data-crepus-kind": "divider",
-        role: "separator",
-        "aria-orientation": vertical ? "vertical" : "horizontal",
-        style: vertical
-          ? {
-              width: 1,
-              alignSelf: "stretch",
-              background: "var(--ms-border, #333)",
-              border: "none",
-              ...css(styleOf(n)),
-            }
-          : {
-              border: "none",
-              borderTop: "1px solid var(--ms-border, #333)",
-              margin: "8px 0",
-              ...css(styleOf(n)),
-            },
-      });
-    }
-    case "spacer": {
-      const n = node as Extract<CrepusNode, { kind: "spacer" }>;
-      return createElement("div", {
-        key,
-        "data-crepus-kind": "spacer",
-        "aria-hidden": true,
-        style: {
-          flex: n.flex ?? (n.size == null ? 1 : undefined),
-          width: typeof n.size === "number" ? n.size : n.size,
-          height: typeof n.size === "number" ? n.size : n.size,
-          ...css(styleOf(n)),
-        },
-      });
-    }
-    case "image": {
-      const n = node as Extract<CrepusNode, { kind: "image" }>;
-      return createElement("img", {
-        key,
-        "data-crepus-kind": "image",
-        src: n.src ?? "",
-        alt: n.alt ?? "",
-        width: n.width,
-        height: n.height,
-        style: css(styleOf(n)),
-      });
-    }
-    case "link": {
-      const n = node as Extract<CrepusNode, { kind: "link" }>;
+    case "text":
+      return createElement("span", { key, className }, node.content);
+
+    case "link":
       return createElement(
         "a",
         {
           key,
-          "data-crepus-kind": "link",
-          href: n.href ?? "#",
-          target: n.target,
-          rel: n.rel,
-          style: css(styleOf(n)),
+          className,
+          href: node.href,
+          target: node.target,
+          rel: node.rel,
         },
-        n.content ?? renderChildren(n.children, options, key),
+        ...renderChildren(node.children, key),
       );
-    }
-    case "if": {
-      const n = node as Extract<CrepusNode, { kind: "if" }>;
-      const branch = n.condition ? asArray(n.then) : asArray(n.else);
+
+    case "stack":
+    case "scroll":
       return createElement(
         "div",
-        {
-          key,
-          "data-crepus-kind": "if",
-          "data-condition": String(Boolean(n.condition)),
-          style: css(styleOf(n)),
-        },
-        renderChildren(branch, options, key),
+        { key, className },
+        ...renderChildren(node.children, key),
       );
-    }
-    case "forEach": {
-      const n = node as Extract<CrepusNode, { kind: "forEach" }>;
-      const items = n.items ?? [];
-      if (n.itemTemplate) {
-        const kids = items.map((item, i) =>
-          renderCrepusNode(
-            bindItemTemplate(n.itemTemplate!, item),
-            options,
-            `${key}.${i}`,
-          ),
-        );
-        return createElement(
-          "div",
-          { key, "data-crepus-kind": "forEach", style: css(styleOf(n)) },
-          kids,
-        );
-      }
+
+    case "dropzone":
       return createElement(
         "div",
-        { key, "data-crepus-kind": "forEach", style: css(styleOf(n)) },
-        renderChildren(n.children, options, key),
+        { key, className, "aria-label": node.label },
+        ...renderChildren(node.children, key),
       );
-    }
-    case "list": {
-      const n = node as Extract<CrepusNode, { kind: "list" }>;
-      const tag = n.ordered ? "ol" : "ul";
+
+    case "list":
       return createElement(
-        tag,
-        {
-          key,
-          "data-crepus-kind": "list",
-          style: { margin: 0, paddingLeft: 20, ...css(styleOf(n)) },
-        },
-        renderChildren(n.children, options, key),
+        node.ordered ? "ol" : "ul",
+        { key, className },
+        ...renderChildren(node.children, key),
       );
-    }
-    case "listItem": {
-      const n = node as Extract<CrepusNode, { kind: "listItem" }>;
-      const kids =
-        n.children && n.children.length > 0
-          ? renderChildren(n.children, options, key)
-          : [n.label ?? ""];
+
+    case "listItem":
       return createElement(
         "li",
-        { key, "data-crepus-kind": "listItem", style: css(styleOf(n)) },
-        kids,
+        { key, className },
+        ...renderChildren(node.children, key),
       );
-    }
-    default:
+
+    case "button":
+      return createElement(
+        "button",
+        { key, className, type: "button" },
+        node.label,
+      );
+
+    case "badge":
+      return createElement(
+        "span",
+        { key, className, "data-tone": node.tone },
+        node.label,
+      );
+
+    case "divider":
+      return createElement("hr", { key, className });
+
+    case "spacer":
+      return createElement("div", { key, className, "aria-hidden": true });
+
+    case "image":
+      return createElement("img", {
+        key,
+        className,
+        src: node.src,
+        alt: node.alt ?? "",
+      });
+
+    case "webView":
+      return createElement("iframe", { key, className, src: node.src });
+
+    case "toggle":
+      return createElement(
+        "button",
+        {
+          key,
+          className,
+          type: "button",
+          role: "switch",
+          "aria-checked": node.checked,
+        },
+        node.label,
+      );
+
+    case "checkbox":
+      return createElement(
+        "label",
+        { key, className },
+        createElement("input", {
+          key: `${key}.input`,
+          type: "checkbox",
+          defaultChecked: node.checked,
+          name: node.bind,
+        }),
+        node.label,
+      );
+
+    case "slider":
+      return createElement("input", {
+        key,
+        className,
+        type: "range",
+        defaultValue: node.value,
+        min: node.min,
+        max: node.max,
+        step: node.step,
+        name: node.bind,
+      });
+
+    case "progress":
+      return createElement("progress", {
+        key,
+        className,
+        value: node.value,
+        max: node.max,
+      });
+
+    case "meter":
+      return createElement("meter", {
+        key,
+        className,
+        value: node.value,
+        min: node.min,
+        max: node.max,
+      });
+
+    case "input":
+      return createElement(node.multiline ? "textarea" : "input", {
+        key,
+        className,
+        type: node.multiline ? undefined : node.secure ? "password" : "text",
+        placeholder: node.placeholder,
+        name: node.bind,
+      });
+
+    case "picker":
+      return createElement(
+        "select",
+        { key, className, name: node.bind },
+        ...node.options.map((option, i) =>
+          createElement(
+            "option",
+            { key: `${key}.${i}`, value: option.value },
+            option.label,
+          ),
+        ),
+      );
+
+    case "filePicker":
+      return createElement(
+        "label",
+        { key, className },
+        createElement("input", {
+          key: `${key}.input`,
+          type: "file",
+          accept: node.accept?.join(","),
+          multiple: node.multiple,
+        }),
+        node.label,
+      );
+
+    case "slotRotate":
+      return createElement(
+        "span",
+        {
+          key,
+          className,
+          "data-crepus-slot-rotate": node.phrases.join("|"),
+          "data-interval-ms": node.intervalMs,
+        },
+        node.phrases[0] ?? "",
+      );
+
+    case "tabs":
+      return createElement(
+        "div",
+        { key, className },
+        createElement(
+          "div",
+          { key: `${key}.tablist`, role: "tablist" },
+          ...node.tabs.map((tab: TabItem, i: number) =>
+            createElement(
+              "button",
+              { key: `${key}.tab.${i}`, type: "button", role: "tab" },
+              tab.label,
+            ),
+          ),
+        ),
+        ...node.tabs.map((tab: TabItem, i: number) =>
+          createElement(
+            "div",
+            { key: `${key}.panel.${i}`, role: "tabpanel" },
+            ...renderChildren(tab.children, `${key}.panel.${i}`),
+          ),
+        ),
+      );
+
+    // Control flow the parser could not resolve statically. The chosen branch is
+    // rendered and the source expression kept as a data attribute.
+    case "if":
+      return createElement(
+        "div",
+        { key, className, "data-crepus-if": node.condition },
+        ...renderChildren(node.thenChildren, key),
+      );
+
+    case "forEach":
       return createElement(
         "div",
         {
           key,
-          "data-crepus-kind": String((node as { kind: string }).kind),
-          "data-crepus-unknown": "true",
+          className,
+          "data-crepus-for-each": node.bind,
+          "data-crepus-item": node.itemName,
         },
-        null,
+        ...renderChildren(node.itemBody, key),
       );
+
+    default:
+      return null;
   }
 }
 
-/**
- * Map a crepuscularity JSON IR tree to moonshine React elements.
- */
 export function renderCrepusIr(
-  ir: CrepusIr,
+  ir: ViewIr,
   options: RenderCrepusOptions = {},
 ): ReactElement {
-  const prefix = options.keyPrefix ?? "crepus";
   const children = (ir.root ?? []).map((node, i) =>
-    renderCrepusNode(node, options, `${prefix}.${i}`),
+    renderCrepusNode(node, `k${i}`),
   );
   return createElement(
-    "div",
-    {
-      "data-crepus-root": "true",
-      "data-crepus-ir-version": ir.version ?? 1,
-    },
-    children,
+    options.rootTag ?? "div",
+    { "data-crepus-root": "true", "data-crepus-ir-version": ir.version },
+    ...children,
   );
 }

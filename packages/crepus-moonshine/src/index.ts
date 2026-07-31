@@ -1,5 +1,18 @@
-/** View IR document types — `ViewIr` is the emit/CLI alias for `CrepusIr`. */
-export type { CrepusIr, ViewIr } from "./types";
+/** The `.crepus` parser is the Rust one, compiled to WASM — never reimplemented here. */
+export { parseCrepus, IR_VERSION } from "@tschk/crepus-wasm";
+export type {
+  CrepusContext,
+  PickerOption,
+  StackAxis,
+  TabItem,
+  ViewIr,
+  ViewNode,
+  ViewNodeKind,
+  ViewStyle,
+} from "@tschk/crepus-wasm";
+
+/** Document alias kept for consumers that predate the WASM parser. */
+export type { ViewIr as CrepusIr } from "@tschk/crepus-wasm";
 
 export {
   renderCrepusIr,
@@ -7,18 +20,6 @@ export {
   type CrepusNode,
   type RenderCrepusOptions,
 } from "./render";
-
-export type * from "./types";
-
-export {
-  asArray,
-  badgeToneStyle,
-  bindItemTemplate,
-  sparklinePath,
-  sparklinePoints,
-  styleOf,
-  BADGE_TONE_COLORS,
-} from "./ir-shared";
 
 // Re-export so CLI emit can depend on one package.
 export { createSignal, createMemo, createStore } from "@tschk/moonshine";
