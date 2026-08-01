@@ -206,32 +206,59 @@ type NpmRangeResponse = {
 };
 
 /**
- * npm's download API is a separate service from the registry and answers 404
- * for a package it has not accumulated statistics for yet, which is the normal
- * state for the first days after a first publish. That is a `null` here, and
- * the page renders an explicit unavailable state rather than a zeroed chart it
- * cannot vouch for.
+ * npm's download API, queried the way npm-stat.com queries it: an explicit
+ * `range/{from}:{until}/{package}` window rather than the `last-month` alias,
+ * one request per package because bulk queries do not accept scoped names.
+ *
+ * Two behaviours of that API drive the shape here. It omits days with no
+ * downloads entirely, so missing days are filled with a real zero rather than
+ * left as gaps in the line. And it answers 404 for a package it holds no
+ * statistics for at all — the normal state for a package that has just been
+ * published — which is treated as "this package contributed nothing" instead
+ * of failing the whole chart, so one silent package cannot blank the others.
+ *
+ * The series returned is the sum across `names`, which is what "downloads of
+ * moonshine" means when the runtime ships as a scope rather than one package.
  */
 export async function fetchNpmDownloads(
-  name = "@tschk/moonshine",
+  names: string[] = PACKAGES.map((entry) => entry.name),
+  subject = "@tschk/*",
 ): Promise<DownloadSeries> {
   const startedAt = Date.now();
-  const body = await getJson<NpmRangeResponse>(
-    `https://api.npmjs.org/downloads/range/last-month/${name}`,
-    { accept: "application/json" },
+  const dates = windowDates(DOWNLOAD_WINDOW_DAYS);
+  const from = dates[0]!;
+  const until = dates[dates.length - 1]!;
+
+  const bodies = await Promise.all(
+    names.map((name) =>
+      getJson<NpmRangeResponse>(
+        `https://api.npmjs.org/downloads/range/${from}:${until}/${name}`,
+        { accept: "application/json" },
+      ),
+    ),
   );
-  if (!body || !Array.isArray(body.downloads)) {
-    return unavailable("npm", name, startedAt);
+
+  const daily = new Map<string, number>();
+  let answered = 0;
+  for (const body of bodies) {
+    if (!body || !Array.isArray(body.downloads)) continue;
+    answered += 1;
+    for (const entry of body.downloads) {
+      if (typeof entry.day !== "string") continue;
+      if (typeof entry.downloads !== "number") continue;
+      daily.set(entry.day, (daily.get(entry.day) ?? 0) + entry.downloads);
+    }
   }
-  const points: DownloadPoint[] = [];
-  for (const entry of body.downloads) {
-    if (typeof entry.day !== "string") continue;
-    if (typeof entry.downloads !== "number") continue;
-    points.push({ date: entry.day, downloads: entry.downloads });
-  }
-  if (points.length === 0) return unavailable("npm", name, startedAt);
-  points.sort((a, b) => a.date.localeCompare(b.date));
-  return summarise("npm", name, points, startedAt);
+
+  // Every package 404ing means the statistics service knows nothing about the
+  // scope, which is different from a scope that was downloaded zero times.
+  if (answered === 0) return unavailable("npm", subject, startedAt);
+
+  const points = dates.map((date) => ({
+    date,
+    downloads: daily.get(date) ?? 0,
+  }));
+  return summarise("npm", subject, points, startedAt);
 }
 
 type CrateDownloadsResponse = {

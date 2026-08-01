@@ -338,9 +338,9 @@ $ moonshine preview`}</code>
         {data.moonshineDownloads.ok ? (
           <>
             <p className="muted">
-              Daily downloads of <code>@tschk/moonshine</code> for the last
-              month, read from the npm downloads API in this same request. Hover
-              or focus the chart to move the readout.
+              Daily downloads across every <code>@tschk/*</code> package for the
+              last month, summed from the npm downloads API in this same
+              request. Hover or focus the chart to move the readout.
             </p>
             <DownloadChart id="moonshine" series={data.moonshineDownloads} />
           </>
