@@ -20,6 +20,9 @@ MOONSHINE_DIRS=(
     packages/compiler
     packages/deploy-vercel
     packages/adapter-next
+    packages/adapter-react-router
+    packages/adapter-tanstack
+    packages/adapter-waku
     packages/adapter-conformance
     packages/deploy-bun
     packages/cli
@@ -65,15 +68,17 @@ publish_dir() {
 echo "=== 1/3  @tschk/crepuscularity-wasm ==="
 publish_dir "$WASM_DIR"
 
-if npm view @tschk/crepuscularity-wasm version >/dev/null 2>&1; then
+if wasm_version=$(npm view @tschk/crepuscularity-wasm version 2>/dev/null); then
     # moonshine consumes the parser by path for local dev; that range cannot
-    # ship to npm, so point it at the published version first.
+    # ship to npm, so point it at the published version first. The range is
+    # read back from the registry rather than hardcoded, because a literal
+    # here silently downgrades the pin on every run.
     for pkg in crepus-moonshine adapter-solid; do
         node -e "
       const fs=require('fs'); const p='$MOONSHINE/packages/$pkg/package.json';
       const d=JSON.parse(fs.readFileSync(p,'utf8'));
       if (d.dependencies && d.dependencies['@tschk/crepuscularity-wasm']) {
-        d.dependencies['@tschk/crepuscularity-wasm']='^0.1.0';
+        d.dependencies['@tschk/crepuscularity-wasm']='^$wasm_version';
         fs.writeFileSync(p, JSON.stringify(d,null,2)+'\n');
       }
     "
@@ -102,4 +107,4 @@ if [ ${#failed[@]} -gt 0 ]; then
 fi
 echo
 echo "Then let me commit the dependency-range change, or run:"
-echo "  cd $MOONSHINE && git add -A packages && git commit -m 'chore: depend on the published crepuscularity-wasm' && git push"
+echo "  cd $MOONSHINE && git add packages/crepus-moonshine/package.json packages/adapter-solid/package.json && git commit -m 'chore: depend on the published crepuscularity-wasm' && git push"
