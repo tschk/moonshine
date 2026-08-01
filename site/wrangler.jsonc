@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "moonshine-site",
+  "main": ".moonshine/worker.js",
+  "compatibility_date": "2026-07-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "assets": {
+    // Only the hydration bundle lives here. Every HTML and JSON route is
+    // rendered by the Worker, so the Worker has to see those requests first.
+    "directory": "./.moonshine/public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/", "/packages", "/api/*"],
+  },
+  "routes": [
+    {
+      "pattern": "moonshine.tsc.hk",
+      "custom_domain": true,
+    },
+  ],
+}

@@ -16,3 +16,4 @@ node_modules/
 .vscode/
 examples/bun-server/public/client.js
 examples/bun-server/public/client.js.map
+.wrangler/

@@ -8,14 +8,15 @@
   "workspaces": [
     "packages/*",
     "components",
-    "examples/*"
+    "examples/*",
+    "site"
   ],
   "scripts": {
     "format": "bunx prettier --check .",
     "lint": "bunx oxlint .",
     "typecheck": "bun scripts/typecheck.ts",
     "typecheck:native": "bun scripts/typecheck.ts native",
-    "test": "bun test packages components examples/bun-server examples/hybrid-app packages/adapter-*/test && bun run check:catalog",
+    "test": "bun test packages components site/test examples/bun-server examples/hybrid-app packages/adapter-*/test && bun run check:catalog",
     "check": "bun run typecheck && bun run check:packages && bun run check:catalog && bun run check:adapters",
     "check:packages": "bun scripts/check-packages.ts",
     "check:size": "bun scripts/check-size.ts",
@@ -29,6 +30,7 @@
     "@tschk/moonshine-cli": "workspace:*",
     "@tschk/moonshine-compiler": "workspace:*",
     "@tschk/moonshine-deploy-bun": "workspace:*",
+    "@tschk/moonshine-deploy-cloudflare": "workspace:*",
     "@tschk/moonshine-framework": "workspace:*",
     "@tschk/moonshine-react": "workspace:*",
     "@tschk/moonshine-router": "workspace:*",
