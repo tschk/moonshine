@@ -23,9 +23,11 @@ measured by `scripts/check-size.ts`.
 
 ## Measured on this machine
 
-Reproducible via `bun scripts/benchmark-competitive.ts` and
-`bun scripts/benchmark.ts`. Full methodology and caveats at
+Recorded when the benchmark scripts still shipped in this repo; they were
+removed as internal-only tooling, so these figures are a dated record rather
+than something you can re-run here. Methodology and caveats at
 [docs/audits/competitive-benchmarks.md](./audits/competitive-benchmarks.md).
+`bun run check:size` still measures the kernel bundle.
 
 ### Bundle size (minified ESM, browser target)
 
@@ -52,11 +54,49 @@ Reproducible via `bun scripts/benchmark-competitive.ts` and
 |    100 |           1.50 |                4.33 |          6.10 |           13.14 |                  13.06 |                0.05 |                0.13 |             0.23 |
 |   1000 |          11.61 |               37.01 |         51.24 |          107.73 |                  99.74 |                0.98 |                0.14 |             0.78 |
 
-Astro, Next.js, SvelteKit, Waku, and SolidStart were not measured here because
-they are not installed in this workspace. The React and Solid "tiny fixture"
-sizes are reference points for what each renderer adds when bundled, not full
+Astro, SvelteKit, Waku, and SolidStart were not measured here because they are
+not installed in this workspace. The React and Solid "tiny fixture" sizes are
+reference points for what each renderer adds when bundled, not full
 applications. Server latency is localhost single-process and excludes network
 and TLS overhead.
+
+## Moonshine vs Next.js, same application
+
+The strongest comparison available is one real site migrated between the two
+stacks with no visual or behavioural change. [undivisible.dev][ud] is a
+content-heavy personal site — three routes, 60 source files, ~9,000 lines,
+twelve `"use client"` components including canvas shaders and an animated
+clock. It ran on Next.js 15 (App Router, static export) and now runs on
+Moonshine. Both were served from GitHub Pages, so the hosting is identical and
+only the framework differs.
+
+Measured over the network against the deployed sites, not a local build:
+
+| Route    | Metric |            Next.js |   Moonshine |    Change |
+| -------- | ------ | -----------------: | ----------: | --------: |
+| `/`      | HTML   |             99,931 |      79,899 |      −20% |
+| `/`      | JS     | 894,470 (11 files) | 183,265 (1) |  **−80%** |
+| `/`      | CSS    |             53,509 |      41,166 |      −23% |
+| `/agent` | HTML   |             13,195 |       3,923 |      −70% |
+| `/agent` | JS     | 654,653 (10 files) |       **0** | **−100%** |
+
+Bytes are uncompressed transfer sizes of the HTML plus every script and
+stylesheet it references. The `/agent` route ships no JavaScript at all because
+nothing on it is interactive; under Next.js it still received the framework
+runtime.
+
+What did _not_ change: rendered text content is identical on both routes, and
+every interactive component still works. What did change: the site no longer
+gets Next's client router, so in-app navigation is a full page load — on a
+three-route static site that is not a meaningful loss, but on a large
+application it would be.
+
+This is one application on one host. It is evidence that a React app with few
+Next-specific APIs sheds most of its client JavaScript on Moonshine; it is not
+a general benchmark, and an app leaning on RSC, ISR, or image optimization
+would not port this cleanly.
+
+[ud]: https://undivisible.dev
 
 ## When to pick Moonshine
 

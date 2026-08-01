@@ -1,7 +1,8 @@
 # Competitive size and speed benchmarks
 
-Measured locally on the development host. Numbers are reproducible by running
-`bun scripts/benchmark-competitive.ts`.
+Measured locally on the development host by `bun scripts/benchmark-competitive.ts`.
+That script has since been removed as internal-only tooling, so this file is a
+dated record of one run rather than a reproducible procedure.
 
 ## Environment
 
