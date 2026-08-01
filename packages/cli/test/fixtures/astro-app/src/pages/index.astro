@@ -1,5 +1,11 @@
 ---
-const title = "astro";
+const title = "astro on moonshine";
+const items = ["one", "two"];
+const ok = true;
 ---
 
-<h1>{title}</h1>
+<main class="home">
+  <h1>{title}</h1>
+  <ul>{items.map(item => <li>{item}</li>)}</ul>
+  {ok && <p class="note">frontmatter is not executed</p>}
+</main>

@@ -28,21 +28,71 @@ export type Framework =
   | "waku"
   | "svelte"
   | "vue"
+  | "astro"
+  | "angular"
   | "vite-react"
   | "react"
   | "unknown";
 
-/** Frameworks with no crepuscularity parser frontend, so nothing to compile. */
-export type BlockedFramework = "astro" | "angular";
-
-/** Frameworks adopted by compiling their templates to View IR, not by aliasing imports. */
-const TEMPLATE_FRAMEWORKS: Readonly<Record<string, string>> = {
-  svelte: ".svelte",
-  vue: ".vue",
+/**
+ * Frameworks adopted by compiling their templates to View IR, not by aliasing
+ * imports, and the globs whose files crepuscularity's dispatcher claims.
+ *
+ * Angular is keyed on the Angular CLI's `*.component.html`, on `*.ng.html` and
+ * on a bare `.ng`. Plain `.html` is deliberately absent: the dispatcher does not
+ * claim it, so a project's `index.html` must not be swept in here either.
+ */
+const TEMPLATE_FRAMEWORKS: Readonly<Record<string, readonly string[]>> = {
+  svelte: ["**/*.svelte"],
+  vue: ["**/*.vue"],
+  astro: ["**/*.astro"],
+  angular: ["**/*.component.html", "**/*.ng.html", "**/*.ng"],
 };
 
-function templateExtension(framework: Framework): string | undefined {
+function templateGlobs(framework: Framework): readonly string[] | undefined {
   return TEMPLATE_FRAMEWORKS[framework];
+}
+
+/**
+ * A sample only the real frontend compiles into control flow. The dispatcher
+ * falls back to generic markup for an extension it does not know, and that
+ * fallback is silent — it yields plausible-looking IR with the framework's own
+ * constructs quietly dropped. Probing for the structural node proves the
+ * installed parser build actually carries the frontend.
+ */
+const FRONTEND_PROBES: Readonly<
+  Record<string, { file: string; source: string }>
+> = {
+  astro: { file: "probe.astro", source: "{ok && <p>y</p>}" },
+  angular: { file: "probe.ng.html", source: "@if (a) { <p>y</p> }" },
+};
+
+/** Version of the parser build actually loaded, for the refusal message. */
+async function parserVersion(): Promise<string | undefined> {
+  try {
+    const entry = Bun.resolveSync(
+      "@tschk/crepuscularity-wasm",
+      import.meta.dir,
+    );
+    const pkg = readJson<{ version?: string }>(
+      join(dirname(entry), "package.json"),
+    );
+    return pkg?.version;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function hasFrontend(framework: Framework): Promise<boolean> {
+  const probe = FRONTEND_PROBES[framework];
+  if (!probe) return true;
+  try {
+    const { parseTemplate } = await import("@tschk/crepuscularity-wasm");
+    const ir = parseTemplate(probe.source, probe.file);
+    return (ir.root ?? []).some((node) => node.kind === "if");
+  } catch {
+    return false;
+  }
 }
 
 /** A host package moonshine reimplements, and how its specifiers map to files. */
@@ -254,77 +304,27 @@ function allDeps(pkg: PackageJson | undefined): Record<string, string> {
   return { ...pkg?.dependencies, ...pkg?.devDependencies };
 }
 
-/**
- * Frameworks crepuscularity has no parser frontend for. `.svelte` and `.vue`
- * templates compile to View IR today; `.astro` and Angular templates need a
- * `parser/astro/` and an Angular frontend in crepuscularity-core first, so
- * adoption is refused rather than half-done.
- */
-export function detectBlockedFramework(
-  projectDir: string,
-  pkg: PackageJson | undefined,
-):
-  | { framework: BlockedFramework; evidence: string; reason: string }
-  | undefined {
-  const deps = allDeps(pkg);
-  const checks: {
-    framework: BlockedFramework;
-    reason: string;
-    deps: string[];
-    files: string[];
-  }[] = [
-    {
-      framework: "astro",
-      reason:
-        "crepuscularity has no `.astro` parser frontend yet (it needs a parser/astro/ in crepuscularity-core), so there is no View IR to render",
-      deps: ["astro"],
-      files: ["astro.config.mjs", "astro.config.ts", "astro.config.js"],
-    },
-    {
-      framework: "angular",
-      reason:
-        "crepuscularity has no Angular template parser frontend yet, so there is no View IR to render",
-      deps: ["@angular/core"],
-      files: ["angular.json"],
-    },
-  ];
-  for (const check of checks) {
-    for (const dep of check.deps) {
-      if (deps[dep]) {
-        return {
-          framework: check.framework,
-          reason: check.reason,
-          evidence: `${dep} in package.json`,
-        };
-      }
-    }
-    for (const file of check.files) {
-      if (existsSync(join(projectDir, file))) {
-        return {
-          framework: check.framework,
-          reason: check.reason,
-          evidence: file,
-        };
-      }
-    }
-  }
-  return undefined;
-}
-
 /** Where `moonshine adopt` writes the route modules it generates from templates. */
 const GENERATED_ROUTES = "moonshine/routes";
 
-function hasTemplateFiles(projectDir: string, extension: string): boolean {
-  for (const entry of new Bun.Glob(`**/*${extension}`).scanSync(projectDir)) {
-    if (!ignored(toPosix(entry))) return true;
+/** Where compiled-but-unrouted templates land, importable but not mounted. */
+const GENERATED_COMPONENTS = "moonshine/components";
+
+function templateFiles(projectDir: string, globs: readonly string[]): string[] {
+  const found = new Set<string>();
+  for (const glob of globs) {
+    for (const entry of new Bun.Glob(glob).scanSync(projectDir)) {
+      const rel = toPosix(entry);
+      if (!ignored(rel)) found.add(rel);
+    }
   }
-  return false;
+  return [...found].sort();
 }
 
 /**
- * Svelte and Vue projects are adopted through crepuscularity's `.svelte` and
- * `.vue` parser frontends: their templates compile to the same View IR as
- * `.crepus` and JSX, which crepus-moonshine renders as React elements.
+ * Projects adopted through a crepuscularity template frontend: `.svelte`,
+ * `.vue`, `.astro` and Angular component templates all compile to the same View
+ * IR as `.crepus` and JSX, which crepus-moonshine renders as React elements.
  */
 function detectTemplateFramework(
   projectDir: string,
@@ -332,29 +332,47 @@ function detectTemplateFramework(
 ):
   | { framework: Framework; routesDir: string; convention: RouteConvention }
   | undefined {
-  const svelte =
-    deps.svelte ||
-    deps["@sveltejs/kit"] ||
-    existsSync(join(projectDir, "svelte.config.js")) ||
-    existsSync(join(projectDir, "svelte.config.ts")) ||
-    hasTemplateFiles(projectDir, ".svelte");
-  const vue =
-    deps.vue ||
-    deps.nuxt ||
-    existsSync(join(projectDir, "vue.config.js")) ||
-    existsSync(join(projectDir, "nuxt.config.ts")) ||
-    hasTemplateFiles(projectDir, ".vue");
-  const framework: Framework | undefined = svelte
-    ? "svelte"
-    : vue
-      ? "vue"
-      : undefined;
-  if (!framework) return undefined;
-  return {
-    framework,
-    routesDir: GENERATED_ROUTES,
-    convention: "moonshine",
-  };
+  const checks: {
+    framework: Framework;
+    deps: string[];
+    files: string[];
+  }[] = [
+    {
+      framework: "svelte",
+      deps: ["svelte", "@sveltejs/kit"],
+      files: ["svelte.config.js", "svelte.config.ts"],
+    },
+    {
+      framework: "vue",
+      deps: ["vue", "nuxt"],
+      files: ["vue.config.js", "nuxt.config.ts"],
+    },
+    {
+      framework: "astro",
+      deps: ["astro"],
+      files: ["astro.config.mjs", "astro.config.ts", "astro.config.js"],
+    },
+    {
+      framework: "angular",
+      deps: ["@angular/core"],
+      files: ["angular.json"],
+    },
+  ];
+
+  for (const check of checks) {
+    const declared =
+      check.deps.some((dep) => deps[dep] !== undefined) ||
+      check.files.some((file) => existsSync(join(projectDir, file)));
+    const present =
+      templateFiles(projectDir, templateGlobs(check.framework)!).length > 0;
+    if (!declared && !present) continue;
+    return {
+      framework: check.framework,
+      routesDir: GENERATED_ROUTES,
+      convention: "moonshine",
+    };
+  }
+  return undefined;
 }
 
 /** Route directory for the conventions moonshine reads directly. */
@@ -441,7 +459,6 @@ export function findProjectRoot(from: string): string | undefined {
   }
   for (const candidate of candidates) {
     const pkg = readJson<PackageJson>(join(candidate, "package.json"));
-    if (detectBlockedFramework(candidate, pkg)) return candidate;
     if (detectFramework(candidate, pkg).framework !== "unknown")
       return candidate;
   }
@@ -464,10 +481,14 @@ function countNodes(nodes: readonly unknown[] = []): number {
 }
 
 /** URL path a template file serves, or `undefined` when it is a plain component. */
-function templateRoute(file: string): string | undefined {
+function templateRoute(file: string, framework: Framework): string | undefined {
+  // Angular has no file-based routing convention: routes live in the router
+  // module's TypeScript, which is not compiled here. Inventing a URL from a
+  // component's filename would be a guess, so its components stay unmounted.
+  if (framework === "angular") return undefined;
   const segments = file.split("/");
   const base = segments.pop()!;
-  const stem = base.replace(/\.(svelte|vue)$/, "");
+  const stem = base.replace(/\.(svelte|vue|astro)$/, "");
   const rootIndex = segments.findIndex((s) => s === "routes" || s === "pages");
 
   if (stem.startsWith("+page")) {
@@ -494,25 +515,36 @@ function generatedModule(route: string): string {
 }
 
 /**
- * Compile every `.svelte` / `.vue` template through the crepuscularity frontend
- * that matches its extension. A template that does not compile is recorded with
- * the parser's own message: unsupported constructs are hard errors, so nothing
- * is silently dropped from the page.
+ * A template that compiles but maps to no URL still becomes a component module,
+ * so the compiled IR is importable. Angular has no file-based routing at all, so
+ * this is the whole of its output — mounting it stays the user's decision.
+ */
+function componentModule(file: string): string {
+  const slug = file
+    .replace(/\.(svelte|vue|astro|ng)$/, "")
+    .replace(/\.(component|ng)\.html$/, "")
+    .replace(/[^a-zA-Z0-9/-]/g, "-");
+  return `${GENERATED_COMPONENTS}/${slug}.tsx`;
+}
+
+/**
+ * Compile every template through the crepuscularity frontend its filename
+ * selects. A template that does not compile is recorded with the parser's own
+ * message: unsupported constructs are hard errors, so nothing is silently
+ * dropped from the page.
  */
 async function compileTemplates(
   projectDir: string,
-  extension: string,
+  framework: Framework,
+  globs: readonly string[],
 ): Promise<TemplateFile[]> {
   const { parseTemplate } = await import("@tschk/crepuscularity-wasm");
-  const files = [...new Bun.Glob(`**/*${extension}`).scanSync(projectDir)]
-    .map(toPosix)
-    .filter((file) => !ignored(file))
-    .sort();
+  const files = templateFiles(projectDir, globs);
 
   const templates: TemplateFile[] = [];
   const taken = new Set<string>();
   for (const file of files) {
-    const route = templateRoute(file);
+    const route = templateRoute(file, framework);
     const entry: TemplateFile = { file, ok: false };
     if (route !== undefined && !taken.has(route)) {
       taken.add(route);
@@ -527,9 +559,10 @@ async function compileTemplates(
       entry.nodes = countNodes(ir.root ?? []);
       entry.ir = ir;
       entry.irVersion = ir.version;
-      if (entry.route !== undefined) {
-        entry.generated = generatedModule(entry.route);
-      }
+      entry.generated =
+        entry.route !== undefined
+          ? generatedModule(entry.route)
+          : componentModule(file);
     } catch (error) {
       entry.error = error instanceof Error ? error.message : String(error);
       delete entry.route;
@@ -539,34 +572,38 @@ async function compileTemplates(
   return templates;
 }
 
-/** Route modules generated from the templates: IR in, React elements out. */
+/** Modules generated from the templates: IR in, React elements out. */
 function planTemplateRoutes(scan: AdoptScan): AdoptChange[] {
   const changes: AdoptChange[] = [];
   for (const template of scan.templates) {
-    if (!template.generated || !template.route) continue;
+    if (!template.generated) continue;
     const path = join(scan.projectDir, template.generated);
+    const name = template.route ? "Route" : "Component";
     const contents = `// Generated by \`moonshine adopt\` from ${template.file}: crepuscularity parsed that template into View IR v${template.irVersion}. Re-run \`moonshine adopt --force\` after editing the template.
 import { renderCrepusIr, type CrepusIr } from "@tschk/crepus-moonshine";
 
 const ir = ${JSON.stringify(template.ir, null, 2)} as CrepusIr;
 
-export default function Route() {
+export default function ${name}() {
   return renderCrepusIr(ir);
 }
 `;
     const exists = existsSync(path);
     const alreadyApplied = exists && readFileSync(path, "utf8") === contents;
+    const what = template.route
+      ? `route ${template.route}`
+      : "unmounted component";
     changes.push({
       file: template.generated,
       action: alreadyApplied ? "none" : exists ? "modify" : "create",
       details: alreadyApplied
         ? []
         : [
-            `route ${template.route} renders ${template.file} (${template.nodes ?? 0} View IR nodes)`,
+            `${what} renders ${template.file} (${template.nodes ?? 0} View IR nodes)`,
           ],
       summary: alreadyApplied
         ? "already generated"
-        : `${exists ? "regenerated" : "generated"} route ${template.route} from ${template.file}`,
+        : `${exists ? "regenerated" : "generated"} ${what} from ${template.file}`,
       alreadyApplied,
       ...(alreadyApplied ? {} : { contents }),
     });
@@ -726,13 +763,32 @@ function templateManualWork(
   framework: Framework,
   templates: TemplateFile[],
 ): string[] {
-  if (!templateExtension(framework) || templates.length === 0) return [];
-  const notes: string[] = [
-    framework === "svelte"
-      ? "<script> blocks are not executed: runes, stores, reactive statements, lifecycle hooks and event handler bodies are compiled as template text, not run. Port that logic to moonshine signals."
-      : "<script> blocks are not executed: the Composition API, reactive refs, computed properties and lifecycle hooks do not run. Port that logic to moonshine signals.",
+  if (!templateGlobs(framework) || templates.length === 0) return [];
+  const boundary: Readonly<Record<string, string>> = {
+    svelte:
+      "<script> blocks are not executed: runes, stores, reactive statements, lifecycle hooks and event handler bodies are compiled as template text, not run. Port that logic to moonshine signals.",
+    vue: "<script> blocks are not executed: the Composition API, reactive refs, computed properties and lifecycle hooks do not run. Port that logic to moonshine signals.",
+    astro:
+      "The `---` frontmatter is blanked, never executed: imports, top-level awaits, data fetching and `Astro.props` do not run. Only the markup below it is compiled.",
+    angular:
+      "The component class is not executed: constructors, decorators, DI, `@Input`/`@Output`, pipes and lifecycle hooks do not run. Only the template is compiled.",
+  };
+  const rejects: Readonly<Record<string, string>> = {
+    astro:
+      "Astro templates that use an imported component (`<Layout>`, any uppercase tag), `<slot />`, `{...spread}`, `transition:*` or `define:vars` are parse errors — the frontend compiles markup and resolves no modules. In a real Astro app most page files use components, so expect per-file failures rather than a whole-app adoption.",
+    angular:
+      "Angular templates that use `<ng-template>`, `<ng-content>`, `*ngSwitch`, `[ngStyle]`/`[style.x]`, `#templateRef`, `@switch`, `@defer` or `@empty` are parse errors.",
+  };
+  const notes: string[] = [boundary[framework]!];
+  if (rejects[framework]) notes.push(rejects[framework]!);
+  notes.push(
     "Route modules embed the View IR produced at adopt time. Re-run `moonshine adopt --force` after editing a template.",
-  ];
+  );
+  if (framework === "angular") {
+    notes.push(
+      "Angular has no file-based routing, so no component is mounted at a URL. The generated IR is compiled but unrouted until you write route modules that render it.",
+    );
+  }
   for (const template of templates) {
     if (!template.ok) {
       notes.push(
@@ -740,7 +796,7 @@ function templateManualWork(
       );
     } else if (!template.route) {
       notes.push(
-        `${template.file}: compiled (${template.nodes} nodes) but maps to no URL, so it is not mounted. Import it from a route module or move it under routes/.`,
+        `${template.file}: compiled (${template.nodes} nodes) but maps to no URL, so it is not mounted. Its IR is in ${template.generated} — import that from a route module to render it.`,
       );
     }
   }
@@ -754,8 +810,10 @@ export async function scanProject(projectDir: string): Promise<AdoptScan> {
   const detected = detectFramework(dir, pkg);
   const imports = findHostImports(dir, files, adapterFor(detected.framework));
 
-  const extension = templateExtension(detected.framework);
-  const templates = extension ? await compileTemplates(dir, extension) : [];
+  const globs = templateGlobs(detected.framework);
+  const templates = globs
+    ? await compileTemplates(dir, detected.framework, globs)
+    : [];
 
   const routes: { path: string; file: string }[] = [];
   if (
@@ -929,7 +987,7 @@ function planPackageJson(scan: AdoptScan): AdoptChange {
   const dependencies = { ...pkg.dependencies };
   const added: string[] = [];
   const adapter = adapterFor(scan.framework);
-  const template = templateExtension(scan.framework) !== undefined;
+  const template = templateGlobs(scan.framework) !== undefined;
   for (const name of [
     ...RUNTIME_DEPS,
     ...(adapter ? [adapter.pkg] : []),
@@ -1220,12 +1278,13 @@ export async function adoptCommand(
   }
 
   const pkg = readJson<PackageJson>(join(dir, "package.json"));
-  const blocked = detectBlockedFramework(dir, pkg);
-  if (blocked) {
+  const detected = detectFramework(dir, pkg).framework;
+  if (!(await hasFrontend(detected))) {
+    const installed = await parserVersion();
     return fail(
-      `${dir} is a ${blocked.framework} project (${blocked.evidence}).\n` +
-        `moonshine cannot adopt it yet: ${blocked.reason}.\n` +
-        `Nothing was written.`,
+      `${dir} is a ${detected} project, but the installed @tschk/crepuscularity-wasm${installed ? ` (${installed})` : ""} has no ${detected} template frontend.\n` +
+        `Its dispatcher falls back to generic markup for an extension it does not know, which drops ${detected === "astro" ? "`{cond && <m/>}` / `{list.map(…)}` lowering" : "`@if` / `@for` blocks and the structural directives"} silently — so adopting against this build would produce quietly wrong pages.\n` +
+        `Upgrade @tschk/crepuscularity-wasm to a build that carries parser/${detected}/. Nothing was written.`,
     );
   }
 
@@ -1233,7 +1292,7 @@ export async function adoptCommand(
   if (plan.scan.framework === "unknown") {
     return fail(
       `Could not identify a JavaScript app in ${dir}.\n` +
-        `Looked for: .svelte or .vue templates, app/ or src/app/ (Next App Router), pages/ or src/pages/ (Next Pages Router), a next/waku/@tanstack/react-router/react-router dependency, a vite config, or a react dependency.\n` +
+        `Looked for: .svelte, .vue, .astro or Angular (*.component.html, *.ng.html, *.ng) templates, app/ or src/app/ (Next App Router), pages/ or src/pages/ (Next Pages Router), a next/waku/@tanstack/react-router/react-router dependency, a vite config, or a react dependency.\n` +
         `Nothing was written.`,
     );
   }

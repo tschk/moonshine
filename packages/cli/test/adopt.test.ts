@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { cpSync, existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { buildCommand } from "../src/build";
 import {
@@ -9,6 +17,7 @@ import {
   formatPlan,
   adoptCommand,
   findProjectRoot,
+  hasFrontend,
 } from "../src/adopt";
 import type { Tui } from "../src/tui";
 import { startPreview } from "../src/preview";
@@ -17,7 +26,12 @@ const fixture = join(import.meta.dir, "fixtures", "next-app");
 const svelteFixture = join(import.meta.dir, "fixtures", "svelte-app");
 const vueFixture = join(import.meta.dir, "fixtures", "vue-app");
 const astroFixture = join(import.meta.dir, "fixtures", "astro-app");
+const angularFixture = join(import.meta.dir, "fixtures", "angular-app");
 const tmp = join(import.meta.dir, ".tmp-cli-adopt");
+
+// The installed parser build decides which branch of the template tests is real.
+const astroReady = await hasFrontend("astro");
+const angularReady = await hasFrontend("angular");
 
 function clean() {
   if (existsSync(tmp)) rmSync(tmp, { recursive: true, force: true });
@@ -74,6 +88,23 @@ function plain(line: string): string {
     .split(ESC)
     .map((part, i) => (i === 0 ? part : part.slice(part.indexOf("m") + 1)))
     .join("");
+}
+
+/**
+ * Build through the CLI binary rather than in-process: a build shares module
+ * state with every other test in the run, and that has bitten this suite.
+ */
+async function buildInSubprocess(dir: string): Promise<void> {
+  const bin = join(import.meta.dir, "..", "bin", "moonshine.ts");
+  const proc = Bun.spawn(["bun", bin, "build", dir], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [code, err] = await Promise.all([
+    proc.exited,
+    new Response(proc.stderr).text(),
+  ]);
+  if (code !== 0) throw new Error(`moonshine build exited ${code}: ${err}`);
 }
 
 async function inDir<T>(dir: string, fn: () => Promise<T>): Promise<T> {
@@ -205,16 +236,22 @@ describe("moonshine adopt — project detection", () => {
     expect(result.plan!.scan.projectDir).toBe(dir);
   });
 
-  test("a framework with no crepuscularity frontend is refused and writes nothing", async () => {
-    const dir = project("astro", astroFixture);
+  test("a parser build without the frontend is refused and writes nothing", async () => {
+    // The dispatcher falls back to generic markup silently, so adopt probes for
+    // the frontend before touching anything. Which branch runs depends on the
+    // installed @tschk/crepuscularity-wasm, and both are asserted.
+    const dir = project("astro-probe", astroFixture);
     const before = snapshot(dir);
-
     const result = await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
 
-    expect(result.code).toBe(1);
-    expect(result.applied).toBe(false);
-    expect(snapshot(dir)).toEqual(before);
-    expect(existsSync(join(dir, "moonshine.config.ts"))).toBe(false);
+    if (astroReady) {
+      expect(result.code).toBe(0);
+    } else {
+      expect(result.code).toBe(1);
+      expect(result.applied).toBe(false);
+      expect(snapshot(dir)).toEqual(before);
+      expect(existsSync(join(dir, "moonshine.config.ts"))).toBe(false);
+    }
   });
 });
 
@@ -359,6 +396,126 @@ describe("moonshine adopt — svelte and vue templates", () => {
       await preview.stop();
     }
   }, 60_000);
+
+  test.if(astroReady)(
+    "astro pages compile, component tags fail per file, and the app SSRs",
+    async () => {
+      const dir = project("astro", astroFixture);
+      const result = await inDir(dir, () =>
+        adoptCommand(["--yes"], fakeTui("")),
+      );
+
+      expect(result.code).toBe(0);
+      const { templates } = result.plan!.scan;
+      expect(result.plan!.scan.framework).toBe("astro");
+
+      const byFile = new Map(templates.map((t) => [t.file, t]));
+      expect(byFile.get("src/pages/index.astro")!.route).toBe("/");
+      expect(byFile.get("src/pages/about.astro")!.route).toBe("/about");
+      // A page that uses an imported component is a hard error, not a partial page.
+      expect(byFile.get("src/pages/blog/first.astro")!.ok).toBe(false);
+      expect(byFile.get("src/pages/blog/first.astro")!.error).toContain(
+        "component tag `<Layout>` is not supported",
+      );
+      expect(byFile.get("src/components/Layout.astro")!.error).toContain(
+        "`<slot />` is not supported",
+      );
+      expect(
+        byFile.get("src/pages/blog/first.astro")!.generated,
+      ).toBeUndefined();
+
+      // The frontmatter never runs, so {title} renders empty rather than "astro on moonshine".
+      const joined = result.plan!.scan.manual.join("\n");
+      expect(joined).toContain("`---` frontmatter is blanked");
+      expect(joined).toContain("src/pages/blog/first.astro: did not compile");
+
+      await buildInSubprocess(dir);
+      const manifest = json<{ routes: { path: string }[] }>(
+        join(dir, ".moonshine", "manifest.json"),
+      );
+      expect(manifest.routes.map((r) => r.path).sort()).toEqual([
+        "/",
+        "/about",
+      ]);
+      const preview = await startPreview({ projectDir: dir, port: 0 });
+      try {
+        const html = await (await fetch(new URL("/", preview.url).href)).text();
+        expect(html).toContain('data-crepus-ir-version="7"');
+        expect(html).toContain('data-crepus-for-each="items"');
+        expect(html).toContain("frontmatter is not executed");
+        const about = await (
+          await fetch(new URL("/about", preview.url).href)
+        ).text();
+        expect(about).toContain("about this app");
+      } finally {
+        await preview.stop();
+      }
+    },
+    60_000,
+  );
+
+  test.if(angularReady)(
+    "angular templates compile to unmounted components and index.html is left alone",
+    async () => {
+      const dir = project("angular", angularFixture);
+      const result = await inDir(dir, () =>
+        adoptCommand(["--yes"], fakeTui("")),
+      );
+
+      expect(result.code).toBe(0);
+      const { templates } = result.plan!.scan;
+      expect(result.plan!.scan.framework).toBe("angular");
+
+      // Only *.component.html, *.ng.html and *.ng are claimed — never plain .html.
+      expect(templates.map((t) => t.file).sort()).toEqual([
+        "src/app/blocks.ng.html",
+        "src/app/home/home.component.html",
+        "src/app/legacy.component.html",
+      ]);
+      expect(existsSync(join(dir, "moonshine/components/src/index.tsx"))).toBe(
+        false,
+      );
+      expect(readFileSync(join(dir, "src/index.html"), "utf8")).toBe(
+        readFileSync(join(angularFixture, "src/index.html"), "utf8"),
+      );
+
+      // No file-based routing: nothing is mounted, everything compiled is importable.
+      expect(templates.every((t) => t.route === undefined)).toBe(true);
+      const home = templates.find(
+        (t) => t.file === "src/app/home/home.component.html",
+      )!;
+      expect(home.ok).toBe(true);
+      expect(home.generated).toBe("moonshine/components/src/app/home/home.tsx");
+      expect(readFileSync(join(dir, home.generated!), "utf8")).toContain(
+        "export default function Component()",
+      );
+      expect(
+        templates.find((t) => t.file === "src/app/legacy.component.html")!
+          .error,
+      ).toContain("`<ng-template>` is not supported");
+
+      const joined = result.plan!.scan.manual.join("\n");
+      expect(joined).toContain("component class is not executed");
+      expect(joined).toContain("Angular has no file-based routing");
+
+      // Mounting one by hand is the documented next step, and it renders.
+      mkdirSync(join(dir, "moonshine/routes"), { recursive: true });
+      writeFileSync(
+        join(dir, "moonshine/routes/index.tsx"),
+        `import Home from "../components/src/app/home/home";\n\nexport default function Page() {\n  return <Home />;\n}\n`,
+      );
+      await buildInSubprocess(dir);
+      const preview = await startPreview({ projectDir: dir, port: 0 });
+      try {
+        const html = await (await fetch(new URL("/", preview.url).href)).text();
+        expect(html).toContain('class="home"');
+        expect(html).toContain('data-crepus-for-each="items"');
+      } finally {
+        await preview.stop();
+      }
+    },
+    60_000,
+  );
 
   test("vue templates compile and the run is idempotent", async () => {
     const dir = project("vue", vueFixture);

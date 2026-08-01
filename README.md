@@ -91,13 +91,21 @@ bun install && moonshine build && moonshine preview
 It edits **no source files**. Next, react-router/Remix, TanStack Router and Waku
 apps keep their imports: every specifier the matching adapter implements is
 remapped through `compilerOptions.paths`, which Bun honours in both `bun run` and
-`Bun.build`. Svelte and Vue apps are adopted through crepuscularity's `.svelte`
-and `.vue` parser frontends — each template compiles to the same View IR as
-`.crepus` and JSX, and a generated route module under `moonshine/routes/` renders
-it with `@tschk/crepus-moonshine`. Component `<script>` logic is not executed and
-has to be ported to moonshine signals; unsupported template constructs are
-reported as parse errors per file. Astro and Angular are refused outright — no
-parser frontend exists for them yet.
+`Bun.build`. Svelte, Vue, Astro and Angular apps are adopted through
+crepuscularity's template frontends — each `.svelte`, `.vue`, `.astro` or Angular
+component template (`*.component.html`, `*.ng.html`, `*.ng`; never a plain
+`.html`) compiles to the same View IR as `.crepus` and JSX, and a generated
+module under `moonshine/routes/` or `moonshine/components/` renders it with
+`@tschk/crepus-moonshine`.
+
+Only markup is compiled: Svelte `<script>`, Vue's Composition API, Astro's `---`
+frontmatter and the Angular component class are never executed, and that logic
+has to be ported to moonshine signals. Unsupported constructs are parse errors
+reported per file — Astro rejects imported component tags, `<slot />`, spreads
+and `transition:*`, so a real Astro app usually adopts partially rather than
+whole; Angular rejects `<ng-template>`, `<ng-content>`, `*ngSwitch`, `[ngStyle]`,
+`@switch` and `@defer`, and mounts nothing at a URL because it has no file-based
+routing.
 
 Nothing is written until the plan — every file, every key, every value — has been
 shown under a full-width yellow warning bar and confirmed. Without a TTY the
