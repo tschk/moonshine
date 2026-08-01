@@ -25,7 +25,11 @@ bun run moonshine -- inspect
 | `@tschk/moonshine-react`             | React SSR, streaming, islands, and hydration                  |
 | `@tschk/moonshine-solid`             | Solid renderer and signal bridges                             |
 | `@tschk/crepus-moonshine`            | `.crepus` parsing (Rust parser via WASM) and View IR renderer |
-| `@tschk/moonshine-cli`               | `new`, `dev`, `build`, `preview`, `inspect`                   |
+| `@tschk/moonshine-cli`               | `new`, `adopt`, `dev`, `build`, `preview`, `inspect`          |
+| `@tschk/moonshine-next`              | Next.js API reimplemented on moonshine (no `next` dependency) |
+| `@tschk/moonshine-react-router`      | react-router / Remix client API reimplemented on moonshine    |
+| `@tschk/moonshine-tanstack`          | TanStack Router / Start client API reimplemented on moonshine |
+| `@tschk/moonshine-waku`              | Waku client router API reimplemented on moonshine             |
 | `@tschk/moonshine-deploy-bun`        | Bun server deployment                                         |
 | `@tschk/moonshine-deploy-node`       | Node HTTP deployment                                          |
 | `@tschk/moonshine-deploy-cloudflare` | Cloudflare Workers deployment                                 |
@@ -37,8 +41,27 @@ subpaths (`/react`, `/runes`, `/router`, `/server`, `/shaders`) during the
 
 ## Host adapters
 
-Optional adapters expose real host libraries (peer-installed) plus moonshine
-signal bridges. See each adapter's README for subpaths.
+There are two kinds, and the difference decides whether the host package stays
+installed.
+
+**Reimplementing** — `@tschk/moonshine-next`, `@tschk/moonshine-react-router`,
+`@tschk/moonshine-tanstack`, `@tschk/moonshine-waku`. Each one rewrites the
+host's public API as ordinary React on moonshine's router and signal kernel. It
+imports nothing from the host and lists it in no dependency field, so an app
+aliases the host specifier onto the adapter and removes the host entirely. This
+is only possible where the host's public API is plain React —
+`packages/core/test/adapters-contract.test.ts` enforces the no-import and
+no-dependency rules.
+
+**Hosting** — `@tschk/moonshine-solid`. The host's real runtime is a peer
+dependency, re-exported on subpaths alongside moonshine signal bridges. Required
+wherever the host's component format is compiled rather than written as React
+(Svelte, Vue, Angular, `.astro`); moonshine cannot replace that compiler.
+
+Each adapter's README lists its subpaths and, for the reimplementing ones, an
+explicit **Not supported** section. Read it before aliasing: RSC, loader/action
+data APIs, file-system routing conventions, and image optimization are not
+provided by any of them.
 
 ### Next
 
@@ -51,6 +74,25 @@ import { headers } from "@tschk/moonshine-next/headers";
 import { useFragmentShader } from "@tschk/moonshine-next/shaders";
 import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 ```
+
+### Adopting an existing Next app
+
+`moonshine adopt` points at a Next project and makes it run on moonshine without
+`next` installed. It edits **no source files**: every `next/*` specifier the
+adapter implements is remapped through `compilerOptions.paths`, which Bun honours
+in both `bun run` and `Bun.build`, and `moonshine.config.ts` records the route
+directory and convention so `moonshine build` reads `app/` or `pages/` in place.
+
+```bash
+moonshine adopt --dry-run   # print the plan, write nothing
+moonshine adopt             # apply; running twice is a no-op
+bun install && moonshine build && moonshine preview
+```
+
+It ends with a scorecard naming what it cannot carry over — middleware,
+`next.config`, the metadata API, ISR, server actions, async server components,
+parallel and intercepting routes, and image optimization — file by file, rather
+than stubbing them to silently "work".
 
 ### Solid
 
@@ -67,10 +109,13 @@ never turn View IR style hints into inline CSS.
 
 ## Examples
 
-| Path                  | What                                                    |
-| --------------------- | ------------------------------------------------------- |
-| `examples/hybrid-app` | Static, SSR, island, SPA, and API routes in one project |
-| `examples/bun-server` | Bun HTTP + static + hydrate                             |
+| Path                         | What                                                    |
+| ---------------------------- | ------------------------------------------------------- |
+| `examples/hybrid-app`        | Static, SSR, island, SPA, and API routes in one project |
+| `examples/bun-server`        | Bun HTTP + static + hydrate                             |
+| `examples/svelte-adopt`      | Real `svelte` SSR rendered by the moonshine server      |
+| `examples/deploy-cloudflare` | Minimal app targeting Cloudflare Workers                |
+| `examples/deploy-vercel`     | Minimal app targeting Vercel                            |
 
 ## Documentation
 

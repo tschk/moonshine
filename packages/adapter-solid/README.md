@@ -3,6 +3,12 @@
 Solid renderer and signal bridge for Moonshine. Solid keeps its own native
 rendering model; Moonshine does not share a vnode with React.
 
+This is a **hosting** adapter: `solid-js` is a real peer dependency, re-exported
+on subpaths, and Moonshine renders its output. It is not a reimplementation —
+unlike `@tschk/moonshine-next`, `-react-router`, `-tanstack` and `-waku`, you
+cannot alias `solid-js` onto this package and drop Solid. Solid's component
+format is compiled, so there is nothing to alias.
+
 ```ts
 import { createSignal as solidSignal, For } from "@tschk/moonshine-solid/solid";
 import { parseCrepus } from "@tschk/crepus-moonshine";

@@ -96,6 +96,13 @@ Next-specific APIs sheds most of its client JavaScript on Moonshine; it is not
 a general benchmark, and an app leaning on RSC, ISR, or image optimization
 would not port this cleanly.
 
+The migration path is `moonshine adopt`: `@tschk/moonshine-next` reimplements
+the `next/*` surface on moonshine, so the app aliases its existing imports
+through `compilerOptions.paths` and removes `next` without editing source. That
+adapter does supply a client `Link` and router — this particular site did not
+use it. What `adopt` cannot carry over is listed per file when it runs, and in
+the [adapter README](../packages/adapter-next/README.md#not-supported).
+
 [ud]: https://undivisible.dev
 
 ## When to pick Moonshine

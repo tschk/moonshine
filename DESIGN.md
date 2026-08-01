@@ -88,7 +88,7 @@ Each renderer owns its output format. They share route and manifest contracts on
 
 - `@tschk/moonshine-react`: React SSR, streaming, island markers, hydration, and `createApp`.
 - `@tschk/moonshine-solid`: Solid elements via `solid-js/h` and signal bridges. No shared vnode with React.
-- `@tschk/crepus-moonshine`: Crepus View IR → React / Solid.
+- `@tschk/crepus-moonshine`: `.crepus` → Crepus View IR (Rust parser via `@tschk/crepuscularity-wasm`) → React. `@tschk/moonshine-solid` renders the same IR through its own adapter.
 
 ## Deployment adapters
 
@@ -103,6 +103,22 @@ Adapters consume the same versioned manifest and compiled artifacts.
 
 `@tschk/moonshine-adapter-conformance` runs the same contract suite against every adapter.
 
+## Host adapters
+
+Distinct from deployment adapters, and split into two kinds.
+
+| Kind           | Packages                                       | Host dependency                          |
+| -------------- | ---------------------------------------------- | ---------------------------------------- |
+| Reimplementing | `-next`, `-react-router`, `-tanstack`, `-waku` | none — the host is removed by aliasing   |
+| Hosting        | `-solid`                                       | peer dependency, re-exported on subpaths |
+
+Reimplementing adapters are only possible where the host's public API is
+ordinary React. They import nothing from the host, declare it in no dependency
+field, and ship an `/aliases` specifier map. Hosting adapters are required
+wherever the component format is compiled (Svelte, Vue, Angular, `.astro`).
+`packages/core/test/adapters-contract.test.ts` enforces the adapter set, the
+forbidden dependencies and imports, and the required subpath exports.
+
 ## Configuration
 
 `moonshine.config.ts` is optional. Defaults are: `src/routes`, Bun runtime, automatic route modes, and the React renderer when `moonshine new` is invoked with `--react`.
@@ -114,6 +130,7 @@ Programmatic routes can be supplied through `defineRoute` and merged with filesy
 The CLI in `@tschk/moonshine-cli` orchestrates the compiler and adapters.
 
 - `moonshine new <name> [--react|--solid|--crepus] [--adapter bun|node|cloudflare|vercel] [--vite]`
+- `moonshine adopt [dir] [--dry-run] [--force]` — alias an existing Next app's `next/*` specifiers onto `@tschk/moonshine-next` via `compilerOptions.paths`; edits no source files
 - `moonshine build [dir] [--adapter bun|node|cloudflare|vercel]`
 - `moonshine inspect [path] [--json]`
 - `moonshine preview [dir] [--port <n>]`
