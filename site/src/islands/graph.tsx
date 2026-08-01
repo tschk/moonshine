@@ -99,9 +99,7 @@ export default function SignalGraph({ seed }: GraphProps) {
         </button>
         <button
           type="button"
-          onClick={() =>
-            graph.step.set((value) => (value >= 8 ? 1 : value * 2))
-          }
+          onClick={() => graph.step.set((value) => value * 2)}
           disabled={!hydrated}
         >
           double step
