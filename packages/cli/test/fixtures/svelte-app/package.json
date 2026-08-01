@@ -1,0 +1,13 @@
+{
+  "name": "adopt-fixture-svelte-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "svelte": "^5.0.0"
+  }
+}

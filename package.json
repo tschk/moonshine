@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.11.1",
+    "@tschk/crepuscularity-wasm": "^0.1.2",
     "@tschk/moonshine": "workspace:*",
     "@tschk/moonshine-cli": "workspace:*",
     "@tschk/moonshine-compiler": "workspace:*",

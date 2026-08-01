@@ -33,6 +33,9 @@ export function packagePath(
   const map: Record<string, string> = {
     "@tschk/moonshine": "packages/core",
     "@tschk/moonshine-next": "packages/adapter-next",
+    "@tschk/moonshine-react-router": "packages/adapter-react-router",
+    "@tschk/moonshine-tanstack": "packages/adapter-tanstack",
+    "@tschk/moonshine-waku": "packages/adapter-waku",
     "@tschk/moonshine-framework": "packages/framework",
     "@tschk/moonshine-compiler": "packages/compiler",
     "@tschk/moonshine-server": "packages/server",

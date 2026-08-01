@@ -19,8 +19,9 @@ Usage:
       --crepus    add Crepus renderer
       --adapter   deployment target (default: bun)
       --vite      client-only Vite SPA
-  moonshine adopt [dir]          Convert an existing Next/React app to moonshine
+  moonshine adopt [dir]          Convert the app you are standing in to moonshine
       --dry-run   print the plan, write nothing
+      --yes, -y   skip the confirmation prompt
       --force     rewrite an existing moonshine.config.ts
   moonshine compile [file]       .crepus / View IR JSON → .tsx
   moonshine build [dir]          Build project into .moonshine/manifest.json
@@ -39,9 +40,11 @@ switch (cmd) {
   case "new":
     await newCommand(args);
     break;
-  case "adopt":
-    await adoptCommand(args);
+  case "adopt": {
+    const result = await adoptCommand(args);
+    if (result.code !== 0) process.exit(result.code);
     break;
+  }
   case "compile":
     await compileCommand(args);
     break;

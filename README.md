@@ -75,24 +75,38 @@ import { useFragmentShader } from "@tschk/moonshine-next/shaders";
 import { moonshineRoute, moonshineJson } from "@tschk/moonshine-next/server";
 ```
 
-### Adopting an existing Next app
+### Adopting an existing app
 
-`moonshine adopt` points at a Next project and makes it run on moonshine without
-`next` installed. It edits **no source files**: every `next/*` specifier the
-adapter implements is remapped through `compilerOptions.paths`, which Bun honours
-in both `bun run` and `Bun.build`, and `moonshine.config.ts` records the route
-directory and convention so `moonshine build` reads `app/` or `pages/` in place.
+`moonshine adopt` takes no arguments: it walks up from the working directory to
+the project root and detects the framework there.
 
 ```bash
-moonshine adopt --dry-run   # print the plan, write nothing
-moonshine adopt             # apply; running twice is a no-op
+cd my-app
+moonshine adopt --dry-run   # print the plan, write nothing, never prompt
+moonshine adopt             # show the plan, confirm, apply; twice is a no-op
+moonshine adopt --yes       # skip the prompt (CI, scripts)
 bun install && moonshine build && moonshine preview
 ```
 
+It edits **no source files**. Next, react-router/Remix, TanStack Router and Waku
+apps keep their imports: every specifier the matching adapter implements is
+remapped through `compilerOptions.paths`, which Bun honours in both `bun run` and
+`Bun.build`. Svelte and Vue apps are adopted through crepuscularity's `.svelte`
+and `.vue` parser frontends — each template compiles to the same View IR as
+`.crepus` and JSX, and a generated route module under `moonshine/routes/` renders
+it with `@tschk/crepus-moonshine`. Component `<script>` logic is not executed and
+has to be ported to moonshine signals; unsupported template constructs are
+reported as parse errors per file. Astro and Angular are refused outright — no
+parser frontend exists for them yet.
+
+Nothing is written until the plan — every file, every key, every value — has been
+shown under a full-width yellow warning bar and confirmed. Without a TTY the
+command exits non-zero instead of hanging; pass `--yes`.
+
 It ends with a scorecard naming what it cannot carry over — middleware,
 `next.config`, the metadata API, ISR, server actions, async server components,
-parallel and intercepting routes, and image optimization — file by file, rather
-than stubbing them to silently "work".
+parallel and intercepting routes, image optimization, and component script logic
+— file by file, rather than stubbing them to silently "work".
 
 ### Solid
 
