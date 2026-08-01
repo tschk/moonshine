@@ -1,6 +1,6 @@
 {
   "name": "@tschk/crepus-moonshine",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Bridge: .crepus (parsed by the Rust parser via WASM) to moonshine React elements",
   "license": "ISC",
   "type": "module",
@@ -24,9 +24,9 @@
     "lint": "bunx oxlint ."
   },
   "dependencies": {
-    "@tschk/crepuscularity-wasm": "^0.1.0",
-    "@tschk/moonshine": "^0.3.3",
-    "@tschk/moonshine-framework": "^0.3.3"
+    "@tschk/crepuscularity-wasm": "^0.1.2",
+    "@tschk/moonshine": "^0.3.4",
+    "@tschk/moonshine-framework": "^0.3.4"
   },
   "peerDependencies": {
     "react": ">=18",

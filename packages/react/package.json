@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-react",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "React renderer, islands, and signal hooks for Moonshine",
   "license": "ISC",
   "type": "module",
@@ -16,8 +16,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.3.3",
-    "@tschk/moonshine-framework": "^0.3.3",
+    "@tschk/moonshine": "^0.3.4",
+    "@tschk/moonshine-framework": "^0.3.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

@@ -1,7 +1,7 @@
 {
   "name": "moonshine-monorepo",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Moonshine — hyperminimal Bun-first UI runtime; signals + Bun server + optional bridges",
   "license": "ISC",
   "type": "module",
