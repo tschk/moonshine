@@ -27,6 +27,29 @@ describe("renderCrepusIr", () => {
     expect(out).toContain('class="text-lg"');
   });
 
+  test("emits the element id from the node style", () => {
+    const out = renderToStaticMarkup(
+      renderCrepusIr({
+        version: IR_VERSION,
+        root: [
+          {
+            kind: "stack",
+            axis: "column",
+            style: { id: "tsc-heading", classes: ["flex"] },
+            children: [{ kind: "text", content: "hi" }],
+          },
+        ],
+      } as never),
+    );
+    expect(out).toContain('id="tsc-heading"');
+    expect(out).toContain('class="flex"');
+  });
+
+  test("omits id when the node style has none", () => {
+    const out = html('div flex\n  span\n    "hi"');
+    expect(out).not.toContain("id=");
+  });
+
   test("emits no inline styles", () => {
     const out = html(
       'div flex flex-col gap-4 text-zinc-100 bg-zinc-950\n  span\n    "hi"',

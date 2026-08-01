@@ -13,6 +13,11 @@ export interface RenderCrepusOptions {
  * styles the output. The lowered `style` hints exist for native targets and are
  * deliberately not converted to inline CSS here.
  */
+function idOf(node: ViewNode): string | undefined {
+  const id = (node as { style?: { id?: string } }).style?.id;
+  return id && id.length > 0 ? id : undefined;
+}
+
 function classNameOf(node: ViewNode): string | undefined {
   const classes = (node as { style?: { classes?: string[] } }).style?.classes;
   if (!classes || classes.length === 0) return undefined;
@@ -28,16 +33,18 @@ function renderChildren(children: ViewNode[], keyPrefix: string): ReactNode[] {
 
 export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
   const className = classNameOf(node);
+  const id = idOf(node);
 
   switch (node.kind) {
     case "text":
-      return createElement("span", { key, className }, node.content);
+      return createElement("span", { key, id, className }, node.content);
 
     case "link":
       return createElement(
         "a",
         {
           key,
+          id,
           className,
           href: node.href,
           target: node.target,
@@ -50,67 +57,69 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "scroll":
       return createElement(
         "div",
-        { key, className },
+        { key, id, className },
         ...renderChildren(node.children, key),
       );
 
     case "dropzone":
       return createElement(
         "div",
-        { key, className, "aria-label": node.label },
+        { key, id, className, "aria-label": node.label },
         ...renderChildren(node.children, key),
       );
 
     case "list":
       return createElement(
         node.ordered ? "ol" : "ul",
-        { key, className },
+        { key, id, className },
         ...renderChildren(node.children, key),
       );
 
     case "listItem":
       return createElement(
         "li",
-        { key, className },
+        { key, id, className },
         ...renderChildren(node.children, key),
       );
 
     case "button":
       return createElement(
         "button",
-        { key, className, type: "button" },
+        { key, id, className, type: "button" },
         node.label,
       );
 
     case "badge":
       return createElement(
         "span",
-        { key, className, "data-tone": node.tone },
+        { key, id, className, "data-tone": node.tone },
         node.label,
       );
 
     case "divider":
-      return createElement("hr", { key, className });
+      return createElement("hr", { key, id, className });
 
     case "spacer":
-      return createElement("div", { key, className, "aria-hidden": true });
+      return createElement("div", { key, id, className, "aria-hidden": true });
 
     case "image":
       return createElement("img", {
         key,
+        id,
         className,
         src: node.src,
         alt: node.alt ?? "",
       });
 
     case "webView":
-      return createElement("iframe", { key, className, src: node.src });
+      return createElement("iframe", { key, id, className, src: node.src });
 
     case "toggle":
       return createElement(
         "button",
         {
           key,
+          id,
           className,
           type: "button",
           role: "switch",
@@ -122,7 +131,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "checkbox":
       return createElement(
         "label",
-        { key, className },
+        { key, id, className },
         createElement("input", {
           key: `${key}.input`,
           type: "checkbox",
@@ -135,6 +144,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "slider":
       return createElement("input", {
         key,
+        id,
         className,
         type: "range",
         defaultValue: node.value,
@@ -147,6 +157,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "progress":
       return createElement("progress", {
         key,
+        id,
         className,
         value: node.value,
         max: node.max,
@@ -155,6 +166,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "meter":
       return createElement("meter", {
         key,
+        id,
         className,
         value: node.value,
         min: node.min,
@@ -164,6 +176,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "input":
       return createElement(node.multiline ? "textarea" : "input", {
         key,
+        id,
         className,
         type: node.multiline ? undefined : node.secure ? "password" : "text",
         placeholder: node.placeholder,
@@ -173,7 +186,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "picker":
       return createElement(
         "select",
-        { key, className, name: node.bind },
+        { key, id, className, name: node.bind },
         ...node.options.map((option, i) =>
           createElement(
             "option",
@@ -186,7 +199,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "filePicker":
       return createElement(
         "label",
-        { key, className },
+        { key, id, className },
         createElement("input", {
           key: `${key}.input`,
           type: "file",
@@ -201,6 +214,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
         "span",
         {
           key,
+          id,
           className,
           "data-crepus-slot-rotate": node.phrases.join("|"),
           "data-interval-ms": node.intervalMs,
@@ -211,7 +225,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "tabs":
       return createElement(
         "div",
-        { key, className },
+        { key, id, className },
         createElement(
           "div",
           { key: `${key}.tablist`, role: "tablist" },
@@ -237,7 +251,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
     case "if":
       return createElement(
         "div",
-        { key, className, "data-crepus-if": node.condition },
+        { key, id, className, "data-crepus-if": node.condition },
         ...renderChildren(node.thenChildren, key),
       );
 
@@ -246,6 +260,7 @@ export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
         "div",
         {
           key,
+          id,
           className,
           "data-crepus-for-each": node.bind,
           "data-crepus-item": node.itemName,
