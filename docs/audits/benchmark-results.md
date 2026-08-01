@@ -1,3 +1,7 @@
+> 2026-07-31: historical record of one `scripts/benchmark.ts` run. That script
+> was removed as internal-only tooling in 0.3.2 and these figures cannot be
+> reproduced here.
+
 - bun: 1.3.14
 - os: darwin arm64
 - runs per measurement: 10

@@ -16,4 +16,4 @@ bun run dev
 # → http://localhost:3000
 ```
 
-SPA-only Vite still fine: `moonshine new` / `examples/vite-crepus`.
+For an SPA-only Vite project instead, scaffold with `moonshine new --vite`.

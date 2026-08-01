@@ -10,10 +10,7 @@ void main() {
           'kind': 'stack',
           'children': [
             {'kind': 'text', 'content': 'hello'},
-            {
-              'kind': 'sparkline',
-              'values': [1, 2, 3],
-            },
+            {'kind': 'badge', 'label': 'new'},
           ],
         },
       ],
@@ -21,7 +18,7 @@ void main() {
 
     expect(ts, contains('@tschk/crepus-moonshine'));
     expect(ts, contains('renderCrepusIr'));
-    expect(ts, contains('"kind": "sparkline"'));
+    expect(ts, contains('"kind": "badge"'));
     expect(ts, contains('export default function CrepusApp'));
   });
 
