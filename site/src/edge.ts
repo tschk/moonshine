@@ -21,6 +21,17 @@ export type EdgeFacts = {
   renderNonce: string;
   /** Latest `@tschk/moonshine` on npm, fetched at the edge. */
   npmLatest: string | null;
+  /**
+   * Round trip Cloudflare measured on the TCP connection carrying this
+   * request, in milliseconds. Null on runtimes that do not report it.
+   */
+  clientTcpRtt: number | null;
+  /** Milliseconds the npm lookup cost this response. */
+  upstreamMs: number;
+  /** Milliseconds spent gathering everything on this list. */
+  edgeMs: number;
+  /** IANA timezone Cloudflare resolved for the client. */
+  timezone: string;
 };
 
 type IncomingCf = {
@@ -30,6 +41,8 @@ type IncomingCf = {
   region?: string;
   httpProtocol?: string;
   tlsVersion?: string;
+  clientTcpRtt?: number;
+  timezone?: string;
 };
 
 /**
@@ -71,8 +84,11 @@ export async function fetchNpmLatest(): Promise<string | null> {
 }
 
 export async function readEdgeFacts(request: Request): Promise<EdgeFacts> {
+  const startedAt = Date.now();
   const cf = (request as Request & { cf?: IncomingCf }).cf ?? {};
+  const upstreamStartedAt = Date.now();
   const npmLatest = await fetchNpmLatest();
+  const upstreamMs = Date.now() - upstreamStartedAt;
   return {
     colo: cf.colo ?? "local",
     country: cf.country ?? "—",
@@ -85,6 +101,10 @@ export async function readEdgeFacts(request: Request): Promise<EdgeFacts> {
     isolateAgeMs: isolateAgeMs(),
     renderNonce: Math.random().toString(36).slice(2, 10),
     npmLatest,
+    clientTcpRtt: typeof cf.clientTcpRtt === "number" ? cf.clientTcpRtt : null,
+    upstreamMs,
+    edgeMs: Date.now() - startedAt,
+    timezone: cf.timezone ?? "—",
   };
 }
 

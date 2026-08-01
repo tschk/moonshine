@@ -6,7 +6,9 @@ export const STYLES = `
   --line-soft: #1c1c20;
   --fg: #e4e4e7;
   --fg-dim: #a1a1aa;
-  --fg-faint: #71717a;
+  /* Lifted from #71717a: that read at 4.24:1 on the page background, under
+     the 4.5:1 floor for the small type this variable is used on. */
+  --fg-faint: #8f8f99;
   --accent: #d4d4d8;
   --live: #a3e635;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
@@ -51,7 +53,9 @@ a:hover { color: #fff; border-bottom-color: var(--fg-faint); }
 .wrap {
   max-width: 74ch;
   margin: 0 auto;
-  padding: 28px 20px 72px;
+  padding: 28px max(20px, env(safe-area-inset-right)) 72px
+    max(20px, env(safe-area-inset-left));
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
 }
 
 .topbar {
@@ -152,7 +156,7 @@ th, td { text-align: left; padding: 7px 14px; border-bottom: 1px solid var(--lin
 th { color: var(--fg-faint); font-weight: 500; }
 tbody tr:last-child td { border-bottom: 0; }
 td.num { text-align: right; color: var(--fg); font-variant-numeric: tabular-nums; }
-td.wrapcell { white-space: normal; min-width: 30ch; }
+td.wrapcell { white-space: normal; min-width: 22ch; }
 
 ul.plain { list-style: none; margin: 0 0 14px; padding: 0; }
 ul.plain li { padding-left: 16px; position: relative; }
@@ -201,13 +205,18 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   overflow: hidden;
 }
 
+/*
+ * The fill is scaled, not resized: \`transform\` keeps the bar off the layout
+ * path, so a recomputing memo never triggers reflow inside the track.
+ */
 .bar {
   display: block;
   height: 100%;
+  width: 100%;
   background: var(--live);
   opacity: 0.8;
-  max-width: 100%;
-  transition: width 160ms ease;
+  transform-origin: left center;
+  transform: scaleX(var(--fill, 0));
 }
 
 .status { color: var(--fg-faint); font-size: 11.5px; }
@@ -225,10 +234,100 @@ footer {
   justify-content: space-between;
 }
 
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chips li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #17171a;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  max-width: 100%;
+}
+.chips a { border: 0; overflow-wrap: anywhere; }
+.chip-v { color: var(--live); font-variant-numeric: tabular-nums; }
+
 @media (max-width: 560px) {
   .row { grid-template-columns: 1fr; gap: 0; }
   .kv { grid-template-columns: 1fr; gap: 0 0; }
   .kv dd { margin-bottom: 8px; }
+}
+
+/*
+ * Motion lives in one block, opt-in rather than opt-out: under
+ * \`prefers-reduced-motion: reduce\` none of these rules are ever parsed, so
+ * there is no animation left to override. Only transform, opacity and colour
+ * are animated, so nothing below can move layout.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes rise {
+    from { opacity: 0; transform: translate3d(0, 6px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes flash {
+    from { color: var(--live); }
+    to { color: var(--fg); }
+  }
+
+  main > section,
+  .topbar,
+  footer {
+    animation: rise 460ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  .topbar { animation-delay: 0ms; }
+  main > section:nth-of-type(1) { animation-delay: 60ms; }
+  main > section:nth-of-type(2) { animation-delay: 110ms; }
+  main > section:nth-of-type(3) { animation-delay: 160ms; }
+  main > section:nth-of-type(4) { animation-delay: 210ms; }
+  main > section:nth-of-type(n + 5) { animation-delay: 260ms; }
+  footer { animation-delay: 300ms; }
+
+  /* Per-request values arrive new on every render; they settle from live to
+     resting colour instead of appearing already stale. */
+  .kv dd,
+  .chip-v {
+    animation: flash 900ms ease-out 220ms both;
+  }
+
+  .chips li {
+    animation: rise 400ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    animation-delay: calc(260ms + var(--i, 0) * 18ms);
+  }
+
+  .reveal-row {
+    animation: rise 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    animation-delay: calc(120ms + var(--i, 0) * 22ms);
+  }
+
+  a { position: relative; transition: color 140ms ease, border-color 140ms ease; }
+  a:not(.brand):not(.skip)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    border-bottom: 1px solid var(--live);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  a:not(.brand):not(.skip):hover::after,
+  a:not(.brand):not(.skip):focus-visible::after { transform: scaleX(1); }
+
+  .bar { transition: transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+  .status { transition: color 240ms ease; }
+  button { transition: background 140ms ease, border-color 140ms ease, transform 90ms ease; }
+  button:active:not(:disabled) { transform: translate3d(0, 1px, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

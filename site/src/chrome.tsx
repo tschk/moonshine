@@ -1,10 +1,30 @@
 import type { ReactNode } from "react";
 
-const NAV = [
-  { href: "/", label: "overview" },
-  { href: "/packages", label: "packages" },
+type NavItem = {
+  href: string;
+  label: string;
+  external?: boolean;
+};
+
+/**
+ * Overview and packages are one link, not two: it points at whichever of the
+ * pair you are not on. `current` comes from the request path during SSR, so
+ * the correct label is already in the HTML — no client JavaScript decides it.
+ */
+export function pivotLink(current: string): NavItem {
+  return current === "/packages"
+    ? { href: "/", label: "← overview" }
+    : { href: "/packages", label: "packages →" };
+}
+
+const TAIL: NavItem[] = [
   { href: "/api/state", label: "api" },
-  { href: "https://github.com/tschk/moonshine", label: "github" },
+  {
+    href: "https://github.com/tschk/moonshine",
+    label: "github",
+    external: true,
+  },
+  { href: "https://tsc.hk", label: "tsc.hk", external: true },
 ];
 
 export function Chrome({
@@ -14,6 +34,7 @@ export function Chrome({
   current: string;
   children: ReactNode;
 }) {
+  const items = [pivotLink(current), ...TAIL];
   return (
     <div className="wrap">
       <a className="skip" href="#main">
@@ -24,11 +45,13 @@ export function Chrome({
           moonshine
         </a>
         <nav aria-label="Primary">
-          {NAV.map((item) => (
+          {items.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              {...(item.href === current ? { "aria-current": "page" } : {})}
+              {...(item.external
+                ? { rel: "noopener noreferrer", target: "_blank" }
+                : {})}
             >
               {item.label}
             </a>
@@ -38,7 +61,12 @@ export function Chrome({
       <main id="main">{children}</main>
       <footer>
         <span>built with crepuscularity + moonshine</span>
-        <span>tsc.hk · ISC</span>
+        <span>
+          <a href="https://tsc.hk" rel="noopener noreferrer">
+            tsc.hk
+          </a>{" "}
+          · ISC
+        </span>
       </footer>
     </div>
   );

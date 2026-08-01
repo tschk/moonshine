@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from "react";
 import {
   batch,
   createMemo,
@@ -84,7 +90,10 @@ export default function SignalGraph({ seed }: GraphProps) {
         <dt>fill</dt>
         <dd>
           <span className="track" aria-hidden="true">
-            <span className="bar" style={{ width: `${fill}%` }} />
+            <span
+              className="bar"
+              style={{ "--fill": fill / 100 } as CSSProperties}
+            />
           </span>{" "}
           {fill}%
         </dd>

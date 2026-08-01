@@ -1,26 +1,42 @@
+import type { CSSProperties } from "react";
 import { readEdgeFacts, jsonForScript, type EdgeFacts } from "../edge";
+import { fetchCrepusCrates, type CratesSnapshot } from "../registry";
 import SignalGraph, { ISLAND_ID } from "../islands/graph";
 import { Chrome } from "../chrome";
+import { Crepuscularity, TscHk } from "../links";
 import type { PageData } from "../renderer";
 
-type HomeData = PageData & { edge: EdgeFacts };
+type HomeData = PageData & {
+  edge: EdgeFacts;
+  crates: CratesSnapshot;
+  /** Wall clock the loader itself spent, measured in the Worker. */
+  loaderMs: number;
+};
 
 export async function loader({
   request,
 }: {
   request: Request;
 }): Promise<HomeData> {
+  const startedAt = Date.now();
+  // Both upstreams are on the request path, so they overlap rather than queue.
+  const [edge, crates] = await Promise.all([
+    readEdgeFacts(request),
+    fetchCrepusCrates(),
+  ]);
   return {
     meta: {
       title: "moonshine — a hyperminimal Bun-first UI runtime",
       description:
         "Moonshine is a Bun-first UI runtime built on a signal-only kernel of 2,985 minified bytes, plus opt-in compiler, routing, rendering, server and deployment layers.",
     },
-    edge: await readEdgeFacts(request),
+    edge,
+    crates,
+    loaderMs: Date.now() - startedAt,
   };
 }
 
-function Live({ edge }: { edge: EdgeFacts }) {
+function Live({ edge, loaderMs }: { edge: EdgeFacts; loaderMs: number }) {
   return (
     <div className="panel">
       <div className="panel-head">
@@ -32,7 +48,18 @@ function Live({ edge }: { edge: EdgeFacts }) {
         <dd>{edge.colo}</dd>
         <dt>where</dt>
         <dd>
-          {edge.city}, {edge.region} ({edge.country})
+          {edge.city}, {edge.region} ({edge.country}) · {edge.timezone}
+        </dd>
+        <dt>round trip</dt>
+        <dd>
+          {edge.clientTcpRtt === null
+            ? "not reported by this runtime"
+            : `${edge.clientTcpRtt} ms measured on this TCP connection`}
+        </dd>
+        <dt>server time</dt>
+        <dd>
+          loader {loaderMs} ms · edge facts {edge.edgeMs} ms · npm{" "}
+          {edge.upstreamMs} ms
         </dd>
         <dt>protocol</dt>
         <dd>
@@ -53,6 +80,44 @@ function Live({ edge }: { edge: EdgeFacts }) {
             : "registry unavailable"}
         </dd>
       </dl>
+    </div>
+  );
+}
+
+function Crates({ crates }: { crates: CratesSnapshot }) {
+  if (!crates.ok || crates.count === 0) {
+    return (
+      <p className="muted" data-live="true">
+        crates.io was unreachable while this page was built, so no versions are
+        shown — nothing here is baked into the bundle.
+      </p>
+    );
+  }
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span className="dot" aria-hidden="true" />
+        <span>
+          {crates.count} crates on crates.io · read in {crates.elapsedMs} ms
+        </span>
+      </div>
+      <ul className="chips">
+        {crates.crates.map((crate, index) => (
+          <li
+            key={crate.name}
+            translate="no"
+            style={{ "--i": index } as CSSProperties}
+          >
+            <a
+              href={`https://crates.io/crates/${crate.name}`}
+              rel="noopener noreferrer"
+            >
+              {crate.name}
+            </a>
+            <span className="chip-v">{crate.version}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -87,7 +152,7 @@ export default function Home({ data }: { data: HomeData }) {
           <a href="/api/state">/api/state</a> is the same data from an{" "}
           <code>api</code> route.
         </p>
-        <Live edge={edge} />
+        <Live edge={edge} loaderMs={data.loaderMs} />
       </section>
 
       <section aria-labelledby="graph-heading">
@@ -224,7 +289,7 @@ $ moonshine preview`}</code>
         <h2 id="crepus-heading">One parser, four frontends</h2>
         <p>
           <code>.crepus</code> templates are not parsed in TypeScript. They go
-          through the crepuscularity Rust parser compiled to WebAssembly and
+          through the <Crepuscularity /> Rust parser compiled to WebAssembly and
           published as <code>@tschk/crepuscularity-wasm</code>. That parser now
           accepts four input languages — <code>.crepus</code>, JSX/TSX,{" "}
           <code>.svelte</code> and <code>.vue</code> — and lowers all of them to
@@ -235,6 +300,14 @@ $ moonshine preview`}</code>
           verbatim; the renderers never turn IR style hints into inline CSS, so
           UnoCSS or Tailwind still owns the styling.
         </p>
+        <p>
+          That parser is a Rust workspace, published to crates.io alongside its
+          runtime, CLI and renderer crates. The list below is read from the
+          crates.io API inside this Worker while the page is being built, so it
+          is whatever is actually published right now — not a copy kept in this
+          repository.
+        </p>
+        <Crates crates={data.crates} />
       </section>
 
       <section aria-labelledby="measured-heading">
@@ -325,8 +398,9 @@ $ bunx moonshine dev`}</code>
           </pre>
         </div>
         <p className="muted">
-          Nineteen packages are published under <code>@tschk/</code>; the{" "}
-          <a href="/packages">full list</a> says what each one is for.
+          Everything is published under <code>@tschk/</code> — part of <TscHk />{" "}
+          — and the <a href="/packages">full list</a> says what each one is for,
+          with the version npm is serving at the moment you load it.
         </p>
       </section>
     </Chrome>

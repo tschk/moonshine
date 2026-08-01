@@ -6,6 +6,8 @@ import * as packagesRoute from "../src/routes/packages";
 import { createSiteRenderer } from "../src/renderer";
 import { PACKAGES } from "../src/packages";
 import { jsonForScript } from "../src/edge";
+import { pivotLink } from "../src/chrome";
+import { STYLES } from "../src/styles";
 
 function artifact(id: string, path: string): RouteArtifact {
   return {
@@ -56,6 +58,16 @@ describe("api route", () => {
     expect(body.kernelBytesMinified).toBe(2985);
     expect(Array.isArray(body.packages)).toBe(true);
     expect((body.packages as unknown[]).length).toBe(PACKAGES.length);
+    // Registry data is present in shape even when either registry is down.
+    const npm = body.npm as { asked: number; published: number };
+    expect(npm.asked).toBe(PACKAGES.length);
+    expect(npm.published).toBeLessThanOrEqual(npm.asked);
+    const crates = body.crates as { ok: boolean; count: number };
+    expect(typeof crates.ok).toBe("boolean");
+    expect(crates.count).toBeGreaterThanOrEqual(0);
+    expect(
+      (body.timing as { handlerMs: number }).handlerMs,
+    ).toBeGreaterThanOrEqual(0);
   });
 
   test("edge facts change between requests", async () => {
@@ -95,6 +107,43 @@ describe("document shell", () => {
       expect(html).toContain(entry.name);
     }
     expect(html).toContain("built with crepuscularity + moonshine");
+  });
+});
+
+describe("navigation", () => {
+  test("overview and packages are one link that flips on the request path", () => {
+    expect(pivotLink("/")).toEqual({ href: "/packages", label: "packages →" });
+    expect(pivotLink("/packages")).toEqual({ href: "/", label: "← overview" });
+  });
+
+  test("the rendered nav offers packages on / and overview on /packages", async () => {
+    const homeHtml = await renderRoute("index", "/", home);
+    const packagesHtml = await renderRoute(
+      "packages",
+      "/packages",
+      packagesRoute,
+    );
+    expect(homeHtml).toContain("packages →");
+    expect(homeHtml).not.toContain("← overview");
+    expect(packagesHtml).toContain("← overview");
+    expect(packagesHtml).not.toContain("packages →");
+  });
+
+  test("tsc.hk is in the top links and crepuscularity is linked in the body", async () => {
+    const html = await renderRoute("index", "/", home);
+    expect(html).toContain('href="https://tsc.hk"');
+    expect(html).toContain('href="https://crepuscularity.tsc.hk"');
+    expect(html).toContain('rel="noopener noreferrer"');
+  });
+});
+
+describe("motion", () => {
+  test("every animation is defined inside a no-preference query", () => {
+    expect(STYLES).toContain("@media (prefers-reduced-motion: no-preference)");
+    expect(STYLES).toContain("@media (prefers-reduced-motion: reduce)");
+    // The fill bar is scaled, never resized, so it stays off the layout path.
+    expect(STYLES).toContain("transform: scaleX(var(--fill, 0))");
+    expect(STYLES).not.toContain("transition: width");
   });
 });
 
