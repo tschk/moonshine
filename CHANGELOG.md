@@ -1,3 +1,81 @@
+# Moonshine 0.3.3
+
+## Host adapters
+
+- `@tschk/moonshine-next` reimplements the Next.js API surface instead of re-exporting it: `next/link`, `next/navigation`, `next/image`, `next/script`, `next/dynamic`, `next/headers`, and `next/font/google` are built on the moonshine router and signal runtime, and `next` is no longer a dependency, peer dependency, or devDependency.
+- New `@tschk/moonshine-react-router`, `@tschk/moonshine-tanstack`, and `@tschk/moonshine-waku` reimplement the react-router / `@remix-run/react`, TanStack Router / Start, and Waku client router APIs on `@tschk/moonshine/router`. None imports or depends on the framework it replaces.
+- Each reimplementing adapter ships an `/aliases` specifier map so an application can alias the host specifier and drop the host package.
+- `packages/core/test/adapters-contract.test.ts` enforces the adapter set, the forbidden-dependency and forbidden-import rules, and the required subpath exports.
+
+## CLI
+
+- New `moonshine adopt [dir] [--dry-run] [--force]`. It points at an existing App Router or Pages Router project, writes `compilerOptions.paths` aliasing every implemented `next/*` specifier at the adapter files inside the project's own `node_modules`, writes `moonshine.config.ts`, and edits no source files. It ends with a scorecard listing what it cannot carry over: middleware, `next.config`, the metadata API, ISR, server actions, async server components, and image optimization.
+- `discoverRoutes` gains a `convention` option (`next-app`, `next-pages`) so `app/` and `pages/` trees are read in place.
+
+## Security
+
+- `errorResponse` no longer echoes a thrown value's message in the 500 body outside development mode; `mode` is optional, so the previous default disclosed internal detail.
+- `Link` passes `href` through `safeHref`, rejecting script-capable schemes and control characters. Modifier and middle clicks defer to the browser, so an unfiltered `href` was a stored-XSS sink.
+- Static file serving rejects dot-prefixed path segments (`.well-known` still allowed) and sets `X-Content-Type-Options: nosniff`.
+- Static containment compares real paths, so a symlink inside the root pointing outside it is no longer served. `@tschk/moonshine-deploy-node` reuses the same check (exported as `isContained`) and sets `nosniff`.
+- `@tschk/moonshine-deploy-node` accepts the `Host` header only as a bare host with an optional port (bracketed IPv6 included) before building `request.url`, and otherwise falls back to localhost.
+
+## Correctness
+
+- `cloudflareFetch` builds its handler with the `modules` map, so API route loaders, actions, and handlers actually run and page routes resolve their component.
+- `serializeIslandProps` detects cycles by walking the ancestor chain instead of a global visited set, so an object referenced twice in the payload is no longer rejected.
+
+## Performance
+
+- `createMemo` no longer unsubscribes and resubscribes every dependency on each recomputation when the dependency set is unchanged. A single `signal.set()` was quadratic in graph depth and is now linear (memo chain, µs per set: depth 50 156.6 → 11.1; depth 800 52792.8 → 135.3).
+- `useSignal` keeps one `useSyncExternalStore` subscribe callback across renders (20 unrelated re-renders: 41 subscribes / 40 unsubscribes → 1 / 0).
+- `createRequestHandler` compiles the route graph once per handler instead of per request (20 routes 26.8µs → 6.0µs; 120 routes 619µs → 31µs).
+- `matchRoutes` skips routes whose literal first segment differs and selects the best match linearly (20 routes 6.0µs → 0.58µs; 120 routes 31µs → 1.45µs).
+- `MoonshineRouter` memoizes the compiled route graph.
+- The static root's real path is resolved once per process; the requested file is still resolved per request.
+- Dither canvases hoist fixed-alpha `rgba(...)` strings out of the pixel loop; output is byte-identical (600×300 scan 5.07ms → 0.31ms).
+
+## Components
+
+- Dither paint internals (`BAYER`, `paintColumn`, `paintSparkline`, `resample`, `backingSize`, `sparklineColumnTops`, `PALETTE`, `rgb`, `seedOfColor`) are no longer exported from the package root. The `./dither` and `./themes` subpaths are unchanged.
+- Dither chart canvas scaffolding collapsed into a single `DitherCanvas`.
+
+## Migration from 0.3.2
+
+- All public packages now use version `0.3.3` and internal dependencies use `^0.3.3`.
+- `@tschk/moonshine-next` no longer re-exports Next. Anything relying on it forwarding to a real `next` install must move to the reimplemented surface; see the package README for the supported and unsupported lists.
+- The nine removed component-root exports must be imported from `@tschk/moonshine-components/dither` instead.
+
+# Moonshine 0.3.2
+
+## Security
+
+- Client output builds into `.moonshine/public/`. The build directory was previously handed to the static file server wholesale, so `GET /dist/server.js` returned bundled server code and `GET /manifest.json` leaked the route map and absolute build paths. The preview server and the bun/node deploy entries now serve only the public directory.
+- Static file containment compares real paths, so a symlink inside the static root pointing outside it is rejected.
+
+## Packaging
+
+- Five packages imported a `@tschk` package they declared only as a devDependency, which resolves through the workspace but fails when installed from npm. The four deploy adapters now depend on `@tschk/moonshine-adapter-conformance`, and the CLI on `@tschk/crepus-moonshine` with `@tschk/moonshine-solid` optional.
+- `check-packages` fails on an undeclared runtime import, ignoring template literals because that code belongs to the generated project.
+- `@tschk/crepus-moonshine` parses `.crepus` through the published `@tschk/crepuscularity-wasm` Rust parser; the TypeScript parser is gone. `@tschk/moonshine-solid` renders the same IR from the shared WASM types.
+- The release version-lockstep check is scoped to in-repo packages.
+
+## Adapters and examples
+
+- Removed eight delegation-only host adapters (`adapter-angular`, `adapter-astro`, `adapter-svelte`, `adapter-waku`, `adapter-nuxt`, `adapter-vue`, `adapter-remix`, `adapter-tanstack`). They were pure re-export wrappers. `adapter-solid`, `adapter-next`, and `adapter-conformance` remain.
+- Removed `examples/catalog-gallery`, `examples/vite-crepus`, `examples/shaders-island`, and the internal-only benchmark and packed-test scripts.
+- Removed the `Meter` and `Input` thin wrappers from `@tschk/moonshine-components`.
+
+## View IR
+
+- `link` node kind: `CrepusLinkNode` renders as an `<a>` with `href`, `target`, `rel`, and content or children.
+
+## Migration from 0.3.1
+
+- All public packages now use version `0.3.2` and internal dependencies use `^0.3.2`.
+- The eight removed adapters have no replacement; import the host library directly, or use a reimplementing adapter where one exists in 0.3.3.
+- Static assets are read from `.moonshine/public/`. Anything serving `.moonshine/` directly must be repointed.
+
 # Moonshine 0.3.1
 
 ## Security
