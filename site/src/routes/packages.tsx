@@ -1,12 +1,19 @@
 import type { CSSProperties } from "react";
 import { Chrome } from "../chrome";
 import { GROUP_LABELS, PACKAGES, type PackageEntry } from "../packages";
-import { fetchNpmScope, type NpmScopeSnapshot } from "../registry";
+import {
+  fetchNpmDownloads,
+  fetchNpmScope,
+  type DownloadSeries,
+  type NpmScopeSnapshot,
+} from "../registry";
+import { DownloadChart } from "../downloads";
 import { Crepuscularity, TscHk } from "../links";
 import type { PageData } from "../renderer";
 
 type PackagesData = PageData & {
   npm: NpmScopeSnapshot;
+  npmDownloads: DownloadSeries;
   renderedAt: string;
   /** Wall clock the loader spent, measured inside the Worker. */
   loaderMs: number;
@@ -14,7 +21,10 @@ type PackagesData = PageData & {
 
 export async function loader(): Promise<PackagesData> {
   const startedAt = Date.now();
-  const npm = await fetchNpmScope();
+  const [npm, npmDownloads] = await Promise.all([
+    fetchNpmScope(),
+    fetchNpmDownloads(),
+  ]);
   return {
     meta: {
       title: "moonshine — packages",
@@ -22,6 +32,7 @@ export async function loader(): Promise<PackagesData> {
         "The @tschk/moonshine packages: kernel, compiler, router, server, renderers, host adapters and deployment adapters, with the versions npm is serving right now.",
     },
     npm,
+    npmDownloads,
     renderedAt: new Date().toISOString(),
     loaderMs: Date.now() - startedAt,
   };
@@ -39,7 +50,7 @@ function Group({
   return (
     <section aria-labelledby={`group-${group}`}>
       <h2 id={`group-${group}`}>{GROUP_LABELS[group]}</h2>
-      <div className="tablewrap">
+      <div className="tablewrap" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -133,6 +144,15 @@ export default function Packages({ data }: { data: PackagesData }) {
         entries={PACKAGES.filter((entry) => entry.group === "deploy")}
         versions={versions}
       />
+      <section aria-labelledby="downloads-heading">
+        <h2 id="downloads-heading">Downloads</h2>
+        <p>
+          Daily downloads of <code translate="no">@tschk/moonshine</code> for
+          the last month, read from npm&rsquo;s download API while this response
+          was built. Hover or focus the chart to move the readout.
+        </p>
+        <DownloadChart id="moonshine" series={data.npmDownloads} />
+      </section>
       <section>
         <h2>Machine-readable</h2>
         <p>

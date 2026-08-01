@@ -139,3 +139,153 @@ export async function fetchCrepusCrates(): Promise<CratesSnapshot> {
     ok: true,
   };
 }
+
+export type DownloadPoint = {
+  /** ISO `YYYY-MM-DD`, UTC. */
+  date: string;
+  downloads: number;
+};
+
+export type DownloadSeries = {
+  /** Registry the numbers came from, shown to the reader. */
+  source: string;
+  /** Package or crate the numbers are for. */
+  subject: string;
+  /** One entry per day, oldest first. Empty when the registry had nothing. */
+  points: DownloadPoint[];
+  total: number;
+  peak: number;
+  elapsedMs: number;
+  /** False when the endpoint errored or answered in an unexpected shape. */
+  ok: boolean;
+};
+
+const DOWNLOAD_WINDOW_DAYS = 30;
+
+function unavailable(
+  source: string,
+  subject: string,
+  startedAt: number,
+): DownloadSeries {
+  return {
+    source,
+    subject,
+    points: [],
+    total: 0,
+    peak: 0,
+    elapsedMs: Date.now() - startedAt,
+    ok: false,
+  };
+}
+
+function summarise(
+  source: string,
+  subject: string,
+  points: DownloadPoint[],
+  startedAt: number,
+): DownloadSeries {
+  let total = 0;
+  let peak = 0;
+  for (const point of points) {
+    total += point.downloads;
+    if (point.downloads > peak) peak = point.downloads;
+  }
+  return {
+    source,
+    subject,
+    points,
+    total,
+    peak,
+    elapsedMs: Date.now() - startedAt,
+    ok: true,
+  };
+}
+
+type NpmRangeResponse = {
+  downloads?: { day?: unknown; downloads?: unknown }[];
+};
+
+/**
+ * npm's download API is a separate service from the registry and answers 404
+ * for a package it has not accumulated statistics for yet, which is the normal
+ * state for the first days after a first publish. That is a `null` here, and
+ * the page renders an explicit unavailable state rather than a zeroed chart it
+ * cannot vouch for.
+ */
+export async function fetchNpmDownloads(
+  name = "@tschk/moonshine",
+): Promise<DownloadSeries> {
+  const startedAt = Date.now();
+  const body = await getJson<NpmRangeResponse>(
+    `https://api.npmjs.org/downloads/range/last-month/${name}`,
+    { accept: "application/json" },
+  );
+  if (!body || !Array.isArray(body.downloads)) {
+    return unavailable("npm", name, startedAt);
+  }
+  const points: DownloadPoint[] = [];
+  for (const entry of body.downloads) {
+    if (typeof entry.day !== "string") continue;
+    if (typeof entry.downloads !== "number") continue;
+    points.push({ date: entry.day, downloads: entry.downloads });
+  }
+  if (points.length === 0) return unavailable("npm", name, startedAt);
+  points.sort((a, b) => a.date.localeCompare(b.date));
+  return summarise("npm", name, points, startedAt);
+}
+
+type CrateDownloadsResponse = {
+  version_downloads?: { date?: unknown; downloads?: unknown }[];
+  meta?: { extra_downloads?: { date?: unknown; downloads?: unknown }[] };
+};
+
+function addDaily(
+  into: Map<string, number>,
+  rows: { date?: unknown; downloads?: unknown }[] | undefined,
+): void {
+  if (!Array.isArray(rows)) return;
+  for (const row of rows) {
+    if (typeof row.date !== "string") continue;
+    if (typeof row.downloads !== "number") continue;
+    into.set(row.date, (into.get(row.date) ?? 0) + row.downloads);
+  }
+}
+
+/** The last `DOWNLOAD_WINDOW_DAYS` dates ending today, UTC, oldest first. */
+function windowDates(days: number): string[] {
+  const today = Date.now();
+  const dates: string[] = [];
+  for (let back = days - 1; back >= 0; back -= 1) {
+    dates.push(new Date(today - back * 86_400_000).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+/**
+ * crates.io reports per-version rows plus an `extra_downloads` roll-up for
+ * versions it no longer breaks out, and omits days with no downloads entirely.
+ * Both are summed per date and the omitted days are filled with a real zero —
+ * an absent date on that API means nobody downloaded the crate that day.
+ * The identifying user agent is required: without it crates.io answers 403,
+ * which is indistinguishable from "no data" at the call site.
+ */
+export async function fetchCrateDownloads(
+  name = "crepuscularity",
+): Promise<DownloadSeries> {
+  const startedAt = Date.now();
+  const body = await getJson<CrateDownloadsResponse>(
+    `https://crates.io/api/v1/crates/${name}/downloads`,
+    { accept: "application/json", "user-agent": UA },
+  );
+  if (!body || !Array.isArray(body.version_downloads)) {
+    return unavailable("crates.io", name, startedAt);
+  }
+  const daily = new Map<string, number>();
+  addDaily(daily, body.version_downloads);
+  addDaily(daily, body.meta?.extra_downloads);
+  const points = windowDates(DOWNLOAD_WINDOW_DAYS).map((date) => ({
+    date,
+    downloads: daily.get(date) ?? 0,
+  }));
+  return summarise("crates.io", name, points, startedAt);
+}

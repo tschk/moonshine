@@ -1,6 +1,13 @@
 import type { CSSProperties } from "react";
 import { readEdgeFacts, jsonForScript, type EdgeFacts } from "../edge";
-import { fetchCrepusCrates, type CratesSnapshot } from "../registry";
+import {
+  fetchCrateDownloads,
+  fetchCrepusCrates,
+  type CratesSnapshot,
+  type CrateVersion,
+  type DownloadSeries,
+} from "../registry";
+import { DownloadChart } from "../downloads";
 import SignalGraph, { ISLAND_ID } from "../islands/graph";
 import { Chrome } from "../chrome";
 import { Crepuscularity, TscHk } from "../links";
@@ -9,6 +16,7 @@ import type { PageData } from "../renderer";
 type HomeData = PageData & {
   edge: EdgeFacts;
   crates: CratesSnapshot;
+  crateDownloads: DownloadSeries;
   /** Wall clock the loader itself spent, measured in the Worker. */
   loaderMs: number;
 };
@@ -20,9 +28,10 @@ export async function loader({
 }): Promise<HomeData> {
   const startedAt = Date.now();
   // Both upstreams are on the request path, so they overlap rather than queue.
-  const [edge, crates] = await Promise.all([
+  const [edge, crates, crateDownloads] = await Promise.all([
     readEdgeFacts(request),
     fetchCrepusCrates(),
+    fetchCrateDownloads(),
   ]);
   return {
     meta: {
@@ -32,6 +41,7 @@ export async function loader({
     },
     edge,
     crates,
+    crateDownloads,
     loaderMs: Date.now() - startedAt,
   };
 }
@@ -101,24 +111,52 @@ function Crates({ crates }: { crates: CratesSnapshot }) {
           {crates.count} crates on crates.io · read in {crates.elapsedMs} ms
         </span>
       </div>
-      <ul className="chips">
-        {crates.crates.map((crate, index) => (
-          <li
-            key={crate.name}
-            translate="no"
-            style={{ "--i": index } as CSSProperties}
-          >
-            <a
-              href={`https://crates.io/crates/${crate.name}`}
-              rel="noopener noreferrer"
-            >
-              {crate.name}
-            </a>
-            <span className="chip-v">{crate.version}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="carousel">
+        <div className="carousel-track">
+          <CrateChips crates={crates.crates} />
+          <CrateChips crates={crates.crates} duplicate />
+        </div>
+      </div>
     </div>
+  );
+}
+
+/**
+ * The carousel is two identical rows sliding as one. Only the first is in the
+ * accessibility tree and in the tab order, so a screen reader still reads the
+ * 25 crates exactly once; the second exists purely so the loop has no seam,
+ * and it is display:none under `prefers-reduced-motion: reduce`, where the
+ * first row falls back to the plain wrapping chip list.
+ */
+function CrateChips({
+  crates,
+  duplicate,
+}: {
+  crates: CrateVersion[];
+  duplicate?: boolean;
+}) {
+  return (
+    <ul
+      className={duplicate ? "chips carousel-dup" : "chips"}
+      {...(duplicate ? { "aria-hidden": true } : {})}
+    >
+      {crates.map((crate, index) => (
+        <li
+          key={crate.name}
+          translate="no"
+          style={{ "--i": index } as CSSProperties}
+        >
+          <a
+            href={`https://crates.io/crates/${crate.name}`}
+            rel="noopener noreferrer"
+            {...(duplicate ? { tabIndex: -1 } : {})}
+          >
+            {crate.name}
+          </a>
+          <span className="chip-v">{crate.version}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -241,7 +279,7 @@ export default function Home({ data }: { data: HomeData }) {
           parallel and intercepting routes.
         </p>
         <div className="panel">
-          <pre>
+          <pre tabIndex={0}>
             <code>{`$ moonshine adopt ./my-next-app --dry-run
 $ moonshine build --adapter cloudflare
 $ moonshine preview`}</code>
@@ -308,6 +346,12 @@ $ moonshine preview`}</code>
           repository.
         </p>
         <Crates crates={data.crates} />
+        <p>
+          Downloads of the <Crepuscularity /> crate itself, one point per day
+          for the last month, read from the crates.io downloads API in this same
+          request. Hover or focus the chart to move the readout.
+        </p>
+        <DownloadChart id="crepuscularity" series={data.crateDownloads} />
       </section>
 
       <section aria-labelledby="measured-heading">
@@ -320,7 +364,7 @@ $ moonshine preview`}</code>
           moonshine, served from the same host, with identical rendered text and
           every interactive component still working.
         </p>
-        <div className="tablewrap">
+        <div className="tablewrap" tabIndex={0}>
           <table>
             <caption className="muted" style={{ padding: "7px 14px" }}>
               Uncompressed transfer bytes: HTML plus every script and stylesheet
@@ -391,7 +435,7 @@ $ moonshine preview`}</code>
       <section aria-labelledby="start-heading">
         <h2 id="start-heading">Start</h2>
         <div className="panel">
-          <pre>
+          <pre tabIndex={0}>
             <code>{`$ bun add @tschk/moonshine
 $ bunx moonshine new my-app --react --adapter cloudflare
 $ bunx moonshine dev`}</code>

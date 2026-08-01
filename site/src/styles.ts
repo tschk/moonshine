@@ -219,6 +219,84 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   transform: scaleX(var(--fill, 0));
 }
 
+/*
+ * The fill cell is the positioning context for the confetti canvas, which is
+ * absolutely positioned and never in the layout path, so a burst cannot shift
+ * anything or widen the page.
+ */
+.fillcell { position: relative; }
+
+/* The canvas only exists while a burst is on screen: at rest it is display:none
+   so it never overlaps the values it sits in front of. */
+.confetti {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: -70px;
+  width: 100%;
+  height: 150px;
+  pointer-events: none;
+}
+
+/* Past 100% the track cannot grow, so it changes treatment instead: the
+   border lights up and the fill goes striped while the label keeps counting. */
+.track[data-over="true"] { border-color: var(--live); }
+.track[data-over="true"] .bar {
+  opacity: 1;
+  background: repeating-linear-gradient(115deg, var(--live) 0 5px, #4d7c0f 5px 10px);
+}
+
+.fillnum { font-variant-numeric: tabular-nums; }
+.fillnum[data-over="true"] { color: var(--live); font-weight: 600; }
+
+.carousel { position: relative; }
+.carousel-track { display: flex; flex-wrap: wrap; }
+.carousel .carousel-dup { display: none; }
+
+.dl {
+  margin: 0;
+  padding: 12px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dl-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 16px;
+  font-size: 11.5px;
+}
+.dl-sub { color: var(--fg); overflow-wrap: anywhere; }
+.dl-read { color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.dl-read strong { color: var(--fg); font-weight: 600; }
+.dl-read[data-tracking="yes"],
+.dl-read[data-tracking="yes"] strong { color: var(--live); }
+
+.dl-svg { display: block; width: 100%; height: auto; aspect-ratio: 600 / 140; }
+.dl-base { stroke: var(--line); stroke-width: 1; }
+.dl-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dl-dim { stroke: var(--line); }
+.dl-hot { stroke: var(--live); }
+.dl-cursor line { stroke: var(--fg-faint); stroke-width: 1; }
+.dl-cursor circle { fill: var(--live); stroke: var(--bg); stroke-width: 2; }
+
+.dl-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.dl-note { margin: 6px 0 0; font-size: 11.5px; }
+
 .status { color: var(--fg-faint); font-size: 11.5px; }
 .status[data-hydrated="true"] { color: var(--live); }
 
@@ -326,6 +404,77 @@ footer {
 
   .bar { transition: transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1); }
   .status { transition: color 240ms ease; }
+
+  /*
+   * Cross-document view transitions. Navigation here is a full document load
+   * with no client router, so the browser drives this entirely from CSS; a
+   * browser without support simply ignores the rule and navigates normally.
+   */
+  @view-transition { navigation: auto; }
+
+  /* The pivot link is the same named element on both pages, so the browser
+     morphs the anchor's box and cross-fades its old label into its new one
+     instead of the whole page fading as one. The brand and footer are named
+     too so the chrome stays put while only the content crossfades. */
+  .pivot { view-transition-name: pivot; }
+  .brand { view-transition-name: brand; }
+  footer { view-transition-name: sitefoot; }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation-duration: 260ms; }
+  ::view-transition-old(pivot),
+  ::view-transition-new(pivot) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  ::view-transition-group(pivot) { animation-duration: 320ms; }
+
+  @keyframes marquee {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(-50%, 0, 0); }
+  }
+
+  /* Auto-advance only exists here, so the reduce path never sees a carousel:
+     the track keeps its wrapping flex layout and the duplicate row stays
+     display:none, leaving the plain static chip list. */
+  .carousel {
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0,
+      #000 22px,
+      #000 calc(100% - 22px),
+      transparent 100%
+    );
+  }
+  .carousel::-webkit-scrollbar { display: none; }
+  .carousel .chips { flex-wrap: nowrap; }
+  .carousel .carousel-dup { display: flex; }
+  .carousel-track {
+    flex-wrap: nowrap;
+    width: max-content;
+    animation: marquee 60s linear infinite;
+  }
+  .carousel:hover .carousel-track,
+  .carousel:focus-within .carousel-track { animation-play-state: paused; }
+
+  @keyframes dl-draw {
+    from { stroke-dashoffset: 1600; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes dl-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .dl-hot {
+    stroke-dasharray: 1600;
+    animation: dl-draw 1100ms cubic-bezier(0.22, 0.61, 0.36, 1) 180ms both;
+  }
+  .dl-area { animation: dl-fade 700ms ease 620ms both; }
+  .dl-dim { animation: dl-fade 600ms ease 840ms both; }
+  .dl-read { transition: color 160ms ease; }
   button { transition: background 140ms ease, border-color 140ms ease, transform 90ms ease; }
   button:active:not(:disabled) { transform: translate3d(0, 1px, 0); }
 }

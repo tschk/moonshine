@@ -45,9 +45,14 @@ export function Chrome({
           moonshine
         </a>
         <nav aria-label="Primary">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <a
               key={item.href}
+              /* The pivot is the only nav entry whose href and text differ
+                 between the two pages, so it is the one that carries a
+                 view-transition-name: the old and new anchors are then the
+                 same element to the browser and it morphs between them. */
+              className={index === 0 ? "pivot" : undefined}
               href={item.href}
               {...(item.external
                 ? { rel: "noopener noreferrer", target: "_blank" }
