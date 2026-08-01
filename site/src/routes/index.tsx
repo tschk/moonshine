@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { readEdgeFacts, jsonForScript, type EdgeFacts } from "../edge";
 import {
-  fetchCrateDownloads,
+  fetchNpmDownloads,
   fetchCrepusCrates,
   type CratesSnapshot,
   type CrateVersion,
@@ -16,7 +16,7 @@ import type { PageData } from "../renderer";
 type HomeData = PageData & {
   edge: EdgeFacts;
   crates: CratesSnapshot;
-  crateDownloads: DownloadSeries;
+  moonshineDownloads: DownloadSeries;
   /** Wall clock the loader itself spent, measured in the Worker. */
   loaderMs: number;
 };
@@ -28,10 +28,10 @@ export async function loader({
 }): Promise<HomeData> {
   const startedAt = Date.now();
   // Both upstreams are on the request path, so they overlap rather than queue.
-  const [edge, crates, crateDownloads] = await Promise.all([
+  const [edge, crates, moonshineDownloads] = await Promise.all([
     readEdgeFacts(request),
     fetchCrepusCrates(),
-    fetchCrateDownloads(),
+    fetchNpmDownloads(),
   ]);
   return {
     meta: {
@@ -41,7 +41,7 @@ export async function loader({
     },
     edge,
     crates,
-    crateDownloads,
+    moonshineDownloads,
     loaderMs: Date.now() - startedAt,
   };
 }
@@ -104,19 +104,18 @@ function Crates({ crates }: { crates: CratesSnapshot }) {
     );
   }
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="dot" aria-hidden="true" />
-        <span>
-          {crates.count} crates on crates.io · read in {crates.elapsedMs} ms
-        </span>
-      </div>
+    // Full-bleed: the carousel escapes the reading column so the strip runs the
+    // whole viewport, rather than sitting in a panel the text has to step around.
+    <div className="bleed">
       <div className="carousel">
         <div className="carousel-track">
           <CrateChips crates={crates.crates} />
           <CrateChips crates={crates.crates} duplicate />
         </div>
       </div>
+      <p className="muted bleed-note">
+        {crates.count} crates on crates.io · read in {crates.elapsedMs} ms
+      </p>
     </div>
   );
 }
@@ -324,34 +323,28 @@ $ moonshine preview`}</code>
       </section>
 
       <section aria-labelledby="crepus-heading">
-        <h2 id="crepus-heading">One parser, four frontends</h2>
+        <h2 id="crepus-heading">One parser, six frontends</h2>
         <p>
           <code>.crepus</code> templates are not parsed in TypeScript. They go
           through the <Crepuscularity /> Rust parser compiled to WebAssembly and
-          published as <code>@tschk/crepuscularity-wasm</code>. That parser now
-          accepts four input languages — <code>.crepus</code>, JSX/TSX,{" "}
-          <code>.svelte</code> and <code>.vue</code> — and lowers all of them to
-          a single View IR, which the React and Solid renderers consume.
-        </p>
-        <p>
-          Class tokens from the template survive as <code>className</code>{" "}
-          verbatim; the renderers never turn IR style hints into inline CSS, so
-          UnoCSS or Tailwind still owns the styling.
-        </p>
-        <p>
-          That parser is a Rust workspace, published to crates.io alongside its
-          runtime, CLI and renderer crates. The list below is read from the
-          crates.io API inside this Worker while the page is being built, so it
-          is whatever is actually published right now — not a copy kept in this
-          repository.
+          published as <code>@tschk/crepuscularity-wasm</code>. It accepts{" "}
+          <code>.crepus</code>, JSX/TSX, <code>.svelte</code>, <code>.vue</code>
+          , <code>.astro</code> and Angular templates, lowering all of them to
+          one View IR that the React and Solid renderers consume. Class tokens
+          survive as <code>className</code> verbatim, so UnoCSS or Tailwind
+          still owns the styling.
         </p>
         <Crates crates={data.crates} />
-        <p>
-          Downloads of the <Crepuscularity /> crate itself, one point per day
-          for the last month, read from the crates.io downloads API in this same
-          request. Hover or focus the chart to move the readout.
-        </p>
-        <DownloadChart id="crepuscularity" series={data.crateDownloads} />
+        {data.moonshineDownloads.ok ? (
+          <>
+            <p className="muted">
+              Daily downloads of <code>@tschk/moonshine</code> for the last
+              month, read from the npm downloads API in this same request. Hover
+              or focus the chart to move the readout.
+            </p>
+            <DownloadChart id="moonshine" series={data.moonshineDownloads} />
+          </>
+        ) : null}
       </section>
 
       <section aria-labelledby="measured-heading">

@@ -249,6 +249,24 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .fillnum { font-variant-numeric: tabular-nums; }
 .fillnum[data-over="true"] { color: var(--live); font-weight: 600; }
 
+/* Full-bleed strip: the reading column is 74ch, but the carousel spans the
+   viewport. 100vw includes the scrollbar gutter, so the row is clipped to the
+   page width to avoid introducing a horizontal scrollbar of its own. */
+.bleed {
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  width: 100vw;
+  max-width: 100vw;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.bleed-note {
+  max-width: none;
+  text-align: center;
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
 .carousel { position: relative; }
 .carousel-track { display: flex; flex-wrap: wrap; }
 .carousel .carousel-dup { display: none; }
