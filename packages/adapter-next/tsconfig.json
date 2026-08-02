@@ -1,4 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "next/link": ["./src/link.ts"],
+      "next/navigation": ["./src/navigation.ts"],
+      "next/image": ["./src/image.ts"],
+      "next/script": ["./src/script.ts"],
+      "next/headers": ["./src/headers.ts"],
+      "next/dynamic": ["./src/dynamic.ts"],
+      "next/font/google": ["./src/font/google.ts"]
+    }
+  },
   "include": ["src/**/*", "test/**/*"]
 }
