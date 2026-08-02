@@ -408,9 +408,21 @@ $ moonshine preview`}</code>
                 <td className="num">0</td>
                 <td className="num">−100%</td>
               </tr>
+              <tr>
+                <th scope="row">build</th>
+                <td>compile + prerender</td>
+                <td className="num">3.06 s</td>
+                <td className="num">0.29 s</td>
+                <td className="num">−91%</td>
+              </tr>
             </tbody>
           </table>
         </div>
+        <p className="muted">
+          Build timing is the median of five local production builds on Bun
+          1.3.14 and Apple arm64, with remote content-sync hooks omitted. It
+          measures framework compiler and prerender work, not browser loading.
+        </p>
         <p className="muted">
           This is one application on one host. It is evidence that a React app
           using few Next-specific APIs sheds most of its client JavaScript on

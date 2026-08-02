@@ -18,8 +18,9 @@ Honest map: what Moonshine is, what it is not, and where the trade-offs sit.
 | Renderer model        | Renderer contract; React / Solid / Crepus own output; no shared vnode | `.astro` compiler + framework islands           | React Server Components                          | Solid SSR / hydration via Vinxi                              | Svelte compiler + server/client data                               | React (RSC / SSR / CSR)                                        | Next.js renderer unchanged                  |
 | Opt-in capabilities   | Router, compiler, server, renderers, deploy adapters, host adapters   | Images, content collections, view transitions   | RSC, middleware, client islands                  | Server functions, actions, serialization, islands            | Forms, server loads, actions, adapters                             | RSC, image/font, cache, PPR, platform integrations             | Edge, serverless, static, incremental cache |
 
-No speed ranking is included; the repository only reports the core bundle size
-measured by `scripts/check-size.ts`.
+The repository does not claim a broad framework speed ranking. It reports the
+core bundle size measured by `scripts/check-size.ts` and one same-application
+build comparison below.
 
 ## Measured on this machine
 

@@ -104,6 +104,8 @@ describe("document shell", () => {
     expect(html).toContain('data-island="signal-graph"');
     expect(html).toContain('<script type="module" src="/client.js"></script>');
     expect(html).toContain('<main id="main">');
+    expect(html).toContain("compile + prerender");
+    expect(html).toContain("0.29 s");
   });
 
   test("the packages page lists every package", async () => {
