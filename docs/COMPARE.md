@@ -72,13 +72,18 @@ only the framework differs.
 
 Measured over the network against the deployed sites, not a local build:
 
-| Route    | Metric |            Next.js |   Moonshine |    Change |
-| -------- | ------ | -----------------: | ----------: | --------: |
-| `/`      | HTML   |             99,931 |      79,899 |      −20% |
-| `/`      | JS     | 894,470 (11 files) | 183,265 (1) |  **−80%** |
-| `/`      | CSS    |             53,509 |      41,166 |      −23% |
-| `/agent` | HTML   |             13,195 |       3,923 |      −70% |
-| `/agent` | JS     | 654,653 (10 files) |       **0** | **−100%** |
+| Route    | Metric              |            Next.js |   Moonshine |    Change |
+| -------- | ------------------- | -----------------: | ----------: | --------: |
+| `/`      | HTML                |             99,931 |      79,899 |      −20% |
+| `/`      | JS                  | 894,470 (11 files) | 183,265 (1) |  **−80%** |
+| `/`      | CSS                 |             53,509 |      41,166 |      −23% |
+| `/agent` | HTML                |             13,195 |       3,923 |      −70% |
+| `/agent` | JS                  | 654,653 (10 files) |       **0** | **−100%** |
+| build    | compile + prerender |             3.06 s |      0.29 s |  **−91%** |
+
+Build timing is the median of five local production builds on Bun 1.3.14 and
+Apple arm64, with remote content-sync hooks omitted; it measures framework
+compiler and prerender work, not browser loading.
 
 Bytes are uncompressed transfer sizes of the HTML plus every script and
 stylesheet it references. The `/agent` route ships no JavaScript at all because
