@@ -1,3 +1,19 @@
+# Moonshine 0.3.5
+
+## Compiler
+
+- Browser bundles now begin with `globalThis.process ??= { env: {} };`. Client
+  code and its dependencies routinely read `process.env.X`; browsers have no
+  `process`, so that reference threw `ReferenceError: process is not defined`
+  while the client entry module was still evaluating — before any component
+  rendered and before an error boundary could mount. The page stayed blank with
+  an empty console, which is close to undiagnosable from the outside. The shim
+  uses `??=`, so an application that injects its own public values ahead of the
+  bundle keeps them. Values are deliberately not inlined: inlining the process
+  environment into a browser bundle would ship whatever secrets the build host
+  holds. Server bundles are untouched, where a real `process` exists and
+  shimming it would mask genuine environment faults.
+
 # Moonshine 0.3.3
 
 ## Host adapters

@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-site",
   "private": true,
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "moonshine.tsc.hk — the moonshine showcase, built on moonshine and served from Cloudflare Workers",
   "type": "module",
   "scripts": {
@@ -17,15 +17,15 @@
     "deploy": "bun run build && bunx wrangler deploy"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.3.4",
-    "@tschk/moonshine-deploy-cloudflare": "^0.3.4",
-    "@tschk/moonshine-framework": "^0.3.4",
-    "@tschk/moonshine-react": "^0.3.4",
-    "@tschk/moonshine-router": "^0.3.4",
-    "@tschk/moonshine-server": "^0.3.4"
+    "@tschk/moonshine": "^0.3.5",
+    "@tschk/moonshine-deploy-cloudflare": "^0.3.5",
+    "@tschk/moonshine-framework": "^0.3.5",
+    "@tschk/moonshine-react": "^0.3.5",
+    "@tschk/moonshine-router": "^0.3.5",
+    "@tschk/moonshine-server": "^0.3.5"
   },
   "devDependencies": {
-    "@tschk/moonshine-cli": "^0.3.4",
+    "@tschk/moonshine-cli": "^0.3.5",
     "@types/bun": "1.3.14",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

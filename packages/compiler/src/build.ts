@@ -108,6 +108,19 @@ async function runBuild(
     naming: "[name].js",
     splitting: false,
     sourcemap: "none",
+    // Browsers have no `process`. Any dependency that reads `process.env.X` —
+    // and most of them do, behind a `typeof` guard or not — otherwise throws
+    // `ReferenceError: process is not defined` while the entry module is being
+    // evaluated. That happens before any render, so the app silently mounts
+    // nothing: no error boundary runs and the page is simply blank.
+    //
+    // `??=` so an app that injects real values ahead of this bundle keeps them;
+    // this only guarantees the property exists. Values are deliberately not
+    // inlined here — inlining the process environment into a browser bundle
+    // would ship every secret the build host happens to hold.
+    ...(target === "browser"
+      ? { banner: "globalThis.process ??= { env: {} };" }
+      : {}),
   });
   if (!result.success) {
     const messages = result.logs.map((log) => log.message).join("\n");

@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-shaders",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Optional WebGL fragment helpers for moonshine React apps",
   "license": "ISC",
   "type": "module",
