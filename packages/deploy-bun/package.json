@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-deploy-bun",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -15,11 +15,11 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine-adapter-conformance": "^0.3.5",
-    "@tschk/moonshine-compiler": "^0.3.5",
-    "@tschk/moonshine-framework": "^0.3.5",
-    "@tschk/moonshine-react": "^0.3.5",
-    "@tschk/moonshine-server": "^0.3.5"
+    "@tschk/moonshine-adapter-conformance": "^0.3.6",
+    "@tschk/moonshine-compiler": "^0.3.6",
+    "@tschk/moonshine-framework": "^0.3.6",
+    "@tschk/moonshine-react": "^0.3.6",
+    "@tschk/moonshine-server": "^0.3.6"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

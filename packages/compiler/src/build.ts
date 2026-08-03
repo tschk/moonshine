@@ -63,6 +63,30 @@ function generateServerEntry(
       : ""
   }`);
   }
+  // Layouts, middleware, and error boundaries are route dependencies the server
+  // renders through, so they belong in the bundle alongside the pages. Without
+  // them the renderer falls back to `await import(file)` on their SOURCE paths,
+  // which only resolves where the source tree sits next to the build output —
+  // never in a deployed image, and never on a runtime that cannot resolve a
+  // dynamic import at all. A page would render locally and 500 in production.
+  const supportFiles: string[] = [];
+  for (const route of routes) {
+    for (const file of [
+      ...(route.layouts ?? []),
+      ...(route.middleware ?? []),
+      ...(route.errorBoundary ? [route.errorBoundary] : []),
+    ]) {
+      if (file && !supportFiles.includes(file)) supportFiles.push(file);
+    }
+  }
+  for (let i = 0; i < supportFiles.length; i++) {
+    const file = supportFiles[i]!;
+    imports.push(`import * as support_${i} from "${importPath(buildDir, file)}";`);
+    // Registered unwrapped: these export a component or middleware, not a route
+    // module with loader/action semantics.
+    moduleBodys.push(`  "${toPosix(file)}": support_${i}`);
+  }
+
   return `${imports.join("\n")}\n\n${moduleHelpers.join("\n")}\n\nconst ${routes.map((_, i) => `module_${i} = makeModule_${i}(route_${i}, ${routes[i]!.dataFile ? `data_${i}` : "undefined"})`).join(";\nconst ")};\n\nexport const routes = {\n${bodies.join(",\n")}\n};\n\nexport const modules = {\n${moduleBodys.join(",\n")}\n};\n`;
 }
 

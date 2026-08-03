@@ -1,3 +1,16 @@
+# Moonshine 0.3.6
+
+## Compiler
+
+- The server bundle now registers the layouts, middleware, and error boundaries
+  its routes render through, not just the page and its data module. They were
+  absent, so the renderer fell back to `await import(file)` on their source
+  paths. That resolves in a checkout, where the source sits beside the build
+  output, and fails in a deployed image that ships only the build — a route
+  renders locally and returns 500 in production. It also fails outright on a
+  runtime that cannot resolve a dynamic import, which is the case
+  `registerRouteModules` exists for.
+
 # Moonshine 0.3.5
 
 ## Compiler

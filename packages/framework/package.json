@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-framework",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -15,7 +15,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.3.5"
+    "@tschk/moonshine": "^0.3.6"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
