@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-deploy-node",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",

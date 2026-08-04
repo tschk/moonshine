@@ -33,13 +33,13 @@ export function splitLocation(location: string): [string, string] {
 }
 
 /**
- * The moonshine router stores only the pathname, so a query string survives
- * navigation on `window.location` but not in the location signal. Prefer the
- * signal when it carries one (SSR / controlled paths) and fall back to the
- * browser's own search.
+ * The location signal carries the query, so the signal is the source of truth
+ * and a query-only navigation re-renders. The browser fallback remains for the
+ * one case the signal cannot cover: a controlled `path` prop given without a
+ * query while the address bar has one.
  */
 function readSearch(location: string): string {
-  const fromSignal = splitLocation(location)[1];
+  const [, fromSignal] = splitLocation(location);
   if (fromSignal) return fromSignal;
   if (typeof window === "undefined") return "";
   return window.location.search.replace(/^\?/, "");

@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-next",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Next.js API surface reimplemented on moonshine — drop Next, keep the imports",
   "license": "ISC",
   "type": "module",

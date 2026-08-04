@@ -56,13 +56,48 @@ describe("next/navigation", () => {
     expect(await readHook(() => usePathname())).toBe("/products/42");
   });
 
-  test("useSearchParams reads the query the router does not keep", async () => {
+  test("useSearchParams reads the query the router carries", async () => {
     navigate("/products?sort=asc&page=3");
     const read = await readHook(() => {
       const params = useSearchParams();
       return `${params.get("sort")}|${params.get("page")}`;
     });
     expect(read).toBe("asc|3");
+  });
+
+  // A mounted tree, not a fresh render: the bug this guards was that a
+  // navigation changing only the query wrote the same pathname to the location
+  // signal, notified nobody, and left every already-mounted `useSearchParams`
+  // caller showing the previous query. Re-rendering from scratch would pass
+  // either way and prove nothing.
+  test("useSearchParams updates a mounted tree when only the query changes", async () => {
+    navigate("/settings?section=privacy");
+    function Probe() {
+      return createElement(
+        "i",
+        { id: "out" },
+        useSearchParams().get("section") ?? "none",
+      );
+    }
+    const container = await render(createElement(Probe));
+    expect(container.querySelector("#out")?.textContent).toBe("privacy");
+
+    await act(async () => {
+      navigate("/settings?section=developer");
+    });
+    expect(container.querySelector("#out")?.textContent).toBe("developer");
+  });
+
+  test("usePathname ignores the query a mounted tree navigated to", async () => {
+    navigate("/settings?section=privacy");
+    function Probe() {
+      return createElement("i", { id: "out" }, usePathname());
+    }
+    const container = await render(createElement(Probe));
+    await act(async () => {
+      navigate("/settings?section=developer");
+    });
+    expect(container.querySelector("#out")?.textContent).toBe("/settings");
   });
 
   test("useSearchParams is empty when there is no query", async () => {

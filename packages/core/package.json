@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Hyperminimal signal runtime — Bun-first; import /react for TSX apps",
   "license": "ISC",
   "type": "module",

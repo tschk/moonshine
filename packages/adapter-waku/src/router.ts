@@ -61,7 +61,8 @@ function useRerender(): () => void {
 }
 
 export function useRoute(): RouteProps {
-  const pathname = useLocation();
+  // The location signal carries the query too; the path is its first half.
+  const pathname = useLocation().split("?")[0];
   const search = browserPart("search");
   const hash = browserPart("hash");
   return useMemo(

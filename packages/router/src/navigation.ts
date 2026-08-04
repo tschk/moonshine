@@ -15,17 +15,36 @@ import { createRouteGraph, matchRoutes, type RouteMatch } from "./graph.js";
 
 export type RouteParams = Record<string, string>;
 
+/**
+ * The location the signal carries: pathname plus query.
+ *
+ * The query has to be in the signal, not read off `window.location` at render
+ * time. A navigation that changes only the query would otherwise write the
+ * same pathname back, notify no subscriber, and leave every `useSearchParams`
+ * caller rendering the previous query — a tab bar driven by `?section=` would
+ * change the URL and not the page. The hash stays out: it is still pushed to
+ * history, but these hooks do not read it and including it would corrupt the
+ * query when consumers split on the first "?".
+ */
 function getBrowserPath(): string {
   if (typeof window === "undefined") return "/";
-  return window.location.pathname || "/";
+  return (window.location.pathname || "/") + window.location.search;
+}
+
+/** Splits `"/a/b?x=1"` into its pathname and its raw query string. */
+export function splitLocation(location: string): [string, string] {
+  const index = location.indexOf("?");
+  return index === -1
+    ? [location, ""]
+    : [location.slice(0, index), location.slice(index + 1)];
 }
 
 export type MoonshineRouterInstance = {
   /** Navigate via History API (no full reload). */
   navigate: (to: string, options?: { replace?: boolean }) => void;
-  /** Current pathname (reactive signal). */
+  /** Current pathname and query (reactive signal). */
   getLocation: () => string;
-  /** Subscribe-friendly location signal. */
+  /** Subscribe-friendly location signal, carrying pathname and query. */
   location: Signal<string>;
   /** Sync signal from `window.location`. */
   syncFromBrowser: () => void;
@@ -52,7 +71,7 @@ export function createMoonshineRouter(
     } else {
       window.history.pushState({}, "", url.pathname + url.search + url.hash);
     }
-    location.set(url.pathname);
+    location.set(url.pathname + url.search);
   };
 
   return {
@@ -77,7 +96,7 @@ export function navigate(to: string, options?: { replace?: boolean }): void {
   currentRouter().navigate(to, options);
 }
 
-/** Current pathname (reactive; active or fallback router). */
+/** Current pathname and query (reactive; active or fallback router). */
 export function getLocation(): string {
   return currentRouter().getLocation();
 }
@@ -158,7 +177,9 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
     () => runtime.location.peek(),
     () => props.path ?? "/",
   );
-  const pathname = props.path ?? browserPath;
+  // Routes are matched on the pathname alone; the query rides along in the
+  // signal only so that changing it re-renders.
+  const pathname = splitLocation(props.path ?? browserPath)[0];
   const [ready, setReady] = useState(
     typeof window === "undefined" || props.path !== undefined,
   );
