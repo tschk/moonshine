@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*", "bin/**/*", "test/**/*"],
+  // test/fixtures are stand-in apps for adopt to scan, not moonshine source:
+  // they import `next/*`, `svelte`, `vue` and friends on purpose and are never
+  // meant to resolve here. Checking them would only assert that this repo does
+  // not have Next installed.
+  "exclude": ["test/fixtures/**", "test/.tmp-*/**"]
+}

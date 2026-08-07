@@ -108,6 +108,15 @@ adapter does supply a client `Link` and router — this particular site did not
 use it. What `adopt` cannot carry over is listed per file when it runs, and in
 the [adapter README](../packages/adapter-next/README.md#not-supported).
 
+`adopt` is not Next-only. It aliases four hosts the same way — Next,
+react-router/Remix, TanStack Router and Waku — each through its own adapter
+package, without editing source. Svelte, Vue, Astro and Angular have no adapter
+and take a rougher path instead: their templates are compiled to View IR and
+emitted as generated React modules under `moonshine/routes` (or
+`moonshine/components` when the file maps to no URL). Only markup is compiled
+there; `<script>` blocks, Astro frontmatter and the Angular component class are
+never executed, so component logic has to be ported by hand.
+
 [ud]: https://undivisible.dev
 
 ## When to pick Moonshine

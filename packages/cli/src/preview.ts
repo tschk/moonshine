@@ -2,7 +2,10 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
 import { readManifest } from "@tschk/moonshine-compiler";
-import { createRequestHandler } from "@tschk/moonshine-server";
+import {
+  createRequestHandler,
+  type RouteModule,
+} from "@tschk/moonshine-server";
 import {
   PUBLIC_DIR,
   type MoonshineManifest,
@@ -82,13 +85,24 @@ export async function startPreview(options: {
     ".moonshine",
     raw.entries.server ?? "dist/server.js",
   );
-  let modules: Record<string, unknown> = {};
+  // A missing or broken server bundle used to be swallowed here, leaving an
+  // empty module map: preview then booted happily and every server-rendered
+  // route 500'd with "cannot find module <source path>", pointing at a file
+  // that was never supposed to be loaded at runtime. Say which bundle failed
+  // and why, once, instead of making the user infer it from the wreckage.
+  let modules: Record<string, RouteModule> = {};
   try {
     const bundle = (await import(serverBundlePath)) as {
-      modules?: Record<string, unknown>;
+      modules?: Record<string, RouteModule>;
     };
     modules = bundle.modules ?? {};
-  } catch {}
+  } catch (error) {
+    console.warn(
+      `moonshine preview: could not load ${serverBundlePath}\n` +
+        `  ${error instanceof Error ? error.message : String(error)}\n` +
+        `  Server-rendered routes will fail. Run \`moonshine build\` first.`,
+    );
+  }
   const fetch = createRequestHandler({
     manifest,
     modules,

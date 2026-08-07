@@ -270,16 +270,41 @@ export default function Home({ data }: { data: HomeData }) {
       <section aria-labelledby="adopt-heading">
         <h2 id="adopt-heading">Adopting an existing app</h2>
         <p>
-          <code>moonshine adopt</code> points at an existing Next application,
-          scans it, and aliases <code>next/*</code> specifiers to moonshine
-          implementations through <code>tsconfig</code> paths — no source edits.
-          It also prints, bluntly, what does not carry over: middleware, the
-          Next config, <code>generateMetadata</code>, ISR, server actions,
-          parallel and intercepting routes.
+          <code>moonshine adopt</code> walks up from the working directory,
+          detects what the project is, and edits no source files. Next,
+          react-router/Remix, TanStack Router and Waku apps keep their imports:
+          every specifier the matching adapter implements is remapped through{" "}
+          <code>tsconfig</code> paths, so <code>next/*</code>,{" "}
+          <code>react-router</code>, <code>@remix-run/*</code>,{" "}
+          <code>@tanstack/react-router</code> and <code>waku/*</code> resolve to
+          moonshine implementations instead.
+        </p>
+        <p>
+          Svelte, Vue, Astro and Angular have no adapter, so they take the
+          rougher path: each <code>.svelte</code>, <code>.vue</code>,{" "}
+          <code>.astro</code> or Angular component template compiles through{" "}
+          <Crepuscularity /> into View IR, and adopt writes a generated React
+          module that renders it — under <code>moonshine/routes</code> when the
+          filename maps to a URL, otherwise <code>moonshine/components</code>,
+          compiled but unmounted. Only markup is compiled. Svelte{" "}
+          <code>&lt;script&gt;</code> blocks, Vue&rsquo;s Composition API,
+          Astro&rsquo;s <code>---</code> frontmatter and the Angular component
+          class are never executed, so that logic has to be ported by hand.
+        </p>
+        <p>
+          It also prints, bluntly, what does not carry over. For Next:
+          middleware, the Next config, <code>generateMetadata</code>, ISR,
+          server actions, async server components, parallel and intercepting
+          routes. For the template path: unsupported constructs are parse errors
+          reported per file — Astro rejects imported component tags,{" "}
+          <code>&lt;slot /&gt;</code>, spreads and <code>transition:*</code>, so
+          a real Astro app usually adopts partially rather than whole, and
+          Angular has no file-based routing, so nothing is mounted at a URL at
+          all.
         </p>
         <div className="panel">
           <pre tabIndex={0}>
-            <code>{`$ moonshine adopt ./my-next-app --dry-run
+            <code>{`$ moonshine adopt --dry-run
 $ moonshine build --adapter cloudflare
 $ moonshine preview`}</code>
           </pre>
