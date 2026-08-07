@@ -57,6 +57,22 @@ describe("next/* aliases", () => {
     }
   });
 
+  // This package's own tsconfig carries a paths block so tsc resolves the
+  // `next/*` imports in test/fixtures the way the plugin does. If an alias is
+  // added to the map and not to that block, the fixture's new import silently
+  // stops being type-checked, which is how the check went red and stayed red
+  // before. Keep the two sets identical.
+  test("the package tsconfig maps every alias the plugin does", async () => {
+    const tsconfig = await Bun.file(
+      new URL("../tsconfig.json", import.meta.url).pathname,
+    ).text();
+    const paths = JSON.parse(tsconfig.replace(/^\s*\/\/.*$/gm, ""))
+      .compilerOptions.paths;
+    expect(Object.keys(paths).sort()).toEqual(
+      Object.keys(tsconfigPaths()).sort(),
+    );
+  });
+
   test("tsconfigPaths mirrors the alias map in paths form", () => {
     expect(tsconfigPaths()).toEqual({
       "next/link": ["@tschk/moonshine-next/link"],

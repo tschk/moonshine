@@ -1,4 +1,24 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*", "test/**/*"],
+  "compilerOptions": {
+    // The `next/*` specifiers in test/fixtures are real, and are meant to be
+    // resolved by the alias plugin rather than by an installed `next`. Without
+    // telling tsc the same mapping, every fixture import is an unresolved
+    // module and `bun run check` is permanently red — which is worse than an
+    // unchecked fixture, because a gate nobody can pass is a gate nobody reads.
+    //
+    // These entries are `tsconfigPaths()` from src/aliases.ts, which exists to
+    // hand exactly this block to an adopting app. A drift test keeps the two
+    // in step.
+    "paths": {
+      "next/link": ["./src/link.ts"],
+      "next/navigation": ["./src/navigation.ts"],
+      "next/image": ["./src/image.ts"],
+      "next/script": ["./src/script.ts"],
+      "next/headers": ["./src/headers.ts"],
+      "next/dynamic": ["./src/dynamic.ts"],
+      "next/font/google": ["./src/font/google.ts"]
+    }
+  }
 }
