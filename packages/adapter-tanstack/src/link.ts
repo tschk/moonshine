@@ -17,7 +17,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { navigate } from "@tschk/moonshine/router";
+import { isExternal, navigate } from "@tschk/moonshine/router";
 import { buildHref, type ToOptions } from "./location";
 import { useParsedLocation } from "./location";
 
@@ -38,15 +38,6 @@ export type LinkProps = Omit<
     style?: Record<string, unknown>;
     children?: ReactNode | ((state: LinkRenderState) => ReactNode);
   };
-
-function isExternal(href: string, target?: string): boolean {
-  if (target && target !== "_self") return true;
-  return (
-    /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) ||
-    href.startsWith("//") ||
-    href.startsWith("#")
-  );
-}
 
 const preloaded = new Set<string>();
 

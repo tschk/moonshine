@@ -265,21 +265,54 @@ export function safeHref(href: string): string {
 }
 
 /** Anchor that uses client-side navigation. */
+/**
+ * Whether the browser should keep its own handling of `href`.
+ *
+ * A client router may only intercept a same-document navigation. Anything
+ * carrying a scheme (`https:`, `mailto:`, `tel:`), a protocol-relative `//host`,
+ * a bare fragment, or an explicit non-`_self` target belongs to the browser: it
+ * opens a mail client, a new tab, or another origin, none of which this router
+ * can do.
+ *
+ * `safeHref` deliberately allows those schemes through — it only strips ones
+ * that could execute. Allowing a scheme is not the same as claiming to handle
+ * it, and conflating the two is how `<Link href="https://github.com/me">` came
+ * to push `/me` onto the app's own origin: preventDefault ran, `navigate`
+ * rebuilt the URL against `window.location.origin`, and the user landed on a
+ * 404 instead of GitHub.
+ *
+ * Exported so the host adapters share one definition rather than each carrying
+ * a copy — three of them already did, byte for byte, and the copy this module
+ * lacked is exactly the one that was wrong.
+ */
+export function isExternal(href: string, target?: string): boolean {
+  if (target && target !== "_self") return true;
+  return (
+    /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) ||
+    href.startsWith("//") ||
+    href.startsWith("#")
+  );
+}
+
 export function Link(props: {
   href: string;
   children?: ReactNode;
   className?: string;
   replace?: boolean;
+  target?: string;
 }): ReactNode {
   const nav = useNavigate();
   const href = safeHref(props.href);
+  const external = isExternal(href, props.target);
   return createElement(
     "a",
     {
       href,
       className: props.className,
+      target: props.target,
       onClick: (event: MouseEvent) => {
         if (
+          external ||
           event.defaultPrevented ||
           event.button !== 0 ||
           event.metaKey ||

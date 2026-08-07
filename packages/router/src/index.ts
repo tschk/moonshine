@@ -19,6 +19,7 @@ export {
   useNavigate,
   useRouter,
   MoonshineRouter,
+  isExternal,
   Link,
   safeHref,
 } from "./navigation.js";

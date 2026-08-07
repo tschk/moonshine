@@ -17,7 +17,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { navigate } from "@tschk/moonshine/router";
+import { isExternal, navigate } from "@tschk/moonshine/router";
 
 export type LinkProps = Omit<
   AnchorHTMLAttributes<HTMLAnchorElement>,
@@ -40,16 +40,6 @@ function hrefToString(href: LinkProps["href"]): string {
   const entries = Object.entries(href.query ?? {});
   if (entries.length === 0) return pathname;
   return `${pathname}?${new URLSearchParams(entries).toString()}`;
-}
-
-/** External and non-navigational targets must keep the browser's own handling. */
-function isExternal(href: string, target?: string): boolean {
-  if (target && target !== "_self") return true;
-  return (
-    /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) ||
-    href.startsWith("//") ||
-    href.startsWith("#")
-  );
 }
 
 const prefetched = new Set<string>();

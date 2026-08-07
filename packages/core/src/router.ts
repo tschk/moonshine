@@ -11,6 +11,7 @@ import {
   useNavigate,
   useRouter,
   MoonshineRouter,
+  isExternal,
   Link,
   type MoonshineRouterProps,
   type MoonshineRouterInstance,
@@ -61,6 +62,7 @@ export function matchRoutes(
 
 export {
   createMoonshineRouter,
+  isExternal,
   navigate,
   getLocation,
   useLocation,
