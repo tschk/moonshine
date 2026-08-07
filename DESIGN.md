@@ -48,6 +48,7 @@ compiler, and deployment layers your project needs.
 - `MoonshineManifest` — version `1`, framework version, routes, assets, entries, capabilities.
 - `Renderer` — `render(context)` and `prerender(context)`.
 - `DeploymentAdapter` — `name`, `runtimes`, `capabilities`, `build(manifest, outDir)`.
+- `serializeData` — the one HTML-safe JSON serializer, shared by the server data payload (`@tschk/moonshine-server`) and island props (`@tschk/moonshine-react`). Escapes `<`, `>`, `&`, U+2028, and U+2029 and rejects functions, symbols, bigints, and cycles.
 
 All runtime boundaries use `Request`, `Response`, `ReadableStream`, `URL`, `Headers`, and `AbortSignal`.
 
@@ -80,7 +81,7 @@ Automatic mode falls back to `ssr` when analysis is uncertain and records the re
 - Loaders and actions receive `RouteContext` with `request`, `params`, `signal`, and `data`.
 - Thrown `Redirect` values become redirects; errors route to the nearest `+error` boundary.
 - Production error responses omit stack traces.
-- `serializeData` escapes `<`, `>`, `&`, U+2028, and U+2029 and rejects functions, symbols, and cycles.
+- Non-GET/HEAD requests to a route with no action get `405` with an `Allow` header, before any loader runs; `HEAD` returns the `GET` headers with no body.
 
 ## Renderers
 

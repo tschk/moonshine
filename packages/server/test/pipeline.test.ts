@@ -274,4 +274,61 @@ describe("createRequestHandler", () => {
     expect(res.status).toBe(404);
     expect(await res.text()).toBe("Not Found");
   });
+  test("rejects non-GET methods on a leaf with no action", async () => {
+    let loaderRuns = 0;
+    const routes = graph([{ id: "p", path: "/p", file: "p.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        p: {
+          loader: () => {
+            loaderRuns++;
+            return { secret: "loaded" };
+          },
+        },
+      },
+    });
+
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      const res = await handler(new Request("http://x/p", { method }));
+      expect(res.status).toBe(405);
+      expect(res.headers.get("allow")).toBe("GET, HEAD");
+      expect(await res.text()).not.toContain("loaded");
+    }
+    expect(loaderRuns).toBe(0);
+
+    const ok = await handler(new Request("http://x/p"));
+    expect(ok.status).toBe(200);
+    expect(loaderRuns).toBe(1);
+  });
+
+  test("advertises action methods in Allow when the leaf has an action", async () => {
+    const routes = graph([{ id: "p", path: "/p", file: "p.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: { p: { action: () => ({ ok: true }) } },
+    });
+
+    const res = await handler(new Request("http://x/p", { method: "POST" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ p: { ok: true } });
+  });
+
+  test("HEAD returns the GET headers with no body", async () => {
+    const routes = graph([{ id: "p", path: "/p", file: "p.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: { p: { loader: () => ({ secret: "loaded" }) } },
+    });
+
+    const get = await handler(new Request("http://x/p"));
+    const head = await handler(new Request("http://x/p", { method: "HEAD" }));
+
+    expect(head.status).toBe(get.status);
+    expect(head.headers.get("content-type")).toBe(
+      get.headers.get("content-type"),
+    );
+    expect(head.body).toBeNull();
+    expect(await head.text()).toBe("");
+  });
 });

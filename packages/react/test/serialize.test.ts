@@ -41,4 +41,10 @@ describe("serializeIslandProps", () => {
     expect(out).not.toContain("<img>");
     expect(JSON.parse(out)).toEqual({ html: "</script><img>" });
   });
+  test("rejects symbol-keyed properties rather than dropping them", () => {
+    // JSON.stringify silently skips symbol keys; the server serializer always
+    // threw. Dropping a prop server-side that the client expects is a
+    // hydration mismatch, so both paths now refuse the value.
+    expect(() => serializeIslandProps({ [Symbol("k")]: 1 })).toThrow(/symbol/);
+  });
 });

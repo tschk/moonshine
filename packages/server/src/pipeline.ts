@@ -99,12 +99,16 @@ function mergeHeaders(
 function finalizeResponse(
   response: Response,
   baseHeaders?: HeadersInit,
+  method?: string,
 ): Response {
   const headers = new Headers(baseHeaders);
   for (const [key, value] of response.headers.entries()) {
     headers.set(key, value);
   }
-  return new Response(response.body, {
+  // HEAD must carry the GET headers and no body; shipping one is a protocol
+  // violation and mismatches Content-Length on runtimes that do not strip it.
+  const body = method === "HEAD" ? null : response.body;
+  return new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers,
@@ -140,6 +144,14 @@ function resolveBaseHeaders(
   );
 }
 
+// Derived from the leaf, never hardcoded: an Allow header that lists methods
+// the route cannot serve sends clients down paths that will 405 again.
+function allowedMethods(leaf: ModuleChainItem | undefined): string {
+  const methods = ["GET", "HEAD"];
+  if (leaf?.module.action) methods.push("POST", "PUT", "PATCH", "DELETE");
+  return methods.join(", ");
+}
+
 async function runCoreAndAfters(
   ctx: RouteContext,
   chain: ModuleChainItem[],
@@ -149,7 +161,18 @@ async function runCoreAndAfters(
   const method = ctx.request.method;
   const leaf = chain[chain.length - 1];
 
-  if (method !== "GET" && method !== "HEAD" && leaf?.module.action) {
+  if (method !== "GET" && method !== "HEAD") {
+    // Without an action there is nothing to serve a write method. Falling
+    // through would run the loaders — reachable by any verb, so a
+    // CSRF-shaped POST reaches loader side effects — and answer DELETE with
+    // 200, which every HTTP client reads as "deleted".
+    if (!leaf?.module.action) {
+      return new Response(null, {
+        status: 405,
+        headers: { allow: allowedMethods(leaf) },
+      });
+    }
+
     const result = await callAction(leaf.module.action, ctx);
     if (result instanceof Response) return result;
     if (result !== undefined) {
@@ -280,7 +303,7 @@ export function createRequestHandler(
       const befores: Middleware[] = [];
       for (const c of chain) befores.push(...(c.module.before ?? []));
       const response = await runBefores(ctx, 0, befores, chain, options, route);
-      return finalizeResponse(response, baseHeaders);
+      return finalizeResponse(response, baseHeaders, method);
     } catch (error) {
       if (error instanceof Redirect) {
         if (!isSafeRedirect(error.location, request)) {
@@ -297,14 +320,18 @@ export function createRequestHandler(
       const boundary = findErrorBoundary(chain, route, options.modules ?? {});
       if (boundary) {
         const res = await boundary(ctx, error);
-        return finalizeResponse(res, baseHeaders);
+        return finalizeResponse(res, baseHeaders, method);
       }
 
       if (error instanceof Response) {
-        return finalizeResponse(error, baseHeaders);
+        return finalizeResponse(error, baseHeaders, method);
       }
 
-      return finalizeResponse(errorResponse(error, options.mode), baseHeaders);
+      return finalizeResponse(
+        errorResponse(error, options.mode),
+        baseHeaders,
+        method,
+      );
     }
   };
 }

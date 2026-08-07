@@ -4,8 +4,15 @@ function escapeJsonChar(char: string): string {
   return `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`;
 }
 
+/**
+ * HTML-safe JSON for anything embedded in a document: server loader data and
+ * island props both land inside `<script>`, so one implementation escapes for
+ * both. Two copies drift, and a copy that misses an escape vector is an XSS.
+ */
 export function serializeData(value: unknown): string {
-  const seen = new Set<unknown>();
+  // Ancestor chain, not a visited set: a value repeated in sibling positions
+  // is shared, not cyclic, and must still serialize.
+  const ancestors = new Set<unknown>();
 
   function visit(v: unknown): string {
     if (v === undefined || v === null) return "null";
@@ -30,10 +37,11 @@ export function serializeData(value: unknown): string {
       throw new TypeError(`serializeData: cannot serialize ${type}`);
     }
 
-    if (seen.has(v)) throw new TypeError("serializeData: cyclic reference");
+    if (ancestors.has(v))
+      throw new TypeError("serializeData: cyclic reference");
 
     if (Array.isArray(v)) {
-      seen.add(v);
+      ancestors.add(v);
       try {
         const parts: string[] = [];
         for (const item of v) {
@@ -41,30 +49,32 @@ export function serializeData(value: unknown): string {
         }
         return `[${parts.join(",")}]`;
       } finally {
-        seen.delete(v);
+        ancestors.delete(v);
       }
     }
 
     const proto = Object.prototype.toString.call(v);
 
     if (proto === "[object Date]" || proto === "[object RegExp]") {
-      seen.add(v);
+      ancestors.add(v);
       try {
         const raw = JSON.stringify(v);
         if (raw === undefined)
           throw new TypeError("serializeData: cannot serialize");
         return raw;
       } finally {
-        seen.delete(v);
+        ancestors.delete(v);
       }
     }
 
+    // JSON.stringify skips symbol keys silently. A prop the server drops but
+    // the client expects is a hydration mismatch, so refuse the value instead.
     const symbols = Object.getOwnPropertySymbols(v);
     if (symbols.length) {
       throw new TypeError("serializeData: cannot serialize symbol");
     }
 
-    seen.add(v);
+    ancestors.add(v);
     try {
       const parts: string[] = [];
       for (const [key, val] of Object.entries(v as Record<string, unknown>)) {
@@ -73,11 +83,14 @@ export function serializeData(value: unknown): string {
             "serializeData: cannot serialize function/symbol",
           );
         }
+        // An undefined property is absent, not null: JSON semantics, and what
+        // the client's own JSON.parse round-trip would produce.
+        if (val === undefined) continue;
         parts.push(`${visit(key)}:${visit(val)}`);
       }
       return `{${parts.join(",")}}`;
     } finally {
-      seen.delete(v);
+      ancestors.delete(v);
     }
   }
 
