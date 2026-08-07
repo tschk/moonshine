@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "no-unused-vars": "error",
+    "eslint/no-shadow": "warn",
+    "eslint/no-underscore-dangle": "warn",
+    "unicorn/consistent-function-scoping": "warn",
+    "unicorn/no-array-sort": "warn"
+  },
+  "ignorePatterns": ["packages/cli/test/fixtures/**"]
+}

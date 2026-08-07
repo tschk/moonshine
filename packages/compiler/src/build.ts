@@ -81,7 +81,9 @@ function generateServerEntry(
   }
   for (let i = 0; i < supportFiles.length; i++) {
     const file = supportFiles[i]!;
-    imports.push(`import * as support_${i} from "${importPath(buildDir, file)}";`);
+    imports.push(
+      `import * as support_${i} from "${importPath(buildDir, file)}";`,
+    );
     // Registered unwrapped: these export a component or middleware, not a route
     // module with loader/action semantics.
     moduleBodys.push(`  "${toPosix(file)}": support_${i}`);
