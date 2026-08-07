@@ -3,12 +3,11 @@ import type { RouteConvention } from "@tschk/moonshine-compiler";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
-  adapterFor,
   templateGlobs,
   type Framework,
   type HostAdapter,
 } from "./frameworks.js";
-import type { NextImport, TemplateFile } from "./types.js";
+import type { NextImport } from "./types.js";
 
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mjs}";
 const IGNORED = ["node_modules/", ".next/", ".moonshine/", "dist/", "build/"];

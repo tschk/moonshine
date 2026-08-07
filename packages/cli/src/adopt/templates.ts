@@ -1,6 +1,6 @@
 /** Non-React templates, compiled through the parser into route modules. */
 import { existsSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import type { Framework } from "./frameworks.js";
 import type { AdoptChange, AdoptScan, TemplateFile } from "./types.js";
 import {

@@ -1,7 +1,6 @@
 /** Which hosts moonshine knows, and how each one's specifiers map onto it. */
 import { readJson } from "./scan.js";
 import { dirname, join } from "node:path";
-import { existsSync } from "node:fs";
 import {
   nextAliases,
   resolveAlias as resolveNextAlias,

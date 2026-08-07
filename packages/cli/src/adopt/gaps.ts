@@ -1,10 +1,9 @@
 /** What does not carry over: per host, and per compiled template. */
 import { templateGlobs } from "./frameworks.js";
-import { ignored } from "./scan.js";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Framework } from "./frameworks.js";
-import type { AdoptScan, NextImport, TemplateFile } from "./types.js";
+import type { AdoptScan, TemplateFile } from "./types.js";
 
 export function findManualWork(
   projectDir: string,

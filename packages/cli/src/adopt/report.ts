@@ -1,8 +1,7 @@
 /** How a plan is shown, and confirmed. */
 import { adapterFor } from "./frameworks.js";
-import { join } from "node:path";
 import type { AdoptPlan, NextImport } from "./types.js";
-import { terminalTui, truncate, warningBar, type Tui } from "../tui.js";
+import { truncate, warningBar, type Tui } from "../tui.js";
 
 function pluralize(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;

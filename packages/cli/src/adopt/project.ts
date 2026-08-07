@@ -1,17 +1,13 @@
 /** One scan of a project directory, composed from the pieces around it. */
 import { existsSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { adapterFor, hasFrontend, templateGlobs } from "./frameworks.js";
+import { adapterFor, templateGlobs } from "./frameworks.js";
 import type { AdoptScan } from "./types.js";
 import {
-  allDeps,
   detectFramework,
   findHostImports,
-  findMoonshineRoutes,
-  hasLockfile,
   readJson,
   sourceFiles,
-  templateFiles,
   toPosix,
   type PackageJson,
 } from "./scan.js";
