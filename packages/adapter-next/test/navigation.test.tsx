@@ -65,7 +65,7 @@ describe("next/navigation", () => {
     expect(read).toBe("asc|3");
   });
 
-  // A mounted tree, not a fresh render: the bug this guards was that a
+  // A mounted tree, not a fresh render: this guards against a past regression where a
   // navigation changing only the query wrote the same pathname to the location
   // signal, notified nobody, and left every already-mounted `useSearchParams`
   // caller showing the previous query. Re-rendering from scratch would pass
