@@ -1,16 +1,19 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 
-function which(bin: string): string | null {
+async function which(bin: string): Promise<string | null> {
   const path = process.env.PATH ?? "";
   for (const dir of path.split(":")) {
     const candidate = join(dir, bin);
-    if (existsSync(candidate)) return candidate;
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {}
   }
   return null;
 }
 
-function emitTsxFromIr(ir: unknown, outPath: string): void {
+async function emitTsxFromIr(ir: unknown, outPath: string): Promise<void> {
   const json = JSON.stringify(ir, null, 2);
   const src = `import { createApp } from "@tschk/moonshine/react";
 import { renderCrepusIr, type ViewIr } from "@tschk/crepus-moonshine";
@@ -23,7 +26,7 @@ function App() {
 
 createApp({ root: App }).mount("#app");
 `;
-  writeFileSync(outPath, src);
+  await writeFile(outPath, src);
   console.log(`Wrote ${outPath}`);
 }
 
@@ -35,7 +38,9 @@ export async function compileCommand(args: string[]): Promise<void> {
   }
 
   const abs = resolve(process.cwd(), input);
-  if (!existsSync(abs)) {
+  try {
+    await access(abs);
+  } catch {
     console.error(`File not found: ${abs}`);
     process.exit(1);
   }
@@ -44,13 +49,13 @@ export async function compileCommand(args: string[]): Promise<void> {
   const outPath = join(dirname(abs), `${basename(abs, ext)}.tsx`);
 
   if (ext === ".json") {
-    const ir = JSON.parse(readFileSync(abs, "utf8"));
-    emitTsxFromIr(ir, outPath);
+    const ir = JSON.parse(await readFile(abs, "utf8"));
+    await emitTsxFromIr(ir, outPath);
     return;
   }
 
   if (ext === ".crepus") {
-    const crepus = which("crepus");
+    const crepus = await which("crepus");
     if (crepus) {
       const proc = Bun.spawn(
         [crepus, "web", "build", "--emit", "moonshine", abs],
