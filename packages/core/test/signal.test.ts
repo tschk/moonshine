@@ -256,7 +256,7 @@ describe("collectDeps", () => {
           s1();
           throw new Error("test");
         });
-      } catch (e) {
+      } catch {
         // ignore
       }
       s2(); // tracked by memo
