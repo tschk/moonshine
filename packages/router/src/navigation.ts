@@ -6,7 +6,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -180,9 +179,6 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
   // Routes are matched on the pathname alone; the query rides along in the
   // signal only so that changing it re-renders.
   const pathname = splitLocation(props.path ?? browserPath)[0];
-  const [ready, setReady] = useState(
-    typeof window === "undefined" || props.path !== undefined,
-  );
 
   // Compiling every pattern is a sizeable share of this component's render, and
   // the result depends only on the route list.
@@ -203,7 +199,6 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
     activeRouter = runtime;
     if (props.path === undefined) {
       runtime.syncFromBrowser();
-      setReady(true);
       const onPop = () => runtime.syncFromBrowser();
       window.addEventListener("popstate", onPop);
       return () => {
@@ -223,10 +218,6 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
     navigate: runtime.navigate,
     runtime,
   };
-
-  if (!ready && props.path === undefined && typeof window !== "undefined") {
-    // Avoid hydration flicker on first client paint before popstate sync
-  }
 
   return createElement(
     RouterContext.Provider,
