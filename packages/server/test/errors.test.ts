@@ -46,22 +46,34 @@ describe("errors module", () => {
     test("creates a Response with JSON data", async () => {
       const response = json({ hello: "world" });
       expect(response).toBeInstanceOf(Response);
-      expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+      expect(response.headers.get("content-type")).toBe(
+        "application/json; charset=utf-8",
+      );
 
       const data = await response.json();
       expect(data).toEqual({ hello: "world" });
     });
 
     test("creates a Response with custom init options", async () => {
-      const response = json({ hello: "world" }, { status: 201, headers: { "x-custom": "test" } });
+      const response = json(
+        { hello: "world" },
+        { status: 201, headers: { "x-custom": "test" } },
+      );
       expect(response.status).toBe(201);
       expect(response.headers.get("x-custom")).toBe("test");
-      expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+      expect(response.headers.get("content-type")).toBe(
+        "application/json; charset=utf-8",
+      );
     });
 
     test("does not overwrite existing content-type", () => {
-      const response = json({ hello: "world" }, { headers: { "content-type": "application/vnd.api+json" } });
-      expect(response.headers.get("content-type")).toBe("application/vnd.api+json");
+      const response = json(
+        { hello: "world" },
+        { headers: { "content-type": "application/vnd.api+json" } },
+      );
+      expect(response.headers.get("content-type")).toBe(
+        "application/vnd.api+json",
+      );
     });
   });
 
