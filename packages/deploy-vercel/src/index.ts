@@ -61,19 +61,21 @@ async function copyAssets(
   assets: MoonshineManifest["assets"],
   outDir: string,
 ): Promise<void> {
-  for (const asset of assets) {
-    const source = isAbsolute(asset.file)
-      ? asset.file
-      : resolve(outDir, asset.file);
-    const target = resolve(
-      outDir,
-      (asset.path ?? asset.file).replace(/^\/+/, ""),
-    );
-    await mkdir(dirname(target), { recursive: true });
-    if (source !== target) {
-      await copyFile(source, target);
-    }
-  }
+  await Promise.all(
+    assets.map(async (asset) => {
+      const source = isAbsolute(asset.file)
+        ? asset.file
+        : resolve(outDir, asset.file);
+      const target = resolve(
+        outDir,
+        (asset.path ?? asset.file).replace(/^\/+/, ""),
+      );
+      await mkdir(dirname(target), { recursive: true });
+      if (source !== target) {
+        await copyFile(source, target);
+      }
+    }),
+  );
 }
 
 function validateRuntime(
@@ -194,19 +196,21 @@ export default { fetch };
       }
     }
 
-    for (const asset of resolvedManifest.assets) {
-      const source = isAbsolute(asset.file)
-        ? asset.file
-        : resolve(outDir, asset.file);
-      const target = resolve(
-        staticDir,
-        (asset.path ?? asset.file).replace(/^\/+/, ""),
-      );
-      await mkdir(dirname(target), { recursive: true });
-      if (source !== target) {
-        await copyFile(source, target);
-      }
-    }
+    await Promise.all(
+      resolvedManifest.assets.map(async (asset) => {
+        const source = isAbsolute(asset.file)
+          ? asset.file
+          : resolve(outDir, asset.file);
+        const target = resolve(
+          staticDir,
+          (asset.path ?? asset.file).replace(/^\/+/, ""),
+        );
+        await mkdir(dirname(target), { recursive: true });
+        if (source !== target) {
+          await copyFile(source, target);
+        }
+      }),
+    );
 
     await writeFile(
       resolve(vercelOutput, "manifest.json"),
