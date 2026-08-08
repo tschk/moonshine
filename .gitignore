@@ -24,3 +24,5 @@ out/
 examples/bun-server/public/client.js
 examples/bun-server/public/client.js.map
 .tmp-cli-new/
+out-bench/
+mock-assets/

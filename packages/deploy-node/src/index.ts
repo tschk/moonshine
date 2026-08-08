@@ -246,11 +246,12 @@ export const nodeAdapter: DeploymentAdapter = {
   capabilities: ["streaming", "islands", "revalidation"],
   build: async (manifest, outDir) => {
     await mkdir(outDir, { recursive: true });
-    const assets: MoonshineManifest["assets"] = [];
-    for (const asset of manifest.assets) {
-      const file = await copyAsset(asset, outDir);
-      assets.push({ ...asset, file });
-    }
+    const assets = await Promise.all(
+      manifest.assets.map(async (asset) => {
+        const file = await copyAsset(asset, outDir);
+        return { ...asset, file };
+      }),
+    );
     const builtManifest: MoonshineManifest = { ...manifest, assets };
     await writeFile(
       resolve(outDir, "manifest.json"),
