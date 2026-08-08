@@ -39,6 +39,15 @@ export function DitherCanvas({
   const paintRef = useRef(paint);
   paintRef.current = paint;
 
+  const depsRef = useRef(deps);
+  if (
+    deps.length !== depsRef.current.length ||
+    deps.some((d, i) => d !== depsRef.current[i])
+  ) {
+    depsRef.current = deps;
+  }
+  const stableDeps = depsRef.current;
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
@@ -64,8 +73,7 @@ export function DitherCanvas({
     const ro = new ResizeObserver(draw);
     ro.observe(wrap);
     return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [height, enabled, square, ...deps]);
+  }, [height, enabled, square, stableDeps]);
 
   const a11y =
     label === undefined
