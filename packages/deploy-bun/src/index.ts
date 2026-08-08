@@ -3,12 +3,10 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import {
   type DeploymentAdapter,
   type MoonshineManifest,
-} from "@tschk/moonshine-framework";
-import { tryServeStatic } from "@tschk/moonshine-server";
-import {
   type Harness,
   type HarnessFactory,
-} from "@tschk/moonshine-adapter-conformance";
+} from "@tschk/moonshine-framework";
+import { tryServeStatic } from "@tschk/moonshine-server";
 
 export type BunServerOptions = {
   fetch: (request: Request) => Promise<Response>;

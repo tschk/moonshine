@@ -10,12 +10,10 @@ import { Readable } from "node:stream";
 import {
   type DeploymentAdapter,
   type MoonshineManifest,
-} from "@tschk/moonshine-framework";
-import { isContained, resolveStaticPath } from "@tschk/moonshine-server";
-import {
   type Harness,
   type HarnessFactory,
-} from "@tschk/moonshine-adapter-conformance";
+} from "@tschk/moonshine-framework";
+import { isContained, resolveStaticPath } from "@tschk/moonshine-server";
 
 const HOP_BY_HOP = new Set([
   "connection",

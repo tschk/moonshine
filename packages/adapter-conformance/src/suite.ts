@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import {
   MANIFEST_VERSION,
   type DeploymentAdapter,
+  type HarnessFactory,
   type MoonshineManifest,
   type RenderContext,
   type RouteArtifact,
@@ -23,16 +24,6 @@ import {
   type RouteModule,
 } from "@tschk/moonshine-server";
 import { reactRenderer, type Renderer } from "@tschk/moonshine-react";
-
-export type Harness = {
-  start(): Promise<URL>;
-  stop(): Promise<void>;
-};
-
-export type HarnessFactory = (
-  fetch: (request: Request) => Promise<Response>,
-  options: { manifest: MoonshineManifest; staticDir: string },
-) => Harness;
 
 const pageFile = resolve(import.meta.dir, "fixtures", "Page.tsx");
 

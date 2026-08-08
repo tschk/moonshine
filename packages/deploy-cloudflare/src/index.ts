@@ -10,11 +10,9 @@ import { reactRenderer, registerRouteModules } from "@tschk/moonshine-react";
 import type {
   DeploymentAdapter,
   MoonshineManifest,
-} from "@tschk/moonshine-framework";
-import type {
   Harness,
   HarnessFactory,
-} from "@tschk/moonshine-adapter-conformance";
+} from "@tschk/moonshine-framework";
 
 export type CloudflareEnv = {
   ASSETS?: { fetch: (request: Request) => Promise<Response> };

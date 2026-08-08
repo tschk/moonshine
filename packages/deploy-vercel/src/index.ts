@@ -6,11 +6,9 @@ import type {
   DeploymentAdapter,
   MoonshineManifest,
   RouteArtifact,
-} from "@tschk/moonshine-framework";
-import type {
   Harness,
   HarnessFactory,
-} from "@tschk/moonshine-adapter-conformance";
+} from "@tschk/moonshine-framework";
 
 type VercelRoute = {
   src: string;
