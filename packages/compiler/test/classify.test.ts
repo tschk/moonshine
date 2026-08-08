@@ -46,6 +46,24 @@ describe("classifyRoute", () => {
     });
   });
 
+  test("a module whose name merely contains 'request' is not request-bound", () => {
+    // `./request-utils` demoted this route to ssr because the specifier was
+    // compared with `includes`. Nothing broke, it just stopped prerendering.
+    const facts = analyzeModule(fixture("near-miss.tsx"));
+    expect(facts.requestBound).toBe(false);
+    expect(classifyRoute({ facts }).mode).not.toBe("ssr");
+  });
+
+  test("request-bound bindings are caught whatever module they came from", () => {
+    // The specifier says nothing about cookies; the binding does.
+    const facts = analyzeModule(fixture("renamed-source.tsx"));
+    expect(facts.requestBound).toBe(true);
+    expect(classifyRoute({ facts })).toEqual({
+      mode: "ssr",
+      reason: "uses request-time server data",
+    });
+  });
+
   test("selects island for interactive child", () => {
     const facts = analyzeModule(fixture("interactive.tsx"));
     expect(facts.interactive).toBe(true);

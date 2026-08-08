@@ -76,14 +76,51 @@ function isExportedHandler(node: ts.Node): boolean {
   return false;
 }
 
+/** Module names that mean "this route reads per-request state". */
+const REQUEST_BOUND_MODULES = new Set(["cookies", "headers", "request"]);
+
+/** Bindings that mean the same thing whatever module they came from. */
+const REQUEST_BOUND_BINDINGS = new Set([
+  "cookies",
+  "headers",
+  "draftMode",
+  "request",
+]);
+
+/**
+ * The last path segment, lowercased, with any extension removed:
+ * `"./lib/Request.ts"` -> `"request"`, `"next/headers"` -> `"headers"`.
+ */
+function moduleTailName(specifier: string): string {
+  const tail = specifier.toLowerCase().split("/").pop() ?? "";
+  return tail.replace(/\.[cm]?[jt]sx?$/, "");
+}
+
+function importedBindingNames(node: ts.ImportDeclaration): string[] {
+  const bindings = node.importClause?.namedBindings;
+  if (!bindings || !ts.isNamedImports(bindings)) return [];
+  return bindings.elements.map(
+    (element) => (element.propertyName ?? element.name).text,
+  );
+}
+
+/**
+ * Whether an import pulls in per-request state, which forces the route to `ssr`.
+ *
+ * This compared the whole specifier with `includes`, so `./lib/request-utils`,
+ * `./headers-config` or any path with a matching substring anywhere demoted a
+ * prerenderable route to per-request rendering — silently, since the route
+ * still worked. The segment is now compared whole, and the imported binding
+ * names are checked too, so `import { cookies } from "@acme/ssr"` is caught
+ * even though nothing in that specifier says so.
+ */
 function isRequestBoundImport(node: ts.Node): boolean {
   if (!ts.isImportDeclaration(node)) return false;
   if (!ts.isStringLiteral(node.moduleSpecifier)) return false;
-  const text = node.moduleSpecifier.text.toLowerCase();
-  return (
-    text.includes("cookies") ||
-    text.includes("headers") ||
-    text.includes("request")
+  if (REQUEST_BOUND_MODULES.has(moduleTailName(node.moduleSpecifier.text)))
+    return true;
+  return importedBindingNames(node).some((name) =>
+    REQUEST_BOUND_BINDINGS.has(name),
   );
 }
 
