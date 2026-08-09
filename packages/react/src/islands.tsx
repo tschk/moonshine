@@ -74,13 +74,14 @@ export function island<P>(
       Fragment,
       null,
       createElement("div", { "data-moonshine-island": id }, children),
-      createElement("script", {
-        type: "application/json",
-        "data-moonshine-island-props": id,
-        dangerouslySetInnerHTML: {
-          __html: serializeIslandProps(props),
+      createElement(
+        "script",
+        {
+          type: "application/json",
+          "data-moonshine-island-props": id,
         },
-      }),
+        serializeIslandProps(props),
+      ),
     );
   };
   return IslandComponent;
