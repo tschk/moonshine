@@ -1,14 +1,20 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function which(bin: string): Promise<string | null> {
   const path = process.env.PATH ?? "";
   for (const dir of path.split(":")) {
     const candidate = join(dir, bin);
-    try {
-      await access(candidate);
-      return candidate;
-    } catch {}
+    if (await exists(candidate)) return candidate;
   }
   return null;
 }
@@ -38,9 +44,7 @@ export async function compileCommand(args: string[]): Promise<void> {
   }
 
   const abs = resolve(process.cwd(), input);
-  try {
-    await access(abs);
-  } catch {
+  if (!(await exists(abs))) {
     console.error(`File not found: ${abs}`);
     process.exit(1);
   }

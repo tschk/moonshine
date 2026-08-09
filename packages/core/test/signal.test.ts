@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   batch,
+  collectDeps,
   createMemo,
   createSignal,
   createStore,
@@ -177,6 +178,99 @@ describe("createMemo", () => {
     unsub();
     n.set(3);
     expect(runs).toBe(whileObserved);
+  });
+});
+
+describe("collectDeps", () => {
+  test("collects signal dependencies", () => {
+    const s1 = createSignal(1);
+    const s2 = createSignal(2);
+
+    const deps = collectDeps(() => {
+      s1();
+      s2();
+    });
+
+    expect(deps.length).toBe(2);
+    expect(typeof deps[0].subscribe).toBe("function");
+    expect(typeof deps[1].subscribe).toBe("function");
+  });
+
+  test("deduplicates dependencies", () => {
+    const s1 = createSignal(1);
+
+    const deps = collectDeps(() => {
+      s1();
+      s1();
+      s1();
+    });
+
+    expect(deps.length).toBe(1);
+  });
+
+  test("restores previous tracker", () => {
+    const s1 = createSignal(1);
+    const s2 = createSignal(2);
+    const s3 = createSignal(3);
+
+    let memoRuns = 0;
+    const m = createMemo(() => {
+      memoRuns++;
+      s1(); // tracked by memo
+      const deps = collectDeps(() => {
+        s2(); // tracked by collectDeps, not memo
+      });
+      expect(deps.length).toBe(1);
+      s3(); // tracked by memo
+      return deps;
+    });
+
+    m();
+    expect(memoRuns).toBe(1);
+
+    // Changing s2 should not trigger the memo
+    s2.set(4);
+    m();
+    expect(memoRuns).toBe(1);
+
+    // Changing s1 should trigger the memo
+    s1.set(2);
+    m();
+    expect(memoRuns).toBe(2);
+
+    // Changing s3 should trigger the memo
+    s3.set(4);
+    m();
+    expect(memoRuns).toBe(3);
+  });
+
+  test("restores previous tracker on error", () => {
+    const s1 = createSignal(1);
+    const s2 = createSignal(2);
+
+    let memoRuns = 0;
+    const m = createMemo(() => {
+      memoRuns++;
+      try {
+        collectDeps(() => {
+          s1();
+          throw new Error("test");
+        });
+      } catch {
+        // ignore
+      }
+      s2(); // tracked by memo
+      return 1;
+    });
+
+    m();
+    expect(memoRuns).toBe(1);
+    s1.set(2);
+    m();
+    expect(memoRuns).toBe(1); // not triggered by s1
+    s2.set(3);
+    m();
+    expect(memoRuns).toBe(2); // triggered by s2
   });
 });
 
