@@ -65,11 +65,11 @@ describe("next/navigation", () => {
     expect(read).toBe("asc|3");
   });
 
-  // A mounted tree, not a fresh render: this guards against a past regression where a
-  // navigation changing only the query wrote the same pathname to the location
-  // signal, notified nobody, and left every already-mounted `useSearchParams`
-  // caller showing the previous query. Re-rendering from scratch would pass
-  // either way and prove nothing.
+  // A mounted tree, not a fresh render: verifies that navigating to change
+  // only the query writes the same pathname to the location signal, notifies
+  // everyone, and leaves every already-mounted `useSearchParams` caller
+  // showing the new query. Re-rendering from scratch would pass either way
+  // and prove nothing.
   test("useSearchParams updates a mounted tree when only the query changes", async () => {
     navigate("/settings?section=privacy");
     function Probe() {
