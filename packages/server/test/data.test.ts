@@ -1,5 +1,10 @@
 import { describe, expect, test, mock } from "bun:test";
-import { createRouteContext, callLoader, callAction, type RouteContext } from "../src/data";
+import {
+  createRouteContext,
+  callLoader,
+  callAction,
+  type RouteContext,
+} from "../src/data";
 
 describe("data", () => {
   describe("createRouteContext", () => {
