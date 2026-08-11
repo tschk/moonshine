@@ -289,7 +289,7 @@ describe("collectDeps", () => {
     const [state] = createStore({ count: 1 });
 
     const deps = collectDeps(() => {
-      state.count;
+      expect(state.count).toBe(1);
     });
 
     expect(deps.length).toBe(1);
