@@ -44,13 +44,21 @@ describe("errors module", () => {
       }
     });
 
-    test("throws a Redirect error with empty location", () => {
+test("throws a Redirect error with empty location", () => {
       try {
         redirect("");
         expect.unreachable();
       } catch (err) {
         expect(err).toBeInstanceOf(Redirect);
         expect((err as Redirect).location).toBe("");
+        expect((err as Redirect).status).toBe(302);
+      }
+    });
+
+    test("defaults to 302 if status is undefined", () => {
+      try {
+        redirect("/dashboard", undefined);
+      } catch (err) {
         expect((err as Redirect).status).toBe(302);
       }
     });
@@ -90,7 +98,7 @@ describe("errors module", () => {
       );
     });
 
-    test("handles null data correctly", async () => {
+test("handles null data correctly", async () => {
       const response = json(null);
       const data = await response.json();
       expect(data).toBeNull();
@@ -118,6 +126,29 @@ describe("errors module", () => {
       expect(response.headers.get("content-type")).toBe(
         "application/vnd.api+json",
       );
+    });
+
+    test("accepts Headers instance", () => {
+      const headers = new Headers();
+      headers.set("x-custom", "test");
+      const response = json({ hello: "world" }, { headers });
+      expect(response.headers.get("x-custom")).toBe("test");
+      expect(response.headers.get("content-type")).toBe(
+        "application/json; charset=utf-8",
+      );
+      expect(response.status).toBe(200);
+    });
+
+    test("accepts array of headers", () => {
+      const response = json(
+        { hello: "world" },
+        { headers: [["x-custom", "test"]] },
+      );
+      expect(response.headers.get("x-custom")).toBe("test");
+      expect(response.headers.get("content-type")).toBe(
+        "application/json; charset=utf-8",
+      );
+      expect(response.status).toBe(200);
     });
   });
 
@@ -158,6 +189,27 @@ describe("errors module", () => {
       expect(response.status).toBe(500);
       const data = await response.json();
       expect(data.error).toBe("String error message");
+      expect(data.stack).toBeUndefined();
+    });
+
+    test("returns detailed error in development (null/undefined/number)", async () => {
+      for (const err of [null, undefined, 42]) {
+        const response = errorResponse(err, "development");
+        expect(response.status).toBe(500);
+        const data = await response.json();
+        expect(data.error).toBe(String(err));
+        expect(data.stack).toBeUndefined();
+      }
+    });
+
+    test("returns detailed error in development (Error without stack)", async () => {
+      const err = new Error("No stack error");
+      delete err.stack;
+      const response = errorResponse(err, "development");
+
+      expect(response.status).toBe(500);
+      const data = await response.json();
+      expect(data.error).toBe("No stack error");
       expect(data.stack).toBeUndefined();
     });
   });
