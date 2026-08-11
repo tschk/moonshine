@@ -1,5 +1,5 @@
 import { describe, expect, test, mock } from "bun:test";
-import { createRouteContext, callLoader, type RouteContext } from "../src/data";
+import { createRouteContext, callLoader, callAction, type RouteContext } from "../src/data";
 
 describe("data", () => {
   describe("createRouteContext", () => {
@@ -49,6 +49,52 @@ describe("data", () => {
 
       expect(mockLoader).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ foo: "async" });
+    });
+  });
+
+  describe("callAction", () => {
+    const dummyContext: RouteContext = {
+      request: new Request("http://localhost/"),
+      params: {},
+      signal: new AbortController().signal,
+      data: {},
+    };
+
+    test("works with a synchronous action", async () => {
+      const mockAction = mock((context: RouteContext) => {
+        expect(context).toBe(dummyContext);
+        return { success: true };
+      });
+
+      const result = await callAction(mockAction, dummyContext);
+
+      expect(mockAction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ success: true });
+    });
+
+    test("works with an asynchronous action", async () => {
+      const mockAction = mock(async (context: RouteContext) => {
+        expect(context).toBe(dummyContext);
+        return { success: "async" };
+      });
+
+      const result = await callAction(mockAction, dummyContext);
+
+      expect(mockAction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ success: "async" });
+    });
+
+    test("works with an action returning a Response", async () => {
+      const mockResponse = new Response("ok", { status: 200 });
+      const mockAction = mock(async (context: RouteContext) => {
+        expect(context).toBe(dummyContext);
+        return mockResponse;
+      });
+
+      const result = await callAction(mockAction, dummyContext);
+
+      expect(mockAction).toHaveBeenCalledTimes(1);
+      expect(result).toBe(mockResponse);
     });
   });
 });
