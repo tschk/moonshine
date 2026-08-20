@@ -48,14 +48,6 @@ function isUseClientDirective(source: ts.SourceFile, node: ts.Node): boolean {
 }
 
 function isExportedName(node: ts.Node, name: string): boolean {
-  const flags = ts.getCombinedModifierFlags(node as ts.Declaration);
-  if (!(flags & ts.ModifierFlags.Export)) return false;
-  if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) {
-    return node.name?.text === name;
-  }
-  if (ts.isVariableDeclaration(node)) {
-    if (ts.isIdentifier(node.name)) return node.name.text === name;
-  }
   if (
     ts.isExportDeclaration(node) &&
     node.exportClause &&
@@ -64,6 +56,16 @@ function isExportedName(node: ts.Node, name: string): boolean {
     for (const elem of node.exportClause.elements) {
       if (elem.name.text === name) return true;
     }
+  }
+
+  const flags = ts.getCombinedModifierFlags(node as ts.Declaration);
+  if (!(flags & ts.ModifierFlags.Export)) return false;
+
+  if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) {
+    return node.name?.text === name;
+  }
+  if (ts.isVariableDeclaration(node)) {
+    if (ts.isIdentifier(node.name)) return node.name.text === name;
   }
   return false;
 }
