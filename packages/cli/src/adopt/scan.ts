@@ -1,6 +1,6 @@
 /** What is on disk: source files, host imports, and which framework this is. */
 import type { RouteConvention } from "@tschk/moonshine-compiler";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, promises as fsPromises } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
   templateGlobs,
@@ -48,30 +48,35 @@ export function sourceFiles(projectDir: string): string[] {
 }
 
 /** Every host specifier (`next/*`, `react-router`, …) a source file pulls in. */
-export function findHostImports(
+export async function findHostImports(
   projectDir: string,
   files: string[],
   adapter: HostAdapter | undefined,
-): NextImport[] {
+): Promise<NextImport[]> {
   if (!adapter) return [];
   const pattern = /["']([^"']+)["']/g;
-  const found: NextImport[] = [];
-  for (const file of files) {
-    const source = readFileSync(join(projectDir, file), "utf8");
-    for (const match of source.matchAll(pattern)) {
-      const specifier = match[1]!;
-      if (!adapter.imports.test(specifier)) continue;
-      // A bare string is only an import when a module keyword introduces it.
-      const before = source.slice(Math.max(0, match.index - 40), match.index);
-      if (!/(?:from|import|require)\s*\(?\s*$/.test(before)) continue;
-      found.push({
-        file,
-        specifier,
-        aliasable: specifier in adapter.aliases,
-      });
-    }
-  }
-  return found;
+
+  const results = await Promise.all(
+    files.map(async (file) => {
+      const source = await fsPromises.readFile(join(projectDir, file), "utf8");
+      const found: NextImport[] = [];
+      for (const match of source.matchAll(pattern)) {
+        const specifier = match[1]!;
+        if (!adapter.imports.test(specifier)) continue;
+        // A bare string is only an import when a module keyword introduces it.
+        const before = source.slice(Math.max(0, match.index - 40), match.index);
+        if (!/(?:from|import|require)\s*\(?\s*$/.test(before)) continue;
+        found.push({
+          file,
+          specifier,
+          aliasable: specifier in adapter.aliases,
+        });
+      }
+      return found;
+    }),
+  );
+
+  return results.flat();
 }
 
 export type PackageJson = {
