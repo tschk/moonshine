@@ -99,9 +99,16 @@ export async function buildProject(
     ...(options.convention && { convention: options.convention }),
   });
 
+  const rawRouteTexts = await Promise.all(
+    rawRoutes.map((route) =>
+      readFile(route.file, "utf8").catch(() => undefined),
+    ),
+  );
+
   const buildRoutes: RouteArtifact[] = [];
-  for (const route of rawRoutes) {
-    const facts = analyzeModule(route.file);
+  for (let i = 0; i < rawRoutes.length; i++) {
+    const route = rawRoutes[i];
+    const facts = analyzeModule(route.file, undefined, rawRouteTexts[i]);
     const decision = classifyRoute({ explicit: route.mode, facts });
     buildRoutes.push({
       ...route,
