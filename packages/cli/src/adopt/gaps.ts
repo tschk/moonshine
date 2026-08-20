@@ -1,15 +1,16 @@
 /** What does not carry over: per host, and per compiled template. */
 import { templateGlobs } from "./frameworks.js";
 import { existsSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Framework } from "./frameworks.js";
 import type { AdoptScan, TemplateFile } from "./types.js";
 
-export function findManualWork(
+export async function findManualWork(
   projectDir: string,
   files: string[],
   scan: Pick<AdoptScan, "framework" | "routesDir">,
-): string[] {
+): Promise<string[]> {
   const manual: string[] = [];
   const note = (text: string) => {
     if (!manual.includes(text)) manual.push(text);
@@ -38,8 +39,30 @@ export function findManualWork(
     }
   }
 
-  for (const file of files) {
-    const source = readFileSync(join(projectDir, file), "utf8");
+  const results = new Array(files.length);
+  let currentIndex = 0;
+
+  const worker = async () => {
+    while (currentIndex < files.length) {
+      const index = currentIndex++;
+      const file = files[index];
+      const source = await readFile(join(projectDir, file), "utf8");
+      results[index] = { file, source };
+    }
+  };
+
+  const concurrency = 100;
+  const workers = Array.from(
+    { length: Math.min(concurrency, files.length) },
+    worker,
+  );
+  await Promise.all(workers);
+
+  const fileContents = results;
+
+  for (const item of fileContents) {
+    if (!item) continue;
+    const { file, source } = item;
     const stem = file
       .split("/")
       .pop()!

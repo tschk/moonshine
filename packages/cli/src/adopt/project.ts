@@ -57,7 +57,7 @@ export async function scanProject(projectDir: string): Promise<AdoptScan> {
     conventions: findConventions(dir, files),
     manual: [
       ...templateManualWork(detected.framework, templates),
-      ...findManualWork(dir, files, detected),
+      ...(await findManualWork(dir, files, detected)),
       ...[...new Set(imports.map((i) => i.specifier))]
         .sort()
         .map((s) => ALIAS_CAVEATS[s])
