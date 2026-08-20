@@ -3,9 +3,14 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
+interface Asset {
+  file: string;
+  path?: string;
+}
+
 // Sequential implementation (Original)
 async function copyAssetsSequential(
-  assets: any[],
+  assets: Asset[],
   outDir: string,
 ): Promise<void> {
   for (const asset of assets) {
@@ -25,7 +30,7 @@ async function copyAssetsSequential(
 
 // Parallel implementation (Optimized)
 async function copyAssetsParallel(
-  assets: any[],
+  assets: Asset[],
   outDir: string,
 ): Promise<void> {
   await Promise.all(
