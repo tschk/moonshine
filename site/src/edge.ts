@@ -107,13 +107,3 @@ export async function readEdgeFacts(request: Request): Promise<EdgeFacts> {
     timezone: cf.timezone ?? "—",
   };
 }
-
-const HTML_ESCAPE = /[<>&\u2028\u2029]/g;
-
-/** JSON safe to drop inside a `<script type="application/json">` body. */
-export function jsonForScript(value: unknown): string {
-  return JSON.stringify(value ?? null).replace(
-    HTML_ESCAPE,
-    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
-}

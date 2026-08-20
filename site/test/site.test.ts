@@ -10,7 +10,6 @@ import * as home from "../src/routes/index";
 import * as packagesRoute from "../src/routes/packages";
 import { createSiteRenderer } from "../src/renderer";
 import { PACKAGES } from "../src/packages";
-import { jsonForScript } from "../src/edge";
 import { pivotLink } from "../src/chrome";
 import { STYLES } from "../src/styles";
 
@@ -291,12 +290,5 @@ describe("download charts", () => {
     // The readout rests on the newest point until a cursor moves it.
     expect(html).toContain("2026-07-31");
     expect(html).not.toContain("real zero");
-  });
-});
-
-describe("island props", () => {
-  test("serialized props escape characters that would close the script", () => {
-    expect(jsonForScript({ seed: 3 })).toBe('{"seed":3}');
-    expect(jsonForScript({ s: "</script>" })).not.toContain("</script>");
   });
 });
