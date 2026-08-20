@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
 /** Paints one frame into a canvas already scaled to CSS pixels. */
 export type DitherPaint = (
@@ -40,40 +40,46 @@ export function DitherCanvas({
   paintRef.current = paint;
 
   const depsRef = useRef(deps);
-  if (
-    deps.length !== depsRef.current.length ||
-    deps.some((d, i) => d !== depsRef.current[i])
-  ) {
-    depsRef.current = deps;
-  }
-  const stableDeps = depsRef.current;
 
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap || !enabled) return;
 
-    const draw = () => {
-      const clientWidth = wrap.clientWidth;
-      if (clientWidth <= 0) return;
-      const width = square ? Math.min(clientWidth, height) : clientWidth;
-      const paintHeight = square ? width : height;
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(1, Math.floor(width * dpr));
-      canvas.height = Math.max(1, Math.floor(paintHeight * dpr));
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${paintHeight}px`;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      paintRef.current(ctx, width, paintHeight);
-    };
+    const clientWidth = wrap.clientWidth;
+    if (clientWidth <= 0) return;
+    const width = square ? Math.min(clientWidth, height) : clientWidth;
+    const paintHeight = square ? width : height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(width * dpr));
+    canvas.height = Math.max(1, Math.floor(paintHeight * dpr));
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${paintHeight}px`;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paintRef.current(ctx, width, paintHeight);
+  }, [enabled, height, square]);
+
+  useEffect(() => {
+    if (
+      deps.length !== depsRef.current.length ||
+      deps.some((d, i) => d !== depsRef.current[i])
+    ) {
+      depsRef.current = deps;
+      draw();
+    }
+  }, [deps, draw]);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !enabled) return;
 
     draw();
     const ro = new ResizeObserver(draw);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [height, enabled, square, stableDeps]);
+  }, [draw, enabled]);
 
   const a11y =
     label === undefined
