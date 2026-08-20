@@ -107,9 +107,24 @@ describe("tryServeStatic", () => {
     expect(await res!.text()).toBe("ok");
   });
 
-  test("sets nosniff on static responses", async () => {
+  test("sets default security headers on static responses", async () => {
     const res = await tryServeStatic(staticDir, "/ok.txt");
     expect(res!.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res!.headers.get("x-frame-options")).toBe("DENY");
+    expect(res!.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  test("allows overriding default security headers", async () => {
+    const customHeaders = new Headers({
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "strict-origin-when-cross-origin",
+    });
+    const res = await tryServeStatic(staticDir, "/ok.txt", customHeaders);
+    expect(res!.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res!.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(res!.headers.get("referrer-policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
   });
 
   test("does not serve dotfiles", async () => {
