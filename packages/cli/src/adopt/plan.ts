@@ -213,7 +213,7 @@ export async function planAdoption(
       planTsconfig(scan),
       planConfig(scan, options.force ?? false),
       planPackageJson(scan),
-      ...planTemplateRoutes(scan),
+      ...(await planTemplateRoutes(scan)),
     ],
     // Aliasing covers every specifier the adapter implements, so nothing in the
     // user's source is edited. Unaliasable specifiers are reported, not rewritten,
