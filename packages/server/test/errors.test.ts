@@ -89,6 +89,36 @@ describe("errors module", () => {
         "application/vnd.api+json",
       );
     });
+
+    test("handles null data correctly", async () => {
+      const response = json(null);
+      const data = await response.json();
+      expect(data).toBeNull();
+    });
+
+    test("handles undefined data correctly", async () => {
+      const response = json(undefined);
+      const text = await response.text();
+      expect(text).toBe("");
+    });
+
+    test("handles plain object as init.headers", () => {
+      const response = json(
+        { hello: "world" },
+        { headers: { "x-custom-header": "custom-value" } },
+      );
+      expect(response.headers.get("x-custom-header")).toBe("custom-value");
+    });
+
+    test("respects content-type override", () => {
+      const response = json(
+        { hello: "world" },
+        { headers: { "content-type": "application/vnd.api+json" } },
+      );
+      expect(response.headers.get("content-type")).toBe(
+        "application/vnd.api+json",
+      );
+    });
   });
 
   describe("errorResponse", () => {
