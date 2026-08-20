@@ -90,184 +90,157 @@ function renderChildren(children: ViewNode[]): JSX.Element[] {
   return children.map((child) => renderCrepusNodeSolid(child));
 }
 
+const RENDERERS: Record<
+  string,
+  (node: any, cls: string | undefined) => JSX.Element
+> = {
+  text: (node, cls) => el("span", { class: cls }, node.content),
+  link: (node, cls) =>
+    el(
+      "a",
+      { class: cls, href: node.href, target: node.target, rel: node.rel },
+      ...renderChildren(node.children),
+    ),
+  stack: (node, cls) =>
+    el("div", { class: cls }, ...renderChildren(node.children)),
+  scroll: (node, cls) =>
+    el("div", { class: cls }, ...renderChildren(node.children)),
+  dropzone: (node, cls) =>
+    el(
+      "div",
+      { class: cls, "aria-label": node.label },
+      ...renderChildren(node.children),
+    ),
+  list: (node, cls) =>
+    el(
+      node.ordered ? "ol" : "ul",
+      { class: cls },
+      ...renderChildren(node.children),
+    ),
+  listItem: (node, cls) =>
+    el("li", { class: cls }, ...renderChildren(node.children)),
+  button: (node, cls) =>
+    el("button", { class: cls, type: "button" }, node.label),
+  badge: (node, cls) =>
+    el("span", { class: cls, "data-tone": node.tone }, node.label),
+  divider: (node, cls) => el("hr", { class: cls }),
+  spacer: (node, cls) => el("div", { class: cls, "aria-hidden": true }),
+  image: (node, cls) =>
+    el("img", { class: cls, src: node.src, alt: node.alt ?? "" }),
+  webView: (node, cls) => el("iframe", { class: cls, src: node.src }),
+  toggle: (node, cls) =>
+    el(
+      "button",
+      {
+        class: cls,
+        type: "button",
+        role: "switch",
+        "aria-checked": node.checked,
+      },
+      node.label,
+    ),
+  checkbox: (node, cls) =>
+    el(
+      "label",
+      { class: cls },
+      el("input", { type: "checkbox", checked: node.checked, name: node.bind }),
+      node.label,
+    ),
+  slider: (node, cls) =>
+    el("input", {
+      class: cls,
+      type: "range",
+      value: node.value,
+      min: node.min,
+      max: node.max,
+      step: node.step,
+      name: node.bind,
+    }),
+  progress: (node, cls) =>
+    el("progress", { class: cls, value: node.value, max: node.max }),
+  meter: (node, cls) =>
+    el("meter", {
+      class: cls,
+      value: node.value,
+      min: node.min,
+      max: node.max,
+    }),
+  input: (node, cls) =>
+    el(node.multiline ? "textarea" : "input", {
+      class: cls,
+      type: node.multiline ? undefined : node.secure ? "password" : "text",
+      placeholder: node.placeholder,
+      name: node.bind,
+    }),
+  picker: (node, cls) =>
+    el(
+      "select",
+      { class: cls, name: node.bind },
+      ...node.options.map((option: any) =>
+        el("option", { value: option.value }, option.label),
+      ),
+    ),
+  filePicker: (node, cls) =>
+    el(
+      "label",
+      { class: cls },
+      el("input", {
+        type: "file",
+        accept: node.accept?.join(","),
+        multiple: node.multiple,
+      }),
+      node.label,
+    ),
+  slotRotate: (node, cls) =>
+    el(
+      "span",
+      {
+        class: cls,
+        "data-crepus-slot-rotate": node.phrases.join("|"),
+        "data-interval-ms": node.intervalMs,
+      },
+      node.phrases[0] ?? "",
+    ),
+  tabs: (node, cls) =>
+    el(
+      "div",
+      { class: cls },
+      el(
+        "div",
+        { role: "tablist" },
+        ...node.tabs.map((tab: TabItem) =>
+          el("button", { type: "button", role: "tab" }, tab.label),
+        ),
+      ),
+      ...node.tabs.map((tab: TabItem) =>
+        el("div", { role: "tabpanel" }, ...renderChildren(tab.children)),
+      ),
+    ),
+  if: (node, cls) =>
+    el(
+      "div",
+      { class: cls, "data-crepus-if": node.condition },
+      ...renderChildren(node.thenChildren),
+    ),
+  forEach: (node, cls) =>
+    el(
+      "div",
+      {
+        class: cls,
+        "data-crepus-for-each": node.bind,
+        "data-crepus-item": node.itemName,
+      },
+      ...renderChildren(node.itemBody),
+    ),
+};
+
 export function renderCrepusNodeSolid(node: ViewNode): JSX.Element {
   const cls = classOf(node);
-
-  switch (node.kind) {
-    case "text":
-      return el("span", { class: cls }, node.content);
-
-    case "link":
-      return el(
-        "a",
-        { class: cls, href: node.href, target: node.target, rel: node.rel },
-        ...renderChildren(node.children),
-      );
-
-    case "stack":
-    case "scroll":
-      return el("div", { class: cls }, ...renderChildren(node.children));
-
-    case "dropzone":
-      return el(
-        "div",
-        { class: cls, "aria-label": node.label },
-        ...renderChildren(node.children),
-      );
-
-    case "list":
-      return el(
-        node.ordered ? "ol" : "ul",
-        { class: cls },
-        ...renderChildren(node.children),
-      );
-
-    case "listItem":
-      return el("li", { class: cls }, ...renderChildren(node.children));
-
-    case "button":
-      return el("button", { class: cls, type: "button" }, node.label);
-
-    case "badge":
-      return el("span", { class: cls, "data-tone": node.tone }, node.label);
-
-    case "divider":
-      return el("hr", { class: cls });
-
-    case "spacer":
-      return el("div", { class: cls, "aria-hidden": true });
-
-    case "image":
-      return el("img", { class: cls, src: node.src, alt: node.alt ?? "" });
-
-    case "webView":
-      return el("iframe", { class: cls, src: node.src });
-
-    case "toggle":
-      return el(
-        "button",
-        {
-          class: cls,
-          type: "button",
-          role: "switch",
-          "aria-checked": node.checked,
-        },
-        node.label,
-      );
-
-    case "checkbox":
-      return el(
-        "label",
-        { class: cls },
-        el("input", {
-          type: "checkbox",
-          checked: node.checked,
-          name: node.bind,
-        }),
-        node.label,
-      );
-
-    case "slider":
-      return el("input", {
-        class: cls,
-        type: "range",
-        value: node.value,
-        min: node.min,
-        max: node.max,
-        step: node.step,
-        name: node.bind,
-      });
-
-    case "progress":
-      return el("progress", { class: cls, value: node.value, max: node.max });
-
-    case "meter":
-      return el("meter", {
-        class: cls,
-        value: node.value,
-        min: node.min,
-        max: node.max,
-      });
-
-    case "input":
-      return el(node.multiline ? "textarea" : "input", {
-        class: cls,
-        type: node.multiline ? undefined : node.secure ? "password" : "text",
-        placeholder: node.placeholder,
-        name: node.bind,
-      });
-
-    case "picker":
-      return el(
-        "select",
-        { class: cls, name: node.bind },
-        ...node.options.map((option) =>
-          el("option", { value: option.value }, option.label),
-        ),
-      );
-
-    case "filePicker":
-      return el(
-        "label",
-        { class: cls },
-        el("input", {
-          type: "file",
-          accept: node.accept?.join(","),
-          multiple: node.multiple,
-        }),
-        node.label,
-      );
-
-    case "slotRotate":
-      return el(
-        "span",
-        {
-          class: cls,
-          "data-crepus-slot-rotate": node.phrases.join("|"),
-          "data-interval-ms": node.intervalMs,
-        },
-        node.phrases[0] ?? "",
-      );
-
-    case "tabs":
-      return el(
-        "div",
-        { class: cls },
-        el(
-          "div",
-          { role: "tablist" },
-          ...node.tabs.map((tab: TabItem) =>
-            el("button", { type: "button", role: "tab" }, tab.label),
-          ),
-        ),
-        ...node.tabs.map((tab: TabItem) =>
-          el("div", { role: "tabpanel" }, ...renderChildren(tab.children)),
-        ),
-      );
-
-    // Control flow the parser could not resolve statically. The chosen branch is
-    // rendered and the source expression kept as a data attribute.
-    case "if":
-      return el(
-        "div",
-        { class: cls, "data-crepus-if": node.condition },
-        ...renderChildren(node.thenChildren),
-      );
-
-    case "forEach":
-      return el(
-        "div",
-        {
-          class: cls,
-          "data-crepus-for-each": node.bind,
-          "data-crepus-item": node.itemName,
-        },
-        ...renderChildren(node.itemBody),
-      );
-
-    default:
-      return null as unknown as JSX.Element;
+  const renderer = RENDERERS[node.kind];
+  if (renderer) {
+    return renderer(node, cls);
   }
+  return null as unknown as JSX.Element;
 }
 
 /**
