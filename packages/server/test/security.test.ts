@@ -49,6 +49,7 @@ describe("resolveStaticPath", () => {
   test("rejects malformed percent, null byte, and separators", () => {
     expect(resolveStaticPath(staticDir, "/%")).toBeNull();
     expect(resolveStaticPath(staticDir, "/%ZZ")).toBeNull();
+    expect(resolveStaticPath(staticDir, "/%E0%A4%A")).toBeNull();
     expect(resolveStaticPath(staticDir, "/ok%00.txt")).toBeNull();
     expect(resolveStaticPath(staticDir, "/ok%2fother.txt")).toBeNull();
   });
