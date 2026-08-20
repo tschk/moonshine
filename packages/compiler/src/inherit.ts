@@ -35,15 +35,29 @@ function findSpecial(
   dir: string,
   kind: SpecialKind,
   convention: RouteConvention,
+  cache: Map<string, string | undefined>,
 ): string | undefined {
+  const cacheKey = `${dir}\0${kind}`;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+
   const prefix = specialPrefix[convention];
-  if (prefix === null) return undefined;
-  if (!specialKinds[convention].includes(kind)) return undefined;
+  if (prefix === null) {
+    cache.set(cacheKey, undefined);
+    return undefined;
+  }
+  if (!specialKinds[convention].includes(kind)) {
+    cache.set(cacheKey, undefined);
+    return undefined;
+  }
   const base = join(routesDir, dir, `${prefix}${kind}`);
   for (const ext of [".tsx", ".ts", ".jsx", ".js"]) {
     const candidate = `${base}${ext}`;
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) {
+      cache.set(cacheKey, candidate);
+      return candidate;
+    }
   }
+  cache.set(cacheKey, undefined);
   return undefined;
 }
 
@@ -53,6 +67,7 @@ function applyInheritance(
   convention: RouteConvention,
 ): void {
   const resolvedDir = resolve(routesDir);
+  const cache = new Map<string, string | undefined>();
   for (const route of routes) {
     if (!route.file) continue;
     const rel = toPosix(relative(resolvedDir, resolve(route.file)));
@@ -70,11 +85,29 @@ function applyInheritance(
     let errorBoundary: string | undefined;
 
     for (const ancestor of ancestors) {
-      const layout = findSpecial(resolvedDir, ancestor, "layout", convention);
+      const layout = findSpecial(
+        resolvedDir,
+        ancestor,
+        "layout",
+        convention,
+        cache,
+      );
       if (layout) layouts.push(layout);
-      const mw = findSpecial(resolvedDir, ancestor, "middleware", convention);
+      const mw = findSpecial(
+        resolvedDir,
+        ancestor,
+        "middleware",
+        convention,
+        cache,
+      );
       if (mw) middleware.push(mw);
-      const err = findSpecial(resolvedDir, ancestor, "error", convention);
+      const err = findSpecial(
+        resolvedDir,
+        ancestor,
+        "error",
+        convention,
+        cache,
+      );
       if (err) errorBoundary = err;
     }
 
