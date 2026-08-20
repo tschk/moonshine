@@ -84,6 +84,7 @@ export function isContained(root: string, filePath: string): boolean {
 export async function tryServeStatic(
   staticDir: string,
   pathname: string,
+  customHeaders?: HeadersInit,
 ): Promise<Response | null> {
   if (typeof Bun === "undefined") return null;
   const filePath = resolveStaticPath(staticDir, pathname);
@@ -97,7 +98,18 @@ export async function tryServeStatic(
   }
   const type =
     MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
-  return new Response(file, {
-    headers: { "content-type": type, "x-content-type-options": "nosniff" },
-  });
+
+  const headers = new Headers(customHeaders);
+  headers.set("content-type", type);
+  if (!headers.has("x-content-type-options")) {
+    headers.set("x-content-type-options", "nosniff");
+  }
+  if (!headers.has("x-frame-options")) {
+    headers.set("x-frame-options", "DENY");
+  }
+  if (!headers.has("referrer-policy")) {
+    headers.set("referrer-policy", "no-referrer");
+  }
+
+  return new Response(file, { headers });
 }

@@ -203,7 +203,11 @@ async function runCoreAndAfters(
     response = leafData instanceof Response ? leafData : json(ctx.data);
   } else if (route.mode === "static" && options.staticDir) {
     const pathname = new URL(ctx.request.url).pathname;
-    const staticRes = await tryServeStatic(options.staticDir, pathname);
+    const staticRes = await tryServeStatic(
+      options.staticDir,
+      pathname,
+      options.defaultMeta?.headers,
+    );
     if (staticRes) {
       response = staticRes;
     } else if (options.renderer) {
@@ -273,7 +277,11 @@ export function createRequestHandler(
       (method === "GET" || method === "HEAD") &&
       pathname !== "/"
     ) {
-      const staticRes = await tryServeStatic(options.staticDir, pathname);
+      const staticRes = await tryServeStatic(
+        options.staticDir,
+        pathname,
+        options.defaultMeta?.headers,
+      );
       if (staticRes) return staticRes;
     }
 
