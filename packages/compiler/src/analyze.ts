@@ -22,12 +22,16 @@ const HTTP_METHODS = [
   "HEAD",
 ];
 
-function getSourceFile(file: string, program?: ts.Program): ts.SourceFile {
+function getSourceFile(
+  file: string,
+  program?: ts.Program,
+  sourceText?: string,
+): ts.SourceFile {
   if (program) {
     const source = program.getSourceFile(file);
     if (source) return source;
   }
-  const text = readFileSync(file, "utf8");
+  const text = sourceText ?? readFileSync(file, "utf8");
   const scriptKind = file.endsWith(".tsx")
     ? ts.ScriptKind.TSX
     : ts.ScriptKind.TS;
@@ -156,8 +160,12 @@ function getFileSuffix(file: string): "server" | "client" | undefined {
   return undefined;
 }
 
-export function analyzeModule(file: string, program?: ts.Program): ModuleFacts {
-  const source = getSourceFile(file, program);
+export function analyzeModule(
+  file: string,
+  program?: ts.Program,
+  sourceText?: string,
+): ModuleFacts {
+  const source = getSourceFile(file, program, sourceText);
   const suffix = getFileSuffix(file);
   const facts: ModuleFacts = {
     clientBoundary: suffix === "client",
