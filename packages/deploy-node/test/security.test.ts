@@ -174,6 +174,8 @@ describe("createNodeHandler static serving", () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("ok");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
   });
 
   test("does not follow a symlink escaping the static root", async () => {

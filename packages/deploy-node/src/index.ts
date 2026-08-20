@@ -13,7 +13,11 @@ import {
   type Harness,
   type HarnessFactory,
 } from "@tschk/moonshine-framework";
-import { isContained, resolveStaticPath } from "@tschk/moonshine-server";
+import {
+  isContained,
+  resolveStaticPath,
+  staticFileHeaders,
+} from "@tschk/moonshine-server";
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -76,12 +80,10 @@ async function tryServeNodeStatic(
   }
   const type = MIME[extOf(filePath)] ?? "application/octet-stream";
   const stream = createReadStream(filePath);
+  const headers = staticFileHeaders(type);
+  headers.set("content-length", String(stats.size));
   return new Response(Readable.toWeb(stream) as unknown as ReadableStream, {
-    headers: {
-      "content-type": type,
-      "content-length": String(stats.size),
-      "x-content-type-options": "nosniff",
-    },
+    headers,
   });
 }
 

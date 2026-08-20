@@ -81,6 +81,24 @@ export function isContained(root: string, filePath: string): boolean {
   return real === realRoot || real.startsWith(realRoot + sep);
 }
 
+export function staticFileHeaders(
+  type: string,
+  customHeaders?: HeadersInit,
+): Headers {
+  const headers = new Headers(customHeaders);
+  headers.set("content-type", type);
+  if (!headers.has("x-content-type-options")) {
+    headers.set("x-content-type-options", "nosniff");
+  }
+  if (!headers.has("x-frame-options")) {
+    headers.set("x-frame-options", "DENY");
+  }
+  if (!headers.has("referrer-policy")) {
+    headers.set("referrer-policy", "no-referrer");
+  }
+  return headers;
+}
+
 export async function tryServeStatic(
   staticDir: string,
   pathname: string,
@@ -99,17 +117,5 @@ export async function tryServeStatic(
   const type =
     MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
 
-  const headers = new Headers(customHeaders);
-  headers.set("content-type", type);
-  if (!headers.has("x-content-type-options")) {
-    headers.set("x-content-type-options", "nosniff");
-  }
-  if (!headers.has("x-frame-options")) {
-    headers.set("x-frame-options", "DENY");
-  }
-  if (!headers.has("referrer-policy")) {
-    headers.set("referrer-policy", "no-referrer");
-  }
-
-  return new Response(file, { headers });
+  return new Response(file, { headers: staticFileHeaders(type, customHeaders) });
 }
