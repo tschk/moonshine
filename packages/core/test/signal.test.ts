@@ -518,4 +518,24 @@ describe("createResource", () => {
     expect(r.error()?.message).toBe("nope");
     expect(r.status()).toBe("errored");
   });
+
+  test("captures non-Error objects and invokes onError", async () => {
+    let capturedError: Error | undefined;
+    const r = createResource(
+      async () => {
+        throw "string error";
+      },
+      {
+        immediate: false,
+        onError: (err) => {
+          capturedError = err;
+        },
+      },
+    );
+    await r.refetch();
+    expect(r.error()?.message).toBe("string error");
+    expect(r.status()).toBe("errored");
+    expect(capturedError).toBeInstanceOf(Error);
+    expect(capturedError?.message).toBe("string error");
+  });
 });
