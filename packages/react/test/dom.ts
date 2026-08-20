@@ -45,6 +45,7 @@ if (!("happyDOM" in globalThis)) {
 
 const mounted: { unmount(): void }[] = [];
 
+/** Mounts `element` into a fresh detached container and flushes effects. */
 export async function render(element: ReactNode): Promise<HTMLElement> {
   const container = document.createElement("div");
   document.body.append(container);
@@ -56,9 +57,53 @@ export async function render(element: ReactNode): Promise<HTMLElement> {
   return container;
 }
 
+/**
+ * Unmounts every root from the current test. Without this, trees left
+ * subscribed to the router signal re-render on the next test's navigation.
+ */
 export async function cleanup(): Promise<void> {
   await act(async () => {
     for (const root of mounted.splice(0)) root.unmount();
   });
   document.body.replaceChildren();
+}
+
+/**
+ * Dispatches a real bubbling click so React's root listener runs, and reports
+ * whether the handler claimed the event.
+ *
+ * A document-level guard records `defaultPrevented` and then cancels the event
+ * regardless, so happy-dom does not follow un-intercepted anchors and leave the
+ * document on a URL later tests cannot navigate from.
+ */
+export async function click(
+  node: Element,
+  init: MouseEventInit = {},
+): Promise<{ defaultPrevented: boolean }> {
+  let defaultPrevented = false;
+  const guard = (event: Event): void => {
+    defaultPrevented = event.defaultPrevented;
+    event.preventDefault();
+  };
+  document.addEventListener("click", guard);
+  try {
+    await act(async () => {
+      node.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          ...init,
+        }),
+      );
+    });
+  } finally {
+    document.removeEventListener("click", guard);
+  }
+  return { defaultPrevented };
+}
+
+/** Resets the document location between navigation assertions. */
+export function setLocation(url: string): void {
+  window.history.replaceState({}, "", new URL(url, "https://example.com").href);
 }
