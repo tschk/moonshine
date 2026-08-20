@@ -20,7 +20,11 @@ export async function scanProject(projectDir: string): Promise<AdoptScan> {
   const pkg = readJson<PackageJson>(join(dir, "package.json"));
   const files = sourceFiles(dir);
   const detected = detectFramework(dir, pkg);
-  const imports = findHostImports(dir, files, adapterFor(detected.framework));
+  const imports = await findHostImports(
+    dir,
+    files,
+    adapterFor(detected.framework),
+  );
 
   const globs = templateGlobs(detected.framework);
   const templates = globs
