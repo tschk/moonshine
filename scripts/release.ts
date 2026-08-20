@@ -11,6 +11,11 @@ function fail(message: string): never {
 }
 
 async function exec(command: string[], options?: { cwd?: string }) {
+  for (const arg of command) {
+    if (/[&|;`$<>\n\r]/.test(arg)) {
+      fail(`Invalid character in command argument: ${arg}`);
+    }
+  }
   const proc = Bun.spawn(command, {
     cwd: options?.cwd,
     stdout: "pipe",
