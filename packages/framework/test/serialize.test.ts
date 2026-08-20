@@ -57,4 +57,13 @@ describe("serializeData", () => {
     expect(() => serializeData({ s: Symbol("x") })).toThrow(/symbol/);
     expect(() => serializeData({ n: 1n })).toThrow(/bigint/);
   });
+
+  test("omits properties with throwing getters", () => {
+    const obj = {
+      get thrower() {
+        throw new Error("Getter threw!");
+      },
+    };
+    expect(serializeData(obj)).toBe("{}");
+  });
 });

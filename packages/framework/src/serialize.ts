@@ -77,7 +77,16 @@ export function serializeData(value: unknown): string {
     ancestors.add(v);
     try {
       const parts: string[] = [];
-      for (const [key, val] of Object.entries(v as Record<string, unknown>)) {
+      const keys = Object.keys(v as Record<string, unknown>);
+      for (const key of keys) {
+        let val;
+        try {
+          val = (v as Record<string, unknown>)[key];
+        } catch (e) {
+          // Throwing getter -> undefined
+          val = undefined;
+        }
+
         if (typeof val === "function" || typeof val === "symbol") {
           throw new TypeError(
             "serializeData: cannot serialize function/symbol",
