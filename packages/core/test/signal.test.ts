@@ -272,6 +272,29 @@ describe("collectDeps", () => {
     m();
     expect(memoRuns).toBe(2); // triggered by s2
   });
+
+  test("collects memo dependencies", () => {
+    const s1 = createSignal(1);
+    const m1 = createMemo(() => s1() * 2);
+
+    const deps = collectDeps(() => {
+      m1();
+    });
+
+    expect(deps.length).toBe(1);
+    expect(typeof deps[0].subscribe).toBe("function");
+  });
+
+  test("collects store dependencies", () => {
+    const [state] = createStore({ count: 1 });
+
+    const deps = collectDeps(() => {
+      expect(state.count).toBe(1);
+    });
+
+    expect(deps.length).toBe(1);
+    expect(typeof deps[0].subscribe).toBe("function");
+  });
 });
 
 describe("untrack", () => {
