@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 
 // Sequential implementation (Original)
 async function copyAssetsSequential(
-  assets: any[],
+  assets: Array<{ file: string; path?: string }>,
   outDir: string,
 ): Promise<void> {
   for (const asset of assets) {
@@ -25,7 +25,7 @@ async function copyAssetsSequential(
 
 // Parallel implementation (Optimized)
 async function copyAssetsParallel(
-  assets: any[],
+  assets: Array<{ file: string; path?: string }>,
   outDir: string,
 ): Promise<void> {
   await Promise.all(
