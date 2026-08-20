@@ -1,4 +1,3 @@
-import { jsonForScript } from "./edge";
 import Downloads, {
   DOWNLOADS_ISLAND,
   DownloadsUnavailable,
@@ -36,7 +35,7 @@ export function DownloadChart({
       <script
         type="application/json"
         data-island-props={`${DOWNLOADS_ISLAND}:${id}`}
-        dangerouslySetInnerHTML={{ __html: jsonForScript({ id, series }) }}
+        data-props={JSON.stringify({ id, series })}
       />
     </>
   );

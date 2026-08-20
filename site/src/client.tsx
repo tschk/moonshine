@@ -8,9 +8,10 @@ import Downloads, {
 
 function readJson(key: string): unknown {
   const script = document.querySelector(`script[data-island-props="${key}"]`);
-  if (!script?.textContent) return null;
+  const data = script?.getAttribute("data-props") || script?.textContent;
+  if (!data) return null;
   try {
-    return JSON.parse(script.textContent) as unknown;
+    return JSON.parse(data) as unknown;
   } catch {
     return null;
   }

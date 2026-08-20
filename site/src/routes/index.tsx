@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { readEdgeFacts, jsonForScript, type EdgeFacts } from "../edge";
+import { readEdgeFacts, type EdgeFacts } from "../edge";
 import {
   fetchNpmDownloads,
   fetchCrepusCrates,
@@ -211,7 +211,7 @@ export default function Home({ data }: { data: HomeData }) {
         <script
           type="application/json"
           data-island-props={ISLAND_ID}
-          dangerouslySetInnerHTML={{ __html: jsonForScript({ seed }) }}
+          data-props={JSON.stringify({ seed })}
         />
       </section>
 
