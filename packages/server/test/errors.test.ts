@@ -26,6 +26,7 @@ describe("errors module", () => {
 
       try {
         redirect("/dashboard");
+        expect.unreachable();
       } catch (err) {
         expect(err).toBeInstanceOf(Redirect);
         expect((err as Redirect).location).toBe("/dashboard");
@@ -36,8 +37,21 @@ describe("errors module", () => {
     test("throws a Redirect error with custom status", () => {
       try {
         redirect("/dashboard", 308);
+        expect.unreachable();
       } catch (err) {
+        expect(err).toBeInstanceOf(Redirect);
         expect((err as Redirect).status).toBe(308);
+      }
+    });
+
+    test("throws a Redirect error with empty location", () => {
+      try {
+        redirect("");
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(Redirect);
+        expect((err as Redirect).location).toBe("");
+        expect((err as Redirect).status).toBe(302);
       }
     });
   });
