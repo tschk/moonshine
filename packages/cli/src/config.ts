@@ -35,7 +35,7 @@ export function findConfig(projectDir: string): string | undefined {
 
 export async function loadConfig(path: string): Promise<MoonshineCliConfig> {
   const mod = await import(pathToFileURL(path).href);
-  const config = mod.default ?? mod;
+  const config = "default" in mod ? mod.default : mod;
   if (typeof config !== "object" || config === null) {
     throw new Error(`Invalid moonshine config: ${path}`);
   }

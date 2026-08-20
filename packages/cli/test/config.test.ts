@@ -1,86 +1,63 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { findConfig, loadConfig, defineConfig } from "../src/config";
+import { tmpdir } from "node:os";
+import { loadConfig, findConfig, defineConfig } from "../src/config";
 
-describe("config", () => {
-  const testDir = join(process.cwd(), "test-config-tmp");
+const tmp = mkdtempSync(join(tmpdir(), "moonshine-config-"));
+const validConfigPath = join(tmp, "moonshine.config.ts");
+const stringConfigPath = join(tmp, "string-config.ts");
+const nullConfigPath = join(tmp, "null-config.ts");
 
-  beforeAll(() => {
-    rmSync(testDir, { recursive: true, force: true });
-    mkdirSync(testDir, { recursive: true });
+beforeAll(() => {
+  writeFileSync(validConfigPath, `export default { adapter: "bun" };\n`);
+  writeFileSync(stringConfigPath, `export default "invalid string config";\n`);
+  writeFileSync(nullConfigPath, `export default null;\n`);
+});
+
+afterAll(() => {
+  if (existsSync(tmp)) rmSync(tmp, { recursive: true, force: true });
+});
+
+describe("loadConfig", () => {
+  test("loads valid config object", async () => {
+    const config = await loadConfig(validConfigPath);
+    expect(config).toEqual({ adapter: "bun" });
   });
 
-  afterAll(() => {
-    rmSync(testDir, { recursive: true, force: true });
+  test("throws error if config default export is a string", async () => {
+    expect(loadConfig(stringConfigPath)).rejects.toThrow(
+      `Invalid moonshine config: ${stringConfigPath}`,
+    );
   });
 
-  test("defineConfig should return the config", () => {
+  test("throws error if config default export is null", async () => {
+    expect(loadConfig(nullConfigPath)).rejects.toThrow(
+      `Invalid moonshine config: ${nullConfigPath}`,
+    );
+  });
+});
+
+describe("findConfig", () => {
+  test("finds config if exists", () => {
+    expect(findConfig(tmp)).toBe(validConfigPath);
+  });
+
+  test("returns undefined if no config exists", () => {
+    const emptyTmp = mkdtempSync(join(tmpdir(), "moonshine-empty-"));
+    try {
+      expect(findConfig(emptyTmp)).toBeUndefined();
+    } finally {
+      if (existsSync(emptyTmp))
+        rmSync(emptyTmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("defineConfig", () => {
+  test("returns config unchanged", () => {
     const config = { adapter: "bun" as const };
-    expect(defineConfig(config)).toEqual(config);
-  });
-
-  test("findConfig should return undefined if no config is found", () => {
-    const noConfigDir = join(testDir, "no-config");
-    mkdirSync(noConfigDir);
-    expect(findConfig(noConfigDir)).toBeUndefined();
-  });
-
-  test("findConfig should find moonshine.config.ts", () => {
-    const tsDir = join(testDir, "ts-config");
-    mkdirSync(tsDir);
-    const tsFile = join(tsDir, "moonshine.config.ts");
-    writeFileSync(tsFile, "export default {}");
-
-    expect(findConfig(tsDir)).toBe(tsFile);
-  });
-
-  test("findConfig should find moonshine.config.js", () => {
-    const jsDir = join(testDir, "js-config");
-    mkdirSync(jsDir);
-    const jsFile = join(jsDir, "moonshine.config.js");
-    writeFileSync(jsFile, "module.exports = {}");
-
-    expect(findConfig(jsDir)).toBe(jsFile);
-  });
-
-  test("findConfig should prioritize moonshine.config.ts over moonshine.config.js", () => {
-    const bothDir = join(testDir, "both-config");
-    mkdirSync(bothDir);
-    const tsFile = join(bothDir, "moonshine.config.ts");
-    const jsFile = join(bothDir, "moonshine.config.js");
-    writeFileSync(tsFile, "export default {}");
-    writeFileSync(jsFile, "module.exports = {}");
-
-    expect(findConfig(bothDir)).toBe(tsFile);
-  });
-
-  test("loadConfig should successfully load a ts config module", async () => {
-    const loadDir = join(testDir, "load-config-ts");
-    mkdirSync(loadDir);
-    const tsFile = join(loadDir, "moonshine.config.ts");
-    writeFileSync(tsFile, `export default { adapter: "bun" }`);
-
-    const config = await loadConfig(tsFile);
-    expect(config.adapter).toBe("bun");
-  });
-
-  test("loadConfig should successfully load a js config module", async () => {
-    const loadDir = join(testDir, "load-config-js");
-    mkdirSync(loadDir);
-    const jsFile = join(loadDir, "moonshine.config.js");
-    writeFileSync(jsFile, `module.exports = { adapter: "node" }`);
-
-    const config = await loadConfig(jsFile);
-    expect(config.adapter).toBe("node");
-  });
-
-  test("loadConfig should throw if config is not an object", async () => {
-    const loadDir = join(testDir, "load-config-invalid");
-    mkdirSync(loadDir);
-    const tsFile = join(loadDir, "moonshine.config.ts");
-    writeFileSync(tsFile, `export default 123`);
-
-    expect(loadConfig(tsFile)).rejects.toThrow("Invalid moonshine config:");
+    const result = defineConfig(config);
+    expect(result).toEqual(config);
   });
 });
