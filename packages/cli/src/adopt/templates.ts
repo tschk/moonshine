@@ -1,5 +1,6 @@
 /** Non-React templates, compiled through the parser into route modules. */
 import { existsSync, readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Framework } from "./frameworks.js";
 import type { AdoptChange, AdoptScan, TemplateFile } from "./types.js";
@@ -83,34 +84,39 @@ export async function compileTemplates(
   const { parseTemplate } = await import("@tschk/crepuscularity-wasm");
   const files = templateFiles(projectDir, globs);
 
-  const templates: TemplateFile[] = [];
   const taken = new Set<string>();
-  for (const file of files) {
+
+  const jobs = files.map((file) => {
     const route = templateRoute(file, framework);
     const entry: TemplateFile = { file, ok: false };
     if (route !== undefined && !taken.has(route)) {
       taken.add(route);
       entry.route = route;
     }
-    try {
-      const ir = parseTemplate(
-        readFileSync(join(projectDir, file), "utf8"),
-        file.split("/").pop()!,
-      );
-      entry.ok = true;
-      entry.nodes = countNodes(ir.root ?? []);
-      entry.ir = ir;
-      entry.irVersion = ir.version;
-      entry.generated =
-        entry.route !== undefined
-          ? generatedModule(entry.route)
-          : componentModule(file);
-    } catch (error) {
-      entry.error = error instanceof Error ? error.message : String(error);
-      delete entry.route;
-    }
-    templates.push(entry);
-  }
+    return { file, entry };
+  });
+
+  const templates = await Promise.all(
+    jobs.map(async ({ file, entry }) => {
+      try {
+        const content = await readFile(join(projectDir, file), "utf8");
+        const ir = parseTemplate(content, file.split("/").pop()!);
+        entry.ok = true;
+        entry.nodes = countNodes(ir.root ?? []);
+        entry.ir = ir;
+        entry.irVersion = ir.version;
+        entry.generated =
+          entry.route !== undefined
+            ? generatedModule(entry.route)
+            : componentModule(file);
+      } catch (error) {
+        entry.error = error instanceof Error ? error.message : String(error);
+        delete entry.route;
+      }
+      return entry;
+    }),
+  );
+
   return templates;
 }
 
