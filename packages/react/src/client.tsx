@@ -118,8 +118,8 @@ export function useStore<T extends object>(store: T): T {
   }
   useSyncExternalStore(
     node.subscribe,
-    () => store,
-    () => store,
+    () => node.version,
+    () => node.version,
   );
   return store;
 }

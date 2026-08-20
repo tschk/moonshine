@@ -2,6 +2,7 @@ type Listener = () => void;
 
 export type Trackable = {
   subscribe: (listener: Listener) => () => void;
+  version: number;
 };
 
 /**
@@ -13,7 +14,6 @@ export type Trackable = {
  * rather than writes pushing all the way down.
  */
 type Source = Trackable & {
-  version: number;
   validate: () => void;
 };
 
