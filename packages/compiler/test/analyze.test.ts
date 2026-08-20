@@ -11,7 +11,7 @@ function analyzeSource(sourceCode: string, filename = "test.tsx") {
           sourceCode,
           ts.ScriptTarget.Latest,
           true,
-          filename.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+          filename.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
         );
       }
       return undefined;
@@ -23,17 +23,25 @@ function analyzeSource(sourceCode: string, filename = "test.tsx") {
 
 describe("analyzeModule", () => {
   test("detects clientBoundary from 'use client' directive", () => {
-    const facts = analyzeSource("'use client';\nexport default function App() {}");
+    const facts = analyzeSource(
+      "'use client';\nexport default function App() {}",
+    );
     expect(facts.clientBoundary).toBe(true);
   });
 
   test("detects clientBoundary from file suffix", () => {
-    const facts = analyzeSource("export default function App() {}", "app.client.tsx");
+    const facts = analyzeSource(
+      "export default function App() {}",
+      "app.client.tsx",
+    );
     expect(facts.clientBoundary).toBe(true);
   });
 
   test("detects serverOnly from file suffix", () => {
-    const facts = analyzeSource("export default function App() {}", "app.server.tsx");
+    const facts = analyzeSource(
+      "export default function App() {}",
+      "app.server.tsx",
+    );
     expect(facts.serverOnly).toBe(true);
   });
 
@@ -43,8 +51,12 @@ describe("analyzeModule", () => {
   });
 
   test("detects exportsHandler from HTTP method exports", () => {
-    expect(analyzeSource("export const GET = () => {}").exportsHandler).toBe(true);
-    expect(analyzeSource("export function POST() {}").exportsHandler).toBe(true);
+    expect(analyzeSource("export const GET = () => {}").exportsHandler).toBe(
+      true,
+    );
+    expect(analyzeSource("export function POST() {}").exportsHandler).toBe(
+      true,
+    );
     expect(analyzeSource("export { myFunc as PUT }").exportsHandler).toBe(true);
   });
 
@@ -64,16 +76,31 @@ describe("analyzeModule", () => {
   });
 
   test("detects requestBound from specific module imports", () => {
-    expect(analyzeSource("import { anything } from 'next/headers'").requestBound).toBe(true);
-    expect(analyzeSource("import { something } from './cookies.ts'").requestBound).toBe(true);
-    expect(analyzeSource("import { xyz } from 'request'").requestBound).toBe(true);
+    expect(
+      analyzeSource("import { anything } from 'next/headers'").requestBound,
+    ).toBe(true);
+    expect(
+      analyzeSource("import { something } from './cookies.ts'").requestBound,
+    ).toBe(true);
+    expect(analyzeSource("import { xyz } from 'request'").requestBound).toBe(
+      true,
+    );
   });
 
   test("detects requestBound from specific binding imports", () => {
-    expect(analyzeSource("import { cookies } from 'any-module'").requestBound).toBe(true);
-    expect(analyzeSource("import { headers, other } from 'some-module'").requestBound).toBe(true);
-    expect(analyzeSource("import { draftMode } from 'utils'").requestBound).toBe(true);
-    expect(analyzeSource("import { request } from 'core'").requestBound).toBe(true);
+    expect(
+      analyzeSource("import { cookies } from 'any-module'").requestBound,
+    ).toBe(true);
+    expect(
+      analyzeSource("import { headers, other } from 'some-module'")
+        .requestBound,
+    ).toBe(true);
+    expect(
+      analyzeSource("import { draftMode } from 'utils'").requestBound,
+    ).toBe(true);
+    expect(analyzeSource("import { request } from 'core'").requestBound).toBe(
+      true,
+    );
   });
 
   test("does not detect requestBound for unrelated imports", () => {
@@ -82,7 +109,9 @@ describe("analyzeModule", () => {
   });
 
   test("detects interactive from JSX event attributes", () => {
-    const facts = analyzeSource("export default function Btn() { return <button onClick={() => {}}>Click</button> }");
+    const facts = analyzeSource(
+      "export default function Btn() { return <button onClick={() => {}}>Click</button> }",
+    );
     expect(facts.interactive).toBe(true);
   });
 
