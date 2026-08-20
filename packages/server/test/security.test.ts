@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import {
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
+import fs, {
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -114,6 +114,17 @@ describe("tryServeStatic", () => {
 
   test("does not serve dotfiles", async () => {
     expect(await tryServeStatic(staticDir, "/.env")).toBeNull();
+  });
+
+  test("returns null if containment check throws", async () => {
+    const spy = spyOn(fs.realpathSync, "native").mockImplementation(() => {
+      throw new Error("EACCES: permission denied");
+    });
+    try {
+      expect(await tryServeStatic(staticDir, "/ok.txt")).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 
