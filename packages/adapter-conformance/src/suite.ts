@@ -56,7 +56,9 @@ const conformanceRenderer: Renderer = {
             clearTimeout(t);
             try {
               controller.error(new Error("aborted"));
-            } catch {}
+            } catch (err) {
+              console.error("Error during stream abort:", err);
+            }
           });
         },
       });
