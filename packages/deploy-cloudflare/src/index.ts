@@ -67,7 +67,9 @@ export async function cloudflareFetch(
         (async () => {
           try {
             await cache.put(request.clone(), response.clone());
-          } catch {}
+          } catch (err) {
+            console.warn("Failed to cache response:", err);
+          }
         })(),
       );
     }
