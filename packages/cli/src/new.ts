@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 type Renderer = "react" | "solid" | "crepus";
@@ -108,13 +109,13 @@ function parseArgs(args: string[]): {
   return { name, renderer, adapter, vite };
 }
 
-function writePackageJson(
+async function writePackageJson(
   dir: string,
   name: string,
   root: string | null,
   renderer: Renderer | undefined,
   adapter: Adapter,
-): void {
+): Promise<void> {
   const dependencies: Record<string, string> = {
     "@tschk/moonshine": packagePath("@tschk/moonshine", root)!,
     "@tschk/moonshine-framework": packagePath(
@@ -167,7 +168,7 @@ function writePackageJson(
     devDependencies["@types/react-dom"] = "^19.1.0";
   }
 
-  writeFileSync(
+  await writeFile(
     join(dir, "package.json"),
     JSON.stringify(
       {
@@ -189,7 +190,10 @@ function writePackageJson(
   );
 }
 
-function writeTsconfig(dir: string, renderer: Renderer | undefined): void {
+async function writeTsconfig(
+  dir: string,
+  renderer: Renderer | undefined,
+): Promise<void> {
   const compilerOptions: Record<string, unknown> = {
     target: "ES2024",
     module: "ESNext",
@@ -204,7 +208,7 @@ function writeTsconfig(dir: string, renderer: Renderer | undefined): void {
   if (renderer === "solid") {
     compilerOptions.jsxImportSource = "solid-js";
   }
-  writeFileSync(
+  await writeFile(
     join(dir, "tsconfig.json"),
     JSON.stringify(
       {
@@ -217,15 +221,15 @@ function writeTsconfig(dir: string, renderer: Renderer | undefined): void {
   );
 }
 
-function writeConfig(
+async function writeConfig(
   dir: string,
   renderer: Renderer | undefined,
   adapter: Adapter,
-): void {
+): Promise<void> {
   const runtime = runtimeForAdapter(adapter);
   const entries: Record<string, unknown> = { runtime, adapter };
   if (renderer) entries.renderer = renderer;
-  writeFileSync(
+  await writeFile(
     join(dir, "moonshine.config.ts"),
     `import { defineConfig } from "@tschk/moonshine-framework";
 
@@ -234,10 +238,10 @@ export default defineConfig(${JSON.stringify(entries)});
   );
 }
 
-function writeRoute(dir: string, renderer: Renderer | undefined): void {
-  mkdirSync(join(dir, "src", "routes"), { recursive: true });
+async function writeRoute(dir: string, renderer: Renderer | undefined): Promise<void> {
+  await mkdir(join(dir, "src", "routes"), { recursive: true });
   if (renderer === "react") {
-    writeFileSync(
+    await writeFile(
       join(dir, "src", "routes", "index.tsx"),
       `export default function Home({ data }: { data?: unknown }) {
   const d = (data ?? {}) as Record<string, string>;
@@ -250,7 +254,7 @@ function writeRoute(dir: string, renderer: Renderer | undefined): void {
 `,
     );
   } else if (renderer === "solid") {
-    writeFileSync(
+    await writeFile(
       join(dir, "src", "routes", "index.ts"),
       `import h from "@tschk/moonshine-solid/h";
 
@@ -265,9 +269,9 @@ export default function Home({ data }: { data?: unknown }) {
 `,
     );
   } else if (renderer === "crepus") {
-    writeFileSync(join(dir, "src", "routes", "index.ts"), "\n");
+    await writeFile(join(dir, "src", "routes", "index.ts"), "\n");
   } else {
-    writeFileSync(
+    await writeFile(
       join(dir, "src", "routes", "index.server.ts"),
       `export function loader() {
   return { ok: true };
@@ -277,88 +281,90 @@ export default function Home({ data }: { data?: unknown }) {
   }
 }
 
-function writeReadme(
+async function writeReadme(
   dir: string,
   name: string,
   renderer: Renderer | undefined,
   adapter: Adapter,
-): void {
+): Promise<void> {
   const runtime = runtimeForAdapter(adapter);
   let body = `# ${name}\n\nMoonshine on **${adapter}** (${runtime}).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n`;
   if (!renderer)
     body += `\nAdd \`--react\`, \`--solid\`, or \`--crepus\` for a UI renderer.\n`;
-  writeFileSync(join(dir, "README.md"), body);
+  await writeFile(join(dir, "README.md"), body);
 }
 
-function writeViteApp(dir: string, name: string, root: string | null): void {
-  mkdirSync(join(dir, "src"), { recursive: true });
+async function writeViteApp(
+  dir: string,
+  name: string,
+  root: string | null,
+): Promise<void> {
+  await mkdir(join(dir, "src"), { recursive: true });
 
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify(
-      {
-        name,
-        private: true,
-        version: "0.0.0",
-        type: "module",
-        scripts: {
-          dev: "vite",
-          build: "vite build",
-          preview: "vite preview",
+  await Promise.all([
+    writeFile(
+      join(dir, "package.json"),
+      JSON.stringify(
+        {
+          name,
+          private: true,
+          version: "0.0.0",
+          type: "module",
+          scripts: {
+            dev: "vite",
+            build: "vite build",
+            preview: "vite preview",
+          },
+          dependencies: {
+            "@tschk/moonshine": dep(root, "packages/core"),
+            react: "^19.1.0",
+            "react-dom": "^19.1.0",
+          },
+          devDependencies: {
+            "@types/react": "^19.1.0",
+            "@types/react-dom": "^19.1.0",
+            "@vitejs/plugin-react": "^4.5.0",
+            typescript: "~7.0.0",
+            vite: "^6.3.5",
+          },
         },
-        dependencies: {
-          "@tschk/moonshine": dep(root, "packages/core"),
-          react: "^19.1.0",
-          "react-dom": "^19.1.0",
+        null,
+        2,
+      ) + "\n",
+    ),
+    writeFile(
+      join(dir, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: "ES2024",
+            module: "ESNext",
+            moduleResolution: "Bundler",
+            jsx: "react-jsx",
+            strict: true,
+            skipLibCheck: true,
+            noEmit: true,
+            types: ["vite/client"],
+          },
+          include: ["src"],
         },
-        devDependencies: {
-          "@types/react": "^19.1.0",
-          "@types/react-dom": "^19.1.0",
-          "@vitejs/plugin-react": "^4.5.0",
-          typescript: "~7.0.0",
-          vite: "^6.3.5",
-        },
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-
-  writeFileSync(
-    join(dir, "tsconfig.json"),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          target: "ES2024",
-          module: "ESNext",
-          moduleResolution: "Bundler",
-          jsx: "react-jsx",
-          strict: true,
-          skipLibCheck: true,
-          noEmit: true,
-          types: ["vite/client"],
-        },
-        include: ["src"],
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-
-  writeFileSync(
-    join(dir, "vite.config.ts"),
-    `import { defineConfig } from "vite";
+        null,
+        2,
+      ) + "\n",
+    ),
+    writeFile(
+      join(dir, "vite.config.ts"),
+      `import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
 });
 `,
-  );
-
-  writeFileSync(
-    join(dir, "index.html"),
-    `<!doctype html>
+    ),
+    writeFile(
+      join(dir, "index.html"),
+      `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -371,11 +377,10 @@ export default defineConfig({
   </body>
 </html>
 `,
-  );
-
-  writeFileSync(
-    join(dir, "src/main.tsx"),
-    `import { createSignal, useSignal, createApp } from "@tschk/moonshine/react";
+    ),
+    writeFile(
+      join(dir, "src/main.tsx"),
+      `import { createSignal, useSignal, createApp } from "@tschk/moonshine/react";
 
 const count = createSignal(0);
 
@@ -394,28 +399,30 @@ function App() {
 
 createApp({ root: App }).mount("#app");
 `,
-  );
-
-  writeFileSync(
-    join(dir, "README.md"),
-    `# ${name}\n\nVite + moonshine signals (client SPA).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n\nFull-stack Bun (server + static + hydrate): \`moonshine new app --bun\`.\n`,
-  );
+    ),
+    writeFile(
+      join(dir, "README.md"),
+      `# ${name}\n\nVite + moonshine signals (client SPA).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n\nFull-stack Bun (server + static + hydrate): \`moonshine new app --bun\`.\n`,
+    ),
+  ]);
 }
 
-function writeBunApp(
+async function writeBunApp(
   dir: string,
   name: string,
   root: string | null,
   renderer: Renderer | undefined,
   adapter: Adapter,
-): void {
-  mkdirSync(join(dir, "src", "routes"), { recursive: true });
+): Promise<void> {
+  await mkdir(join(dir, "src", "routes"), { recursive: true });
 
-  writePackageJson(dir, name, root, renderer, adapter);
-  writeTsconfig(dir, renderer);
-  writeConfig(dir, renderer, adapter);
-  writeRoute(dir, renderer);
-  writeReadme(dir, name, renderer, adapter);
+  await Promise.all([
+    writePackageJson(dir, name, root, renderer, adapter),
+    writeTsconfig(dir, renderer),
+    writeConfig(dir, renderer, adapter),
+    writeRoute(dir, renderer),
+    writeReadme(dir, name, renderer, adapter),
+  ]);
 }
 
 export async function newCommand(args: string[]): Promise<void> {
@@ -431,9 +438,9 @@ export async function newCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  mkdirSync(dir, { recursive: true });
-  if (vite) writeViteApp(dir, name, root);
-  else writeBunApp(dir, name, root, renderer, adapter);
+  await mkdir(dir, { recursive: true });
+  if (vite) await writeViteApp(dir, name, root);
+  else await writeBunApp(dir, name, root, renderer, adapter);
 
   console.log(`Created ${name}/ (${vite ? "vite" : adapter})`);
   if (root) console.log(`Linked moonshine from ${root}`);
