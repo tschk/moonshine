@@ -39,7 +39,9 @@ export async function findManualWork(
     }
   }
 
-  const results: { file: string; source: string }[] = Array.from({ length: files.length }) as { file: string; source: string }[];
+  const results: { file: string; source: string }[] = Array.from({
+    length: files.length,
+  }) as { file: string; source: string }[];
   let currentIndex = 0;
 
   const worker = async () => {

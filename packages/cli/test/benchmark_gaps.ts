@@ -32,7 +32,6 @@ async function runBenchmark() {
   // Handle both sync (before) and async (after)
   let result = await findManualWork(testDir, files, scan as any);
 
-
   const end = performance.now();
   const timeMs = end - start;
 
