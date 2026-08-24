@@ -24,13 +24,17 @@ async function runBenchmark() {
     files.push(filename);
   }
 
-  const scan = { framework: "next" as const, routesDir: "app" };
+  const scan = { framework: "next-app" as const, routesDir: "app" };
 
   console.log(`Starting benchmark for ${numFiles} files...`);
   const start = performance.now();
 
   // Handle both sync (before) and async (after)
-  let result = findManualWork(testDir, files, scan);
+  let result: string[] | Promise<string[]> = findManualWork(
+    testDir,
+    files,
+    scan,
+  );
   if (result instanceof Promise) {
     result = await result;
   }
