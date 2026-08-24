@@ -177,11 +177,20 @@ export function detectTemplateFramework(
   return undefined;
 }
 
+const moonshineRoutesCache = new Map<string, string | undefined>();
+
 /** Route directory for the conventions moonshine reads directly. */
 export function findMoonshineRoutes(projectDir: string): string | undefined {
-  for (const dir of ["src/routes", "routes", "app/routes"]) {
-    if (existsSync(join(projectDir, dir))) return dir;
+  if (moonshineRoutesCache.has(projectDir)) {
+    return moonshineRoutesCache.get(projectDir);
   }
+  for (const dir of ["src/routes", "routes", "app/routes"]) {
+    if (existsSync(join(projectDir, dir))) {
+      moonshineRoutesCache.set(projectDir, dir);
+      return dir;
+    }
+  }
+  moonshineRoutesCache.set(projectDir, undefined);
   return undefined;
 }
 
