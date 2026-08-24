@@ -79,7 +79,7 @@ export function serializeData(value: unknown): string {
       const parts: string[] = [];
       const keys = Object.keys(v as Record<string, unknown>);
       for (const key of keys) {
-        let val;
+        let val = undefined;
         try {
           val = (v as Record<string, unknown>)[key];
         } catch {
