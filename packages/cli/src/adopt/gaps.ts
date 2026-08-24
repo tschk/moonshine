@@ -1,6 +1,6 @@
 /** What does not carry over: per host, and per compiled template. */
 import { templateGlobs } from "./frameworks.js";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Framework } from "./frameworks.js";
@@ -39,7 +39,7 @@ export async function findManualWork(
     }
   }
 
-  const results = new Array(files.length);
+  const results = Array.from({ length: files.length });
   let currentIndex = 0;
 
   const worker = async () => {
