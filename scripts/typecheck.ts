@@ -27,7 +27,7 @@ async function worker(): Promise<void> {
   while (next < queue.length) {
     const config = queue[next++]!;
     const label = relative(root, config);
-    const proc = Bun.spawn(["bunx", bin, "--noEmit", "-p", config], {
+    const proc = Bun.spawn(["bun", "x", bin, "--noEmit", "-p", config], {
       cwd: root,
       stdout: "pipe",
       stderr: "pipe",
