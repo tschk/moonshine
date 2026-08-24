@@ -30,10 +30,8 @@ async function runBenchmark() {
   const start = performance.now();
 
   // Handle both sync (before) and async (after)
-  let result = findManualWork(testDir, files, scan);
-  if (result instanceof Promise) {
-    result = await result;
-  }
+  let result = await findManualWork(testDir, files, scan as any);
+
 
   const end = performance.now();
   const timeMs = end - start;
