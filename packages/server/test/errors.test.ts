@@ -44,7 +44,7 @@ describe("errors module", () => {
       }
     });
 
-test("throws a Redirect error with empty location", () => {
+    test("throws a Redirect error with empty location", () => {
       try {
         redirect("");
         expect.unreachable();
@@ -98,7 +98,7 @@ test("throws a Redirect error with empty location", () => {
       );
     });
 
-test("handles null data correctly", async () => {
+    test("handles null data correctly", async () => {
       const response = json(null);
       const data = await response.json();
       expect(data).toBeNull();

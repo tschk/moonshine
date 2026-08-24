@@ -238,7 +238,10 @@ export default defineConfig(${JSON.stringify(entries)});
   );
 }
 
-async function writeRoute(dir: string, renderer: Renderer | undefined): Promise<void> {
+async function writeRoute(
+  dir: string,
+  renderer: Renderer | undefined,
+): Promise<void> {
   await mkdir(join(dir, "src", "routes"), { recursive: true });
   if (renderer === "react") {
     await writeFile(
