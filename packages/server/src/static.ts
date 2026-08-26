@@ -117,5 +117,7 @@ export async function tryServeStatic(
   const type =
     MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
 
-  return new Response(file, { headers: staticFileHeaders(type, customHeaders) });
+  return new Response(file, {
+    headers: staticFileHeaders(type, customHeaders),
+  });
 }

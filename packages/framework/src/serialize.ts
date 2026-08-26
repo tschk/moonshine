@@ -82,7 +82,7 @@ export function serializeData(value: unknown): string {
         let val;
         try {
           val = (v as Record<string, unknown>)[key];
-        } catch (e) {
+        } catch {
           // Throwing getter -> undefined
           val = undefined;
         }
