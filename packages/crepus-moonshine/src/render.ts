@@ -274,15 +274,22 @@ const nodeRenderers: { [K in ViewNode["kind"]]: NodeRenderer<K> } = {
     ),
 };
 
+type AnyNodeRenderer = (
+  node: ViewNode,
+  key: string,
+  id: string | undefined,
+  className: string | undefined,
+) => ReactNode;
+
 export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
   const className = classNameOf(node);
   const id = idOf(node);
 
-  const renderer = nodeRenderers[node.kind];
+  const renderer = nodeRenderers[node.kind] as AnyNodeRenderer;
   if (renderer) {
     // Cast is necessary because TypeScript cannot correlate the discriminated
     // union `node` with the generic function retrieved from `nodeRenderers`.
-    return (renderer as any)(node, key, id, className);
+    return renderer(node, key, id, className);
   }
   return null;
 }
