@@ -62,7 +62,10 @@ export function island<P>(
     const mod = use(loader());
     const Component = ((mod as { default?: ComponentType<P> }).default ??
       mod) as FunctionComponent<P>;
-    const children = createElement(Component as any, props as any);
+    const children = createElement(
+      Component as FunctionComponent<unknown>,
+      props as unknown as Record<string, unknown>,
+    );
     if (registry) {
       registry.entries.set(id, {
         id,
@@ -108,7 +111,10 @@ export function hydrateIslands(): void {
       const { createElement } = await import("react");
       const Component = ((mod as { default?: ComponentType<unknown> })
         .default ?? mod) as FunctionComponent<unknown>;
-      hydrateRoot(marker, createElement(Component as any, props as any));
+      hydrateRoot(
+        marker,
+        createElement(Component, props as Record<string, unknown>),
+      );
     });
   }
 }
