@@ -123,7 +123,6 @@ const server = createBunServer({
   port: Number(process.env.PORT) || 0,
   staticDir: import.meta.dir + "/public",
 });
-console.log(server.url.origin);
 `;
     await writeFile(resolve(outDir, "server.ts"), entry);
   },
