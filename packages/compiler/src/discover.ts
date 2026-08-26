@@ -153,15 +153,24 @@ function discoverMoonshine(
   files: string[],
   routesDir: string,
 ): RouteDefinition[] {
-  const fileSet = new Set(files);
   const raw: RouteDefinition[] = [];
+  const dataFiles = new Map<string, string>();
+  const routeFiles: string[] = [];
 
   for (const file of files) {
+    if (isDataFile(file)) {
+      const prefix = file.slice(0, file.lastIndexOf(".data."));
+      if (!dataFiles.has(prefix)) dataFiles.set(prefix, file);
+    } else {
+      routeFiles.push(file);
+    }
+  }
+
+  for (const file of routeFiles) {
     const rel = toPosix(relative(routesDir, file));
     const dir = dirname(rel);
     const name = basename(rel);
 
-    if (isDataFile(name)) continue;
     if (name.startsWith("+")) continue;
 
     const parsed = parseRouteFile(name);
@@ -177,14 +186,8 @@ function discoverMoonshine(
         ? `/${[dirPattern, basePattern].filter(Boolean).join("/")}`
         : "/";
 
-    const dataFile = (() => {
-      const parent = dirname(file);
-      for (const ext of [".data.ts", ".data.tsx"]) {
-        const candidate = join(parent, `${base}${ext}`);
-        if (fileSet.has(candidate)) return candidate;
-      }
-      return undefined;
-    })();
+    const prefix = file.slice(0, file.length - name.length) + base;
+    const dataFile = dataFiles.get(prefix);
 
     const mode: RenderMode | undefined =
       suffix === "server" ? "api" : undefined;
