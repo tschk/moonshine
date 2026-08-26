@@ -12,8 +12,8 @@
     "site"
   ],
   "scripts": {
-    "format": "bunx prettier --check .",
-    "lint": "bunx oxlint .",
+    "format": "bun x prettier --check .",
+    "lint": "bun x oxlint .",
     "typecheck": "bun scripts/typecheck.ts",
     "typecheck:native": "bun scripts/typecheck.ts native",
     "test": "bun test packages components site/test examples/bun-server examples/hybrid-app packages/adapter-*/test && bun run check:catalog",
