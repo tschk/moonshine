@@ -21,7 +21,7 @@ describe("mergeRoutes", () => {
       { id: "nested/index", layouts: ["layout.tsx", "nested/layout.tsx"] },
     ];
 
-    const merged = mergeRoutes(routes, layouts as any);
+    const merged = mergeRoutes(routes, layouts as unknown as RouteDefinition[]);
 
     expect(merged.length).toBe(3);
 
@@ -41,7 +41,7 @@ describe("mergeRoutes", () => {
     ];
     const layouts: InheritableLayout[] = [];
 
-    const merged = mergeRoutes(routes, layouts as any);
+    const merged = mergeRoutes(routes, layouts as unknown as RouteDefinition[]);
 
     expect(merged.length).toBe(1);
     const indexRoute = merged.find((r) => r.id === "index");
