@@ -132,7 +132,7 @@ describe("moonshine adopt — scan", () => {
     expect(scan.framework).toBe("next-app");
     expect(scan.routesDir).toBe("app");
     expect(scan.convention).toBe("next-app");
-    expect(scan.routes.map((r) => r.path).sort()).toEqual([
+    expect(scan.routes.map((r) => r.path).toSorted()).toEqual([
       "/",
       "/about",
       "/api/hello",
@@ -355,7 +355,7 @@ describe("moonshine adopt — svelte and vue templates", () => {
       scan.templates
         .filter((t) => t.route)
         .map((t) => t.route)
-        .sort(),
+        .toSorted(),
     ).toEqual(["/", "/about"]);
 
     const generated = readFileSync(
@@ -379,7 +379,10 @@ describe("moonshine adopt — svelte and vue templates", () => {
     await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
 
     const manifest = await buildCommand([dir]);
-    expect(manifest.routes.map((r) => r.path).sort()).toEqual(["/", "/about"]);
+    expect(manifest.routes.map((r) => r.path).toSorted()).toEqual([
+      "/",
+      "/about",
+    ]);
 
     const preview = await startPreview({ projectDir: dir, port: 0 });
     try {
@@ -433,7 +436,7 @@ describe("moonshine adopt — svelte and vue templates", () => {
       const manifest = json<{ routes: { path: string }[] }>(
         join(dir, ".moonshine", "manifest.json"),
       );
-      expect(manifest.routes.map((r) => r.path).sort()).toEqual([
+      expect(manifest.routes.map((r) => r.path).toSorted()).toEqual([
         "/",
         "/about",
       ]);
@@ -467,7 +470,7 @@ describe("moonshine adopt — svelte and vue templates", () => {
       expect(result.plan!.scan.framework).toBe("angular");
 
       // Only *.component.html, *.ng.html and *.ng are claimed — never plain .html.
-      expect(templates.map((t) => t.file).sort()).toEqual([
+      expect(templates.map((t) => t.file).toSorted()).toEqual([
         "src/app/blocks.ng.html",
         "src/app/home/home.component.html",
         "src/app/legacy.component.html",
@@ -543,7 +546,7 @@ describe("moonshine adopt — end to end", () => {
     expect(existsSync(join(dir, "node_modules", "next"))).toBe(false);
 
     const manifest = await buildCommand([dir]);
-    expect(manifest.routes.map((r) => r.path).sort()).toEqual([
+    expect(manifest.routes.map((r) => r.path).toSorted()).toEqual([
       "/",
       "/about",
       "/api/hello",

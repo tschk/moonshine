@@ -1,153 +1,233 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { detectTemplateFramework, GENERATED_ROUTES } from "../src/adopt/scan";
+import { describe, expect, test, afterEach } from "bun:test";
+import { detectFramework } from "../src/adopt/scan";
+import fs from "node:fs";
 import { join } from "node:path";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 
-const tmp = join(import.meta.dir, ".tmp-cli-scan");
+describe("detectFramework", () => {
+  const tmpDirs: string[] = [];
 
-describe("detectTemplateFramework", () => {
-  beforeAll(() => {
-    rmSync(tmp, { recursive: true, force: true });
-    mkdirSync(tmp, { recursive: true });
+  function createProject(files: string[]): string {
+    const dir = fs.mkdtempSync(join(os.tmpdir(), "scan-test-"));
+    tmpDirs.push(dir);
+    for (const file of files) {
+      const fullPath = join(dir, file);
+      fs.mkdirSync(join(fullPath, ".."), { recursive: true });
+      fs.writeFileSync(fullPath, "");
+    }
+    return dir;
+  }
+
+  afterEach(() => {
+    for (const dir of tmpDirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    tmpDirs.length = 0;
   });
 
-  afterAll(() => {
-    rmSync(tmp, { recursive: true, force: true });
-  });
+  describe("Next.js App Router detection", () => {
+    test("detects app/page.tsx", () => {
+      const dir = createProject(["app/page.tsx"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "next-app",
+        routesDir: "app",
+        convention: "next-app",
+      });
+    });
 
-  test("detects svelte via dependency", () => {
-    const projectDir = join(tmp, "svelte-dep");
-    mkdirSync(projectDir);
-    expect(detectTemplateFramework(projectDir, { svelte: "1.0.0" })).toEqual({
-      framework: "svelte",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+    test("detects src/app/layout.tsx", () => {
+      const dir = createProject(["src/app/layout.tsx"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "next-app",
+        routesDir: "src/app",
+        convention: "next-app",
+      });
+    });
+
+    test("detects app/page.jsx", () => {
+      const dir = createProject(["app/page.jsx"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "next-app",
+        routesDir: "app",
+        convention: "next-app",
+      });
     });
   });
 
-  test("detects svelte via config file", () => {
-    const projectDir = join(tmp, "svelte-config");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "svelte.config.js"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "svelte",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  describe("Next.js Pages Router detection", () => {
+    test("detects pages directory", () => {
+      const dir = createProject(["pages/index.tsx"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "next-pages",
+        routesDir: "pages",
+        convention: "next-pages",
+      });
+    });
+
+    test("detects src/pages directory", () => {
+      const dir = createProject(["src/pages/index.tsx"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "next-pages",
+        routesDir: "src/pages",
+        convention: "next-pages",
+      });
     });
   });
 
-  test("detects svelte via template file", () => {
-    const projectDir = join(tmp, "svelte-file");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "app.svelte"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "svelte",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  test("detects next.js via package.json dependency", () => {
+    const dir = createProject([]);
+    expect(detectFramework(dir, { dependencies: { next: "1.0.0" } })).toEqual({
+      framework: "next-app",
     });
   });
 
-  test("detects vue via dependency", () => {
-    const projectDir = join(tmp, "vue-dep");
-    mkdirSync(projectDir);
-    expect(detectTemplateFramework(projectDir, { vue: "3.0.0" })).toEqual({
-      framework: "vue",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  describe("Waku detection", () => {
+    test("detects via dependency", () => {
+      const dir = createProject([]);
+      expect(detectFramework(dir, { dependencies: { waku: "1.0.0" } })).toEqual(
+        {
+          framework: "waku",
+        },
+      );
+    });
+
+    test("detects via waku.config.ts file", () => {
+      const dir = createProject(["waku.config.ts"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "waku",
+      });
     });
   });
 
-  test("detects vue via config file", () => {
-    const projectDir = join(tmp, "vue-config");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "vue.config.js"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "vue",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  describe("Tanstack Router detection", () => {
+    test("detects @tanstack/react-router", () => {
+      const dir = createProject([]);
+      expect(
+        detectFramework(dir, {
+          dependencies: { "@tanstack/react-router": "1.0.0" },
+        }),
+      ).toEqual({
+        framework: "tanstack",
+      });
+    });
+
+    test("detects @tanstack/react-start", () => {
+      const dir = createProject([]);
+      expect(
+        detectFramework(dir, {
+          dependencies: { "@tanstack/react-start": "1.0.0" },
+        }),
+      ).toEqual({
+        framework: "tanstack",
+      });
     });
   });
 
-  test("detects vue via template file", () => {
-    const projectDir = join(tmp, "vue-file");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "app.vue"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "vue",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  describe("React Router detection", () => {
+    test("detects react-router dependency", () => {
+      const dir = createProject([]);
+      expect(
+        detectFramework(dir, { dependencies: { "react-router": "1.0.0" } }),
+      ).toEqual({
+        framework: "react-router",
+      });
+    });
+
+    test("detects react-router-dom dependency", () => {
+      const dir = createProject([]);
+      expect(
+        detectFramework(dir, { dependencies: { "react-router-dom": "1.0.0" } }),
+      ).toEqual({
+        framework: "react-router",
+      });
+    });
+
+    test("detects @remix-run/react dependency", () => {
+      const dir = createProject([]);
+      expect(
+        detectFramework(dir, { dependencies: { "@remix-run/react": "1.0.0" } }),
+      ).toEqual({
+        framework: "react-router",
+      });
+    });
+
+    test("detects react-router.config.ts file", () => {
+      const dir = createProject(["react-router.config.ts"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "react-router",
+      });
+    });
+
+    test("detects remix.config.js file", () => {
+      const dir = createProject(["remix.config.js"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "react-router",
+      });
     });
   });
 
-  test("detects astro via dependency", () => {
-    const projectDir = join(tmp, "astro-dep");
-    mkdirSync(projectDir);
-    expect(detectTemplateFramework(projectDir, { astro: "2.0.0" })).toEqual({
-      framework: "astro",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  describe("Vite React detection", () => {
+    test("detects vite.config.ts", () => {
+      const dir = createProject(["vite.config.ts"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "vite-react",
+      });
+    });
+
+    test("detects vite.config.js", () => {
+      const dir = createProject(["vite.config.js"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "vite-react",
+      });
     });
   });
 
-  test("detects astro via config file", () => {
-    const projectDir = join(tmp, "astro-config");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "astro.config.mjs"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "astro",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  test("detects react dependency", () => {
+    const dir = createProject([]);
+    expect(detectFramework(dir, { dependencies: { react: "1.0.0" } })).toEqual({
+      framework: "react",
     });
   });
 
-  test("detects astro via template file", () => {
-    const projectDir = join(tmp, "astro-file");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "page.astro"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "astro",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  test("returns unknown for no matches", () => {
+    const dir = createProject([]);
+    expect(detectFramework(dir, undefined)).toEqual({
+      framework: "unknown",
     });
   });
 
-  test("detects angular via dependency", () => {
-    const projectDir = join(tmp, "angular-dep");
-    mkdirSync(projectDir);
-    expect(
-      detectTemplateFramework(projectDir, { "@angular/core": "15.0.0" }),
-    ).toEqual({
-      framework: "angular",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+  describe("Moonshine routes directory inclusion", () => {
+    test("adds routesDir for src/routes", () => {
+      const dir = createProject(["src/routes/index.tsx"]);
+      expect(
+        detectFramework(dir, { dependencies: { react: "1.0.0" } }),
+      ).toEqual({
+        framework: "react",
+        routesDir: "src/routes",
+        convention: "moonshine",
+      });
     });
-  });
 
-  test("detects angular via config file", () => {
-    const projectDir = join(tmp, "angular-config");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "angular.json"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "angular",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+    test("adds routesDir for routes", () => {
+      const dir = createProject(["routes/index.tsx"]);
+      expect(detectFramework(dir, { dependencies: { waku: "1.0.0" } })).toEqual(
+        {
+          framework: "waku",
+          routesDir: "routes",
+          convention: "moonshine",
+        },
+      );
     });
-  });
 
-  test("detects angular via template file", () => {
-    const projectDir = join(tmp, "angular-file");
-    mkdirSync(projectDir);
-    writeFileSync(join(projectDir, "app.component.html"), "");
-    expect(detectTemplateFramework(projectDir, {})).toEqual({
-      framework: "angular",
-      routesDir: GENERATED_ROUTES,
-      convention: "moonshine",
+    test("adds routesDir for app/routes", () => {
+      const dir = createProject(["app/routes/index.tsx"]);
+      expect(
+        detectFramework(dir, { dependencies: { "react-router": "1.0.0" } }),
+      ).toEqual({
+        framework: "react-router",
+        routesDir: "app/routes",
+        convention: "moonshine",
+      });
     });
-  });
-
-  test("returns undefined when no framework is detected", () => {
-    const projectDir = join(tmp, "no-framework");
-    mkdirSync(projectDir);
-    expect(detectTemplateFramework(projectDir, {})).toBeUndefined();
   });
 });
