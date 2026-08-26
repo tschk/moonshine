@@ -66,7 +66,7 @@ async function tryServeNodeStatic(
 ): Promise<Response | null> {
   const filePath = resolveStaticPath(staticDir, pathname);
   if (!filePath) return null;
-  let stats;
+  let stats = null;
   try {
     stats = await stat(filePath);
   } catch {
