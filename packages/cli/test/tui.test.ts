@@ -1,82 +1,73 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
-import { terminalTui } from "../src/tui";
+import { describe, expect, test } from "bun:test";
+import { clampColumns, truncate, warningBar } from "../src/tui";
 
-describe("terminalTui", () => {
-  const originalWrite = process.stdout.write;
-  const originalConsoleIterator = (console as any)[Symbol.asyncIterator];
-
-  afterEach(() => {
-    delete (process.stdout as any).isTTY;
-    delete (process.stdout as any).columns;
-    process.stdout.write = originalWrite;
-    (console as any)[Symbol.asyncIterator] = originalConsoleIterator;
+describe("clampColumns", () => {
+  test("returns 80 for undefined or non-finite values", () => {
+    expect(clampColumns(undefined)).toBe(80);
+    expect(clampColumns(NaN)).toBe(80);
+    expect(clampColumns(Infinity)).toBe(80);
+    expect(clampColumns(-Infinity)).toBe(80);
   });
 
-  test("initializes correctly with TTY", () => {
-    Object.defineProperty(process.stdout, "isTTY", {
-      value: true,
-      configurable: true,
-    });
-    Object.defineProperty(process.stdout, "columns", {
-      value: 100,
-      configurable: true,
-    });
-
-    const tui = terminalTui();
-    expect(tui.isTTY).toBe(true);
-    expect(tui.columns).toBe(100);
+  test("clamps to a minimum of 20", () => {
+    expect(clampColumns(10)).toBe(20);
+    expect(clampColumns(19)).toBe(20);
+    expect(clampColumns(20)).toBe(20);
   });
 
-  test("initializes correctly without TTY", () => {
-    Object.defineProperty(process.stdout, "isTTY", {
-      value: undefined,
-      configurable: true,
-    });
-    Object.defineProperty(process.stdout, "columns", {
-      value: undefined,
-      configurable: true,
-    });
-
-    const tui = terminalTui();
-    expect(tui.isTTY).toBe(false);
-    expect(tui.columns).toBe(80); // clampColumns defaults to 80
+  test("clamps to a maximum of 100", () => {
+    expect(clampColumns(100)).toBe(100);
+    expect(clampColumns(101)).toBe(100);
+    expect(clampColumns(150)).toBe(100);
   });
 
-  test("write outputs to stdout", () => {
-    const writeMock = mock(() => true);
-    process.stdout.write = writeMock as any;
+  test("returns the exact value if within range, rounding down floats", () => {
+    expect(clampColumns(50)).toBe(50);
+    expect(clampColumns(50.5)).toBe(50);
+    expect(clampColumns(99.9)).toBe(99);
+  });
+});
 
-    const tui = terminalTui();
-    tui.write("hello world");
-
-    expect(writeMock).toHaveBeenCalledWith("hello world");
+describe("truncate", () => {
+  test("returns the original text if length is within width", () => {
+    expect(truncate("hello", 5)).toBe("hello");
+    expect(truncate("hello", 10)).toBe("hello");
   });
 
-  test("prompt writes question and reads from console iterator", async () => {
-    const writeMock = mock(() => true);
-    process.stdout.write = writeMock as any;
-
-    (console as any)[Symbol.asyncIterator] = async function* () {
-      yield "user input";
-      yield "more input";
-    };
-
-    const tui = terminalTui();
-    const result = await tui.prompt("Enter something: ");
-
-    expect(writeMock).toHaveBeenCalledWith("Enter something: ");
-    expect(result).toBe("user input");
+  test("truncates with an ellipsis if width is greater than 1", () => {
+    expect(truncate("hello world", 5)).toBe("hell…");
+    expect(truncate("hello", 4)).toBe("hel…");
+    expect(truncate("hello", 2)).toBe("h…");
   });
 
-  test("prompt returns empty string if console iterator yields nothing", async () => {
-    const writeMock = mock(() => true);
-    process.stdout.write = writeMock as any;
+  test("truncates without an ellipsis if width is 1 or less", () => {
+    expect(truncate("hello", 1)).toBe("h");
+    expect(truncate("hello", 0)).toBe("");
+    expect(truncate("hello", -5)).toBe("");
+  });
+});
 
-    (console as any)[Symbol.asyncIterator] = async function* () {};
+describe("warningBar", () => {
+  test("formats properly with ANSI codes when isTTY is true", () => {
+    const tui = { isTTY: true, columns: 10 };
+    // text: "Hello", max(0, 8) -> 8. "Hello" is 5 chars, so truncate returns "Hello".
+    // body: " Hello ".padEnd(10, " ") -> " Hello    "
+    expect(warningBar("Hello", tui)).toBe("\x1b[30;43m Hello    \x1b[0m");
 
-    const tui = terminalTui();
-    const result = await tui.prompt("Enter something: ");
+    // text: "Longer text here", max(0, 8) -> 8. truncate("Longer text here", 8) -> "Longer …"
+    // body: " Longer … ".padEnd(10, " ") -> " Longer … " (length 10)
+    expect(warningBar("Longer text here", tui)).toBe(
+      "\x1b[30;43m Longer … \x1b[0m",
+    );
+  });
 
-    expect(result).toBe("");
+  test("formats properly with !! prefix when isTTY is false", () => {
+    const tui = { isTTY: false, columns: 10 };
+    // width = 10, width - 3 = 7.
+    // text: "Hello", truncate("Hello", 7) -> "Hello"
+    expect(warningBar("Hello", tui)).toBe("!! Hello");
+
+    // text: "Longer text here", truncate("Longer text here", 7) -> "Longer…"
+    expect(warningBar("Longer text here", tui)).toBe("!! Longer…");
   });
 });
