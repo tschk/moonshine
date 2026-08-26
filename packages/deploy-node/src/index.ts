@@ -291,7 +291,6 @@ const server = createServer(createNodeHandler({ fetch, staticDir: import.meta.di
 server.listen(Number(process.env.PORT) || 0, () => {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
-  console.log("http://localhost:" + port + "/");
 });
 `;
     await writeFile(resolve(outDir, "server.ts"), entry);
