@@ -1,5 +1,8 @@
 import { createRouteGraph, matchRoutes } from "@tschk/moonshine-router";
-import type { RouteDefinition } from "@tschk/moonshine-framework";
+import type {
+  RouteArtifact,
+  RouteDefinition,
+} from "@tschk/moonshine-framework";
 import type {
   ErrorBoundary,
   Middleware,
@@ -213,7 +216,7 @@ async function runCoreAndAfters(
     } else if (options.renderer) {
       response = await options.renderer.render({
         request: ctx.request,
-        route: route as any,
+        route: route as RouteArtifact,
         params: ctx.params,
         data: ctx.data,
         signal: ctx.signal,
@@ -224,7 +227,7 @@ async function runCoreAndAfters(
   } else if (options.renderer) {
     response = await options.renderer.render({
       request: ctx.request,
-      route: route as any,
+      route: route as RouteArtifact,
       params: ctx.params,
       data: ctx.data,
       signal: ctx.signal,
