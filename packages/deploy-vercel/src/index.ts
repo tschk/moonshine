@@ -114,9 +114,45 @@ function routeToRegex(path: string): string {
     .replace(/:([^/]+)/g, "(?<$1>[^/]+)")}$`;
 }
 
-function staticSlug(path: string): string {
+function staticSlug(path: string, usedSlugs: Set<string>): string {
   if (path === "/") return "index";
-  return path.replace(/^\/+/, "").replace(/\//g, "-");
+  let slug = path.replace(/^\/+/, "").replace(/\//g, "-");
+  if (!usedSlugs.has(slug)) {
+    usedSlugs.add(slug);
+    return slug;
+  }
+  let i = 1;
+  while (usedSlugs.has(`${slug}-${i}`)) i++;
+  usedSlugs.add(`${slug}-${i}`);
+  return `${slug}-${i}`;
+}
+
+async function mapConcurrent<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  const errors: unknown[] = [];
+  let index = 0;
+
+  const worker = async () => {
+    while (index < items.length) {
+      const i = index++;
+      try {
+        results[i] = await fn(items[i]);
+      } catch (e) {
+        errors.push(e);
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, worker),
+  );
+
+  if (errors.length > 0) throw errors[0];
+  return results;
 }
 
 async function prerenderRoute(route: RouteArtifact): Promise<string> {
@@ -155,12 +191,14 @@ export const vercelAdapter: DeploymentAdapter = {
     await mkdir(functionsDir, { recursive: true });
 
     const config: VercelConfig = { version: 3, routes: [] };
+    const usedSlugs = new Set<string>();
 
-    const routesConfig = await Promise.all(
-      resolvedManifest.routes.map(async (route) => {
+    const routesConfig = await mapConcurrent(
+      resolvedManifest.routes,
+      async (route) => {
         if (route.mode === "static" && !route.path.includes("*")) {
           const html = await prerenderRoute(route);
-          const slug = staticSlug(route.path);
+          const slug = staticSlug(route.path, usedSlugs);
           await writeFile(resolve(staticDir, `${slug}.html`), html);
           return {
             src: routeToRegex(route.path),
@@ -172,9 +210,12 @@ export const vercelAdapter: DeploymentAdapter = {
 
           const runtime =
             route.runtime === "vercel-edge" ? "edge" : "nodejs20.x";
-          const vcConfig = { runtime, handler: "index.ts" };
+          const vcConfig: Record<string, string> = {
+            runtime,
+            handler: "index.ts",
+          };
           if (runtime !== "edge") {
-            (vcConfig as Record<string, string>).launcherType = "Nodejs";
+            vcConfig.launcherType = "Nodejs";
           }
           await writeFile(
             resolve(funcDir, ".vc-config.json"),
@@ -196,7 +237,8 @@ export default { fetch };
             dest: `/${route.id}`,
           };
         }
-      }),
+      },
+      20,
     );
     config.routes.push(...routesConfig);
 
