@@ -156,30 +156,32 @@ export const vercelAdapter: DeploymentAdapter = {
 
     const config: VercelConfig = { version: 3, routes: [] };
 
-    for (const route of resolvedManifest.routes) {
-      if (route.mode === "static" && !route.path.includes("*")) {
-        const html = await prerenderRoute(route);
-        const slug = staticSlug(route.path);
-        await writeFile(resolve(staticDir, `${slug}.html`), html);
-        config.routes.push({
-          src: routeToRegex(route.path),
-          dest: `/${slug}.html`,
-        });
-      } else {
-        const funcDir = resolve(functionsDir, `${route.id}.func`);
-        await mkdir(funcDir, { recursive: true });
+    const routesConfig = await Promise.all(
+      resolvedManifest.routes.map(async (route) => {
+        if (route.mode === "static" && !route.path.includes("*")) {
+          const html = await prerenderRoute(route);
+          const slug = staticSlug(route.path);
+          await writeFile(resolve(staticDir, `${slug}.html`), html);
+          return {
+            src: routeToRegex(route.path),
+            dest: `/${slug}.html`,
+          };
+        } else {
+          const funcDir = resolve(functionsDir, `${route.id}.func`);
+          await mkdir(funcDir, { recursive: true });
 
-        const runtime = route.runtime === "vercel-edge" ? "edge" : "nodejs20.x";
-        const vcConfig = { runtime, handler: "index.ts" };
-        if (runtime !== "edge") {
-          (vcConfig as Record<string, string>).launcherType = "Nodejs";
-        }
-        await writeFile(
-          resolve(funcDir, ".vc-config.json"),
-          JSON.stringify(vcConfig, null, 2) + "\n",
-        );
+          const runtime =
+            route.runtime === "vercel-edge" ? "edge" : "nodejs20.x";
+          const vcConfig = { runtime, handler: "index.ts" };
+          if (runtime !== "edge") {
+            (vcConfig as Record<string, string>).launcherType = "Nodejs";
+          }
+          await writeFile(
+            resolve(funcDir, ".vc-config.json"),
+            JSON.stringify(vcConfig, null, 2) + "\n",
+          );
 
-        const functionEntry = `import { createRequestHandler } from "@tschk/moonshine-server";
+          const functionEntry = `import { createRequestHandler } from "@tschk/moonshine-server";
 import { reactRenderer } from "@tschk/moonshine-react";
 import manifest from "../../manifest.json" with { type: "json" };
 
@@ -187,14 +189,16 @@ const fetch = createRequestHandler({ manifest, renderer: reactRenderer });
 
 export default { fetch };
 `;
-        await writeFile(resolve(funcDir, "index.ts"), functionEntry);
+          await writeFile(resolve(funcDir, "index.ts"), functionEntry);
 
-        config.routes.push({
-          src: routeToRegex(route.path),
-          dest: `/${route.id}`,
-        });
-      }
-    }
+          return {
+            src: routeToRegex(route.path),
+            dest: `/${route.id}`,
+          };
+        }
+      }),
+    );
+    config.routes.push(...routesConfig);
 
     await Promise.all(
       resolvedManifest.assets.map(async (asset) => {
