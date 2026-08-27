@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-framework",
-  "version": "0.3.7",
+  "version": "0.4.0",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
