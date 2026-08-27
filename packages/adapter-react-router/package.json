@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-react-router",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "react-router / Remix client API reimplemented on moonshine — drop react-router, keep the imports",
   "license": "ISC",
   "type": "module",
@@ -17,8 +17,8 @@
     "./aliases": "./src/aliases.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.3.6",
-    "@tschk/moonshine-router": "^0.3.6"
+    "@tschk/moonshine": "^0.4.1",
+    "@tschk/moonshine-router": "^0.4.1"
   },
   "peerDependencies": {
     "react": ">=18",
