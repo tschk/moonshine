@@ -36,7 +36,8 @@ export function effect(fn: () => void): () => void {
   let scheduled = false;
 
   const run = () => {
-    for (const u of unsubs.splice(0)) u();
+    for (let i = 0; i < unsubs.length; i++) unsubs[i]();
+    unsubs.length = 0;
     if (disposed) return;
 
     const deps = collectDeps(fn);
@@ -58,7 +59,8 @@ export function effect(fn: () => void): () => void {
 
   return () => {
     disposed = true;
-    for (const u of unsubs.splice(0)) u();
+    for (let i = 0; i < unsubs.length; i++) unsubs[i]();
+    unsubs.length = 0;
   };
 }
 

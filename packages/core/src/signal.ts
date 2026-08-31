@@ -173,12 +173,14 @@ export function createMemo<T>(compute: () => T): Memo<T> {
   };
 
   function observe(): void {
-    for (const unsub of unsubs.splice(0)) unsub();
+    for (let i = 0; i < unsubs.length; i++) unsubs[i]();
+    unsubs.length = 0;
     for (const dep of deps) unsubs.push(dep.node.subscribe(onDepChange));
   }
 
   function unobserve(): void {
-    for (const unsub of unsubs.splice(0)) unsub();
+    for (let i = 0; i < unsubs.length; i++) unsubs[i]();
+    unsubs.length = 0;
   }
 
   function onDepChange(): void {
