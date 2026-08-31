@@ -39,9 +39,10 @@ export function resolveStaticPath(
   pathname: string,
 ): string | null {
   const root = resolve(staticDir);
-  const parts = pathname.split("/").filter(Boolean);
+  const parts = pathname.split("/");
   const decoded: string[] = [];
   for (const part of parts) {
+    if (!part) continue;
     const d = decodeSegment(part);
     if (
       d === null ||
