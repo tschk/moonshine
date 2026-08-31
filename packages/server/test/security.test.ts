@@ -165,6 +165,7 @@ describe("createRequestHandler security", () => {
     { id: "redirect", path: "/redirect", file: "redirect.tsx" },
     { id: "open", path: "/open", file: "open.tsx" },
     { id: "crlf", path: "/crlf", file: "crlf.tsx" },
+    { id: "invalid-url", path: "/invalid-url", file: "invalid-url.tsx" },
     { id: "hello", path: "/hello/:name", file: "hello.tsx" },
   ];
 
@@ -178,6 +179,11 @@ describe("createRequestHandler security", () => {
     open: {
       loader: () => {
         throw redirect("//evil.com");
+      },
+    },
+    "invalid-url": {
+      loader: () => {
+        throw redirect("http://%/");
       },
     },
     crlf: {
@@ -211,6 +217,12 @@ describe("createRequestHandler security", () => {
     expect(res.status).toBe(400);
     expect(res.headers.get("location")).toBeNull();
     expect(res.headers.get("x-injected")).toBeNull();
+  });
+
+  test("rejects redirect to invalid URL string", async () => {
+    const res = await handler(new Request("http://localhost/invalid-url"));
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
   });
 
   test("rejects same-origin path with embedded CR/LF", async () => {
