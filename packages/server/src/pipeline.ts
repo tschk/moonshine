@@ -14,6 +14,7 @@ import { callAction, callLoader, createRouteContext } from "./data.js";
 import { errorResponse, json, Redirect } from "./errors.js";
 import { tryServeStatic } from "./static.js";
 
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHAR_REGEX = /[\u0000-\u001F\u007F]/;
 
 function hasControlChars(value: string): boolean {
