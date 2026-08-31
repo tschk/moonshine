@@ -31,7 +31,9 @@ describe("resolveStaticPath", () => {
   });
 
   test("decodeSegment returns null gracefully on invalid URI component", () => {
-    expect(resolveStaticPath(staticDir, "/%ZZ")).toBeNull();
+    expect(resolveStaticPath(staticDir, "/%C0%80")).toBeNull();
+    expect(resolveStaticPath(staticDir, "/%E0%A4%A")).toBeNull();
+    expect(resolveStaticPath(staticDir, "/%")).toBeNull();
   });
 
   test("returns null for empty parts / root dir", () => {
