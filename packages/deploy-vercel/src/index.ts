@@ -132,7 +132,7 @@ async function mapConcurrent<T, R>(
   fn: (item: T) => Promise<R>,
   concurrency: number,
 ): Promise<R[]> {
-  const results: R[] = Array.from({ length: items.length });
+  const results = Array.from({ length: items.length }) as R[];
   const errors: unknown[] = [];
   let index = 0;
 
