@@ -14,12 +14,10 @@ import { callAction, callLoader, createRouteContext } from "./data.js";
 import { errorResponse, json, Redirect } from "./errors.js";
 import { tryServeStatic } from "./static.js";
 
+const CONTROL_CHAR_REGEX = /[\x00-\x1F\x7F]/;
+
 function hasControlChars(value: string): boolean {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
-    if (code <= 0x1f || code === 0x7f) return true;
-  }
-  return false;
+  return CONTROL_CHAR_REGEX.test(value);
 }
 
 function isSafeRedirect(location: string, request: Request): boolean {
