@@ -55,8 +55,8 @@ describe("resolvePage", () => {
     expect(resolvePage(pages, "/contact")).toBeNull();
   });
 });
+const notFound = () => new Response("Custom 404", { status: 404 });
 describe("handleMoonshineRequest", () => {
-  const notFound = () => new Response("Custom 404", { status: 404 });
   const pages = {
     "/": { render: () => "<h1>Home</h1>" },
     "/json": { render: () => ({ message: "Hello" }) },
