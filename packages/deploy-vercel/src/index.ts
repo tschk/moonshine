@@ -1,5 +1,5 @@
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { tryServeStatic } from "@tschk/moonshine-server";
 import { reactRenderer, type RenderContext } from "@tschk/moonshine-react";
 import type {
@@ -28,30 +28,20 @@ function resolveManifestFiles(
     ...manifest,
     routes: manifest.routes.map((route) => ({
       ...route,
-      file: isAbsolute(route.file)
-        ? route.file
-        : resolve(projectRoot, route.file),
+      file: resolve(projectRoot, route.file),
       ...(route.dataFile && {
-        dataFile: isAbsolute(route.dataFile)
-          ? route.dataFile
-          : resolve(projectRoot, route.dataFile),
+        dataFile: resolve(projectRoot, route.dataFile),
       }),
       ...(route.layouts && {
-        layouts: route.layouts.map((layout) =>
-          isAbsolute(layout) ? layout : resolve(projectRoot, layout),
-        ),
+        layouts: route.layouts.map((layout) => resolve(projectRoot, layout)),
       }),
       ...(route.middleware && {
         middleware: route.middleware.map((middleware) =>
-          isAbsolute(middleware)
-            ? middleware
-            : resolve(projectRoot, middleware),
+          resolve(projectRoot, middleware),
         ),
       }),
       ...(route.errorBoundary && {
-        errorBoundary: isAbsolute(route.errorBoundary)
-          ? route.errorBoundary
-          : resolve(projectRoot, route.errorBoundary),
+        errorBoundary: resolve(projectRoot, route.errorBoundary),
       }),
     })),
   };
@@ -63,9 +53,7 @@ async function copyAssets(
 ): Promise<void> {
   await Promise.all(
     assets.map(async (asset) => {
-      const source = isAbsolute(asset.file)
-        ? asset.file
-        : resolve(outDir, asset.file);
+      const source = resolve(outDir, asset.file);
       const target = resolve(
         outDir,
         (asset.path ?? asset.file).replace(/^\/+/, ""),
@@ -244,9 +232,7 @@ export default { fetch };
 
     await Promise.all(
       resolvedManifest.assets.map(async (asset) => {
-        const source = isAbsolute(asset.file)
-          ? asset.file
-          : resolve(outDir, asset.file);
+        const source = resolve(outDir, asset.file);
         const target = resolve(
           staticDir,
           (asset.path ?? asset.file).replace(/^\/+/, ""),
