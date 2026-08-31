@@ -9,6 +9,7 @@ import type {
   Harness,
   HarnessFactory,
 } from "@tschk/moonshine-framework";
+import { resolveManifestFiles } from "@tschk/moonshine-compiler";
 
 type VercelRoute = {
   src: string;
@@ -19,43 +20,6 @@ type VercelConfig = {
   version: 3;
   routes: VercelRoute[];
 };
-
-function resolveManifestFiles(
-  manifest: MoonshineManifest,
-  projectRoot: string,
-): MoonshineManifest {
-  return {
-    ...manifest,
-    routes: manifest.routes.map((route) => ({
-      ...route,
-      file: isAbsolute(route.file)
-        ? route.file
-        : resolve(projectRoot, route.file),
-      ...(route.dataFile && {
-        dataFile: isAbsolute(route.dataFile)
-          ? route.dataFile
-          : resolve(projectRoot, route.dataFile),
-      }),
-      ...(route.layouts && {
-        layouts: route.layouts.map((layout) =>
-          isAbsolute(layout) ? layout : resolve(projectRoot, layout),
-        ),
-      }),
-      ...(route.middleware && {
-        middleware: route.middleware.map((middleware) =>
-          isAbsolute(middleware)
-            ? middleware
-            : resolve(projectRoot, middleware),
-        ),
-      }),
-      ...(route.errorBoundary && {
-        errorBoundary: isAbsolute(route.errorBoundary)
-          ? route.errorBoundary
-          : resolve(projectRoot, route.errorBoundary),
-      }),
-    })),
-  };
-}
 
 async function copyAssets(
   assets: MoonshineManifest["assets"],

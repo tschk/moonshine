@@ -1,5 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type {
   MoonshineManifest,
   RouteArtifact,
@@ -13,6 +13,43 @@ import { classifyRoute } from "./classify.js";
 import { discoverRoutes } from "./discover.js";
 import type { RouteConvention } from "./inherit.js";
 import { toPosix } from "./path.js";
+
+export function resolveManifestFiles(
+  manifest: MoonshineManifest,
+  projectRoot: string,
+): MoonshineManifest {
+  return {
+    ...manifest,
+    routes: manifest.routes.map((route) => ({
+      ...route,
+      file: isAbsolute(route.file)
+        ? route.file
+        : resolve(projectRoot, route.file),
+      ...(route.dataFile && {
+        dataFile: isAbsolute(route.dataFile)
+          ? route.dataFile
+          : resolve(projectRoot, route.dataFile),
+      }),
+      ...(route.layouts && {
+        layouts: route.layouts.map((layout) =>
+          isAbsolute(layout) ? layout : resolve(projectRoot, layout),
+        ),
+      }),
+      ...(route.middleware && {
+        middleware: route.middleware.map((middleware) =>
+          isAbsolute(middleware)
+            ? middleware
+            : resolve(projectRoot, middleware),
+        ),
+      }),
+      ...(route.errorBoundary && {
+        errorBoundary: isAbsolute(route.errorBoundary)
+          ? route.errorBoundary
+          : resolve(projectRoot, route.errorBoundary),
+      }),
+    })),
+  };
+}
 
 export type BuildOptions = {
   projectDir: string;
