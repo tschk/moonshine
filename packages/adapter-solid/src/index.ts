@@ -90,10 +90,14 @@ function renderChildren(children: ViewNode[]): JSX.Element[] {
   return children.map((child) => renderCrepusNodeSolid(child));
 }
 
-const RENDERERS: Record<
-  string,
-  (node: any, cls: string | undefined) => JSX.Element
-> = {
+type RendererMap = {
+  [K in ViewNode["kind"]]?: (
+    node: Extract<ViewNode, { kind: K }>,
+    cls: string | undefined,
+  ) => JSX.Element;
+};
+
+const RENDERERS: RendererMap = {
   text: (node, cls) => el("span", { class: cls }, node.content),
   link: (node, cls) =>
     el(
@@ -176,7 +180,7 @@ const RENDERERS: Record<
     el(
       "select",
       { class: cls, name: node.bind },
-      ...node.options.map((option: any) =>
+      ...node.options.map((option) =>
         el("option", { value: option.value }, option.label),
       ),
     ),
@@ -238,7 +242,10 @@ export function renderCrepusNodeSolid(node: ViewNode): JSX.Element {
   const cls = classOf(node);
   const renderer = RENDERERS[node.kind];
   if (renderer) {
-    return renderer(node, cls);
+    return (renderer as (n: ViewNode, c: string | undefined) => JSX.Element)(
+      node,
+      cls,
+    );
   }
   return null as unknown as JSX.Element;
 }
