@@ -211,14 +211,14 @@ export const nodeHarness: HarnessFactory = (fetch, options) => {
 
   return {
     start: async () => {
-      await new Promise<void>((resolve) => server.listen(0, resolve));
+      await new Promise<void>((res) => server.listen(0, res));
       const address = server.address() as { port: number } | null;
       const port = address?.port ?? 0;
       return new URL(`http://localhost:${port}/`);
     },
     stop: async () => {
-      await new Promise<void>((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
+      await new Promise<void>((res, reject) =>
+        server.close((err) => (err ? reject(err) : res())),
       );
     },
   } as Harness;

@@ -28,24 +28,24 @@ describe("createNodeHandler security", () => {
 
   beforeAll(
     () =>
-      new Promise<void>((resolve) => {
+      new Promise<void>((res) => {
         server.listen(0, () => {
           const address = server.address() as { port: number };
           port = address.port;
-          resolve();
+          res();
         });
       }),
   );
 
   afterAll(
     () =>
-      new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()));
+      new Promise<void>((res, reject) => {
+        server.close((err) => (err ? reject(err) : res()));
       }),
   );
 
   test("removes hop-by-hop and framing headers from request", async () => {
-    const raw = await new Promise<string>((resolve, reject) => {
+    const raw = await new Promise<string>((res, reject) => {
       const socket = connect({ port }, () => {
         socket.write(
           "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nX-Custom: ok\r\n\r\nhello",
@@ -56,7 +56,7 @@ describe("createNodeHandler security", () => {
         data += chunk.toString();
       });
       socket.on("error", reject);
-      socket.on("end", () => resolve(data));
+      socket.on("end", () => res(data));
       setTimeout(() => socket.end(), 500);
     });
 
