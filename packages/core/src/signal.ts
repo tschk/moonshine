@@ -287,7 +287,7 @@ function clone<V>(value: V): V {
   if (Array.isArray(value)) return value.map((entry) => clone(entry)) as V;
   if (isWrappable(value)) {
     const out: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value)) out[key] = clone(entry);
+    for (const key in value) out[key] = clone((value as Record<string, unknown>)[key]);
     return out as V;
   }
   return value;
