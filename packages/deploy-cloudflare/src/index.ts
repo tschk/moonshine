@@ -7,11 +7,12 @@ import {
 } from "@tschk/moonshine-server";
 import { matchRoutes, createRouteGraph } from "@tschk/moonshine-router";
 import { reactRenderer, registerRouteModules } from "@tschk/moonshine-react";
-import type {
-  DeploymentAdapter,
-  MoonshineManifest,
-  Harness,
-  HarnessFactory,
+import {
+  resolveManifest,
+  type DeploymentAdapter,
+  type MoonshineManifest,
+  type Harness,
+  type HarnessFactory,
 } from "@tschk/moonshine-framework";
 
 export type CloudflareEnv = {
@@ -81,43 +82,6 @@ export async function cloudflareFetch(
 
 export default cloudflareFetch;
 
-function resolveManifestFiles(
-  manifest: MoonshineManifest,
-  projectRoot: string,
-): MoonshineManifest {
-  return {
-    ...manifest,
-    routes: manifest.routes.map((route) => ({
-      ...route,
-      file: isAbsolute(route.file)
-        ? route.file
-        : resolve(projectRoot, route.file),
-      ...(route.dataFile && {
-        dataFile: isAbsolute(route.dataFile)
-          ? route.dataFile
-          : resolve(projectRoot, route.dataFile),
-      }),
-      ...(route.layouts && {
-        layouts: route.layouts.map((layout) =>
-          isAbsolute(layout) ? layout : resolve(projectRoot, layout),
-        ),
-      }),
-      ...(route.middleware && {
-        middleware: route.middleware.map((middleware) =>
-          isAbsolute(middleware)
-            ? middleware
-            : resolve(projectRoot, middleware),
-        ),
-      }),
-      ...(route.errorBoundary && {
-        errorBoundary: isAbsolute(route.errorBoundary)
-          ? route.errorBoundary
-          : resolve(projectRoot, route.errorBoundary),
-      }),
-    })),
-  };
-}
-
 async function copyAssets(
   assets: MoonshineManifest["assets"],
   outDir: string,
@@ -177,7 +141,12 @@ export const cloudflareAdapter: DeploymentAdapter = {
 
     await mkdir(outDir, { recursive: true });
     const projectRoot = resolve(outDir, "..");
-    const resolvedManifest = resolveManifestFiles(manifest, projectRoot);
+    const resolvedManifest = resolveManifest(
+      manifest,
+      projectRoot,
+      resolve,
+      isAbsolute,
+    );
 
     await writeFile(
       resolve(outDir, "manifest.json"),

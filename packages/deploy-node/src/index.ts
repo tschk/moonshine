@@ -263,23 +263,13 @@ export const nodeAdapter: DeploymentAdapter = {
 import { createRequestHandler } from "@tschk/moonshine-server";
 import { reactRenderer } from "@tschk/moonshine-react";
 import { createNodeHandler } from "@tschk/moonshine-deploy-node";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import manifest from "./manifest.json" with { type: "json" };
 import { modules } from "./dist/server.js";
+import { resolveManifest } from "@tschk/moonshine-framework";
 
 const projectDir = resolve(import.meta.dir, "..");
-const abs = (p) => (p ? resolve(projectDir, p) : undefined);
-const resolvedManifest = {
-  ...manifest,
-  routes: manifest.routes.map((r) => ({
-    ...r,
-    file: resolve(projectDir, r.file),
-    dataFile: abs(r.dataFile),
-    layouts: r.layouts?.map(abs).filter(Boolean),
-    middleware: r.middleware?.map(abs).filter(Boolean),
-    errorBoundary: abs(r.errorBoundary),
-  })),
-};
+const resolvedManifest = resolveManifest(manifest, projectDir, resolve, isAbsolute);
 
 const fetch = createRequestHandler({
   manifest: resolvedManifest,
