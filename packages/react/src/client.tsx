@@ -61,7 +61,9 @@ export function createMoonshineApp(options: MoonshineAppOptions): MoonshineApp {
 
       host = el;
       if (options.className) {
-        el.classList.add(...options.className.split(/\s+/).filter(Boolean));
+        for (const cls of options.className.split(/\s+/)) {
+          if (cls) el.classList.add(cls);
+        }
       }
 
       reactRoot = createRoot(el);
@@ -73,8 +75,8 @@ export function createMoonshineApp(options: MoonshineAppOptions): MoonshineApp {
       reactRoot.unmount();
       reactRoot = null;
       if (host && options.className) {
-        for (const cls of options.className.split(/\s+/).filter(Boolean)) {
-          host.classList.remove(cls);
+        for (const cls of options.className.split(/\s+/)) {
+          if (cls) host.classList.remove(cls);
         }
       }
       host = null;
