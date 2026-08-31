@@ -13,6 +13,7 @@ import type {
   Harness,
   HarnessFactory,
 } from "@tschk/moonshine-framework";
+import { resolveManifestPaths } from "@tschk/moonshine-framework";
 
 export type CloudflareEnv = {
   ASSETS?: { fetch: (request: Request) => Promise<Response> };
@@ -81,43 +82,6 @@ export async function cloudflareFetch(
 
 export default cloudflareFetch;
 
-function resolveManifestFiles(
-  manifest: MoonshineManifest,
-  projectRoot: string,
-): MoonshineManifest {
-  return {
-    ...manifest,
-    routes: manifest.routes.map((route) => ({
-      ...route,
-      file: isAbsolute(route.file)
-        ? route.file
-        : resolve(projectRoot, route.file),
-      ...(route.dataFile && {
-        dataFile: isAbsolute(route.dataFile)
-          ? route.dataFile
-          : resolve(projectRoot, route.dataFile),
-      }),
-      ...(route.layouts && {
-        layouts: route.layouts.map((layout) =>
-          isAbsolute(layout) ? layout : resolve(projectRoot, layout),
-        ),
-      }),
-      ...(route.middleware && {
-        middleware: route.middleware.map((middleware) =>
-          isAbsolute(middleware)
-            ? middleware
-            : resolve(projectRoot, middleware),
-        ),
-      }),
-      ...(route.errorBoundary && {
-        errorBoundary: isAbsolute(route.errorBoundary)
-          ? route.errorBoundary
-          : resolve(projectRoot, route.errorBoundary),
-      }),
-    })),
-  };
-}
-
 async function copyAssets(
   assets: MoonshineManifest["assets"],
   outDir: string,
@@ -177,7 +141,9 @@ export const cloudflareAdapter: DeploymentAdapter = {
 
     await mkdir(outDir, { recursive: true });
     const projectRoot = resolve(outDir, "..");
-    const resolvedManifest = resolveManifestFiles(manifest, projectRoot);
+    const resolvedManifest = resolveManifestPaths(manifest, (p) =>
+      resolve(projectRoot, p),
+    );
 
     await writeFile(
       resolve(outDir, "manifest.json"),

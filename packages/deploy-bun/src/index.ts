@@ -95,22 +95,12 @@ export const bunAdapter: DeploymentAdapter = {
 import { reactRenderer } from "@tschk/moonshine-react";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
 import { resolve } from "node:path";
+import { resolveManifestPaths } from "@tschk/moonshine-framework";
 import manifest from "./manifest.json" with { type: "json" };
 import { modules } from "./dist/server.js";
 
 const projectDir = resolve(import.meta.dir, "..");
-const abs = (p) => (p ? resolve(projectDir, p) : undefined);
-const resolvedManifest = {
-  ...manifest,
-  routes: manifest.routes.map((r) => ({
-    ...r,
-    file: resolve(projectDir, r.file),
-    dataFile: abs(r.dataFile),
-    layouts: r.layouts?.map(abs).filter(Boolean),
-    middleware: r.middleware?.map(abs).filter(Boolean),
-    errorBoundary: abs(r.errorBoundary),
-  })),
-};
+const resolvedManifest = resolveManifestPaths(manifest, (p) => resolve(projectDir, p));
 
 const fetch = createRequestHandler({
   manifest: resolvedManifest,

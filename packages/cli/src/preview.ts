@@ -12,6 +12,7 @@ import {
   type Renderer,
   type RouteArtifact,
 } from "@tschk/moonshine-framework";
+import { resolveManifestPaths } from "@tschk/moonshine-framework";
 import { findConfig, loadConfig, type MoonshineCliConfig } from "./config.js";
 
 export type PreviewHandle = {
@@ -19,27 +20,6 @@ export type PreviewHandle = {
   port: number;
   stop: () => Promise<void>;
 };
-
-function resolveManifest(
-  projectDir: string,
-  manifest: MoonshineManifest,
-): MoonshineManifest {
-  function abs(p: string | undefined): string | undefined {
-    return p ? resolve(projectDir, p) : undefined;
-  }
-  return {
-    ...manifest,
-    routes: manifest.routes.map((route: RouteArtifact) => ({
-      ...route,
-      file: abs(route.file)!,
-      dataFile: abs(route.dataFile),
-      layouts: route.layouts?.map(abs).filter(Boolean) as string[] | undefined,
-      middleware: route.middleware?.map(abs).filter(Boolean) as
-        string[] | undefined,
-      errorBoundary: abs(route.errorBoundary),
-    })),
-  };
-}
 
 async function loadConfigMaybe(
   projectDir: string,
@@ -76,7 +56,7 @@ export async function startPreview(options: {
   }
 
   const raw = await readManifest(manifestPath);
-  const manifest = resolveManifest(projectDir, raw);
+  const manifest = resolveManifestPaths(raw, (p) => resolve(projectDir, p));
   const config = await loadConfigMaybe(projectDir);
   const renderer = await resolveRenderer(config.renderer);
   const staticDir = resolve(projectDir, ".moonshine", PUBLIC_DIR);

@@ -27,3 +27,24 @@ export type MoonshineManifest = {
   entries: { server?: string; client?: string };
   capabilities: Array<"streaming" | "islands" | "edge" | "revalidation">;
 };
+
+export function resolveManifestPaths(
+  manifest: MoonshineManifest,
+  resolvePath: (path: string) => string,
+): MoonshineManifest {
+  return {
+    ...manifest,
+    routes: manifest.routes.map((route) => ({
+      ...route,
+      file: resolvePath(route.file),
+      ...(route.dataFile && { dataFile: resolvePath(route.dataFile) }),
+      ...(route.layouts && { layouts: route.layouts.map(resolvePath) }),
+      ...(route.middleware && {
+        middleware: route.middleware.map(resolvePath),
+      }),
+      ...(route.errorBoundary && {
+        errorBoundary: resolvePath(route.errorBoundary),
+      }),
+    })),
+  };
+}
