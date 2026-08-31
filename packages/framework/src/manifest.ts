@@ -1,3 +1,4 @@
+import { isAbsolute, resolve } from "node:path";
 import type { RenderMode, RouteDefinition, RuntimeTarget } from "./routes";
 
 export const MANIFEST_VERSION = 1 as const;
@@ -27,3 +28,40 @@ export type MoonshineManifest = {
   entries: { server?: string; client?: string };
   capabilities: Array<"streaming" | "islands" | "edge" | "revalidation">;
 };
+
+export function resolveManifestFiles(
+  manifest: MoonshineManifest,
+  projectRoot: string,
+): MoonshineManifest {
+  return {
+    ...manifest,
+    routes: manifest.routes.map((route) => ({
+      ...route,
+      file: isAbsolute(route.file)
+        ? route.file
+        : resolve(projectRoot, route.file),
+      ...(route.dataFile && {
+        dataFile: isAbsolute(route.dataFile)
+          ? route.dataFile
+          : resolve(projectRoot, route.dataFile),
+      }),
+      ...(route.layouts && {
+        layouts: route.layouts.map((layout) =>
+          isAbsolute(layout) ? layout : resolve(projectRoot, layout),
+        ),
+      }),
+      ...(route.middleware && {
+        middleware: route.middleware.map((middleware) =>
+          isAbsolute(middleware)
+            ? middleware
+            : resolve(projectRoot, middleware),
+        ),
+      }),
+      ...(route.errorBoundary && {
+        errorBoundary: isAbsolute(route.errorBoundary)
+          ? route.errorBoundary
+          : resolve(projectRoot, route.errorBoundary),
+      }),
+    })),
+  };
+}

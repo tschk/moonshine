@@ -28,7 +28,8 @@ export type RouteProps = {
 };
 
 export type LinkTo =
-  string | { pathname: string; search?: Record<string, unknown> };
+  | string
+  | { pathname: string; search?: Record<string, unknown> };
 
 /** Waku normalises every route path to a trailing slash. */
 export function normalizePath(pathname: string): string {

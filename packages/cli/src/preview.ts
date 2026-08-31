@@ -35,7 +35,8 @@ function resolveManifest(
       dataFile: abs(route.dataFile),
       layouts: route.layouts?.map(abs).filter(Boolean) as string[] | undefined,
       middleware: route.middleware?.map(abs).filter(Boolean) as
-        string[] | undefined,
+        | string[]
+        | undefined,
       errorBoundary: abs(route.errorBoundary),
     })),
   };

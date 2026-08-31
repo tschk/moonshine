@@ -46,7 +46,10 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
   const configPath = findConfig(resolvedDir);
   const config = configPath ? await loadConfig(configPath) : {};
   const runtime = (config.runtime ?? defaultRuntime(adapter)) as
-    "bun" | "node" | "cloudflare" | "vercel-edge";
+    | "bun"
+    | "node"
+    | "cloudflare"
+    | "vercel-edge";
 
   const manifest = await buildProject({
     projectDir: resolvedDir,

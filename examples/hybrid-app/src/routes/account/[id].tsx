@@ -8,7 +8,8 @@ export default function AccountPage({
   data: Record<string, unknown>;
 }) {
   const account = data["account/[id]"] as
-    { id: string; at: string } | undefined;
+    | { id: string; at: string }
+    | undefined;
   return (
     <article>
       <h1>account</h1>
