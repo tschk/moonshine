@@ -4,3 +4,4 @@ export * from "./manifest";
 export * from "./renderer";
 export * from "./routes";
 export * from "./serialize";
+export * from "./build-utils";
