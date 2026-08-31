@@ -14,7 +14,7 @@ import { callAction, callLoader, createRouteContext } from "./data.js";
 import { errorResponse, json, Redirect } from "./errors.js";
 import { tryServeStatic } from "./static.js";
 
-const CONTROL_CHAR_REGEX = /[\x00-\x1F\x7F]/;
+const CONTROL_CHAR_REGEX = /[\u0000-\u001F\u007F]/;
 
 function hasControlChars(value: string): boolean {
   return CONTROL_CHAR_REGEX.test(value);
