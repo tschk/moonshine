@@ -156,6 +156,26 @@ describe("createRequestHandler", () => {
     expect(await res.text()).toBe("child:child fail");
   });
 
+  test("returns 500 error response when no error boundary is present", async () => {
+    const routes = graph([{ id: "err", path: "/err", file: "err.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      mode: "development",
+      modules: {
+        err: {
+          loader: () => {
+            throw new Error("unhandled error");
+          },
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/err"));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("unhandled error");
+  });
+
   test("production error response omits message and stack", async () => {
     const routes = graph([{ id: "err", path: "/err", file: "err.tsx" }]);
     const handler = createRequestHandler({
