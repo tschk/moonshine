@@ -1,10 +1,11 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   type DeploymentAdapter,
   type MoonshineManifest,
   type Harness,
   type HarnessFactory,
+  copyAsset,
 } from "@tschk/moonshine-framework";
 import { tryServeStatic } from "@tschk/moonshine-server";
 
@@ -55,24 +56,6 @@ export const bunHarness: HarnessFactory = (fetch, options) => {
     },
   } as Harness;
 };
-
-async function copyAsset(
-  asset: MoonshineManifest["assets"][number],
-  outDir: string,
-): Promise<string> {
-  const source = isAbsolute(asset.file)
-    ? asset.file
-    : resolve(outDir, asset.file);
-  const target = resolve(
-    outDir,
-    (asset.path ?? asset.file).replace(/^\/+/, ""),
-  );
-  await mkdir(dirname(target), { recursive: true });
-  if (source !== target) {
-    await copyFile(source, target);
-  }
-  return (asset.path ?? asset.file).replace(/^\/+/, "");
-}
 
 export const bunAdapter: DeploymentAdapter = {
   name: "bun",
