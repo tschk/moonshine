@@ -16,6 +16,7 @@ import {
   type AnchorHTMLAttributes,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { isExternal, navigate } from "@tschk/moonshine/router";
 import { buildHref, type ToOptions } from "./location";
@@ -56,7 +57,7 @@ function pathnameOf(href: string): string {
 }
 
 function useLinkPreload(
-  ref: React.RefObject<HTMLAnchorElement>,
+  ref: RefObject<HTMLAnchorElement | null>,
   href: string,
   preload: LinkProps["preload"],
   inert: boolean,
@@ -154,7 +155,11 @@ export function Link({
   const warm = useLinkPreload(ref, href, preload, inert);
 
   const target = pathnameOf(href);
-  const isActive = isLinkActive(location.pathname, target, activeOptions?.exact);
+  const isActive = isLinkActive(
+    location.pathname,
+    target,
+    activeOptions?.exact,
+  );
   const state: LinkRenderState = { isActive, isTransitioning: false };
 
   return createElement(
