@@ -195,7 +195,8 @@ const fetch = createRequestHandler({
   staticDir: join(import.meta.dir, ".vercel/output/static"),
 });
 
-Bun.serve({ port: Number(process.env.PORT) || 0, fetch });
+const port = Math.max(0, Math.min(65535, Number(process.env.PORT) || 0));
+Bun.serve({ port, fetch });
 `;
     await writeFile(resolve(outDir, "server.ts"), serverEntry);
   },
