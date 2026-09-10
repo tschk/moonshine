@@ -173,9 +173,12 @@ async function checkPackedManifests(packages: PackageInfo[]) {
     await Promise.all(
       packages.map(async (pkg) => {
         const pkgTmp = mkdtempSync(join(tmp, "pkg-"));
-        const pack = await exec(["bun", "pm", "pack", "--destination", pkgTmp], {
-          cwd: pkg.dir,
-        });
+        const pack = await exec(
+          ["bun", "pm", "pack", "--destination", pkgTmp],
+          {
+            cwd: pkg.dir,
+          },
+        );
         if (pack.code !== 0) {
           fail(`pack failed for ${pkg.name}: ${pack.err || pack.out}`);
         }
