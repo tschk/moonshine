@@ -1,5 +1,5 @@
 import { describe, expect, test, afterEach } from "bun:test";
-import { detectFramework } from "../src/adopt/scan";
+import { detectFramework, readJson } from "../src/adopt/scan";
 import fs from "node:fs";
 import { join } from "node:path";
 import os from "node:os";
@@ -229,5 +229,35 @@ describe("detectFramework", () => {
         convention: "moonshine",
       });
     });
+  });
+});
+
+describe("readJson", () => {
+  let tmpDir: string;
+
+  afterEach(() => {
+    if (tmpDir) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("returns parsed JSON for a valid file", () => {
+    tmpDir = fs.mkdtempSync(join(os.tmpdir(), "scan-test-readjson-"));
+    const filePath = join(tmpDir, "valid.json");
+    fs.writeFileSync(filePath, JSON.stringify({ key: "value" }));
+    expect(readJson(filePath)).toEqual({ key: "value" });
+  });
+
+  test("returns undefined if file does not exist", () => {
+    tmpDir = fs.mkdtempSync(join(os.tmpdir(), "scan-test-readjson-"));
+    const filePath = join(tmpDir, "nonexistent.json");
+    expect(readJson(filePath)).toBeUndefined();
+  });
+
+  test("returns undefined if file contains invalid JSON", () => {
+    tmpDir = fs.mkdtempSync(join(os.tmpdir(), "scan-test-readjson-"));
+    const filePath = join(tmpDir, "invalid.json");
+    fs.writeFileSync(filePath, "{ invalid: json }");
+    expect(readJson(filePath)).toBeUndefined();
   });
 });
