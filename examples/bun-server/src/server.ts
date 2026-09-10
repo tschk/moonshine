@@ -28,8 +28,12 @@ ${body}
 </html>`;
 }
 
+const envPort = Number(process.env.PORT);
 const server = createMoonshineServer({
-  port: Number(process.env.PORT) || 3000,
+  port:
+    Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535
+      ? envPort
+      : 3000,
   staticDir: publicDir,
   pages: {
     "/": definePage({

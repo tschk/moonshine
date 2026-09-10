@@ -11,8 +11,12 @@ const clientBundle = await Bun.file(
 
 const hits = createSignal(0);
 
+const envPort = Number(process.env.PORT);
 const server = createMoonshineServer({
-  port: Number(process.env.PORT ?? 3000),
+  port:
+    Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535
+      ? envPort
+      : 3000,
   pages: {
     "/": {
       render() {
