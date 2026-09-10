@@ -226,7 +226,7 @@ async function checkNpmAuth(packages: PackageInfo[]) {
     );
   } else {
     const user = whoami.out.trim();
-    for (const pkg of packages) {
+    const checks = packages.map(async (pkg) => {
       const view = await exec([
         "bunx",
         "npm",
@@ -236,21 +236,25 @@ async function checkNpmAuth(packages: PackageInfo[]) {
         "--json",
       ]);
       if (view.code !== 0) {
-        warnings.push(
-          `could not verify maintainers for ${pkg.name}: ${view.err || view.out || view.code}`,
-        );
-        continue;
+        return `could not verify maintainers for ${pkg.name}: ${view.err || view.out || view.code}`;
       }
       let maintainers: string[];
       try {
         maintainers = JSON.parse(view.out) as string[];
       } catch {
-        warnings.push(`could not parse maintainers for ${pkg.name}`);
-        continue;
+        return `could not parse maintainers for ${pkg.name}`;
       }
       const names = maintainers.map((m) => m.split(" ")[0]);
       if (!names.includes(user)) {
-        warnings.push(`npm user ${user} is not a maintainer of ${pkg.name}`);
+        return `npm user ${user} is not a maintainer of ${pkg.name}`;
+      }
+      return null;
+    });
+
+    const results = await Promise.all(checks);
+    for (const result of results) {
+      if (result !== null) {
+        warnings.push(result);
       }
     }
   }
