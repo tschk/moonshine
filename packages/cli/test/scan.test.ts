@@ -245,7 +245,7 @@ describe("readJson", () => {
     tmpDir = fs.mkdtempSync(join(os.tmpdir(), "scan-test-readjson-"));
     const filePath = join(tmpDir, "valid.json");
     fs.writeFileSync(filePath, JSON.stringify({ key: "value" }));
-    expect(readJson(filePath)).toEqual({ key: "value" });
+    expect(readJson<{ key: string }>(filePath)).toEqual({ key: "value" });
   });
 
   test("returns undefined if file does not exist", () => {
