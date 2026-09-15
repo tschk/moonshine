@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Idempotent Amp orb setup for moonshine (Bun-first monorepo).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+step() {
+  local name="$1"
+  shift
+  local start
+  start="$(date +%s)"
+  echo "==> $name"
+  "$@"
+  echo "    $name done in $(($(date +%s) - start))s"
+}
+
+need_pkg() {
+  dpkg -s "$1" >/dev/null 2>&1
+}
+
+if ! command -v bun >/dev/null 2>&1; then
+  step "install bun" bash -c 'curl -fsSL https://bun.sh/install | bash'
+  export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+fi
+
+missing=()
+for pkg in ca-certificates curl git unzip; do
+  need_pkg "$pkg" || missing+=("$pkg")
+done
+if ((${#missing[@]})); then
+  step "apt-get update" sudo apt-get update -y
+  step "apt-get install ${missing[*]}" sudo apt-get install -y "${missing[@]}"
+fi
+
+step "bun install" bun install --frozen-lockfile
+
+if command -v dart >/dev/null 2>&1; then
+  step "dart pub get" bash -c 'cd dart/moonshine_jaspr && dart pub get'
+else
+  echo "warn: dart not installed — skipping moonshine_jaspr (JS toolchain is enough for most work)"
+fi
+
+echo "==> bun $(bun --version)"
+echo "==> moonshine orb setup ok"

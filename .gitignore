@@ -26,3 +26,6 @@ examples/bun-server/public/client.js.map
 .tmp-cli-new/
 out-bench/
 mock-assets/
+
+# Amp orb portals
+.amp/portals/
