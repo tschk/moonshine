@@ -92,5 +92,39 @@ describe("buildProject", () => {
         expect(route.errorBoundary.startsWith("src/")).toBe(true);
       }
     }
+
+    expect(manifest.routes.find((r) => r.path === "/")?.staticOutput).toBe(
+      "static/index.html",
+    );
+    expect(
+      manifest.routes.find((r) => r.path === "/docs/*path")?.staticOutput,
+    ).toBeUndefined();
+  });
+
+  test("does not assign staticOutput to parameterized static paths", async () => {
+    const file = join(projectDir, "src", "routes", "index.tsx");
+    const manifest = await buildProject({
+      projectDir,
+      programmatic: [
+        {
+          id: "blog-slug",
+          path: "/blog/:slug",
+          file,
+          mode: "static",
+        },
+        {
+          id: "account-tab",
+          path: "/account/:tab?",
+          file,
+          mode: "static",
+        },
+      ],
+    });
+    expect(
+      manifest.routes.find((r) => r.id === "blog-slug")?.staticOutput,
+    ).toBeUndefined();
+    expect(
+      manifest.routes.find((r) => r.id === "account-tab")?.staticOutput,
+    ).toBeUndefined();
   });
 });

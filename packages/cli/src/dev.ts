@@ -36,6 +36,8 @@ export async function devCommand(args: string[]): Promise<void> {
   let preview: PreviewHandle | undefined;
   let watcher: ReturnType<typeof watch> | undefined;
   let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
+  let buildChain: Promise<void> = Promise.resolve();
+  let rebuildQueued = false;
 
   async function runBuildAndPreview(): Promise<void> {
     if (preview) {
@@ -51,6 +53,15 @@ export async function devCommand(args: string[]): Promise<void> {
     }
   }
 
+  function scheduleRebuild(): void {
+    if (rebuildQueued) return;
+    rebuildQueued = true;
+    buildChain = buildChain.then(async () => {
+      rebuildQueued = false;
+      await runBuildAndPreview();
+    });
+  }
+
   await runBuildAndPreview();
 
   if (watcher) {
@@ -60,7 +71,7 @@ export async function devCommand(args: string[]): Promise<void> {
   watcher = watch(srcDir, { recursive: true }, () => {
     if (rebuildTimer) clearTimeout(rebuildTimer);
     rebuildTimer = setTimeout(() => {
-      void runBuildAndPreview();
+      scheduleRebuild();
     }, 100);
   });
 

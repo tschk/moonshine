@@ -47,23 +47,28 @@ export function createResource<T>(
     options.initial !== undefined ? "ready" : "pending",
   );
 
+  let generation = 0;
+
   const refetch = async (): Promise<T | undefined> => {
+    const current = ++generation;
     loading.set(true);
     status.set("pending");
     error.set(undefined);
     try {
       const value = await fetcher();
+      if (current !== generation) return data.peek();
       data.set(() => value);
       status.set("ready");
       return value;
     } catch (e) {
+      if (current !== generation) return data.peek();
       const err = e instanceof Error ? e : new Error(String(e));
       error.set(err);
       status.set("errored");
       options.onError?.(err);
       return undefined;
     } finally {
-      loading.set(false);
+      if (current === generation) loading.set(false);
     }
   };
 

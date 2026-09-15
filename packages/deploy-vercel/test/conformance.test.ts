@@ -146,6 +146,15 @@ describe("vercel build output", () => {
         clientEntries: [],
       },
       {
+        id: "post",
+        path: "/blog/:slug",
+        file: pageFile,
+        mode: "static",
+        runtime: "node",
+        decision: "fixture",
+        clientEntries: [],
+      },
+      {
         id: "edge",
         path: "/edge",
         file: pageFile,
@@ -203,6 +212,14 @@ describe("vercel build output", () => {
     expect(
       existsSync(
         resolve(buildDir, ".vercel/output/functions/hello.func/index.ts"),
+      ),
+    ).toBe(true);
+    expect(
+      existsSync(resolve(buildDir, ".vercel/output/static/blog-:slug.html")),
+    ).toBe(false);
+    expect(
+      existsSync(
+        resolve(buildDir, ".vercel/output/functions/post.func/index.ts"),
       ),
     ).toBe(true);
     expect(

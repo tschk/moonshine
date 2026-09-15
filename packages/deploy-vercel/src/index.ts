@@ -113,9 +113,15 @@ export const vercelAdapter: DeploymentAdapter = {
     const routesConfig = await mapConcurrent(
       resolvedManifest.routes,
       async (route) => {
-        if (route.mode === "static" && !route.path.includes("*")) {
-          const html = await prerenderRoute(route);
+        if (
+          route.mode === "static" &&
+          !route.path.includes("*") &&
+          !route.path.includes(":")
+        ) {
+          // Allocate the output slug before awaiting so concurrent workers
+          // cannot race on `usedSlugs`.
           const slug = staticSlug(route.path, usedSlugs);
+          const html = await prerenderRoute(route);
           await writeFile(resolve(staticDir, `${slug}.html`), html);
           return {
             src: routeToRegex(route.path),
