@@ -13,9 +13,11 @@ beforeAll(clean);
 afterAll(clean);
 
 function chdir(dir: string): () => void {
-  const prev = process.cwd();
-  process.chdir(dir);
-  return () => process.chdir(prev);
+  const prev = process.cwd.bind(process);
+  process.cwd = () => dir;
+  return () => {
+    process.cwd = prev;
+  };
 }
 
 async function scaffold(name: string, args: string[]): Promise<string> {
