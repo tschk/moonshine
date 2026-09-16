@@ -75,7 +75,10 @@ function deriveCapabilities(
 
 function makeStaticOutput(route: RouteArtifact): string | undefined {
   if (route.mode !== "static") return undefined;
-  if (route.path.includes("*")) return undefined;
+  // Parameterized paths (`:slug`, `:tab?`, `*rest`) cannot be prerendered as
+  // a single file; a slug like `blog-:slug.html` would be served for every
+  // match.
+  if (route.path.includes("*") || route.path.includes(":")) return undefined;
   const slug =
     route.path === "/"
       ? "index"
