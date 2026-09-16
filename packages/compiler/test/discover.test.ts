@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { discoverRoutes } from "../src/discover";
+import { discoverRoutes, segmentToPattern } from "../src/discover.js";
 
 const fixtureDir = join(import.meta.dir, "fixtures", "routes");
 
@@ -72,5 +72,27 @@ describe("discoverRoutes", () => {
       "/blog/:slug",
       "/docs/*path",
     ]);
+  });
+});
+
+describe("segmentToPattern", () => {
+  test("returns static segment unchanged", () => {
+    expect(segmentToPattern("about")).toBe("about");
+    expect(segmentToPattern("some-page")).toBe("some-page");
+  });
+
+  test("converts dynamic segment to param", () => {
+    expect(segmentToPattern("[slug]")).toBe(":slug");
+    expect(segmentToPattern("[id]")).toBe(":id");
+  });
+
+  test("converts optional dynamic segment to optional param", () => {
+    expect(segmentToPattern("[[slug]]")).toBe(":slug?");
+    expect(segmentToPattern("[[id]]")).toBe(":id?");
+  });
+
+  test("converts catch-all segment to wildcard param", () => {
+    expect(segmentToPattern("[...slug]")).toBe("*slug");
+    expect(segmentToPattern("[...path]")).toBe("*path");
   });
 });
