@@ -1,0 +1,45 @@
+{
+  "name": "@tschk/moonshine-svelte",
+  "version": "0.4.1",
+  "description": "Svelte hosting adapter — peer svelte re-exports plus moonshine signal bridges",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./svelte": "./src/svelte.ts",
+    "./store": "./src/store.ts"
+  },
+  "dependencies": {
+    "@tschk/crepus-moonshine": "^0.4.1",
+    "@tschk/moonshine": "^0.4.1",
+    "@tschk/moonshine-framework": "^0.4.1"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  },
+  "peerDependencies": {
+    "svelte": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "svelte": {
+      "optional": true
+    }
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "svelte",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  }
+}

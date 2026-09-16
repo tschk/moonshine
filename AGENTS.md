@@ -14,10 +14,11 @@ There are two kinds of adapter:
   list it as a dependency or peerDependency — an app aliases the host specifier
   onto the adapter and drops the host entirely. Only possible where the host's
   public API is ordinary React.
-- **Hosting** (`adapter-solid`): the host's real runtime re-exported on
-  subpaths as a peer dependency, plus moonshine signal bridges. Required
-  wherever the host's component format is compiled (Svelte, Vue, Angular,
-  `.astro`), which moonshine cannot replace.
+- **Hosting** (`adapter-solid`, `adapter-svelte`, `adapter-vue`,
+  `adapter-angular`, `adapter-astro`, `adapter-nuxt`): the host's real
+  runtime re-exported on subpaths as a peer dependency, plus moonshine
+  signal bridges. Required wherever the host's component format is compiled
+  (Svelte, Vue, Angular, `.astro`, Nuxt), which moonshine cannot replace.
 
 ## Rules
 
@@ -28,7 +29,9 @@ There are two kinds of adapter:
    deps), not only moonshine.
 3. Next: `/navigation`, `/link`, `/image`, `/headers`, `/dynamic`, `/shaders`,
    `/server`.
-4. Solid: `/solid`, `/store`, `/h`.
+4. Solid: `/solid`, `/store`, `/h`. Svelte: `/svelte`, `/store`. Vue:
+   `/vue`, `/compiler-sfc`. Angular: `/core`, `/common`. Astro: `/compiler`.
+   Nuxt: `/app`, `/vue`.
 5. Next root must not export `MoonshineRouter`.
 6. Framework packages communicate through `@tschk/moonshine-framework`
    contracts: routes, manifest, renderer, adapter, and config.
