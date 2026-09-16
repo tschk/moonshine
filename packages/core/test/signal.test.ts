@@ -297,6 +297,44 @@ describe("collectDeps", () => {
 });
 
 describe("untrack", () => {
+  test("restores previous tracker on error", () => {
+    const s1 = createSignal(1);
+    const s2 = createSignal(2);
+    const s3 = createSignal(3);
+
+    let memoRuns = 0;
+    const m = createMemo(() => {
+      memoRuns++;
+      s1(); // tracked
+      try {
+        untrack(() => {
+          s2(); // untracked
+          throw new Error("test");
+        });
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(Error);
+      }
+      s3(); // tracked
+      return 1;
+    });
+
+    m();
+    expect(memoRuns).toBe(1);
+
+    s2.set(10);
+    m();
+    expect(memoRuns).toBe(1); // not triggered by s2
+
+    s1.set(10);
+    m();
+    expect(memoRuns).toBe(2); // triggered by s1
+
+    s3.set(10);
+    m();
+    expect(memoRuns).toBe(3); // triggered by s3
+  });
+
   test("reads without registering a dependency", () => {
     const tracked = createSignal(1);
     const hidden = createSignal(100);
