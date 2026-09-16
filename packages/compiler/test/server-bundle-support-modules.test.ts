@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { buildProject } from "../src/manifest";
+import { readManifest } from "../src/manifest";
+import { buildProjectIsolated } from "./build-in-subprocess";
 
 /**
  * The server bundle must carry every module the server renders through, not
@@ -26,7 +27,8 @@ afterAll(clean);
 
 describe("server bundle support modules", () => {
   test("registers the layouts its routes render through", async () => {
-    const manifest = await buildProject({ projectDir });
+    await buildProjectIsolated({ projectDir });
+    const manifest = await readManifest(join(outDir, "manifest.json"));
 
     const layouts = [
       ...new Set(manifest.routes.flatMap((route) => route.layouts ?? [])),
@@ -42,7 +44,8 @@ describe("server bundle support modules", () => {
   });
 
   test("a registered layout is the real module, not a route wrapper", async () => {
-    const manifest = await buildProject({ projectDir });
+    await buildProjectIsolated({ projectDir });
+    const manifest = await readManifest(join(outDir, "manifest.json"));
     const layout = join(
       projectDir,
       manifest.routes.flatMap((route) => route.layouts ?? [])[0]!,
@@ -57,7 +60,8 @@ describe("server bundle support modules", () => {
   });
 
   test("still registers pages by id and file", async () => {
-    const manifest = await buildProject({ projectDir });
+    await buildProjectIsolated({ projectDir });
+    const manifest = await readManifest(join(outDir, "manifest.json"));
     const route = manifest.routes[0]!;
 
     const { modules } = await import(join(outDir, "dist", "server.js"));
