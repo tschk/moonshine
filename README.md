@@ -24,6 +24,11 @@ bun run moonshine -- inspect
 | `@tschk/moonshine-framework`         | Public contracts: routes, manifest, renderer, adapter, config |
 | `@tschk/moonshine-react`             | React SSR, streaming, islands, and hydration                  |
 | `@tschk/moonshine-solid`             | Solid renderer and signal bridges                             |
+| `@tschk/moonshine-svelte`            | Svelte hosting adapter (peer `svelte` + signal bridges)       |
+| `@tschk/moonshine-vue`               | Vue hosting adapter (peer `vue` + signal bridges)             |
+| `@tschk/moonshine-angular`           | Angular hosting adapter (peer `@angular/*` + signal bridges)  |
+| `@tschk/moonshine-astro`             | Astro hosting adapter (peer `astro` + signal bridges)         |
+| `@tschk/moonshine-nuxt`              | Nuxt hosting adapter (peer `nuxt`/`vue` + signal bridges)     |
 | `@tschk/crepus-moonshine`            | `.crepus` parsing (Rust parser via WASM) and View IR renderer |
 | `@tschk/moonshine-cli`               | `new`, `adopt`, `dev`, `build`, `preview`, `inspect`          |
 | `@tschk/moonshine-next`              | Next.js API reimplemented on moonshine (no `next` dependency) |
@@ -53,10 +58,11 @@ is only possible where the host's public API is plain React —
 `packages/core/test/adapters-contract.test.ts` enforces the no-import and
 no-dependency rules.
 
-**Hosting** — `@tschk/moonshine-solid`. The host's real runtime is a peer
-dependency, re-exported on subpaths alongside moonshine signal bridges. Required
-wherever the host's component format is compiled rather than written as React
-(Svelte, Vue, Angular, `.astro`); moonshine cannot replace that compiler.
+**Hosting** — `@tschk/moonshine-solid`, `-svelte`, `-vue`, `-angular`,
+`-astro`, `-nuxt`. The host's real runtime is a peer dependency, re-exported
+on subpaths alongside moonshine signal bridges. Required wherever the host's
+component format is compiled rather than written as React (Svelte, Vue,
+Angular, `.astro`, Nuxt); moonshine cannot replace that compiler.
 
 Each adapter's README lists its subpaths and, for the reimplementing ones, an
 explicit **Not supported** section. Read it before aliasing: RSC, loader/action
