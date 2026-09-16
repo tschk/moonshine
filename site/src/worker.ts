@@ -7,6 +7,7 @@ import type {
 import manifestJson from "../.moonshine/manifest.json" with { type: "json" };
 import * as homeRoute from "./routes/index";
 import * as packagesRoute from "./routes/packages";
+import * as changelogRoute from "./routes/changelog";
 import * as stateRoute from "./routes/api/state.server";
 import { createSiteRenderer, type SiteModules } from "./renderer";
 
@@ -30,6 +31,7 @@ type RouteExports = {
 const SOURCES: Record<string, RouteExports> = {
   index: homeRoute,
   packages: packagesRoute,
+  changelog: changelogRoute,
   "api/state": stateRoute,
 };
 

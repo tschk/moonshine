@@ -8,6 +8,8 @@ import type { DownloadSeries } from "../src/registry";
 import { GET } from "../src/routes/api/state.server";
 import * as home from "../src/routes/index";
 import * as packagesRoute from "../src/routes/packages";
+import * as changelogRoute from "../src/routes/changelog";
+import { formatInline, parseChangelog } from "../src/changelog";
 import { createSiteRenderer } from "../src/renderer";
 import { PACKAGES } from "../src/packages";
 import { pivotLink } from "../src/chrome";
@@ -112,6 +114,16 @@ describe("document shell", () => {
     }
     expect(html).toContain("built with crepuscularity + moonshine");
   });
+
+  test("the changelog page lists every recorded release", async () => {
+    const html = await renderRoute("changelog", "/changelog", changelogRoute);
+    expect(html).toContain("<title>moonshine — changelog</title>");
+    expect(html).toContain("Moonshine 0.3.6");
+    expect(html).toContain("Moonshine 0.3.0");
+    expect(html).toContain('id="v-0.3.6"');
+    expect(html).toContain("registerRouteModules");
+    expect(html).toContain('href="/changelog"');
+  });
 });
 
 describe("navigation", () => {
@@ -138,6 +150,61 @@ describe("navigation", () => {
     expect(html).toContain('href="https://tsc.hk"');
     expect(html).toContain('href="https://crepuscularity.tsc.hk"');
     expect(html).toContain('rel="noopener noreferrer"');
+  });
+
+  test("changelog is in the top links on every page", async () => {
+    const homeHtml = await renderRoute("index", "/", home);
+    const packagesHtml = await renderRoute(
+      "packages",
+      "/packages",
+      packagesRoute,
+    );
+    const changelogHtml = await renderRoute(
+      "changelog",
+      "/changelog",
+      changelogRoute,
+    );
+    for (const html of [homeHtml, packagesHtml, changelogHtml]) {
+      expect(html).toContain('href="/changelog"');
+      expect(html).toContain(">changelog</a>");
+    }
+  });
+});
+
+describe("changelog parser", () => {
+  test("splits releases, sections, and wrapped items", () => {
+    const releases = parseChangelog(`# Moonshine 1.0.0
+
+## Kernel
+
+- First sentence
+  continues here.
+- Second item with \`code\`.
+
+# Moonshine 0.9.0
+
+## CLI
+
+- Added [docs](https://example.com/docs).
+`);
+    expect(releases.map((r) => r.version)).toEqual(["1.0.0", "0.9.0"]);
+    expect(releases[0]!.sections[0]!.heading).toBe("Kernel");
+    expect(releases[0]!.sections[0]!.items[0]).toBe(
+      "First sentence continues here.",
+    );
+    expect(releases[0]!.sections[0]!.items[1]).toBe("Second item with `code`.");
+    expect(releases[1]!.sections[0]!.items[0]).toBe(
+      "Added [docs](https://example.com/docs).",
+    );
+  });
+
+  test("formatInline splits code and markdown links", () => {
+    expect(formatInline("see `foo` and [bar](https://example.com)")).toEqual([
+      { kind: "text", value: "see " },
+      { kind: "code", value: "foo" },
+      { kind: "text", value: " and " },
+      { kind: "link", href: "https://example.com", value: "bar" },
+    ]);
   });
 });
 
