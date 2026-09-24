@@ -226,15 +226,14 @@ async function checkNpmAuth(packages: PackageInfo[]) {
     );
   } else {
     const user = whoami.out.trim();
-    for (const pkg of packages) {
-      const view = await exec([
-        "bunx",
-        "npm",
-        "view",
-        pkg.name,
-        "maintainers",
-        "--json",
-      ]);
+    const viewPromises = packages.map((pkg) =>
+      exec(["bunx", "npm", "view", pkg.name, "maintainers", "--json"]).then(
+        (view) => ({ pkg, view }),
+      ),
+    );
+    const results = await Promise.all(viewPromises);
+
+    for (const { pkg, view } of results) {
       if (view.code !== 0) {
         warnings.push(
           `could not verify maintainers for ${pkg.name}: ${view.err || view.out || view.code}`,
