@@ -257,7 +257,7 @@ describe("readJson", () => {
   test("returns undefined for invalid JSON", () => {
     tmpDir = fs.mkdtempSync(join(os.tmpdir(), "readjson-test-"));
     const path = join(tmpDir, "test.json");
-    fs.writeFileSync(path, '{invalid}');
+    fs.writeFileSync(path, "{invalid}");
     expect(readJson(path)).toBeUndefined();
   });
 });
