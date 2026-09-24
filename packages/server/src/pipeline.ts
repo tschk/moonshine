@@ -25,6 +25,17 @@ function hasControlChars(value: string): boolean {
 function isSafeRedirect(location: string, request: Request): boolean {
   try {
     if (hasControlChars(location)) return false;
+
+    const loc = location.trim();
+    if (
+      loc.startsWith("//") ||
+      loc.startsWith("\\\\") ||
+      loc.startsWith("/\\") ||
+      loc.startsWith("\\/")
+    ) {
+      return false;
+    }
+
     const base = new URL(request.url);
     const url = new URL(location, request.url);
     return url.origin === base.origin;
