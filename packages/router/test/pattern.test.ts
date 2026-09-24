@@ -111,4 +111,8 @@ describe("rest segments decode per part", () => {
       path: "my file.txt",
     });
   });
+
+  test("returns no match for malformed encoding in rest segment", () => {
+    expect(matchPath("/files/*path", "/files/bad%E0%A4%A")).toBeNull();
+  });
 });
