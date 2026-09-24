@@ -1,5 +1,5 @@
-import { describe, expect, test, afterEach } from "bun:test";
-import { detectFramework } from "../src/adopt/scan";
+import { describe, expect, test, afterEach, beforeEach } from "bun:test";
+import { detectFramework, readJson } from "../src/adopt/scan";
 import fs from "node:fs";
 import { join } from "node:path";
 import os from "node:os";
@@ -229,5 +229,34 @@ describe("detectFramework", () => {
         convention: "moonshine",
       });
     });
+  });
+});
+
+describe("readJson", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(join(os.tmpdir(), "scan-test-readjson-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("returns parsed JSON for valid file", () => {
+    const file = join(tmpDir, "valid.json");
+    fs.writeFileSync(file, JSON.stringify({ key: "value" }));
+    expect(readJson<{ key: string }>(file)).toEqual({ key: "value" });
+  });
+
+  test("returns undefined for non-existent file", () => {
+    const file = join(tmpDir, "missing.json");
+    expect(readJson(file)).toBeUndefined();
+  });
+
+  test("returns undefined for invalid JSON", () => {
+    const file = join(tmpDir, "invalid.json");
+    fs.writeFileSync(file, "{ invalid json }");
+    expect(readJson(file)).toBeUndefined();
   });
 });
