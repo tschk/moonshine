@@ -5,6 +5,7 @@ import {
   createMemo,
   createSignal,
   createStore,
+  getStoreRoot,
   untrack,
 } from "../src/signal";
 import {
@@ -311,6 +312,21 @@ describe("untrack", () => {
     expect(runs).toBe(1);
     tracked.set(2);
     expect(m()).toBe(202);
+  });
+});
+
+describe("getStoreRoot", () => {
+  test("retrieves the trackable root of a store", () => {
+    const [store] = createStore({ count: 1 });
+    const root = getStoreRoot(store);
+    expect(root).toBeDefined();
+    expect(typeof root?.subscribe).toBe("function");
+  });
+
+  test("returns undefined for non-store objects", () => {
+    const obj = { count: 1 };
+    const root = getStoreRoot(obj);
+    expect(root).toBeUndefined();
   });
 });
 
