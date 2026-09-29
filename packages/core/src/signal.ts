@@ -139,6 +139,92 @@ export type Memo<T> = {
   subscribe: (listener: Listener) => () => void;
 };
 
+type MemoState<T> = {
+  compute: () => T;
+  listeners: Set<Listener>;
+  deps: Array<{ node: Source; version: number }>;
+  unsubs: Array<() => void>;
+  value: T;
+  hasValue: boolean;
+  stale: boolean;
+  checkedAt: number;
+  node: Source;
+  onDepChange: () => void;
+};
+
+function memoObserve<T>(state: MemoState<T>): void {
+  for (const unsub of state.unsubs) unsub();
+  state.unsubs.length = 0;
+  for (const dep of state.deps) {
+    state.unsubs.push(dep.node.subscribe(state.onDepChange));
+  }
+}
+
+function memoUnobserve<T>(state: MemoState<T>): void {
+  for (const unsub of state.unsubs) unsub();
+  state.unsubs.length = 0;
+}
+
+function memoOnDepChange<T>(state: MemoState<T>): void {
+  const before = state.node.version;
+  memoValidate(state);
+  // Only wake downstream when the derived value actually moved.
+  if (state.node.version !== before) notifyListeners(state.listeners);
+}
+
+function memoRecompute<T>(state: MemoState<T>): void {
+  const collected: Array<{ node: Source; version: number }> = [];
+  const seen = new Set<Source>();
+  const previous = currentTracker;
+  currentTracker = (dep) => {
+    if (seen.has(dep)) return;
+    seen.add(dep);
+    collected.push({ node: dep, version: dep.version });
+  };
+
+  let next: T;
+  try {
+    next = state.compute();
+  } finally {
+    currentTracker = previous;
+  }
+
+  // Re-subscribing tears down and rebuilds the whole upstream chain, so only
+  // do it when the dependency set actually moved.
+  const sameDeps =
+    collected.length === state.deps.length &&
+    collected.every((entry, index) => entry.node === state.deps[index]!.node);
+
+  state.deps = collected;
+  state.stale = false;
+  if (state.listeners.size > 0 && (!sameDeps || state.unsubs.length === 0)) {
+    memoObserve(state);
+  }
+
+  if (!state.hasValue || !Object.is(next, state.value)) {
+    state.value = next;
+    state.hasValue = true;
+    state.node.version = ++versionCounter;
+  }
+}
+
+function memoValidate<T>(state: MemoState<T>): void {
+  if (!state.stale && state.checkedAt === epoch) return;
+  state.checkedAt = epoch;
+  if (!state.stale) {
+    let changed = false;
+    for (const dep of state.deps) {
+      dep.node.validate();
+      if (dep.node.version !== dep.version) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+  }
+  memoRecompute(state);
+}
+
 /**
  * Derived value that recomputes when tracked dependencies change.
  * Any `createSignal` / `createMemo` read during `compute` is tracked.
@@ -148,110 +234,48 @@ export type Memo<T> = {
  * before answering, so it never reports a half-updated view of the graph.
  */
 export function createMemo<T>(compute: () => T): Memo<T> {
-  const listeners = new Set<Listener>();
-  let deps: Array<{ node: Source; version: number }> = [];
-  const unsubs: Array<() => void> = [];
-  let value!: T;
-  let hasValue = false;
-  let stale = true;
-  let checkedAt = -1;
+  const state = {
+    compute,
+    listeners: new Set<Listener>(),
+    deps: [],
+    unsubs: [],
+    value: undefined as unknown as T,
+    hasValue: false,
+    stale: true,
+    checkedAt: -1,
+  } as unknown as MemoState<T>;
 
-  const node: Source = {
+  state.onDepChange = () => memoOnDepChange(state);
+
+  state.node = {
     version: ++versionCounter,
-    validate: () => validate(),
+    validate: () => memoValidate(state),
     subscribe: (listener) => {
       // Dependencies are only observed while somebody is listening, so the
       // push path exists solely to serve real subscribers.
-      validate();
-      listeners.add(listener);
-      if (listeners.size === 1) observe();
+      memoValidate(state);
+      state.listeners.add(listener);
+      if (state.listeners.size === 1) memoObserve(state);
       return () => {
-        listeners.delete(listener);
-        if (listeners.size === 0) unobserve();
+        state.listeners.delete(listener);
+        if (state.listeners.size === 0) memoUnobserve(state);
       };
     },
   };
 
-  function observe(): void {
-    for (const unsub of unsubs.splice(0)) unsub();
-    for (const dep of deps) unsubs.push(dep.node.subscribe(onDepChange));
-  }
-
-  function unobserve(): void {
-    for (const unsub of unsubs.splice(0)) unsub();
-  }
-
-  function onDepChange(): void {
-    const before = node.version;
-    validate();
-    // Only wake downstream when the derived value actually moved.
-    if (node.version !== before) notifyListeners(listeners);
-  }
-
-  function recompute(): void {
-    const collected: Array<{ node: Source; version: number }> = [];
-    const seen = new Set<Source>();
-    const previous = currentTracker;
-    currentTracker = (dep) => {
-      if (seen.has(dep)) return;
-      seen.add(dep);
-      collected.push({ node: dep, version: dep.version });
-    };
-
-    let next: T;
-    try {
-      next = compute();
-    } finally {
-      currentTracker = previous;
-    }
-
-    // Re-subscribing tears down and rebuilds the whole upstream chain, so only
-    // do it when the dependency set actually moved.
-    const sameDeps =
-      collected.length === deps.length &&
-      collected.every((entry, index) => entry.node === deps[index]!.node);
-
-    deps = collected;
-    stale = false;
-    if (listeners.size > 0 && (!sameDeps || unsubs.length === 0)) observe();
-
-    if (!hasValue || !Object.is(next, value)) {
-      value = next;
-      hasValue = true;
-      node.version = ++versionCounter;
-    }
-  }
-
-  function validate(): void {
-    if (!stale && checkedAt === epoch) return;
-    checkedAt = epoch;
-    if (!stale) {
-      let changed = false;
-      for (const dep of deps) {
-        dep.node.validate();
-        if (dep.node.version !== dep.version) {
-          changed = true;
-          break;
-        }
-      }
-      if (!changed) return;
-    }
-    recompute();
-  }
-
   const read = (() => {
     // Validate before tracking, so the enclosing memo records the version this
     // node settles on rather than the one it is about to leave behind.
-    validate();
-    track(node);
-    return value;
+    memoValidate(state);
+    track(state.node);
+    return state.value;
   }) as Memo<T>;
 
   read.peek = () => {
-    validate();
-    return value;
+    memoValidate(state);
+    return state.value;
   };
-  read.subscribe = node.subscribe;
+  read.subscribe = state.node.subscribe;
 
   return read;
 }
