@@ -16,6 +16,7 @@ import {
   type AnchorHTMLAttributes,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { isExternal, navigate } from "@tschk/moonshine/router";
 import { buildHref, type ToOptions } from "./location";
@@ -55,34 +56,12 @@ function pathnameOf(href: string): string {
   return cut === -1 ? href : href.slice(0, cut);
 }
 
-export function Link({
-  to,
-  from: _from,
-  params,
-  search,
-  hash,
-  replace,
-  resetScroll,
-  activeOptions,
-  preload = "intent",
-  disabled,
-  activeProps,
-  inactiveProps,
-  className,
-  style,
-  children,
-  onClick,
-  onMouseEnter,
-  ...rest
-}: LinkProps): ReactNode {
-  const location = useParsedLocation();
-  const href = buildHref({ to, params, search, hash }, location.search);
-  const external = isExternal(href, rest.target);
-  const ref = useRef<HTMLAnchorElement>(null);
-  // Navigation runs in a transition so a slow subtree cannot block the click.
-  const [, startTransition] = useTransition();
-  const inert = external || disabled === true || preload === false;
-
+function useLinkPreload(
+  ref: RefObject<HTMLAnchorElement | null>,
+  href: string,
+  preload: LinkProps["preload"],
+  inert: boolean,
+) {
   const warm = useCallback(() => {
     if (!inert) preloadOnce(href);
   }, [inert, href]);
@@ -113,13 +92,74 @@ export function Link({
     return () => observer.disconnect();
   }, [warm, preload, inert]);
 
+  return warm;
+}
+
+function isLinkActive(
+  locationPath: string,
+  target: string,
+  exact?: boolean,
+): boolean {
+  if (exact) return locationPath === target;
+  return (
+    locationPath === target ||
+    locationPath.startsWith(target.endsWith("/") ? target : `${target}/`)
+  );
+}
+
+function shouldNavigate(
+  event: MouseEvent<HTMLAnchorElement>,
+  external: boolean,
+  disabled?: boolean,
+): boolean {
+  return (
+    !event.defaultPrevented &&
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !external &&
+    disabled !== true
+  );
+}
+
+export function Link({
+  to,
+  from: _from,
+  params,
+  search,
+  hash,
+  replace,
+  resetScroll,
+  activeOptions,
+  preload = "intent",
+  disabled,
+  activeProps,
+  inactiveProps,
+  className,
+  style,
+  children,
+  onClick,
+  onMouseEnter,
+  ...rest
+}: LinkProps): ReactNode {
+  const location = useParsedLocation();
+  const href = buildHref({ to, params, search, hash }, location.search);
+  const external = isExternal(href, rest.target);
+  const ref = useRef<HTMLAnchorElement>(null);
+  // Navigation runs in a transition so a slow subtree cannot block the click.
+  const [, startTransition] = useTransition();
+  const inert = external || disabled === true || preload === false;
+
+  const warm = useLinkPreload(ref, href, preload, inert);
+
   const target = pathnameOf(href);
-  const isActive = activeOptions?.exact
-    ? location.pathname === target
-    : location.pathname === target ||
-      location.pathname.startsWith(
-        target.endsWith("/") ? target : `${target}/`,
-      );
+  const isActive = isLinkActive(
+    location.pathname,
+    target,
+    activeOptions?.exact,
+  );
   const state: LinkRenderState = { isActive, isTransitioning: false };
 
   return createElement(
@@ -139,18 +179,7 @@ export function Link({
       },
       onClick: (event: MouseEvent<HTMLAnchorElement>) => {
         onClick?.(event);
-        if (
-          event.defaultPrevented ||
-          event.button !== 0 ||
-          event.metaKey ||
-          event.altKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          external ||
-          disabled === true
-        ) {
-          return;
-        }
+        if (!shouldNavigate(event, external, disabled)) return;
         event.preventDefault();
         startTransition(() => {
           navigate(href, { replace });
