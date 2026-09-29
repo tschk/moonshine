@@ -1,7 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { newCommand } from "../src/new";
+import {
+  existsSync,
+  readFileSync,
+  rmSync,
+  mkdirSync,
+  writeFileSync,
+  mkdtempSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { newCommand, detectMoonshineRoot } from "../src/new";
 
 const tmp = join(import.meta.dir, "..", "..", "..", ".tmp-cli-new");
 
@@ -40,6 +48,78 @@ function pkgJson(dir: string): {
 } {
   return JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
 }
+
+describe("detectMoonshineRoot", () => {
+  test("respects MOONSHINE_PATH environment variable", () => {
+    const oldEnv = process.env.MOONSHINE_PATH;
+    const tmpPath = resolve(mkdtempSync(join(tmpdir(), "moonshine-mock-env-")));
+    process.env.MOONSHINE_PATH = tmpPath;
+    try {
+      expect(detectMoonshineRoot()).toBe(tmpPath);
+    } finally {
+      if (oldEnv === undefined) {
+        delete process.env.MOONSHINE_PATH;
+      } else {
+        process.env.MOONSHINE_PATH = oldEnv;
+      }
+      rmSync(tmpPath, { recursive: true, force: true });
+    }
+  });
+
+  test("finds root traversing upwards", () => {
+    const rootPath = resolve(
+      mkdtempSync(join(tmpdir(), "moonshine-mock-root-")),
+    );
+    mkdirSync(join(rootPath, "packages", "core"), { recursive: true });
+    mkdirSync(join(rootPath, "packages", "cli"), { recursive: true });
+    writeFileSync(join(rootPath, "packages", "core", "package.json"), "{}");
+    writeFileSync(join(rootPath, "packages", "cli", "package.json"), "{}");
+
+    const deepPath = join(rootPath, "a", "b", "c", "d");
+    mkdirSync(deepPath, { recursive: true });
+
+    const restore = chdir(deepPath);
+    try {
+      expect(detectMoonshineRoot()).toBe(rootPath);
+    } finally {
+      restore();
+      rmSync(rootPath, { recursive: true, force: true });
+    }
+  });
+
+  test("returns null if not found within 8 levels", () => {
+    const rootPath = resolve(
+      mkdtempSync(join(tmpdir(), "moonshine-mock-null-")),
+    );
+    mkdirSync(join(rootPath, "packages", "core"), { recursive: true });
+    mkdirSync(join(rootPath, "packages", "cli"), { recursive: true });
+    writeFileSync(join(rootPath, "packages", "core", "package.json"), "{}");
+    writeFileSync(join(rootPath, "packages", "cli", "package.json"), "{}");
+
+    // 9 levels deep
+    const deepPath = join(
+      rootPath,
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+    );
+    mkdirSync(deepPath, { recursive: true });
+
+    const restore = chdir(deepPath);
+    try {
+      expect(detectMoonshineRoot()).toBeNull();
+    } finally {
+      restore();
+      rmSync(rootPath, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("moonshine new", () => {
   test("scaffolds default minimal Bun project", async () => {
