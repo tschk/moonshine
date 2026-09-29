@@ -115,11 +115,21 @@ async function main() {
     process.exit(1);
   }
 
+  const publishedVersionsMap = new Map(
+    await Promise.all(
+      packages.map(async (pkg) => {
+        const name = pkg.manifest.name;
+        const versions = await publishedVersions(name);
+        return [name, versions] as const;
+      }),
+    ),
+  );
+
   let published = 0;
   let skipped = 0;
   for (const pkg of packages) {
     const { name, version } = pkg.manifest;
-    if ((await publishedVersions(name)).includes(version)) {
+    if (publishedVersionsMap.get(name)?.includes(version)) {
       console.log(`skip  ${name}@${version} (already on npm)`);
       skipped += 1;
       continue;
