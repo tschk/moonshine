@@ -101,6 +101,44 @@ export function sparklineColumnTops(
   );
 }
 
+export function paintBars(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  values: number[],
+  seed: Seed,
+  variant: AreaVariant = "hatched",
+  intensity = 0,
+  spark = false,
+) {
+  if (!values.length || width <= 0 || height <= 0) return;
+  const { cols, rows } = backingSize(width, height);
+  const max = Math.max(...values, 1e-9);
+  const barW = Math.max(1, Math.floor(cols / values.length));
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, width, height);
+  ctx.scale(width / cols, height / rows);
+  const floor = rows - 1;
+  values.forEach((v, i) => {
+    const top = Math.round(rows - 1 - (v / max) * (rows - 1));
+    if (spark) {
+      const x = Math.min(i * barW, cols - 1);
+      paintColumn(ctx, x, top, floor, seed, {
+        variant,
+        intensity,
+        sparse: 0.05,
+      });
+    } else {
+      const x0 = i * barW;
+      for (let x = x0; x < Math.min(x0 + Math.max(1, barW - 1), cols); x++) {
+        paintColumn(ctx, x, top, floor, seed, { variant, intensity });
+      }
+    }
+  });
+  ctx.restore();
+}
+
 export function paintSparkline(
   ctx: CanvasRenderingContext2D,
   width: number,
