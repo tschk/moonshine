@@ -62,6 +62,33 @@ describe("createSignal", () => {
     expect(hits).toBe(1);
     expect(a()).toBe(3);
   });
+
+  test("batch decrements depth on error", () => {
+    const a = createSignal(0);
+    let hits = 0;
+    a.subscribe(() => {
+      hits++;
+    });
+
+    try {
+      batch(() => {
+        a.set(1);
+        throw new Error("fail");
+      });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe("fail");
+    }
+
+    expect(hits).toBe(1);
+    expect(a()).toBe(1);
+
+    // Normal operation should resume (batchDepth should be 0)
+    a.set(2);
+    expect(hits).toBe(2);
+    expect(a()).toBe(2);
+  });
 });
 
 describe("createMemo", () => {
