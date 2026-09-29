@@ -1,11 +1,15 @@
 import { useCallback, useRef, type HTMLAttributes } from "react";
 import { useOverlayFocus } from "./_focus";
 
+// `data-ms` is a hyphenated attribute: TypeScript only allows those on
+// intrinsic elements, so component prop types must opt in explicitly.
+type DivAttributes = HTMLAttributes<HTMLDivElement> & { "data-ms"?: string };
+
 export type OverlayProps = HTMLAttributes<HTMLDivElement> & {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  panelProps?: HTMLAttributes<HTMLDivElement>;
-  containerProps?: HTMLAttributes<HTMLDivElement>;
+  panelProps?: DivAttributes;
+  containerProps?: DivAttributes;
 };
 
 export function Overlay({
