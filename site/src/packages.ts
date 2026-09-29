@@ -77,6 +77,31 @@ export const PACKAGES: PackageEntry[] = [
     group: "adapter",
   },
   {
+    name: "@tschk/moonshine-svelte",
+    role: "Svelte hosting adapter: peer svelte re-exports and signal bridges",
+    group: "adapter",
+  },
+  {
+    name: "@tschk/moonshine-vue",
+    role: "Vue hosting adapter: peer vue re-exports and signal bridges",
+    group: "adapter",
+  },
+  {
+    name: "@tschk/moonshine-angular",
+    role: "Angular hosting adapter: peer @angular/* re-exports and signal bridges",
+    group: "adapter",
+  },
+  {
+    name: "@tschk/moonshine-astro",
+    role: "Astro hosting adapter: peer astro compiler re-exports and signal bridges",
+    group: "adapter",
+  },
+  {
+    name: "@tschk/moonshine-nuxt",
+    role: "Nuxt hosting adapter: peer nuxt/vue re-exports and signal bridges",
+    group: "adapter",
+  },
+  {
     name: "@tschk/moonshine-adapter-conformance",
     role: "Shared deployment contract suite every deploy adapter passes",
     group: "adapter",

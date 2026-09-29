@@ -108,10 +108,10 @@ Adapters consume the same versioned manifest and compiled artifacts.
 
 Distinct from deployment adapters, and split into two kinds.
 
-| Kind           | Packages                                       | Host dependency                          |
-| -------------- | ---------------------------------------------- | ---------------------------------------- |
-| Reimplementing | `-next`, `-react-router`, `-tanstack`, `-waku` | none — the host is removed by aliasing   |
-| Hosting        | `-solid`                                       | peer dependency, re-exported on subpaths |
+| Kind           | Packages                                                   | Host dependency                          |
+| -------------- | ---------------------------------------------------------- | ---------------------------------------- |
+| Reimplementing | `-next`, `-react-router`, `-tanstack`, `-waku`             | none — the host is removed by aliasing   |
+| Hosting        | `-solid`, `-svelte`, `-vue`, `-angular`, `-astro`, `-nuxt` | peer dependency, re-exported on subpaths |
 
 Reimplementing adapters are only possible where the host's public API is
 ordinary React. They import nothing from the host, declare it in no dependency

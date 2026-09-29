@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { buildProject, readManifest } from "../src/manifest";
+import { readManifest } from "../src/manifest";
+import { buildProjectIsolated } from "./build-in-subprocess";
 
 const projectDir = resolve(import.meta.dir, "fixtures", "project");
 const outDir = join(projectDir, ".moonshine");
@@ -16,9 +17,10 @@ afterAll(clean);
 
 describe("buildProject", () => {
   test("emits a versioned, deterministic manifest with relative paths", async () => {
-    const manifest = await buildProject({
+    await buildProjectIsolated({
       projectDir,
     });
+    const manifest = await readManifest(join(outDir, "manifest.json"));
 
     expect(manifest.version).toBe(1);
     expect(manifest.frameworkVersion).toMatch(/^\d+\.\d+\.\d+/);
@@ -103,7 +105,7 @@ describe("buildProject", () => {
 
   test("does not assign staticOutput to parameterized static paths", async () => {
     const file = join(projectDir, "src", "routes", "index.tsx");
-    const manifest = await buildProject({
+    await buildProjectIsolated({
       projectDir,
       programmatic: [
         {
@@ -120,6 +122,7 @@ describe("buildProject", () => {
         },
       ],
     });
+    const manifest = await readManifest(join(outDir, "manifest.json"));
     expect(
       manifest.routes.find((r) => r.id === "blog-slug")?.staticOutput,
     ).toBeUndefined();

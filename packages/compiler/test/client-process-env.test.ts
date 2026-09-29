@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { buildProject } from "../src/manifest";
+import { buildProjectIsolated } from "./build-in-subprocess";
 
 /**
  * A browser bundle must not carry a bare `process` reference into a page.
@@ -26,7 +26,7 @@ afterAll(clean);
 
 describe("client bundle process shim", () => {
   test("defines globalThis.process before any module code runs", async () => {
-    await buildProject({ projectDir });
+    await buildProjectIsolated({ projectDir });
 
     const client = await Bun.file(join(outDir, "public", "client.js")).text();
 
@@ -34,7 +34,7 @@ describe("client bundle process shim", () => {
   });
 
   test("evaluating the bundle does not throw on a process.env read", async () => {
-    await buildProject({ projectDir });
+    await buildProjectIsolated({ projectDir });
 
     const client = await Bun.file(join(outDir, "public", "client.js")).text();
     // The banner is the whole fix, so assert it actually guards a real read
@@ -62,7 +62,7 @@ describe("client bundle process shim", () => {
   });
 
   test("the server bundle is left alone", async () => {
-    await buildProject({ projectDir });
+    await buildProjectIsolated({ projectDir });
 
     const server = await Bun.file(join(outDir, "dist", "server.js")).text();
 

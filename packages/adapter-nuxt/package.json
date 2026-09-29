@@ -1,0 +1,49 @@
+{
+  "name": "@tschk/moonshine-nuxt",
+  "version": "0.4.1",
+  "description": "Nuxt hosting adapter — peer nuxt/vue re-exports plus moonshine signal bridges",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app": "./src/app.ts",
+    "./vue": "./src/vue.ts"
+  },
+  "dependencies": {
+    "@tschk/crepus-moonshine": "^0.4.1",
+    "@tschk/moonshine": "^0.4.1",
+    "@tschk/moonshine-framework": "^0.4.1"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  },
+  "peerDependencies": {
+    "nuxt": ">=3",
+    "vue": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "nuxt": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "moonshine",
+    "nuxt",
+    "adapter"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  }
+}
