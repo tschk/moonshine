@@ -79,9 +79,18 @@ describe("detectMoonshineRoot", () => {
     mkdirSync(deepPath, { recursive: true });
 
     const restore = chdir(deepPath);
+    // detectMoonshineRoot short-circuits on MOONSHINE_PATH, so the traversal
+    // tests must not observe a value inherited from the developer's shell.
+    const oldEnv = process.env.MOONSHINE_PATH;
+    delete process.env.MOONSHINE_PATH;
     try {
       expect(detectMoonshineRoot()).toBe(rootPath);
     } finally {
+      if (oldEnv === undefined) {
+        delete process.env.MOONSHINE_PATH;
+      } else {
+        process.env.MOONSHINE_PATH = oldEnv;
+      }
       restore();
       rmSync(rootPath, { recursive: true, force: true });
     }
@@ -112,9 +121,17 @@ describe("detectMoonshineRoot", () => {
     mkdirSync(deepPath, { recursive: true });
 
     const restore = chdir(deepPath);
+    // See above: traversal must not observe an inherited MOONSHINE_PATH.
+    const oldEnv = process.env.MOONSHINE_PATH;
+    delete process.env.MOONSHINE_PATH;
     try {
       expect(detectMoonshineRoot()).toBeNull();
     } finally {
+      if (oldEnv === undefined) {
+        delete process.env.MOONSHINE_PATH;
+      } else {
+        process.env.MOONSHINE_PATH = oldEnv;
+      }
       restore();
       rmSync(rootPath, { recursive: true, force: true });
     }
