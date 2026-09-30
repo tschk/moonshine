@@ -38,6 +38,11 @@ describe("compilePattern", () => {
     expect(p.match("/users/bob%ZZ")).toBeNull();
   });
 
+  test("invalid URI component returns no match", () => {
+    const p = compilePattern("/users/:id");
+    expect(p.match("/users/%E0%A4%A")).toBeNull();
+  });
+
   test("precedence reflects segment kind", () => {
     const p = compilePattern("/blog/:slug?");
     expect(p.precedence).toEqual([3, 1]);
