@@ -37,8 +37,10 @@ type PackageInfo = {
 
 async function collectPublicPackages(): Promise<PackageInfo[]> {
   const packages: PackageInfo[] = [];
-  for (const base of [join(root, "packages"), join(root, "components")]) {
-    if (!existsSync(base)) continue;
+  const workspaces = [join(root, "packages"), join(root, "components")].filter(
+    (base) => existsSync(base),
+  );
+  for (const base of workspaces) {
     const basePkg = join(base, "package.json");
     if (existsSync(basePkg)) {
       const pkg = JSON.parse(readFileSync(basePkg, "utf8")) as {
@@ -56,7 +58,18 @@ async function collectPublicPackages(): Promise<PackageInfo[]> {
         });
       }
     }
-    const entries = await readdir(base, { withFileTypes: true });
+  }
+
+  const allEntries = await Promise.all(
+    workspaces.map(async (base) => {
+      return {
+        base,
+        entries: await readdir(base, { withFileTypes: true }),
+      };
+    }),
+  );
+
+  for (const { base, entries } of allEntries) {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const dir = join(base, entry.name);
