@@ -29,6 +29,11 @@ MOONSHINE_DIRS=(
     packages/adapter-tanstack
     packages/adapter-waku
     packages/adapter-conformance
+    packages/adapter-svelte
+    packages/adapter-vue
+    packages/adapter-angular
+    packages/adapter-astro
+    packages/adapter-nuxt
     packages/deploy-bun
     packages/cli
     packages/deploy-cloudflare
