@@ -6,7 +6,6 @@
  *   import { createApp, useSignal } from "@tschk/moonshine/react"
  *   import { state, derived, effect } from "@tschk/moonshine/runes"
  *   import { MoonshineRouter } from "@tschk/moonshine/router"
- *   import { useFragmentShader } from "@tschk/moonshine/shaders"
  */
 
 export {
