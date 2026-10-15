@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { buildCommand } from "../src/build";
 import { inspectCommand } from "../src/inspect";
 import { newCommand } from "../src/new";
 import { startPreview } from "../src/preview";
@@ -38,18 +37,26 @@ function captureStdout(): { output: string[]; restore: () => void } {
 
 describe("moonshine workflow", () => {
   test("scaffolds, builds, inspects, previews, and stops cleanly", async () => {
-    const prev = process.cwd();
+    const prev = process.cwd.bind(process);
     try {
       await Bun.write(join(tmp, ".keep"), "");
-      process.chdir(tmp);
+      process.cwd = () => tmp;
       await newCommand(["workflow", "--react", "--adapter", "bun"]);
 
-      process.chdir(project);
-      await buildCommand([]);
+      const bin = join(import.meta.dir, "..", "bin", "moonshine.ts");
+      const proc = Bun.spawn(["bun", bin, "build", project], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [code, err] = await Promise.all([
+        proc.exited,
+        new Response(proc.stderr).text(),
+      ]);
+      if (code !== 0) throw new Error(`moonshine build exited ${code}: ${err}`);
 
       const { output, restore } = captureStdout();
       try {
-        await inspectCommand([]);
+        await inspectCommand([join(project, ".moonshine", "manifest.json")]);
       } finally {
         restore();
       }
@@ -67,7 +74,7 @@ describe("moonshine workflow", () => {
       await preview.stop();
       expect(true).toBe(true);
     } finally {
-      process.chdir(prev);
+      process.cwd = prev;
       clean();
     }
   });

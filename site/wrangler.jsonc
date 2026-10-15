@@ -13,7 +13,7 @@
     // rendered by the Worker, so the Worker has to see those requests first.
     "directory": "./.moonshine/public",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/packages", "/api/*"],
+    "run_worker_first": ["/", "/packages", "/changelog", "/api/*"],
   },
   "routes": [
     {

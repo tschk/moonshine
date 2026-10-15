@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { buildProject, readManifest } from "../src/manifest";
+import { readManifest } from "../src/manifest";
+import { buildProjectIsolated } from "./build-in-subprocess";
 
 const projectDir = resolve(import.meta.dir, "fixtures", "project");
 const outDir = join(projectDir, ".moonshine");
@@ -16,9 +17,10 @@ afterAll(clean);
 
 describe("buildProject", () => {
   test("emits a versioned, deterministic manifest with relative paths", async () => {
-    const manifest = await buildProject({
+    await buildProjectIsolated({
       projectDir,
     });
+    const manifest = await readManifest(join(outDir, "manifest.json"));
 
     expect(manifest.version).toBe(1);
     expect(manifest.frameworkVersion).toMatch(/^\d+\.\d+\.\d+/);
@@ -92,5 +94,40 @@ describe("buildProject", () => {
         expect(route.errorBoundary.startsWith("src/")).toBe(true);
       }
     }
+
+    expect(manifest.routes.find((r) => r.path === "/")?.staticOutput).toBe(
+      "static/index.html",
+    );
+    expect(
+      manifest.routes.find((r) => r.path === "/docs/*path")?.staticOutput,
+    ).toBeUndefined();
+  });
+
+  test("does not assign staticOutput to parameterized static paths", async () => {
+    const file = join(projectDir, "src", "routes", "index.tsx");
+    await buildProjectIsolated({
+      projectDir,
+      programmatic: [
+        {
+          id: "blog-slug",
+          path: "/blog/:slug",
+          file,
+          mode: "static",
+        },
+        {
+          id: "account-tab",
+          path: "/account/:tab?",
+          file,
+          mode: "static",
+        },
+      ],
+    });
+    const manifest = await readManifest(join(outDir, "manifest.json"));
+    expect(
+      manifest.routes.find((r) => r.id === "blog-slug")?.staticOutput,
+    ).toBeUndefined();
+    expect(
+      manifest.routes.find((r) => r.id === "account-tab")?.staticOutput,
+    ).toBeUndefined();
   });
 });

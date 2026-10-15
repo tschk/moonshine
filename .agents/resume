@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Fast, idempotent Amp orb resume for moonshine.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "bun missing on resume; run .agents/setup" >&2
+  exit 1
+fi
+
+if [[ ! -d node_modules ]]; then
+  bun install --frozen-lockfile
+fi

@@ -112,4 +112,32 @@ describe("createResource", () => {
 
     unsub();
   });
+
+  test("concurrent refetch keeps the latest result", async () => {
+    let resolveFirst!: (value: string) => void;
+    let calls = 0;
+    const r = createResource(
+      () => {
+        calls++;
+        if (calls === 1) {
+          return new Promise<string>((resolve) => {
+            resolveFirst = resolve;
+          });
+        }
+        return Promise.resolve("second");
+      },
+      { immediate: false },
+    );
+
+    const first = r.refetch();
+    const second = r.refetch();
+    await second;
+    resolveFirst("first");
+    await first;
+
+    expect(r()).toBe("second");
+    expect(r.status()).toBe("ready");
+    expect(r.loading()).toBe(false);
+    expect(r.error()).toBeUndefined();
+  });
 });

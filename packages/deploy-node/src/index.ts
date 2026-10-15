@@ -271,7 +271,8 @@ const fetch = createRequestHandler({
   staticDir: import.meta.dir + "/public",
 });
 const server = createServer(createNodeHandler({ fetch, staticDir: import.meta.dir + "/public" }));
-server.listen(Number(process.env.PORT) || 0, () => {
+const envPort = Number(process.env.PORT);
+server.listen(Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535 ? envPort : 0, () => {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
 });

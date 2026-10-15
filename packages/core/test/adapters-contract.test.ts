@@ -19,6 +19,11 @@ const REQUIRED_HOST_EXPORTS: Record<string, string[]> = {
     "./client",
   ],
   "adapter-solid": ["./solid", "./store", "./h"],
+  "adapter-svelte": ["./svelte", "./store"],
+  "adapter-vue": ["./vue", "./compiler-sfc"],
+  "adapter-angular": ["./core", "./common"],
+  "adapter-astro": ["./compiler"],
+  "adapter-nuxt": ["./app", "./vue"],
   "adapter-react-router": [
     "./navigation",
     "./link",
@@ -53,11 +58,16 @@ describe("adapter contracts", () => {
   test("discovers all adapters", () => {
     expect(adapters.sort()).toEqual(
       [
+        "adapter-angular",
+        "adapter-astro",
         "adapter-conformance",
         "adapter-next",
+        "adapter-nuxt",
         "adapter-react-router",
         "adapter-solid",
+        "adapter-svelte",
         "adapter-tanstack",
+        "adapter-vue",
         "adapter-waku",
       ].sort(),
     );

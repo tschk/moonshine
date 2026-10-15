@@ -9,7 +9,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { buildCommand } from "../src/build";
 import {
   planAdoption,
   applyPlan,
@@ -107,13 +106,18 @@ async function buildInSubprocess(dir: string): Promise<void> {
   if (code !== 0) throw new Error(`moonshine build exited ${code}: ${err}`);
 }
 
+/**
+ * Point JS `process.cwd()` at `dir` without changing the OS working
+ * directory. `process.chdir` is process-wide and races parallel test files
+ * that call `Bun.build` (EISDIR / EBADF on workspace package entrypoints).
+ */
 async function inDir<T>(dir: string, fn: () => Promise<T>): Promise<T> {
-  const previous = process.cwd();
-  process.chdir(dir);
+  const previous = process.cwd.bind(process);
+  process.cwd = () => dir;
   try {
     return await fn();
   } finally {
-    process.chdir(previous);
+    process.cwd = previous;
   }
 }
 
@@ -378,7 +382,10 @@ describe("moonshine adopt — svelte and vue templates", () => {
     const dir = project("svelte-e2e", svelteFixture);
     await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
 
-    const manifest = await buildCommand([dir]);
+    await buildInSubprocess(dir);
+    const manifest = json<{ routes: { path: string }[] }>(
+      join(dir, ".moonshine", "manifest.json"),
+    );
     expect(manifest.routes.map((r) => r.path).toSorted()).toEqual([
       "/",
       "/about",
@@ -545,7 +552,11 @@ describe("moonshine adopt — end to end", () => {
     expect(pkg.dependencies.next).toBeUndefined();
     expect(existsSync(join(dir, "node_modules", "next"))).toBe(false);
 
-    const manifest = await buildCommand([dir]);
+    await buildInSubprocess(dir);
+    const manifest = json<{
+      routes: { path: string }[];
+      entries: { server?: string };
+    }>(join(dir, ".moonshine", "manifest.json"));
     expect(manifest.routes.map((r) => r.path).toSorted()).toEqual([
       "/",
       "/about",

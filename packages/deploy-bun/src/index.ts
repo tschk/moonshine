@@ -101,9 +101,10 @@ const fetch = createRequestHandler({
   renderer: reactRenderer,
   staticDir: import.meta.dir + "/public",
 });
+const envPort = Number(process.env.PORT);
 const server = createBunServer({
   fetch,
-  port: Number(process.env.PORT) || 0,
+  port: Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535 ? envPort : 0,
   staticDir: import.meta.dir + "/public",
 });
 `;

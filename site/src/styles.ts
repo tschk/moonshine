@@ -162,6 +162,42 @@ ul.plain { list-style: none; margin: 0 0 14px; padding: 0; }
 ul.plain li { padding-left: 16px; position: relative; }
 ul.plain li::before { content: "—"; position: absolute; left: 0; color: var(--fg-faint); }
 
+.log { display: flex; flex-direction: column; gap: 0; }
+.log-release { padding: 30px 0; border-top: 1px solid var(--line-soft); }
+.log-release:first-child { border-top: 0; padding-top: 0; }
+.log-version {
+  color: #fafafa;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  margin: 0 0 16px;
+}
+.log-section {
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin: 18px 0 8px;
+}
+.log-items {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.log-items li {
+  padding: 0 0 10px 16px;
+  position: relative;
+  max-width: 68ch;
+}
+.log-items li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--fg-faint);
+}
+
 pre {
   margin: 0;
   padding: 14px;

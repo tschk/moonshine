@@ -5,6 +5,7 @@ import {
   createMemo,
   createSignal,
   createStore,
+  getStoreRoot,
   untrack,
 } from "../src/signal";
 import {
@@ -61,6 +62,33 @@ describe("createSignal", () => {
     });
     expect(hits).toBe(1);
     expect(a()).toBe(3);
+  });
+
+  test("batch decrements depth on error", () => {
+    const a = createSignal(0);
+    let hits = 0;
+    a.subscribe(() => {
+      hits++;
+    });
+
+    try {
+      batch(() => {
+        a.set(1);
+        throw new Error("fail");
+      });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe("fail");
+    }
+
+    expect(hits).toBe(1);
+    expect(a()).toBe(1);
+
+    // Normal operation should resume (batchDepth should be 0)
+    a.set(2);
+    expect(hits).toBe(2);
+    expect(a()).toBe(2);
   });
 });
 
@@ -297,6 +325,44 @@ describe("collectDeps", () => {
 });
 
 describe("untrack", () => {
+  test("restores previous tracker on error", () => {
+    const s1 = createSignal(1);
+    const s2 = createSignal(2);
+    const s3 = createSignal(3);
+
+    let memoRuns = 0;
+    const m = createMemo(() => {
+      memoRuns++;
+      s1(); // tracked
+      try {
+        untrack(() => {
+          s2(); // untracked
+          throw new Error("test");
+        });
+        expect.unreachable();
+      } catch (err) {
+        expect(err).toBeInstanceOf(Error);
+      }
+      s3(); // tracked
+      return 1;
+    });
+
+    m();
+    expect(memoRuns).toBe(1);
+
+    s2.set(10);
+    m();
+    expect(memoRuns).toBe(1); // not triggered by s2
+
+    s1.set(10);
+    m();
+    expect(memoRuns).toBe(2); // triggered by s1
+
+    s3.set(10);
+    m();
+    expect(memoRuns).toBe(3); // triggered by s3
+  });
+
   test("reads without registering a dependency", () => {
     const tracked = createSignal(1);
     const hidden = createSignal(100);
@@ -311,6 +377,21 @@ describe("untrack", () => {
     expect(runs).toBe(1);
     tracked.set(2);
     expect(m()).toBe(202);
+  });
+});
+
+describe("getStoreRoot", () => {
+  test("retrieves the trackable root of a store", () => {
+    const [store] = createStore({ count: 1 });
+    const root = getStoreRoot(store);
+    expect(root).toBeDefined();
+    expect(typeof root?.subscribe).toBe("function");
+  });
+
+  test("returns undefined for non-store objects", () => {
+    const obj = { count: 1 };
+    const root = getStoreRoot(obj);
+    expect(root).toBeUndefined();
   });
 });
 

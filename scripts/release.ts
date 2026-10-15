@@ -168,52 +168,54 @@ async function checkDependencyRanges(packages: PackageInfo[], target: string) {
 }
 
 async function checkPackedManifests(packages: PackageInfo[]) {
-  const tmp = mkdtempSync(join(tmpdir(), "moonshine-release-"));
+  const rootTmp = mkdtempSync(join(tmpdir(), "moonshine-release-"));
   try {
-    for (const pkg of packages) {
-      const pack = await exec(["bun", "pm", "pack", "--destination", tmp], {
-        cwd: pkg.dir,
-      });
-      if (pack.code !== 0) {
-        fail(`pack failed for ${pkg.name}: ${pack.err || pack.out}`);
-      }
-      const tgz = (await readdir(tmp)).find((f) => f.endsWith(".tgz"));
-      if (!tgz) fail(`tarball not found for ${pkg.name}`);
-      const tar = await exec([
-        "tar",
-        "-xOzf",
-        join(tmp, tgz),
-        "package/package.json",
-      ]);
-      if (tar.code !== 0) {
-        fail(`tarball inspect failed for ${pkg.name}: ${tar.err || tar.out}`);
-      }
-      const packed = JSON.parse(tar.out) as {
-        dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
-        peerDependencies?: Record<string, string>;
-        optionalDependencies?: Record<string, string>;
-      };
-      for (const field of [
-        "dependencies",
-        "devDependencies",
-        "peerDependencies",
-        "optionalDependencies",
-      ] as const) {
-        const deps = packed[field];
-        if (!deps) continue;
-        for (const [name, range] of Object.entries(deps)) {
-          if (range.startsWith("workspace:") || range.startsWith("file:")) {
-            fail(
-              `packed manifest for ${pkg.name} contains ${field}.${name}: ${range}`,
-            );
+    await Promise.all(
+      packages.map(async (pkg) => {
+        const tmp = mkdtempSync(join(rootTmp, "pkg-"));
+        const pack = await exec(["bun", "pm", "pack", "--destination", tmp], {
+          cwd: pkg.dir,
+        });
+        if (pack.code !== 0) {
+          fail(`pack failed for ${pkg.name}: ${pack.err || pack.out}`);
+        }
+        const tgz = (await readdir(tmp)).find((f) => f.endsWith(".tgz"));
+        if (!tgz) fail(`tarball not found for ${pkg.name}`);
+        const tar = await exec([
+          "tar",
+          "-xOzf",
+          join(tmp, tgz),
+          "package/package.json",
+        ]);
+        if (tar.code !== 0) {
+          fail(`tarball inspect failed for ${pkg.name}: ${tar.err || tar.out}`);
+        }
+        const packed = JSON.parse(tar.out) as {
+          dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
+          peerDependencies?: Record<string, string>;
+          optionalDependencies?: Record<string, string>;
+        };
+        for (const field of [
+          "dependencies",
+          "devDependencies",
+          "peerDependencies",
+          "optionalDependencies",
+        ] as const) {
+          const deps = packed[field];
+          if (!deps) continue;
+          for (const [name, range] of Object.entries(deps)) {
+            if (range.startsWith("workspace:") || range.startsWith("file:")) {
+              fail(
+                `packed manifest for ${pkg.name} contains ${field}.${name}: ${range}`,
+              );
+            }
           }
         }
-      }
-      rmSync(join(tmp, tgz), { force: true });
-    }
+      }),
+    );
   } finally {
-    rmSync(tmp, { recursive: true, force: true });
+    rmSync(rootTmp, { recursive: true, force: true });
   }
 }
 
@@ -226,15 +228,14 @@ async function checkNpmAuth(packages: PackageInfo[]) {
     );
   } else {
     const user = whoami.out.trim();
-    for (const pkg of packages) {
-      const view = await exec([
-        "bunx",
-        "npm",
-        "view",
-        pkg.name,
-        "maintainers",
-        "--json",
-      ]);
+    const viewPromises = packages.map((pkg) =>
+      exec(["bunx", "npm", "view", pkg.name, "maintainers", "--json"]).then(
+        (view) => ({ pkg, view }),
+      ),
+    );
+    const results = await Promise.all(viewPromises);
+
+    for (const { pkg, view } of results) {
       if (view.code !== 0) {
         warnings.push(
           `could not verify maintainers for ${pkg.name}: ${view.err || view.out || view.code}`,

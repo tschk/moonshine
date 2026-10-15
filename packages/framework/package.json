@@ -8,6 +8,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src"
+  ],
   "scripts": {
     "format": "bunx prettier --check .",
     "lint": "bunx oxlint .",

@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
-import { buildCommand } from "../../../packages/cli/src/build";
 import { startPreview } from "../../../packages/cli/src/preview";
 import { formatInspection } from "../../../packages/cli/src/inspect";
 import { readManifest } from "../../../packages/compiler/src/manifest";
@@ -19,7 +18,21 @@ let preview: { url: URL; stop: () => Promise<void> } | undefined;
 
 beforeAll(async () => {
   clean();
-  await buildCommand([projectDir]);
+  // Build in a child process: in-process `Bun.build` races other test files
+  // that also bundle (EISDIR / "Unexpected reading file" on workspace entries).
+  const bin = resolve(
+    import.meta.dir,
+    "../../../packages/cli/bin/moonshine.ts",
+  );
+  const proc = Bun.spawn(["bun", bin, "build", projectDir], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [code, err] = await Promise.all([
+    proc.exited,
+    new Response(proc.stderr).text(),
+  ]);
+  if (code !== 0) throw new Error(`moonshine build exited ${code}: ${err}`);
 });
 
 afterAll(async () => {

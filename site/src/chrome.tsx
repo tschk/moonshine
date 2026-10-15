@@ -18,6 +18,7 @@ export function pivotLink(current: string): NavItem {
 }
 
 const TAIL: NavItem[] = [
+  { href: "/changelog", label: "changelog" },
   { href: "/api/state", label: "api" },
   {
     href: "https://github.com/tschk/moonshine",
