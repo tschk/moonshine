@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-nuxt",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Nuxt hosting adapter — peer nuxt/vue re-exports plus moonshine signal bridges",
   "license": "ISC",
   "type": "module",
@@ -12,9 +12,9 @@
     "./vue": "./src/vue.ts"
   },
   "dependencies": {
-    "@tschk/crepus-moonshine": "^0.4.1",
-    "@tschk/moonshine": "^0.4.1",
-    "@tschk/moonshine-framework": "^0.4.1"
+    "@tschk/crepus-moonshine": "^0.4.2",
+    "@tschk/moonshine": "^0.4.2",
+    "@tschk/moonshine-framework": "^0.4.2"
   },
   "devDependencies": {
     "typescript": "7.0.2"
