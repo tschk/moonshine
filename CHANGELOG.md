@@ -11,6 +11,15 @@
   `/vue` and `/compiler-sfc` remain explicit legacy entries requiring Vue.
 - Native framework contracts add document metadata and opt-in Bun/Node request
   context. The signal-only entry does not load these capabilities.
+- `moonshine new` defaults to independent native server and browser entries.
+  Native builds produce portable Bun/Node artifacts and opt-in Cloudflare or
+  Vercel output; hydration and native islands remain unsupported.
+- `moonshine compile` delegates source lowering to Crepuscularity and preserves
+  validated emitted module graphs and CSS. No component parser is bundled here.
+- Angular, Astro and Nuxt roots use native signal bridges and lazy rendering.
+  Their explicit legacy subpaths still require the corresponding host.
+- React adapters scope navigation to the owning router, preserve history state
+  where supported, and leave downloads and external links to the browser.
 
 # Moonshine 0.3.6
 
