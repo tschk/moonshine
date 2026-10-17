@@ -1,3 +1,15 @@
+# Moonshine 0.4.17
+
+- Add independent captured-owner helpers on Solid `/solid` and `/ssr`, preserving
+  context, cleanup ownership and untracked synchronous callbacks after async work.
+- Restore the previous owner/tracking state, start new effects after callback setup,
+  and route synchronous failures through captured native error owners.
+- Preserve the generic DOM owner-swap API and signal-only core. Existing effects
+  and failure cleanup retain native timing; native owners do not implement Solid's
+  compiler owner ABI or Transition/Suspense scheduling. Re-enter after each await.
+- Marked source owner imports and aliases are verified locally in Crepuscularity;
+  compiler changes remain unpublished. No new dependencies or size/speed win claimed.
+
 # Moonshine 0.4.16
 
 - Apply React Router-compatible `data(payload, init)` status and headers to
