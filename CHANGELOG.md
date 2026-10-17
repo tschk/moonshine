@@ -1,3 +1,15 @@
+# Moonshine 0.4.12
+
+- Add independent `readonly(store)` subscriptions on the opt-in Svelte store
+  entry, preserving custom receivers and subscription cleanup.
+- Carry request-scoped response headers through buffered server responses,
+  redirects, errors and HEAD on Bun and Node, retaining separate cookie fields.
+- Add independent Next-style cookie set/delete operations, validated attributes,
+  encoded values and shared request-local reads, without loading Next.
+- Keep the default signal core unchanged. Streaming Server Actions, signing,
+  Next cache behavior and full SFC compatibility remain unsupported.
+  Crepuscularity source compilation is released separately.
+
 # Moonshine 0.4.11
 
 - Add compiler-facing `hSourceEntries` for ordered, lazy SSR attributes,
