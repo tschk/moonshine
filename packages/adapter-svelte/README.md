@@ -485,3 +485,11 @@ notify its subscribers. This facade does not freeze stored values. Authored
 `svelte/store` named imports and aliases of `readonly` are admitted by the
 locally verified Crepus compiler for DOM and SSR. That compiler change is not
 published yet; the direct Moonshine `/store` API is available independently.
+
+The optional `/binding` entry re-exports native `bindFiles` for independent
+file-input factories. Nullish models preserve selected files; clearing requires
+an empty `FileList`. Change and connected-form reset write the current list.
+Disposal removes listeners, including on retained detached inputs; Svelte's
+reference can still update its model from those saved elements. Authored
+`bind:files` lowering remains pending in Crepuscularity; this runtime helper
+does not claim source-level support or hydration.

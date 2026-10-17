@@ -19,6 +19,7 @@ import {
 import { captureRuneReferenceCleanup } from "./pre";
 export {
   bindChecked,
+  bindFiles,
   bindOpen,
   setOptionValue,
   setInputValue,

@@ -434,3 +434,10 @@ keeps reconciliation inside the containing range pull. The default scheduler and
 `setAttributeValue` exposes the existing native attribute setter for typed node
 updates. It does not install event handlers or replace form-binding helpers.
 These primitives do not by themselves implement Svelte directive source syntax.
+
+`bindFiles(input, read, write)` on the optional `/binding` entry binds a static
+file input's `FileList`. It requires a live native owner, writes the selected
+list on `change` and after uncancelled connected-form resets, and removes its
+listeners on disposal. A nullish model neither adopts nor clears the input;
+write an empty `FileList` (for example `new DataTransfer().files`) to clear it.
+File contents are not read or uploaded. Browser assignment rules apply.

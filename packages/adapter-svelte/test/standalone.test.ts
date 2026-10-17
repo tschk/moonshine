@@ -88,7 +88,7 @@ import * as root from '@tschk/moonshine-svelte';
 import {writable,readable,derived,get} from '@tschk/moonshine-svelte/store';
 import {onMount,onDestroy,tick,createEventDispatcher} from '@tschk/moonshine-svelte/svelte';
 import {createState,createDerived,createProp,createRuneEffect,createRuneRoot,stateSnapshot} from '@tschk/moonshine-svelte/runes';
-import {bindSelectValue,createInputGroup,bindValue,bindChecked,setOptionValue,setInputValue} from '@tschk/moonshine-svelte/binding';
+import {bindSelectValue,createInputGroup,bindValue,bindChecked,bindFiles,setOptionValue,setInputValue} from '@tschk/moonshine-svelte/binding';
 import * as nativeBindings from '@tschk/moonshine-dom/binding';
 import {classValue} from '@tschk/moonshine-svelte/class';
 import {withRuneScheduler,createRunePreEffect} from '@tschk/moonshine-svelte/pre';
@@ -117,7 +117,7 @@ assert.equal(typeof createEventDispatcher,'function');
 let manualCleanup=0;const stopManual=createRuneRoot(()=>()=>{manualCleanup++});stopManual();stopManual();assert.equal(manualCleanup,1);
 assert.equal(typeof bindSelectValue,'function');assert.equal(typeof createInputGroup,'function');
 assert.equal(typeof bindValue,'function');
-for (const [name,helper] of Object.entries({bindChecked,setOptionValue,setInputValue}))assert.equal(helper,nativeBindings[name]);
+for (const [name,helper] of Object.entries({bindChecked,bindFiles,setOptionValue,setInputValue}))assert.equal(helper,nativeBindings[name]);
 assert.throws(()=>bindSelectValue(null,()=>null,()=>{}),/live native owner/);
 createRoot(stop=>{const group=createInputGroup('radio',()=>null,()=>{});assert.equal(typeof group.bind,'function');stop();assert.throws(()=>group.bind(null),/live group/)});
 

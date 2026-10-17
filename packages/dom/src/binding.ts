@@ -119,6 +119,31 @@ function listen(
   });
 }
 
+/** FileList binding; nullish models leave the browser's current selection intact. */
+export function bindFiles(
+  element: HTMLInputElement,
+  read: () => FileList | null | undefined,
+  write: (value: FileList | null) => void,
+): void {
+  const owner = getOwner();
+  if (!owner || owner.disposed)
+    throw new Error("Files bindings require a live native owner");
+  if (
+    !(element instanceof HTMLInputElement) ||
+    element.type !== "file" ||
+    typeof read !== "function" ||
+    typeof write !== "function"
+  )
+    throw new TypeError(
+      "Files bindings require a file input and getter/setter functions",
+    );
+  listen(element, "change", () => untrack(() => write(element.files)));
+  createRenderEffect(() => {
+    const files = read();
+    if (files != null) element.files = files;
+  });
+}
+
 /** Checkbox checked binding; call after attributes and user change listeners. */
 export function bindChecked(
   element: HTMLInputElement,
