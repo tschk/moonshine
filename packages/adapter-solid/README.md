@@ -268,3 +268,24 @@ normal raw-TSX project builds, imported/foreign component dispatch, hydration an
 the full compiler ABI remain unfinished. Native SSR cleanup remains synchronous
 FIFO; no full server cleanup timing parity is claimed. Source acceptance adds no
 Moonshine runtime changes or new performance claim.
+
+### Local authored client resources
+
+The local Crepus compiler admits `createResource` and the `Resource` type from
+`solid-js` in DOM source with a leading `/** @jsxImportSource solid-js */`
+directive. Imports, aliases, reexports and TypeScript import queries use
+Moonshine's independent `/solid` implementation. Each helper module needs its
+own directive. The runtime is available in SDK 0.4.13; this compiler increment
+is local and unpublished and still requires explicit native bootstrap.
+
+Thirteen pinned Solid reference browser phases match loading, stale completion,
+refresh, mutation, errors, recovery and disposal, while retaining input identity,
+focus and selection. Both strict type checkers pass the source graph and reject
+three invalid resource uses each. Six native integration tests and the existing
+856-module source gate pass.
+
+The minified acceptance application, including its driver, measures 22,259 bytes
+(8,484 gzip) for Moonshine versus 19,826 (7,636 gzip) for Solid. These are whole
+fixture sizes, not isolated runtime measurements; no speed improvement is claimed.
+SSR rejects resource imports, including type-only forms. Async SSR, hydration,
+Suspense and the full Solid resource option surface remain unsupported.
