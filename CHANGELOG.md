@@ -1,3 +1,14 @@
+# Moonshine 0.4.16
+
+- Apply React Router-compatible `data(payload, init)` status and headers to
+  native server-rendered responses without serializing or wrapping page data.
+- Merge layout-to-page loader metadata with explicit action precedence, retain
+  separate cookies, and expose the result to response middleware. Discard rendered
+  bodies for 204, 205 and 304 and cancel unused streams on invalid metadata.
+- Keep the default signal-only core and dependencies unchanged. Direct or thrown
+  `Response` values bypass data metadata; thrown wrappers and client data-router
+  hooks remain unsupported. No complete React Router data-router parity is claimed.
+
 # Moonshine 0.4.15
 
 - Preserve native Solid list callback capture, unbound calls and DOM callback arity.
