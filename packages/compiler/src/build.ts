@@ -431,6 +431,7 @@ async function cssRoots(graph: InputGraph, files: string[]): Promise<string[]> {
       // Bun may leave duplicate import edges as their original relative specifier.
       if (
         !isAbsolute(target) &&
+        !graph.has(resolve(target)) &&
         (target.startsWith("./") || target.startsWith("../"))
       ) {
         target = await realpath(Bun.resolveSync(target, dirname(file)));
