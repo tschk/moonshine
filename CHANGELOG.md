@@ -1,3 +1,15 @@
+# Moonshine 0.4.18
+
+- Add opt-in Astro `/ssr` factories independent of Astro, React and parser WASM.
+- Preserve literal HTML attributes separately from DOM properties, normalize
+  class lists and style objects, and capture component props once per invocation.
+- Escape ordinary children and reject async children without leaking rejected
+  promises. Keep default signals and all existing renderer entries unchanged.
+- Local Crepuscularity integration now executes synchronous Astro frontmatter,
+  typed props and imported child components. Compiler changes remain unpublished.
+  Slots, hydration, async rendering and the full Astro compiler ABI are unsupported.
+- No new dependencies or bundle-size/runtime performance advantage claimed.
+
 # Moonshine 0.4.17
 
 - Add independent captured-owner helpers on Solid `/solid` and `/ssr`, preserving
