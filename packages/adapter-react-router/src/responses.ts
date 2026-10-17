@@ -1,6 +1,5 @@
 /**
- * Loader/action return helpers. These are plain `Response` builders in
- * react-router, so they carry over unchanged.
+ * Loader/action payload and response helpers for the native server pipeline.
  *
  * ```ts
  * export async function loader() {

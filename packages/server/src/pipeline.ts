@@ -1,5 +1,6 @@
 import { createRouteGraph, matchRoutes } from "@tschk/moonshine-router/graph";
 import type {
+  RouteData,
   RouteArtifact,
   RouteDefinition,
 } from "@tschk/moonshine-framework";
@@ -92,6 +93,19 @@ function mergeHeaders(
   }
 
   return headers;
+}
+
+function isRouteData(value: unknown): value is RouteData {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "DataWithResponseInit" &&
+    Object.hasOwn(value, "data") &&
+    "init" in value &&
+    typeof value.init === "object" &&
+    value.init !== null
+  );
 }
 
 function discardResponse(response: Response, retained?: Response): void {
@@ -187,6 +201,24 @@ async function runCoreAndAfters(
     });
   }
 
+  const dataHeaders = new Headers();
+  let dataStatus: number | undefined;
+  let dataStatusText: string | undefined;
+  let actionInit: ResponseInit | undefined;
+  const unpack = (value: unknown, applyInit = true) => {
+    if (!isRouteData(value)) return value;
+    const init = value.init;
+    // Validate metadata before rendering and use the platform's header rules.
+    const metadata = new Response(null, init);
+    if (!applyInit) return value.data;
+    for (const [key, header] of metadata.headers) {
+      if (key.toLowerCase() === "set-cookie") dataHeaders.append(key, header);
+      else dataHeaders.set(key, header);
+    }
+    if (init.status !== undefined) dataStatus = metadata.status;
+    if (init.statusText !== undefined) dataStatusText = metadata.statusText;
+    return value.data;
+  };
   let actionResponse: Response | undefined;
   if (method !== "GET" && method !== "HEAD") {
     // Without an action there is nothing to serve a write method. Falling
@@ -200,9 +232,11 @@ async function runCoreAndAfters(
       });
     }
 
-    const result = await callAction(leaf.module.action, ctx);
-    if (result instanceof Response) actionResponse = result;
-    else if (result !== undefined) {
+    const actionResult = await callAction(leaf.module.action, ctx);
+    if (isRouteData(actionResult)) actionInit = actionResult.init;
+    if (actionResult instanceof Response) actionResponse = actionResult;
+    else if (actionResult !== undefined) {
+      const result = unpack(actionResult, false);
       if (leaf.module.loader) ctx.data.__action = result;
       else ctx.data[leaf.key] = result;
     }
@@ -238,9 +272,14 @@ async function runCoreAndAfters(
       throw error;
     }
     // Promise.all preserves chain order: outer loaders take response precedence.
-    for (const { key, value } of results) {
-      if (value instanceof Response) loaderResponse ??= value;
-      else if (value !== undefined) ctx.data[key] = value;
+    try {
+      for (const { key, value } of results) {
+        if (value instanceof Response) loaderResponse ??= value;
+        else if (value !== undefined) ctx.data[key] = unpack(value);
+      }
+    } catch (error) {
+      for (const response of resolvedResponses) discardResponse(response);
+      throw error;
     }
     for (const response of resolvedResponses)
       discardResponse(response, loaderResponse);
@@ -286,6 +325,31 @@ async function runCoreAndAfters(
     });
   } else {
     response = json(ctx.data);
+  }
+
+  if (
+    !actionResponse &&
+    !loaderResponse &&
+    (actionInit !== undefined ||
+      dataStatus !== undefined ||
+      dataStatusText !== undefined ||
+      !dataHeaders.keys().next().done)
+  ) {
+    const status = actionInit?.status ?? dataStatus ?? response.status;
+    const statusText =
+      actionInit?.statusText ?? dataStatusText ?? response.statusText;
+    const headers = mergeHeaders(
+      response.headers,
+      dataHeaders,
+      actionInit?.headers,
+    );
+    const bodyless = status === 204 || status === 205 || status === 304;
+    if (bodyless) discardResponse(response);
+    response = new Response(bodyless ? null : response.body, {
+      status,
+      statusText,
+      headers,
+    });
   }
 
   for (let i = chain.length - 1; i >= 0; i--) {

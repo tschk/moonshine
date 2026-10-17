@@ -44,3 +44,13 @@ errors, not-found and HEAD responses. Explicit response headers win for ordinary
 fields; `Set-Cookie` fields append separately. Without a supplied sink the helper
 returns `undefined`. Custom scope wrappers must forward the optional third
 `responseHeaders` argument to `runWithRequest`. The signal-only root is unchanged.
+
+Loader/action results implementing the framework `RouteData` contract retain
+payload identity while carrying rendered response status and headers. The
+React Router adapter's `data()` produces this contract. Layout-to-page loader
+metadata merges in route order, with explicit action metadata taking precedence;
+`after` middleware sees the resulting response and can replace it. Statuses 204,
+205 and 304 discard rendered bodies. Direct or thrown `Response` values keep
+precedence, and throwing a data wrapper is unsupported. Ordinary objects are
+unchanged; `type: "DataWithResponseInit"` together with own `data` and an `init`
+object is reserved for this contract.

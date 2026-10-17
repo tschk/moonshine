@@ -33,3 +33,10 @@ export type RequestScope = <T>(
   fn: () => T,
   responseHeaders?: Headers,
 ) => T;
+
+/** Loader/action payload with document response metadata, without serialization. */
+export type RouteData<T = unknown> = {
+  type: "DataWithResponseInit";
+  data: T;
+  init: ResponseInit;
+};

@@ -50,6 +50,13 @@ import { json, redirect } from "@tschk/moonshine-react-router/server";
 - `json`, `data`, `redirect`, `redirectDocument`, `replace`, `ErrorResponse`,
   `isRouteErrorResponse`.
 
+`data(payload, init)` keeps the payload unencoded for native server renderers
+and applies status/headers to the rendered response before `after` middleware.
+Loader metadata merges in layout-to-page order; explicit action metadata wins.
+Cookies remain separate fields. Returned or thrown `Response` objects retain
+precedence, and thrown data wrappers are unsupported. This does not add client
+loader hooks or the React Router data router.
+
 ## Not supported
 
 These need react-router's own data router or build plugin and are **not**
@@ -57,8 +64,9 @@ provided — do not expect them to work by aliasing:
 
 - **Data APIs**: `useLoaderData`, `useActionData`, `useFetcher`,
   `useRevalidator`, `useSubmit`, `useNavigation`, `useBlocker`,
-  `unstable_usePrompt`, `defer`/`Await`. There is no loader/action lifecycle in
-  moonshine; fetch in the component or on the moonshine server route.
+  `unstable_usePrompt`, `defer`/`Await`. These client lifecycles are not wired in
+  the adapter. Moonshine server routes have loaders/actions, but their results
+  are not exposed through React Router client hooks.
 - **Route configuration**: `createBrowserRouter`, `RouterProvider`, `Routes`,
   `Route`, `createRoutesFromElements`, nested route matching. Moonshine matches
   a flat route table via `MoonshineRouter`; `<Outlet>` is fed explicitly by
