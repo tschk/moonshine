@@ -1,3 +1,13 @@
+# Moonshine 0.4.11
+
+- Add compiler-facing `hSourceEntries` for ordered, lazy SSR attributes,
+  including repeated authored names, with existing escaping and validation.
+- Support explicit mixed radio/checkbox input groups with shared membership,
+  preserving selected radio payloads during checkbox writes and owner cleanup.
+- Keep the default entry signal-only and dependencies unchanged. Crepuscularity
+  source compilation is released separately; full SFC and hydration support
+  remain incomplete.
+
 # Moonshine 0.4.10
 
 - Add an explicit compiler-facing SSR selection policy that preserves authored

@@ -283,7 +283,9 @@ export function createInputGroup(
   if (!owner || owner.disposed || owner.disposing)
     throw new Error("Input groups require a live native owner");
   if (kind !== "radio" && kind !== "checkbox" && kind !== "mixed")
-    throw new TypeError("Input groups support radio, checkbox or mixed inputs only");
+    throw new TypeError(
+      "Input groups support radio, checkbox or mixed inputs only",
+    );
   type Member = {
     input: HTMLInputElement;
     checkbox: boolean;
