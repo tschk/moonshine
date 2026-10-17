@@ -9,7 +9,8 @@
  */
 import { useCallback, useMemo } from "react";
 import {
-  navigate,
+  useNavigate as useMoonshineNavigate,
+  useHistory as useMoonshineHistory,
   useParams as useMoonshineParams,
 } from "@tschk/moonshine/router";
 import {
@@ -22,7 +23,6 @@ import {
 
 export type NavigateOptions = {
   replace?: boolean;
-  /** Accepted for source compatibility; history state is not tracked. */
   state?: unknown;
   preventScrollReset?: boolean;
 };
@@ -37,6 +37,7 @@ export function useLocation(): Location {
 }
 
 export function useNavigate(): NavigateFunction {
+  const navigate = useMoonshineNavigate();
   const rerender = useRerender();
   return useCallback(
     (to: To | number, options?: NavigateOptions) => {
@@ -44,11 +45,14 @@ export function useNavigate(): NavigateFunction {
         globalThis.history?.go(to);
         return;
       }
-      navigate(toHref(to), { replace: options?.replace });
+      navigate(toHref(to), {
+        replace: options?.replace,
+        state: options?.state,
+      });
       if (options?.preventScrollReset !== true) globalThis.scrollTo?.(0, 0);
       rerender();
     },
-    [rerender],
+    [navigate, rerender],
   ) as NavigateFunction;
 }
 
@@ -67,6 +71,7 @@ export type SetURLSearchParams = (
 ) => void;
 
 export function useSearchParams(): [URLSearchParams, SetURLSearchParams] {
+  const navigate = useMoonshineNavigate();
   const location = useLocationObject();
   const rerender = useRerender();
   const params = useMemo(
@@ -85,11 +90,11 @@ export function useSearchParams(): [URLSearchParams, SetURLSearchParams] {
       const query = resolved.toString();
       navigate(`${location.pathname}${query ? `?${query}` : ""}`, {
         replace: options?.replace,
+        state: options?.state,
       });
-      // A query-only navigation leaves the pathname signal unchanged.
       rerender();
     },
-    [location.pathname, location.search, rerender],
+    [navigate, location.pathname, location.search, rerender],
   );
 
   return [params, setSearchParams];
@@ -129,10 +134,7 @@ export function useHref(to: To): string {
 
 export type NavigationType = "POP" | "PUSH" | "REPLACE";
 
-/**
- * Moonshine does not record how the current entry was reached, so this always
- * reports `POP`.
- */
+/** How the current history entry was reached. */
 export function useNavigationType(): NavigationType {
-  return "POP";
+  return useMoonshineHistory().action;
 }

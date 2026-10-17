@@ -65,12 +65,11 @@ provided — do not expect them to work by aliasing:
   `<OutletProvider>` rather than derived from nested config.
 - **Progressive enhancement**: `<Form>`, `<Scripts>`, `<Meta>`, `<Links>`,
   `<ScrollRestoration>`, `<Await>`, `useFormAction`.
-- **History state**: `location.state`, `location.key` stability and
-  `useNavigationType` distinguishing PUSH/POP/REPLACE. `state` is always `null`
-  and `useNavigationType()` always returns `"POP"`.
+- **History keys**: `location.state` and PUSH/POP/REPLACE navigation types are
+  supported, but `location.key` is URL-derived rather than unique per entry.
 - **Error boundaries**: `useRouteError`, `errorElement`. `ErrorResponse` and
   `isRouteErrorResponse` exist as value types only.
-- `useSearchParams` reads `window.location.search`; on the server it is empty
-  because moonshine's router signal carries the pathname only.
+- `useSearchParams` reads the owning router's pathname-plus-query signal,
+  including its scoped server snapshot.
 
 See [Moonshine README](../../README.md).

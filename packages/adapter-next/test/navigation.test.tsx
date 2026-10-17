@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { act, createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { navigate } from "@tschk/moonshine/router";
 import {
   NotFoundError,
@@ -23,6 +24,11 @@ async function readHook(hook: () => string): Promise<string> {
   }
   const container = await render(createElement(Probe));
   return container.querySelector("#out")?.textContent ?? "";
+}
+
+function RefreshDuringSSRProbe() {
+  useRouter().refresh();
+  return null;
 }
 
 describe("next/navigation", () => {
@@ -156,17 +162,38 @@ describe("next/navigation", () => {
     expect(window.history.length).toBe(before);
   });
 
-  test("refresh and prefetch are inert but callable", async () => {
+  test("refresh reloads the document and prefetch remains callable", async () => {
     let router!: ReturnType<typeof useRouter>;
     function Probe() {
       router = useRouter();
       return null;
     }
     await render(createElement(Probe));
-    expect(() => {
+    const reload = spyOn(globalThis.location, "reload").mockImplementation(
+      () => {},
+    );
+    try {
       router.refresh();
-      router.prefetch("/anywhere");
-    }).not.toThrow();
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(() => router.prefetch("/anywhere")).not.toThrow();
+    } finally {
+      reload.mockRestore();
+    }
+  });
+
+  test("refresh is safe without a browser location during SSR", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "location")!;
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: undefined,
+    });
+    try {
+      expect(() =>
+        renderToStaticMarkup(createElement(RefreshDuringSSRProbe)),
+      ).not.toThrow();
+    } finally {
+      Object.defineProperty(globalThis, "location", descriptor);
+    }
   });
 
   describe("control flow", () => {
@@ -195,3 +222,82 @@ describe("next/navigation", () => {
     });
   });
 });
+
+test.each(["push", "replace"] as const)(
+  "external %s delegates to the document location only",
+  async (method) => {
+    setLocation("/start");
+    navigate("/start");
+    let router!: ReturnType<typeof useRouter>;
+    function Probe() {
+      router = useRouter();
+      return createElement("p", null, "live");
+    }
+    await render(createElement(Probe));
+    const assign = spyOn(window.location, "assign").mockImplementation(
+      () => {},
+    );
+    const replace = spyOn(window.location, "replace").mockImplementation(
+      () => {},
+    );
+    const scroll = spyOn(globalThis, "scrollTo").mockImplementation(() => {});
+    try {
+      router[method]("https://other.example/account?x=1#part");
+      expect(assign).toHaveBeenCalledTimes(method === "push" ? 1 : 0);
+      expect(replace).toHaveBeenCalledTimes(method === "replace" ? 1 : 0);
+      expect(method === "push" ? assign : replace).toHaveBeenCalledWith(
+        "https://other.example/account?x=1#part",
+      );
+      expect(window.location.pathname).toBe("/start");
+      expect(scroll).not.toHaveBeenCalled();
+      await act(async () =>
+        router[method](window.location.origin + "/next?x=2", { scroll: false }),
+      );
+      expect(window.location.pathname + window.location.search).toBe(
+        "/next?x=2",
+      );
+      expect(assign).toHaveBeenCalledTimes(method === "push" ? 1 : 0);
+      expect(replace).toHaveBeenCalledTimes(method === "replace" ? 1 : 0);
+    } finally {
+      assign.mockRestore();
+      replace.mockRestore();
+      scroll.mockRestore();
+      await cleanup();
+    }
+  },
+);
+
+test.each(["push", "replace"] as const)(
+  "%s never assigns executable schemes",
+  async (method) => {
+    setLocation("/start");
+    navigate("/start");
+    let router!: ReturnType<typeof useRouter>;
+    function Probe() {
+      router = useRouter();
+      return null;
+    }
+    await render(createElement(Probe));
+    const assign = spyOn(window.location, "assign").mockImplementation(
+      () => {},
+    );
+    const replace = spyOn(window.location, "replace").mockImplementation(
+      () => {},
+    );
+    try {
+      for (const href of [
+        "javascript:globalThis.executed=true",
+        "data:text/html,<script>bad()</script>",
+        "java\tscript:globalThis.executed=true",
+      ]) {
+        await act(async () => router[method](href, { scroll: false }));
+        expect(assign).not.toHaveBeenCalled();
+        expect(replace).not.toHaveBeenCalled();
+      }
+    } finally {
+      assign.mockRestore();
+      replace.mockRestore();
+      await cleanup();
+    }
+  },
+);

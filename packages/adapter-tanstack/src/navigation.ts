@@ -9,7 +9,7 @@
  */
 import { useCallback, useMemo } from "react";
 import {
-  navigate,
+  useNavigate as useMoonshineNavigate,
   useParams as useMoonshineParams,
 } from "@tschk/moonshine/router";
 import {
@@ -36,6 +36,7 @@ export type RouterInstance = {
 };
 
 export function useNavigate(): NavigateFn {
+  const navigate = useMoonshineNavigate();
   const location = useParsedLocation();
   const rerender = useRerender();
   return useCallback(
@@ -44,12 +45,11 @@ export function useNavigate(): NavigateFn {
         { ...options, to: options.to ?? location.pathname },
         location.search,
       );
-      navigate(href, { replace: options.replace });
+      navigate(href, { replace: options.replace, state: options.state });
       if (options.resetScroll !== false) globalThis.scrollTo?.(0, 0);
-      // A query-only navigation leaves the pathname signal unchanged.
       rerender();
     },
-    [location.pathname, location.search, rerender],
+    [navigate, location.pathname, location.search, rerender],
   );
 }
 

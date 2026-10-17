@@ -17,7 +17,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { isExternal, navigate } from "@tschk/moonshine/router";
+import { isExternal, useNavigate } from "@tschk/moonshine/router";
 
 export type LinkProps = Omit<
   AnchorHTMLAttributes<HTMLAnchorElement>,
@@ -85,8 +85,9 @@ export default function Link({
   onMouseEnter,
   ...rest
 }: LinkProps): ReactNode {
+  const navigate = useNavigate();
   const url = hrefToString(href);
-  const external = isExternal(url, rest.target);
+  const external = isExternal(url, rest.target, rest.download);
   const ref = useRef<HTMLAnchorElement>(null);
   // Navigation runs in a transition so a slow subtree cannot block the click.
   const [, startTransition] = useTransition();

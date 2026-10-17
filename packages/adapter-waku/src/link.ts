@@ -18,7 +18,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { navigate } from "@tschk/moonshine/router";
+import { isExternal, useNavigate } from "@tschk/moonshine/router";
 import {
   NavigationStatusContext,
   prefetchRoute,
@@ -63,16 +63,21 @@ export function Link({
   onMouseEnter,
   ...rest
 }: LinkProps): ReactNode {
+  const navigate = useNavigate();
   const href = toHref(to);
+  const browserOwned = isExternal(href, rest.target, rest.download);
   const ref = useRef<HTMLAnchorElement>(null);
   const [isPending, startTransition] = useTransition();
   const run = unstable_startTransition ?? startTransition;
 
-  const warm = useCallback(() => prefetchRoute(href), [href]);
+  const warm = useCallback(() => {
+    if (!browserOwned) prefetchRoute(href);
+  }, [href, browserOwned]);
 
   useEffect(() => {
     const node = ref.current;
     if (
+      browserOwned ||
       !unstable_prefetchOnView ||
       !node ||
       typeof IntersectionObserver === "undefined"
@@ -92,7 +97,7 @@ export function Link({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [unstable_prefetchOnView, warm]);
+  }, [unstable_prefetchOnView, warm, browserOwned]);
 
   const status = useMemo(() => ({ pending: isPending }), [isPending]);
 
@@ -108,7 +113,7 @@ export function Link({
       },
       onClick: (event: MouseEvent<HTMLAnchorElement>) => {
         onClick?.(event);
-        if (event.defaultPrevented || isAltClick(event)) return;
+        if (browserOwned || event.defaultPrevented || isAltClick(event)) return;
         event.preventDefault();
         warm();
         const go = () => {

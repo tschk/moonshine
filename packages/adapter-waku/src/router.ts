@@ -15,8 +15,13 @@ import {
   useContext,
   useMemo,
   useReducer,
+  useSyncExternalStore,
 } from "react";
-import { navigate, useLocation } from "@tschk/moonshine/router";
+import {
+  useNavigate,
+  useLocation,
+  useRouter as useMoonshineRouter,
+} from "@tschk/moonshine/router";
 
 export type RouteProps = {
   /** Pathname, always with a trailing slash — Waku's convention. */
@@ -49,9 +54,34 @@ export function toHref(to: LinkTo): string {
   return `${to.pathname}?${params.toString()}`;
 }
 
-function browserPart(part: "search" | "hash"): string {
-  if (typeof window === "undefined") return "";
-  return window.location[part];
+function readHash(): string {
+  return typeof window === "undefined" ? "" : window.location.hash;
+}
+function serverHash(): string {
+  return "";
+}
+
+function useHash(): string {
+  const runtime = useMoonshineRouter();
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      const unsubscribe = runtime.fragment.subscribe(notify);
+      const update = () => runtime.fragment.set(readHash());
+      window.addEventListener("hashchange", update);
+      window.addEventListener("popstate", update);
+      return () => {
+        unsubscribe();
+        window.removeEventListener("hashchange", update);
+        window.removeEventListener("popstate", update);
+      };
+    },
+    [runtime],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => runtime.fragment.peek(),
+    serverHash,
+  );
 }
 
 /** Forces a re-render; used after navigations that only change the query. */
@@ -62,9 +92,11 @@ function useRerender(): () => void {
 
 export function useRoute(): RouteProps {
   // The location signal carries the query too; the path is its first half.
-  const pathname = useLocation().split("?")[0];
-  const search = browserPart("search");
-  const hash = browserPart("hash");
+  const location = useLocation();
+  const index = location.indexOf("?");
+  const pathname = index === -1 ? location : location.slice(0, index);
+  const search = index === -1 ? "" : location.slice(index + 1);
+  const hash = useHash();
   return useMemo(
     () => ({
       path: normalizePath(pathname),
@@ -85,6 +117,7 @@ export type RouterInstance = RouteProps & {
 };
 
 export function useRouter_UNSTABLE(): RouterInstance {
+  const navigate = useNavigate();
   const route = useRoute();
   const rerender = useRerender();
 
@@ -92,11 +125,10 @@ export function useRouter_UNSTABLE(): RouterInstance {
     (to: LinkTo, replace: boolean, scroll?: boolean) => {
       navigate(toHref(to), { replace });
       if (scroll !== false) globalThis.scrollTo?.(0, 0);
-      // A query-only navigation leaves the pathname signal unchanged.
       rerender();
       return Promise.resolve();
     },
-    [rerender],
+    [navigate, rerender],
   );
 
   return useMemo(
@@ -186,6 +218,7 @@ export type SetSearch = (
 ) => void;
 
 export function useSetSearch_UNSTABLE({ from }: { from: string }): SetSearch {
+  const navigate = useNavigate();
   const { path, query } = useRoute();
   const rerender = useRerender();
   return useCallback(
@@ -202,7 +235,7 @@ export function useSetSearch_UNSTABLE({ from }: { from: string }): SetSearch {
       if (options?.scroll === true) globalThis.scrollTo?.(0, 0);
       rerender();
     },
-    [from, path, query, rerender],
+    [navigate, from, path, query, rerender],
   );
 }
 

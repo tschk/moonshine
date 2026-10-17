@@ -8,8 +8,9 @@
  * ```
  */
 import { useMemo } from "react";
+import { safeHref } from "@tschk/moonshine-router";
 import {
-  navigate,
+  useNavigate as useMoonshineNavigate,
   useLocation,
   useParams as useMoonshineParams,
 } from "@tschk/moonshine/router";
@@ -32,17 +33,9 @@ export function splitLocation(location: string): [string, string] {
     : [location.slice(0, index), location.slice(index + 1)];
 }
 
-/**
- * The location signal carries the query, so the signal is the source of truth
- * and a query-only navigation re-renders. The browser fallback remains for the
- * one case the signal cannot cover: a controlled `path` prop given without a
- * query while the address bar has one.
- */
+/** The scoped location signal is the source of truth for query state. */
 function readSearch(location: string): string {
-  const [, fromSignal] = splitLocation(location);
-  if (fromSignal) return fromSignal;
-  if (typeof window === "undefined") return "";
-  return window.location.search.replace(/^\?/, "");
+  return splitLocation(location)[1];
 }
 
 function shouldScrollByDefault(href: string): boolean {
@@ -54,27 +47,39 @@ function shouldScrollByDefault(href: string): boolean {
   );
 }
 
+function navigateExternal(href: string, replace: boolean): boolean {
+  if (typeof window === "undefined") return false;
+  const url = new URL(safeHref(href), window.location.href);
+  if (url.origin === window.location.origin) return false;
+  if (replace) window.location.replace(url.href);
+  else window.location.assign(url.href);
+  return true;
+}
+
 export function useRouter(): AppRouterInstance {
+  const navigate = useMoonshineNavigate();
   return useMemo(
     () => ({
       push: (href, options) => {
+        if (navigateExternal(href, false)) return;
         const jump = options?.scroll ?? shouldScrollByDefault(href);
         navigate(href);
         if (jump) globalThis.scrollTo?.(0, 0);
       },
       replace: (href, options) => {
+        if (navigateExternal(href, true)) return;
         const jump = options?.scroll ?? shouldScrollByDefault(href);
         navigate(href, { replace: true });
         if (jump) globalThis.scrollTo?.(0, 0);
       },
       back: () => globalThis.history?.back(),
       forward: () => globalThis.history?.forward(),
-      // Moonshine re-renders from its signal graph, so there is no server
-      // round trip to invalidate.
-      refresh: () => {},
+      // Reload server data through a document request; local component state resets.
+      // State-preserving RSC refresh is not supported.
+      refresh: () => globalThis.location?.reload(),
       prefetch: () => {},
     }),
-    [],
+    [navigate],
   );
 }
 

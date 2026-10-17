@@ -96,8 +96,15 @@ Behavioural notes where moonshine deliberately differs from Next:
   moonshine only scrolls when the pathname or hash actually changes, so
   query-only navigation (filters, pagination, tabs) keeps your scroll position.
   Pass `scroll` explicitly to force either behaviour.
-- **`router.refresh()` and `router.prefetch()` are no-ops.** Moonshine
-  re-renders from its signal graph; there is no server round trip to invalidate.
+- **`router.refresh()` reloads the browser document.** This requests fresh
+  server output and resets local component state. State-preserving RSC refresh
+  is unsupported. It is safe to call during SSR, where it does nothing.
+- **`router.prefetch()` is a no-op.** Use `Link` for browser prefetch hints.
+- **Browser navigation stays with the browser.** Links preserve external URLs,
+  non-self targets, fragments and downloads without route prefetch. External
+  `router.push` uses document assignment; external `replace` replaces the history
+  entry. Same-origin absolute URLs retain SPA navigation. The existing safe-href
+  policy prevents executable schemes from reaching document navigation.
 - **`redirect()` / `notFound()`** throw `RedirectError` / `NotFoundError`,
   exported from `./navigation` so your renderer can catch them.
 - **`useSearchParams()`** reads the live query string. The moonshine router

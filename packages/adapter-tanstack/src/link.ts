@@ -18,7 +18,10 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { isExternal, navigate } from "@tschk/moonshine/router";
+import {
+  isExternal,
+  useNavigate as useMoonshineNavigate,
+} from "@tschk/moonshine/router";
 import { buildHref, type ToOptions } from "./location";
 import { useParsedLocation } from "./location";
 
@@ -131,6 +134,7 @@ export function Link({
   search,
   hash,
   replace,
+  state: historyState,
   resetScroll,
   activeOptions,
   preload = "intent",
@@ -144,29 +148,32 @@ export function Link({
   onMouseEnter,
   ...rest
 }: LinkProps): ReactNode {
+  const navigate = useMoonshineNavigate();
   const location = useParsedLocation();
   const href = buildHref({ to, params, search, hash }, location.search);
-  const external = isExternal(href, rest.target);
   const ref = useRef<HTMLAnchorElement>(null);
   // Navigation runs in a transition so a slow subtree cannot block the click.
   const [, startTransition] = useTransition();
-  const inert = external || disabled === true || preload === false;
-
-  const warm = useLinkPreload(ref, href, preload, inert);
-
   const target = pathnameOf(href);
   const isActive = isLinkActive(
     location.pathname,
     target,
     activeOptions?.exact,
   );
+  const anchorProps = { ...rest, ...(isActive ? activeProps : inactiveProps) };
+  const external = isExternal(
+    href,
+    anchorProps.target as string | undefined,
+    anchorProps.download,
+  );
+  const inert = external || disabled === true || preload === false;
+  const warm = useLinkPreload(ref, href, preload, inert);
   const state: LinkRenderState = { isActive, isTransitioning: false };
 
   return createElement(
     "a",
     {
-      ...rest,
-      ...(isActive ? activeProps : inactiveProps),
+      ...anchorProps,
       ref,
       href,
       style,
@@ -182,7 +189,7 @@ export function Link({
         if (!shouldNavigate(event, external, disabled)) return;
         event.preventDefault();
         startTransition(() => {
-          navigate(href, { replace });
+          navigate(href, { replace, state: historyState });
           if (resetScroll !== false) globalThis.scrollTo?.(0, 0);
         });
       },
@@ -195,10 +202,11 @@ export type NavigateProps = ToOptions;
 
 /** Redirects on mount. */
 export function Navigate(props: NavigateProps): null {
+  const navigate = useMoonshineNavigate();
   const location = useParsedLocation();
   const href = buildHref(props, location.search);
   useEffect(() => {
-    navigate(href, { replace: props.replace });
-  }, [href, props.replace]);
+    navigate(href, { replace: props.replace, state: props.state });
+  }, [navigate, href, props.replace, props.state]);
   return null;
 }

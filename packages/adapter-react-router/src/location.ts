@@ -3,11 +3,13 @@
 /**
  * Location shape shared by the react-router hooks.
  *
- * Moonshine's router signal carries the pathname only, so `search` and `hash`
- * are read back from `window.location` on each render.
+ * History state is subscribed independently so same-path navigations update.
  */
 import { useMemo, useReducer } from "react";
-import { useLocation as useMoonshineLocation } from "@tschk/moonshine/router";
+import {
+  useLocation as useMoonshineLocation,
+  useHistory as useMoonshineHistory,
+} from "@tschk/moonshine/router";
 
 export type Location<S = unknown> = {
   pathname: string;
@@ -35,7 +37,7 @@ export function toHref(to: To): string {
   return `${to.pathname ?? ""}${search}${hash}`;
 }
 
-function browserPart(part: "search" | "hash"): string {
+function browserPart(part: "hash"): string {
   if (typeof window === "undefined") return "";
   return window.location[part];
 }
@@ -47,18 +49,19 @@ export function useRerender(): () => void {
 }
 
 export function useLocationObject(): Location {
-  const pathname = useMoonshineLocation();
-  const search = browserPart("search");
+  const source = useMoonshineLocation();
+  const pathname = source.split("?", 1)[0]!;
+  const history = useMoonshineHistory();
+  const search = source.includes("?") ? source.slice(source.indexOf("?")) : "";
   const hash = browserPart("hash");
   return useMemo(
     () => ({
       pathname,
       search,
       hash,
-      // History state is not tracked by the moonshine router.
-      state: null,
+      state: history.state,
       key: `${pathname}${search}${hash}`,
     }),
-    [pathname, search, hash],
+    [pathname, search, hash, history],
   );
 }

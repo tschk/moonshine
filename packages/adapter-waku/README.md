@@ -31,8 +31,9 @@ import { json } from "@tschk/moonshine-waku/server";
 - `Link` — `to` as string or `{ pathname, search }`, `scroll`,
   `unstable_instant`, `unstable_prefetchOnEnter`, `unstable_prefetchOnView`
   (IntersectionObserver at 0.1 threshold), `unstable_startTransition`.
-  Modifier-clicks fall through to the browser; navigation runs inside
-  `startTransition`.
+  Modifier-clicks, external URLs, fragments, non-self targets and downloads
+  fall through to the browser without route prefetch. Internal navigation runs
+  inside `startTransition`.
 - `useRouter_UNSTABLE` / `useRouter` — spreads the current `{ path, query, hash }`
   route plus `push`, `replace`, `reload`, `back`, `forward`, `prefetch`.
 - `useRoute` — Waku's route shape, with the trailing-slash `path` convention.
@@ -60,7 +61,13 @@ Waku's remaining surface is bound to its RSC pipeline and Vite plugin, and is
   `<link rel="prefetch">`; it does not fetch and cache an RSC payload, so
   `unstable_instant` navigation is a plain synchronous navigation.
 - **Base path**: `WAKU_CONFIG_BASE_PATH` is not applied to hrefs.
-- Search and hash are read from `window.location`; on the server they are empty
-  because moonshine's router signal carries the pathname only.
+- Search comes from the scoped pathname-plus-query signal. Hash follows browser
+  hash/history events and owning-router navigation; its SSR snapshot is empty.
 
 See [Moonshine README](../../README.md).
+
+Route hashes come from the owning Moonshine runtime's fragment signal.
+Unrelated renders and remounts retain that runtime's fragment after another
+router navigates. Global browser hash/pop events still update mounted
+consumers. SSR hash snapshots stay empty. Chromium checks cover independent
+navigation, remounts and real back/forward behavior.

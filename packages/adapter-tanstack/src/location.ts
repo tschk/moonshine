@@ -3,11 +3,13 @@
 /**
  * TanStack Router's location shape, derived from the moonshine router signal.
  *
- * Moonshine's signal carries the pathname only, so `search` and `hash` are read
- * back from `window.location` on each render.
+ * History state is subscribed independently so same-path navigations update.
  */
 import { useMemo, useReducer } from "react";
-import { useLocation as useMoonshineLocation } from "@tschk/moonshine/router";
+import {
+  useLocation as useMoonshineLocation,
+  useHistory as useMoonshineHistory,
+} from "@tschk/moonshine/router";
 
 export type SearchRecord = Record<string, unknown>;
 
@@ -27,6 +29,7 @@ export type ToOptions = {
   search?: SearchRecord | ((current: SearchRecord) => SearchRecord);
   hash?: string;
   replace?: boolean;
+  state?: Record<string, unknown>;
   resetScroll?: boolean;
 };
 
@@ -87,7 +90,7 @@ export function buildHref(
   return `${pathname}${stringifySearch(search)}${hash}`;
 }
 
-function browserPart(part: "search" | "hash"): string {
+function browserPart(part: "hash"): string {
   if (typeof window === "undefined") return "";
   return window.location[part];
 }
@@ -99,8 +102,12 @@ export function useRerender(): () => void {
 }
 
 export function useParsedLocation(): ParsedLocation {
-  const pathname = useMoonshineLocation();
-  const searchStr = browserPart("search");
+  const source = useMoonshineLocation();
+  const pathname = source.split("?", 1)[0]!;
+  const history = useMoonshineHistory();
+  const searchStr = source.includes("?")
+    ? source.slice(source.indexOf("?"))
+    : "";
   const hash = browserPart("hash");
   return useMemo(
     () => ({
@@ -109,9 +116,8 @@ export function useParsedLocation(): ParsedLocation {
       search: parseSearch(searchStr),
       searchStr,
       hash,
-      // History state is not tracked by the moonshine router.
-      state: {},
+      state: (history.state ?? {}) as Record<string, unknown>,
     }),
-    [pathname, searchStr, hash],
+    [pathname, searchStr, hash, history],
   );
 }

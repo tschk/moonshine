@@ -65,9 +65,9 @@ own loader/RPC runtime, and are **not** provided:
 - **Transitions/blocking**: `useBlocker`, `Block`, `isTransitioning`
   (always `false`), `useRouterState().status` (always `"idle"`),
   `matches` (always empty).
-- **History state**: `location.state` is always `{}`; there is no
-  `useHistoryState`.
-- `useSearch` reads `window.location.search`; on the server it is empty because
-  moonshine's router signal carries the pathname only.
+- **History state hook**: navigation state is available in `location.state`;
+  there is no separate `useHistoryState` hook.
+- `useSearch` reads the owning router's pathname-plus-query signal, including
+  its scoped server snapshot.
 
 See [Moonshine README](../../README.md).

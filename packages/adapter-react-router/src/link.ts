@@ -17,7 +17,10 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { isExternal, navigate } from "@tschk/moonshine/router";
+import {
+  isExternal,
+  useNavigate as useMoonshineNavigate,
+} from "@tschk/moonshine/router";
 import { toHref, type To } from "./location";
 import { useLocation } from "./navigation";
 
@@ -28,7 +31,6 @@ export type LinkProps = Omit<
   to: To;
   replace?: boolean;
   preventScrollReset?: boolean;
-  /** Accepted for source compatibility; history state is not tracked. */
   state?: unknown;
   reloadDocument?: boolean;
   /** `"intent"` warms the URL on hover, `"render"` on mount. */
@@ -51,7 +53,7 @@ export function Link({
   to,
   replace,
   preventScrollReset,
-  state: _state,
+  state,
   reloadDocument,
   prefetch = "intent",
   children,
@@ -59,8 +61,9 @@ export function Link({
   onMouseEnter,
   ...rest
 }: LinkProps): ReactNode {
+  const navigate = useMoonshineNavigate();
   const href = toHref(to);
-  const external = isExternal(href, rest.target);
+  const external = isExternal(href, rest.target, rest.download);
   const ref = useRef<HTMLAnchorElement>(null);
   // Navigation runs in a transition so a slow subtree cannot block the click.
   const [, startTransition] = useTransition();
@@ -122,7 +125,7 @@ export function Link({
         }
         event.preventDefault();
         startTransition(() => {
-          navigate(href, { replace });
+          navigate(href, { replace, state });
           if (preventScrollReset !== true) globalThis.scrollTo?.(0, 0);
         });
       },
@@ -190,11 +193,12 @@ export type NavigateProps = {
 };
 
 /** Redirects on mount, the declarative form of `useNavigate()`. */
-export function Navigate({ to, replace }: NavigateProps): null {
+export function Navigate({ to, replace, state }: NavigateProps): null {
+  const navigate = useMoonshineNavigate();
   const href = toHref(to);
   useEffect(() => {
-    navigate(href, { replace });
-  }, [href, replace]);
+    navigate(href, { replace, state });
+  }, [navigate, href, replace, state]);
   return null;
 }
 
