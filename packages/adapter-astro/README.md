@@ -50,3 +50,19 @@ combined `class`/`class:list` attributes and
 Astro globals other than `Astro.props` are unsupported. Hydration and arbitrary
 host-compiled output are unsupported. Use the legacy compiler explicitly for
 applications requiring the full Astro compiler contract.
+
+Run the authored-source regression with an explicitly supplied local compiler:
+
+```sh
+MOONSHINE_CREPUS_COMPILER=/absolute/path/to/crepus bun test packages/adapter-astro/test/standalone.test.ts
+```
+
+It checks source-order side effects, short-circuit values, optional maps and
+component prop identity in isolated Bun and Node consumers. Without the variable,
+that compiler integration case is explicitly skipped; runtime cases still run.
+
+The current template parser also has whitespace and branch-text punctuation
+limits. Do not use it for whitespace-sensitive `pre`/`textarea` source without
+checking emitted output. Attribute spreads, namespace/directive attributes,
+generic `Props`, and map callbacks with index/destructuring/block bodies are not
+yet supported. These parser limits remain work in Crepuscularity.

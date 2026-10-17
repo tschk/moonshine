@@ -99,3 +99,56 @@ assert.equal(renderToString(()=>h('p',{'data-ready':()=>true},sourceChild([true,
 assert.equal(classList(['a',{active:true}]),'a active');
 `);
 });
+
+const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
+test.skipIf(!sourceCompiler)(
+  "authored Astro evaluates attributes, branches, children and maps in source order",
+  async () => {
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/state.ts',\`export const log:string[]=[];
+export const payload={value:'same'};
+export const record=(name:string)=>(log.push(name),name);
+export function callback(){return record('callback');}\`);
+await Bun.write('source/Probe.astro',\`---
+import {record,callback,payload} from './state';
+interface Props {cb:typeof callback;data:typeof payload;value:string;children:string}
+const {cb,data,value,children}=Astro.props;
+if(children!=='ordinary prop')throw Error('children prop was overwritten');
+if(cb!==callback||data!==payload)throw Error('prop identity');
+record('probe');
+const result=cb();
+---
+<strong data-value={value}>{result}</strong>\`);
+await Bun.write('source/Page.astro',\`---
+import Probe from './Probe.astro';
+import {log,record,callback,payload} from './state';
+log.length=0;
+const items=['row'];
+const first='prefix';
+const second=false;
+function missing():string[]|undefined{return undefined;}
+const absent=missing();
+let reads=0;
+function next(){reads++;return 0;}
+---
+<section data-start={record('attribute')} data-callback={callback}>{record('text')}{record('branch') && <b>{record('branch-child')}</b>}<Probe cb={callback} data={payload} value={record('prop')} children="ordinary prop"/>{items.map(item => <i data-row={record(item+'-attribute')}>{record(item+'-child')}</i>)}{0 && <u/>}{first || second && <u/>}{absent?.map(item => <u>{item}</u>)}{first || items.map(item => <u>{item}</u>)}{next() && <u/>}<em>{reads}:{log.join('|')}</em></section>\`);
+const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry','Page.astro','--out-dir','out'],{stdout:'pipe',stderr:'pipe'});
+const [stdout,stderr,code]=await Promise.all([new Response(built.stdout).text(),new Response(built.stderr).text(),built.exited]);
+assert.equal(code,0,stdout+stderr);
+await Bun.write('check.ts',\`import assert from 'node:assert/strict';
+import Page from './out/CrepusEmit.moonshine-ssr.ts';
+import{h,renderToString}from'@tschk/moonshine-astro/ssr';
+const expected='<section data-start="attribute">text<b>branch-child</b><strong data-value="prop">callback</strong><i data-row="row-attribute">row-child</i>0prefixprefix0<em>1:attribute|text|branch|branch-child|prop|probe|callback|row-attribute|row-child</em></section>';
+for(let request=0;request<2;request++){const html=renderToString(()=>h(Page,{}));assert.ok(html.includes(' data-callback='));assert.equal(html.replace(/ data-callback="[^"]*"/,''),expected);}\`);
+await import(process.cwd()+'/check.ts');
+const bundle=await Bun.build({entrypoints:['check.ts'],target:'node',outdir:'dist',metafile:true,minify:true});
+assert.ok(bundle.success,String(bundle.logs));
+assert.ok(!Object.keys(bundle.metafile.inputs).some(path=>/node_modules\\/(@astrojs|astro|react|react-dom|solid-js|svelte)\\//.test(path)||path.endsWith('.wasm')));
+const node=Bun.spawn(['node','dist/check.js'],{stdout:'pipe',stderr:'pipe'});
+const [nodeOut,nodeErr,nodeCode]=await Promise.all([new Response(node.stdout).text(),new Response(node.stderr).text(),node.exited]);
+assert.equal(nodeCode,0,nodeOut+nodeErr);
+`);
+  },
+);
