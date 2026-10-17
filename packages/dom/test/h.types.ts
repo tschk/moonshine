@@ -1,4 +1,4 @@
-import { h } from "../src/dom";
+import { h, hNS } from "../src/dom";
 import { h as serverH } from "../src/ssr";
 
 interface Props {
@@ -12,3 +12,13 @@ serverH(Component, props);
 h(Component, { label: 1 });
 // @ts-expect-error Server component props retain their declared value type.
 serverH(Component, { label: 1 });
+
+const HTML = "http://www.w3.org/1999/xhtml";
+const SVG = "http://www.w3.org/2000/svg";
+const title: SVGTitleElement = hNS(SVG, "title");
+const anchor: HTMLAnchorElement = hNS(HTML, "a");
+// @ts-expect-error A lexical SVG title is not an HTML title.
+const wrongTitle: HTMLTitleElement = hNS(SVG, "title");
+// @ts-expect-error A lexical HTML anchor is not an SVG anchor.
+const wrongAnchor: SVGAElement = hNS(HTML, "a");
+void [title, anchor, wrongTitle, wrongAnchor];

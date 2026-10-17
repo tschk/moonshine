@@ -578,6 +578,45 @@ export function h<P extends Record<string, unknown>>(
   const elementNamespace =
     props?.xmlns ??
     (tag === "svg" || namespace === SVG || SVG_TAGS.has(tag) ? SVG : HTML);
+  return createIntrinsic(tag, props, children, elementNamespace);
+}
+
+/** Compiler-owned lexical namespace; authored xmlns remains an ordinary attribute. */
+export function hNS<K extends keyof SVGElementTagNameMap>(
+  elementNamespace: typeof SVG,
+  tag: K,
+  props?: Record<string, unknown> | null,
+  ...children: DOMChild[]
+): SVGElementTagNameMap[K];
+export function hNS<K extends keyof HTMLElementTagNameMap>(
+  elementNamespace: typeof HTML,
+  tag: K,
+  props?: Record<string, unknown> | null,
+  ...children: DOMChild[]
+): HTMLElementTagNameMap[K];
+export function hNS(
+  elementNamespace: typeof HTML | typeof SVG,
+  tag: string,
+  props?: Record<string, unknown> | null,
+  ...children: DOMChild[]
+): Element;
+export function hNS(
+  elementNamespace: typeof HTML | typeof SVG,
+  tag: string,
+  props: Record<string, unknown> | null = null,
+  ...children: DOMChild[]
+): Element {
+  if (elementNamespace !== HTML && elementNamespace !== SVG)
+    throw new TypeError("Unsupported element namespace");
+  return createIntrinsic(tag, props, children, elementNamespace);
+}
+
+function createIntrinsic(
+  tag: string,
+  props: Record<string, unknown> | null,
+  children: DOMChild[],
+  elementNamespace: unknown,
+): Element {
   const element = document.createElementNS(String(elementNamespace), tag);
   const select = element instanceof HTMLSelectElement;
   const input = element instanceof HTMLInputElement;
