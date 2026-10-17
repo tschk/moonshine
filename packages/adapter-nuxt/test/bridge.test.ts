@@ -16,4 +16,16 @@ describe("@tschk/moonshine-nuxt", () => {
     r.value = true;
     expect(r.value).toBe(true);
   });
+  test("ref assignment preserves literal function values without calling them", () => {
+    let calls = 0;
+    const first = () => 1;
+    const second = () => {
+      calls++;
+      return 2;
+    };
+    const value = createBridgedRef(first);
+    value.value = second;
+    expect(value.value).toBe(second);
+    expect(calls).toBe(0);
+  });
 });

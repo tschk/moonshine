@@ -141,9 +141,8 @@
       "name": "@tschk/moonshine-angular",
       "version": "0.4.2",
       "dependencies": {
-        "@tschk/crepus-moonshine": "^0.4.1",
-        "@tschk/moonshine": "^0.4.1",
-        "@tschk/moonshine-framework": "^0.4.1",
+        "@tschk/moonshine": "^0.4.2",
+        "@tschk/moonshine-dom": "^0.4.2",
       },
       "devDependencies": {
         "typescript": "7.0.2",
@@ -151,27 +150,30 @@
       "peerDependencies": {
         "@angular/common": ">=17",
         "@angular/core": ">=17",
+        "@tschk/moonshine-framework": "^0.4.2",
       },
       "optionalPeers": [
         "@angular/common",
         "@angular/core",
+        "@tschk/moonshine-framework",
       ],
     },
     "packages/adapter-astro": {
       "name": "@tschk/moonshine-astro",
       "version": "0.4.2",
       "dependencies": {
-        "@tschk/crepus-moonshine": "^0.4.1",
-        "@tschk/moonshine": "^0.4.1",
-        "@tschk/moonshine-framework": "^0.4.1",
+        "@tschk/moonshine": "^0.4.2",
+        "@tschk/moonshine-dom": "^0.4.2",
       },
       "devDependencies": {
         "typescript": "7.0.2",
       },
       "peerDependencies": {
+        "@tschk/moonshine-framework": "^0.4.2",
         "astro": ">=4",
       },
       "optionalPeers": [
+        "@tschk/moonshine-framework",
         "astro",
       ],
     },
@@ -214,18 +216,19 @@
       "name": "@tschk/moonshine-nuxt",
       "version": "0.4.2",
       "dependencies": {
-        "@tschk/crepus-moonshine": "^0.4.1",
-        "@tschk/moonshine": "^0.4.1",
-        "@tschk/moonshine-framework": "^0.4.1",
+        "@tschk/moonshine": "^0.4.2",
+        "@tschk/moonshine-dom": "^0.4.2",
       },
       "devDependencies": {
         "typescript": "7.0.2",
       },
       "peerDependencies": {
+        "@tschk/moonshine-framework": "^0.4.2",
         "nuxt": ">=3",
         "vue": ">=3",
       },
       "optionalPeers": [
+        "@tschk/moonshine-framework",
         "nuxt",
         "vue",
       ],

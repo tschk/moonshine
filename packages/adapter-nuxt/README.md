@@ -1,25 +1,37 @@
 # `@tschk/moonshine-nuxt`
 
-Hosting adapter. Nuxt compiles Vue SFCs and owns Nitro; moonshine cannot
-replace that compiler. `nuxt` and `vue` are peer dependencies, re-exported
-on subpaths, alongside moonshine signal bridges.
+The root provides native Moonshine signal bridges and a lazy native renderer.
+At runtime, root imports need neither Nuxt, React, parser WASM nor the optional
+framework peer. Legacy host APIs remain explicit on their existing subpaths.
 
-This is not a reimplementation — you cannot alias `nuxt` onto this package
-and drop Nuxt.
+Strict TypeScript checking of the root entry requires installing
+`@tschk/moonshine-framework`, even when importing only a bridge: the root also
+exports `crepusRenderer` with the framework's `Renderer` contract. The framework
+remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
+This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
 
 ```ts
-import { fromMoonshineSignal } from "@tschk/moonshine-nuxt";
-import { useState } from "@tschk/moonshine-nuxt/app";
+import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-nuxt";
 ```
 
-| Subpath | Provides                         |
-| ------- | -------------------------------- |
-| `.`     | signal bridges, crepus renderer  |
-| `./app` | `nuxt/app` composable re-exports |
-| `./vue` | `vue` runtime re-exports         |
+| Entry   | Provides                                       |
+| ------- | ---------------------------------------------- |
+| `.`     | Native signal bridges and lazy native renderer |
+| `./app` | Legacy Nuxt app composables                    |
+| `./vue` | Legacy Vue runtime re-exports                  |
 
-Peer: `nuxt` >= 3, `vue` >= 3.
+`crepusRenderer` preserves its compatibility name but renders native server
+factories, escaped metadata, API JSON and SPA shells. Install
+`@tschk/moonshine-framework` when invoking this source-file compatibility facade
+under Bun. Bundled deployments use `@tschk/moonshine-dom/framework-native`
+explicitly; the facade intentionally keeps source loading outside the static
+bundle graph. Legacy React/View IR page outputs reject; native island hydration
+is unsupported. The renderer loads only when
+called, so signal bridge consumers do not load server rendering.
 
-Pages and middleware are still Nuxt's. Adopt treats Nuxt as Vue templates
-for markup IR; Nitro, `useFetch`, and file-based routing conventions are
-not provided by moonshine.
+Legacy entries require their optional host peers: `nuxt` and `vue`. They cannot be
+aliased over arbitrary host-compiled output to remove the host.
+
+Nuxt app composables, Nitro, auto-imports and Vue runtime rendering remain host APIs on the legacy entries. The native renderer does not implement their request payload or hydration contracts.
+Source parsing and compilation belong to Crepuscularity; these root runtime
+changes do not establish full Nuxt source support.

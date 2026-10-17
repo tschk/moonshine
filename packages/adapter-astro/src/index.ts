@@ -1,10 +1,4 @@
-/**
- * @tschk/moonshine-astro
- *
- * Hosting adapter: Astro compiles `.astro` files. Moonshine cannot replace
- * that compiler. `astro` is a peer; the compiler is re-exported on a
- * subpath, with moonshine signal bridges for islands that share state.
- */
+/** Native signal bridges and a lazy native renderer; host APIs remain on legacy subpaths. */
 import {
   createSignal as msCreateSignal,
   type Signal as MsSignal,
@@ -39,4 +33,4 @@ export {
   untrack,
 } from "@tschk/moonshine";
 export type { Resource, ResourceStatus } from "@tschk/moonshine";
-export { crepusRenderer } from "@tschk/crepus-moonshine";
+export { crepusRenderer } from "@tschk/moonshine-dom/framework-lazy";

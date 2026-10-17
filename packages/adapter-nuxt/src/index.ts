@@ -1,10 +1,4 @@
-/**
- * @tschk/moonshine-nuxt
- *
- * Hosting adapter: Nuxt compiles Vue SFCs and owns its nitro/app runtime.
- * Moonshine cannot replace that compiler. `nuxt` and `vue` are peers,
- * re-exported on subpaths, with moonshine signal bridges onto Vue refs.
- */
+/** Native signal bridges and a lazy native renderer; host APIs remain on legacy subpaths. */
 import {
   createSignal as msCreateSignal,
   type Signal as MsSignal,
@@ -21,7 +15,7 @@ export function fromMoonshineSignal<T>(signal: MsSignal<T>): VueRef<T> {
       return signal();
     },
     set value(next: T) {
-      signal.set(next);
+      signal.set(() => next);
     },
   };
 }
@@ -40,4 +34,4 @@ export {
   untrack,
 } from "@tschk/moonshine";
 export type { Resource, ResourceStatus } from "@tschk/moonshine";
-export { crepusRenderer } from "@tschk/crepus-moonshine";
+export { crepusRenderer } from "@tschk/moonshine-dom/framework-lazy";

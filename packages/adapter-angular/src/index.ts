@@ -1,11 +1,4 @@
-/**
- * @tschk/moonshine-angular
- *
- * Hosting adapter: Angular compiles templates and the component class.
- * Moonshine cannot replace that compiler. `@angular/core` and
- * `@angular/common` are peers, re-exported on subpaths, with moonshine
- * signal bridges onto an Angular-signal shape.
- */
+/** Native signal bridges and a lazy native renderer; host APIs remain on legacy subpaths. */
 import {
   createSignal as msCreateSignal,
   type Signal as MsSignal,
@@ -20,10 +13,11 @@ export type AngularSignal<T> = {
 export function fromMoonshineSignal<T>(signal: MsSignal<T>): AngularSignal<T> {
   const read = (() => signal()) as AngularSignal<T>;
   read.set = (value) => {
-    signal.set(value);
+    signal.set(() => value);
   };
   read.update = (fn) => {
-    signal.set(fn(signal.peek()));
+    const next = fn(signal.peek());
+    signal.set(() => next);
   };
   return read;
 }
@@ -42,4 +36,4 @@ export {
   untrack,
 } from "@tschk/moonshine";
 export type { Resource, ResourceStatus } from "@tschk/moonshine";
-export { crepusRenderer } from "@tschk/crepus-moonshine";
+export { crepusRenderer } from "@tschk/moonshine-dom/framework-lazy";

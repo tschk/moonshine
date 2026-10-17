@@ -1,24 +1,36 @@
 # `@tschk/moonshine-astro`
 
-Hosting adapter. Astro compiles `.astro` files; moonshine cannot replace
-that compiler. `astro` is a peer dependency. The compiler is re-exported
-on a subpath, alongside moonshine signal bridges.
+The root provides native Moonshine signal bridges and a lazy native renderer.
+At runtime, root imports need neither Astro, React, parser WASM nor the optional
+framework peer. Legacy host APIs remain explicit on their existing subpaths.
 
-This is not a reimplementation — you cannot alias `astro` onto this
-package and drop Astro.
+Strict TypeScript checking of the root entry requires installing
+`@tschk/moonshine-framework`, even when importing only a bridge: the root also
+exports `crepusRenderer` with the framework's `Renderer` contract. The framework
+remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
+This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
 
 ```ts
-import { fromMoonshineSignal } from "@tschk/moonshine-astro";
-import { transform } from "@tschk/moonshine-astro/compiler";
+import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-astro";
 ```
 
-| Subpath      | Provides                        |
-| ------------ | ------------------------------- |
-| `.`          | signal bridges, crepus renderer |
-| `./compiler` | `astro/compiler` re-exports     |
+| Entry        | Provides                                       |
+| ------------ | ---------------------------------------------- |
+| `.`          | Native signal bridges and lazy native renderer |
+| `./compiler` | Legacy Astro compiler re-exports               |
 
-Peer: `astro` >= 4.
+`crepusRenderer` preserves its compatibility name but renders native server
+factories, escaped metadata, API JSON and SPA shells. Install
+`@tschk/moonshine-framework` when invoking this source-file compatibility facade
+under Bun. Bundled deployments use `@tschk/moonshine-dom/framework-native`
+explicitly; the facade intentionally keeps source loading outside the static
+bundle graph. Legacy React/View IR page outputs reject; native island hydration
+is unsupported. The renderer loads only when
+called, so signal bridge consumers do not load server rendering.
 
-Frontmatter is still Astro's. Adopt compiles markup to View IR; imports,
-top-level awaits, and `Astro.props` are not executed. Imported component
-tags and `<slot />` are parse errors in the shared AST.
+Legacy entries require their optional host peers: `astro`. They cannot be
+aliased over arbitrary host-compiled output to remove the host.
+
+The compiler entry still requires Astro. Native rendering expects compiled Moonshine server factories; it does not execute Astro frontmatter or implement the Astro compiler result shapes.
+Source parsing and compilation belong to Crepuscularity; these root runtime
+changes do not establish full Astro source support.

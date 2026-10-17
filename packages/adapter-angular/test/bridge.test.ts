@@ -18,4 +18,21 @@ describe("@tschk/moonshine-angular", () => {
     sig.set("b");
     expect(sig()).toBe("b");
   });
+  test("set and update preserve literal function values without calling them", () => {
+    let calls = 0;
+    const first = () => 1;
+    const second = () => {
+      calls++;
+      return 2;
+    };
+    const value = createBridgedSignal(first);
+    value.set(second);
+    expect(value()).toBe(second);
+    value.update((previous) => {
+      expect(previous).toBe(second);
+      return first;
+    });
+    expect(value()).toBe(first);
+    expect(calls).toBe(0);
+  });
 });

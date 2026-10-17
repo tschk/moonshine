@@ -1,27 +1,37 @@
 # `@tschk/moonshine-angular`
 
-Hosting adapter. Angular compiles templates and the component class;
-moonshine cannot replace that compiler. `@angular/core` and
-`@angular/common` are peer dependencies, re-exported on subpaths,
-alongside moonshine signal bridges.
+The root provides native Moonshine signal bridges and a lazy native renderer.
+At runtime, root imports need neither Angular, React, parser WASM nor the optional
+framework peer. Legacy host APIs remain explicit on their existing subpaths.
 
-This is not a reimplementation — you cannot alias `@angular/core` onto
-this package and drop Angular.
+Strict TypeScript checking of the root entry requires installing
+`@tschk/moonshine-framework`, even when importing only a bridge: the root also
+exports `crepusRenderer` with the framework's `Renderer` contract. The framework
+remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
+This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
 
 ```ts
-import { fromMoonshineSignal } from "@tschk/moonshine-angular";
-import { Component } from "@tschk/moonshine-angular/core";
+import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-angular";
 ```
 
-| Subpath    | Provides                        |
-| ---------- | ------------------------------- |
-| `.`        | signal bridges, crepus renderer |
-| `./core`   | `@angular/core` re-exports      |
-| `./common` | `@angular/common` re-exports    |
+| Entry      | Provides                                       |
+| ---------- | ---------------------------------------------- |
+| `.`        | Native signal bridges and lazy native renderer |
+| `./core`   | Legacy Angular core re-exports                 |
+| `./common` | Legacy Angular common re-exports               |
 
-Peer: `@angular/core` / `@angular/common` >= 17.
+`crepusRenderer` preserves its compatibility name but renders native server
+factories, escaped metadata, API JSON and SPA shells. Install
+`@tschk/moonshine-framework` when invoking this source-file compatibility facade
+under Bun. Bundled deployments use `@tschk/moonshine-dom/framework-native`
+explicitly; the facade intentionally keeps source loading outside the static
+bundle graph. Legacy React/View IR page outputs reject; native island hydration
+is unsupported. The renderer loads only when
+called, so signal bridge consumers do not load server rendering.
 
-The component class is still Angular's. Adopt compiles markup to View IR;
-constructors, DI, `@Input`/`@Output`, and lifecycle hooks are not executed.
-Angular has no file-based routing, so generated IR is unmounted until you
-write moonshine route modules.
+Legacy entries require their optional host peers: `@angular/core` and `@angular/common`. They cannot be
+aliased over arbitrary host-compiled output to remove the host.
+
+Angular component decorators, dependency injection, templates and lifecycle remain host APIs on the legacy entries. Native rendering does not execute Angular component classes or claim Ivy instruction compatibility.
+Source parsing and compilation belong to Crepuscularity; these root runtime
+changes do not establish full Angular source support.
