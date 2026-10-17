@@ -1,3 +1,11 @@
+# Moonshine 0.4.3
+
+- Native `Show` accepts an optional compiler-provided condition cache, allowing
+  lazy validation after ancestor branches retire. Existing callers retain the
+  default cache. Disposed branches return without reading their conditions.
+- The signal-only entry remains unchanged. This release does not add SFC syntax
+  to the published Crepuscularity compiler or complete source compatibility.
+
 # Moonshine 0.4.2
 
 - The signal kernel installs no runtime dependencies. Rendering and framework
