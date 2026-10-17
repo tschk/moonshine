@@ -42,7 +42,7 @@ and localhost module fetch; paint, cold browser startup, routing, remote network
 asynchronous data and hydration are outside this workload. These results do not
 establish a universal smallest or fastest framework.
 
-## Rejected experiment: skip empty SSR attribute scans
+## Rejected SSR experiments
 
 A follow-up changed only intrinsic SSR `h` to skip `Object.keys(props ?? {})`
 when props are absent. On the unchanged compiled counter this avoided one empty
@@ -58,3 +58,11 @@ were checked before/after measurement. Host load was still elevated.
 This run demonstrated no speed benefit, so the change was rejected. It does
 not establish that the guard is universally slower; the runtime remains
 unchanged rather than adding an unproven optimization.
+
+A second experiment replaced cleanup's concatenated callback array with indexed
+iteration over its two existing snapshots. It passed 170 scoped tests and both
+strict checkers, but added 24 gzip bytes to this SSR bundle and 25 gzip bytes to
+an ordinary DOM consumer. Across 50 SSR pairs it won exactly half; the median
+paired candidate/baseline ratio was 0.9996. A separate 25-sample signal/effect
+write check was mixed and had worse p95. Neither run established a reliable
+benefit under the elevated host load, so this change was also rejected.
