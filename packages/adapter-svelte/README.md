@@ -482,5 +482,6 @@ The optional `/mount` entry freshly mounts compiler-marked native SFC factories 
 `readonly(store)` exposes only a bound `subscribe`, preserving custom store
 receivers, invalidators and cleanup. Writes through the original store still
 notify its subscribers. This facade does not freeze stored values. Authored
-`svelte/store` imports of `readonly` still require a Crepus compiler update;
-the direct Moonshine `/store` API is available independently.
+`svelte/store` named imports and aliases of `readonly` are admitted by the
+locally verified Crepus compiler for DOM and SSR. That compiler change is not
+published yet; the direct Moonshine `/store` API is available independently.
