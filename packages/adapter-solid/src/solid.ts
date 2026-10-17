@@ -31,29 +31,29 @@ export type { Accessor, Setter } from "@tschk/moonshine-dom/reactive";
 export { createResource } from "@tschk/moonshine-dom/resource";
 export type { Resource } from "@tschk/moonshine-dom/resource";
 
-type ListProps<T, U> = {
+type ListProps<T, F> = {
   readonly each: readonly T[] | false | null | undefined;
-  readonly fallback?: U;
+  readonly fallback?: F;
 };
-function withFallback<U>(
+function withFallback<U, F>(
   mapped: Accessor<U[]>,
-  fallback: () => U | undefined,
-): Accessor<U[] | U | undefined> {
-  const selected = nativeShow<boolean, U | Accessor<U[]> | undefined>({
+  fallback: () => F | undefined,
+): Accessor<U[] | F | undefined> {
+  const selected = nativeShow<boolean, F | Accessor<U[]> | undefined>({
     when: () => mapped().length > 0,
     children: () => mapped,
     fallback,
   });
   return () => {
     const value = selected();
-    return value === mapped ? mapped() : (value as U | undefined);
+    return value === mapped ? mapped() : (value as F | undefined);
   };
 }
-export function For<T, U>(
-  props: ListProps<T, U> & {
+export function For<T, U, F = U>(
+  props: ListProps<T, F> & {
     children: (item: T, index: Accessor<number>) => U;
   },
-): Accessor<U[] | U | undefined> {
+): Accessor<U[] | F | undefined> {
   const items = createMemo(() => props.each || []);
   return withFallback(
     nativeFor({
@@ -63,11 +63,11 @@ export function For<T, U>(
     () => props.fallback,
   );
 }
-export function Index<T, U>(
-  props: ListProps<T, U> & {
+export function Index<T, U, F = U>(
+  props: ListProps<T, F> & {
     children: (item: Accessor<T>, index: number) => U;
   },
-): Accessor<U[] | U | undefined> {
+): Accessor<U[] | F | undefined> {
   const items = createMemo(() => props.each || []);
   return withFallback(
     nativeIndex({

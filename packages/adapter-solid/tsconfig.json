@@ -1,4 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*", "test/portal.types.ts", "test/dynamic.types.ts"]
+  "include": [
+    "src/**/*",
+    "test/portal.types.ts",
+    "test/dynamic.types.ts",
+    "test/lists.types.ts"
+  ]
 }

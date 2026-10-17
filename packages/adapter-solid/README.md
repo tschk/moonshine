@@ -312,3 +312,17 @@ The compiler increment remains local and unpublished, using SDK 0.4.13's existin
 independent renderer. Manual bootstrap is required. External or foreign
 components, namespace/member tags, dynamic identities, component lookup through
 `export *`, hydration and async SSR remain unsupported.
+
+### Server list helpers
+
+`For` and `Index` are available from `@tschk/moonshine-solid/ssr` for synchronous
+server rendering. Both read the list and its length once, visit each row once,
+and evaluate `fallback` only for an empty, false or nullish list. `For` passes a
+value and an index accessor; `Index` passes an accessor for the captured row value
+and a numeric index. Rows retain the request context and native FIFO cleanup.
+
+DOM and SSR list helpers infer fallback types independently from row results;
+existing explicit two-type-argument calls remain valid. Authored `<For>` and
+`<Index>` compilation is still rejected: preserving callback contextual types
+through compiler lowering remains unfinished. No hydration or async SSR support
+is implied.

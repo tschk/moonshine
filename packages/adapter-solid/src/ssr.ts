@@ -39,3 +39,33 @@ export function Dynamic<T extends DynamicComponent<SSRChild>>(
   const [, rest] = splitProps(props, ["component"]);
   return createDynamic(() => props.component, rest as DynamicProps<T>);
 }
+
+/** Server lists snapshot their length and invoke each row once per request. */
+export function For<T, U, F = U>(props: {
+  each: readonly T[] | false | null | undefined;
+  fallback?: F;
+  children: (item: T, index: () => number) => U;
+}): U[] | F | undefined {
+  const items = props.each || [],
+    length = items.length,
+    child = props.children;
+  return length
+    ? Array.from({ length }, (_, index) => child(items[index]!, () => index))
+    : props.fallback;
+}
+
+export function Index<T, U, F = U>(props: {
+  each: readonly T[] | false | null | undefined;
+  fallback?: F;
+  children: (item: () => T, index: number) => U;
+}): U[] | F | undefined {
+  const items = props.each || [],
+    length = items.length,
+    child = props.children;
+  return length
+    ? Array.from({ length }, (_, index) => {
+        const item = items[index]!;
+        return child(() => item, index);
+      })
+    : props.fallback;
+}
