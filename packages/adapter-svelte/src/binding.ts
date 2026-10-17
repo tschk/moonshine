@@ -34,7 +34,7 @@ export function bindSelectValue(
 }
 
 export function createInputGroup(
-  kind: "radio" | "checkbox",
+  kind: "radio" | "checkbox" | "mixed",
   read: () => unknown,
   write: (value: unknown) => void,
 ): { bind(input: HTMLInputElement): void } {

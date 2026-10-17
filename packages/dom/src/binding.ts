@@ -274,7 +274,7 @@ function inputValue(input: HTMLInputElement): unknown {
 
 /** One explicit token per compiler binding target; never inferred from HTML names. */
 export function createInputGroup(
-  kind: "radio" | "checkbox",
+  kind: "radio" | "checkbox" | "mixed",
   read: () => unknown,
   write: (value: unknown) => void,
   equal: (left: unknown, right: unknown) => boolean = Object.is,
@@ -282,9 +282,13 @@ export function createInputGroup(
   const owner = getOwner();
   if (!owner || owner.disposed || owner.disposing)
     throw new Error("Input groups require a live native owner");
-  if (kind !== "radio" && kind !== "checkbox")
-    throw new TypeError("Input groups support radio or checkbox inputs only");
-  type Member = { input: HTMLInputElement; stop: () => void };
+  if (kind !== "radio" && kind !== "checkbox" && kind !== "mixed")
+    throw new TypeError("Input groups support radio, checkbox or mixed inputs only");
+  type Member = {
+    input: HTMLInputElement;
+    checkbox: boolean;
+    stop: () => void;
+  };
   const members = new Set<Member>();
   let active = true;
   function release(member: Member): void {
@@ -309,7 +313,7 @@ export function createInputGroup(
   function apply(member: Member): void {
     if (!active || !members.has(member)) return;
     const value = read();
-    if (kind === "checkbox") {
+    if (member.checkbox) {
       if (value != null && !Array.isArray(value))
         throw new TypeError(
           "Checkbox groups require an array or nullish value",
@@ -327,11 +331,22 @@ export function createInputGroup(
         throw new Error(
           "Input group members require a live group and native owner",
         );
-      if (!(input instanceof HTMLInputElement) || input.type !== kind)
-        throw new TypeError(`Input group requires ${kind} inputs`);
+      if (
+        !(input instanceof HTMLInputElement) ||
+        (kind === "mixed"
+          ? input.type !== "radio" && input.type !== "checkbox"
+          : input.type !== kind)
+      )
+        throw new TypeError(
+          kind === "mixed"
+            ? "Input group requires radio or checkbox inputs"
+            : `Input group requires ${kind} inputs`,
+        );
       if (inputUpdates.has(input))
         throw new Error("Input already belongs to a group");
-      const member: Member = { input, stop: () => {} };
+      const checkbox =
+        kind === "checkbox" || (kind === "mixed" && input.type === "checkbox");
+      const member: Member = { input, checkbox, stop: () => {} };
       onCleanup(() => release(member));
       try {
         createRoot((stop) => {
@@ -341,8 +356,8 @@ export function createInputGroup(
           listen(input, "change", (reset) =>
             untrack(() => {
               if (!active || !members.has(member)) return;
-              if (reset) write(kind === "checkbox" ? [] : null);
-              else if (kind === "radio") write(inputValue(input));
+              if (reset) write(checkbox ? [] : null);
+              else if (!checkbox) write(inputValue(input));
               else {
                 const ordered = [...members].toSorted((a, b) => {
                   const position = a.input.compareDocumentPosition(b.input);

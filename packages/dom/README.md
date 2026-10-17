@@ -348,6 +348,9 @@ Token disposal releases every member; row disposal unregisters only that member.
 The compiler allocates tokens per binding target/component and nested each path;
 there is no global name lookup or runtime ownership guessing. Browser HTML `name`
 grouping still applies independently. Keep input types fixed.
+Use `createInputGroup("mixed", read, write)` when one target intentionally combines
+radio and checkbox members. Selection follows each input's fixed type; checkbox
+writes collect checked values from every member, including radio payloads.
 
 `setInputValue(input, value)` stores typed group values privately and refreshes
 selection on value changes. Ordinary inputs retain string values without this

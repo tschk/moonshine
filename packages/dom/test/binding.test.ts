@@ -1024,3 +1024,36 @@ test("date/time and color resets forward raw invalid defaults without numeric co
     expect(read()).toBe("keep");
   }
 });
+
+test("mixed groups retain selected radio payloads when a checkbox writes membership", () => {
+  const radioValue = ["a"];
+  const [read, write] = createSignal<unknown>(["a"]);
+  let box!: HTMLInputElement;
+  let radio!: HTMLInputElement;
+  createRoot((stop) => {
+    disposers.push(stop);
+    const group = createInputGroup("mixed", read, write);
+    box = document.createElement("input");
+    box.type = "checkbox";
+    radio = document.createElement("input");
+    radio.type = "radio";
+    setInputValue(box, "a");
+    setInputValue(radio, radioValue);
+    document.body.append(box, radio);
+    group.bind(box);
+    group.bind(radio);
+    expect(() => group.bind(document.createElement("input"))).toThrow(
+      "radio or checkbox",
+    );
+  });
+  expect([box.checked, radio.checked]).toEqual([true, false]);
+  radio.checked = true;
+  radio.dispatchEvent(new Event("change"));
+  expect(read()).toBe(radioValue);
+  expect([box.checked, radio.checked]).toEqual([true, true]);
+  box.checked = false;
+  box.dispatchEvent(new Event("change"));
+  expect(read()).toEqual([radioValue]);
+  expect((read() as unknown[])[0]).toBe(radioValue);
+  expect([box.checked, radio.checked]).toEqual([false, false]);
+});
