@@ -1,3 +1,14 @@
+# Moonshine 0.4.9
+
+- Extend the opt-in DOM `hNS` factory to MathML and custom namespace strings,
+  retaining concrete HTML/SVG/MathML element types and browser namespace errors.
+- Add the compiler-facing `hSourceNS` factory for runtime namespace values,
+  preserving browser DOMString conversion while ordinary `h` and `hNS` retain
+  their existing conversion and validation contracts.
+- Keep the signal-only default entry unchanged. Matching authored Svelte
+  namespace lowering stays in Crepuscularity and is not published by this
+  runtime release. Full SFC coverage, hydration and async SSR remain incomplete.
+
 # Moonshine 0.4.8
 
 - Add independent class directive normalization to the opt-in Svelte `/class`
