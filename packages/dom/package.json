@@ -11,6 +11,7 @@
     "./dom": "./src/dom.ts",
     "./reactive": "./src/reactive.ts",
     "./component": "./src/component.ts",
+    "./platform": "./src/platform.ts",
     "./component-instance": "./src/component-instance.ts",
     "./ssr": "./src/ssr.ts",
     "./control": "./src/control.ts",
