@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { RenderContext, RouteArtifact } from "@tschk/moonshine-framework";
-import { solidRenderer } from "../src/index";
+import { solidRenderer, hydrateSolid } from "../src/index";
 
 const fixtures = join(import.meta.dir, "fixtures");
 
@@ -39,7 +39,7 @@ describe("solid renderer", () => {
     const html = await solidRenderer.prerender(
       makeContext(makeRoute({ mode: "static" })),
     );
-    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toMatch(/<!doctype html>/i);
     expect(html).toContain("<h1>");
     expect(html).toContain("Moonshine");
     expect(html).toContain('data-moonshine-mode="static"');
@@ -53,10 +53,10 @@ describe("solid renderer", () => {
     expect(res.headers.get("content-type")).toContain("text/html");
     const text = await res.text();
     expect(text).toContain("Moonshine");
-    expect(text).toContain("<!DOCTYPE html>");
+    expect(text).toMatch(/<!doctype html>/i);
   });
 
-  test("render ssr route returns a streaming HTML response", async () => {
+  test("render ssr route returns buffered native HTML", async () => {
     const res = await solidRenderer.render(
       makeContext(
         makeRoute({
@@ -96,7 +96,7 @@ describe("solid renderer", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     const text = await res.text();
-    expect(text).toContain("<!DOCTYPE html>");
+    expect(text).toMatch(/<!doctype html>/i);
     expect(text).toContain("/client.js");
     expect(text).toContain("<script");
     expect(text).toContain("moonshine-app");
@@ -111,13 +111,23 @@ describe("solid renderer", () => {
     expect(await res.json()).toEqual({ title: "Moonshine" });
   });
 
-  test("framework implementation imports solid-js/web, not React or Crepus", () => {
+  test("framework implementation reuses the independent renderer", () => {
     const src = readFileSync(
       join(import.meta.dir, "../src/framework.ts"),
       "utf8",
     );
-    expect(src).toContain("solid-js/web");
+    expect(src).toContain("@tschk/moonshine-dom/framework-source");
+    expect(src).not.toContain("solid-js");
     expect(src).not.toContain('from "react"');
     expect(src).not.toContain("crepus-moonshine");
+  });
+
+  test("unsupported hydration and islands reject explicitly", async () => {
+    expect(() => hydrateSolid(() => null, {}, {} as Element)).toThrow(
+      "Solid hydration is not implemented",
+    );
+    await expect(
+      solidRenderer.prerender(makeContext(makeRoute({ mode: "island" }))),
+    ).rejects.toThrow("Native island hydration is not implemented");
   });
 });

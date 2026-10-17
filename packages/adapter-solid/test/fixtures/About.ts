@@ -1,8 +1,5 @@
-import { escape, ssr } from "solid-js/web";
+import { h } from "@tschk/moonshine-dom/ssr";
 
 export default function About(props: { params?: { name?: string } }) {
-  return ssr(
-    ["<p>Hello ", "</p>"],
-    escape(String(props.params?.name ?? "world")),
-  );
+  return h("p", null, "Hello ", props.params?.name ?? "world");
 }

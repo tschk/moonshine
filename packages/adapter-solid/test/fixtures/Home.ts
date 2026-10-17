@@ -1,5 +1,5 @@
-import { escape, ssr } from "solid-js/web";
+import { h } from "@tschk/moonshine-dom/ssr";
 
 export default function Home(props: { data?: { title?: string } }) {
-  return ssr(["<h1>", "</h1>"], escape(String(props.data?.title ?? "Home")));
+  return h("h1", null, props.data?.title ?? "Home");
 }

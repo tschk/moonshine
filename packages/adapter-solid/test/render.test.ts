@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { createSignal } from "@tschk/moonshine";
-import { renderToString } from "solid-js/web";
-import { IR_VERSION, parseCrepus } from "@tschk/crepus-moonshine";
 import {
-  createBridgedSignal,
-  fromMoonshineSignal,
+  renderToString,
   renderCrepusIrSolid,
   type RenderCrepusOptions,
-} from "../src/index";
+} from "../src/ssr";
+import { IR_VERSION, parseCrepus } from "@tschk/crepuscularity-wasm";
+import { createBridgedSignal, fromMoonshineSignal } from "../src/index";
 
 function html(
   source: string,
@@ -100,4 +99,85 @@ describe("renderCrepusIrSolid", () => {
     const out = html('span\n  "hi"', undefined, { rootTag: "section" });
     expect(out).toContain("<section");
   });
+});
+
+test("rejects unsupported and inherited View IR node kinds, including nested nodes", () => {
+  for (const kind of ["unknown", "constructor", "toString", "__proto__"]) {
+    const invalid = { kind };
+    for (const root of [
+      [invalid],
+      [{ kind: "stack", axis: "column", children: [invalid] }],
+    ]) {
+      expect(() =>
+        renderCrepusIrSolid({ version: IR_VERSION, root } as never),
+      ).toThrow(new TypeError(`Unsupported View IR node kind: ${kind}`));
+    }
+  }
+});
+
+test("root IR factory mounts actual DOM kinds and removes its owned range", async () => {
+  await import("../../react/test/dom");
+  const { render } = await import("@tschk/moonshine-dom/dom");
+  const { renderCrepusIrSolid: renderDOM } = await import("../src/index");
+  const container = document.createElement("main");
+  document.body.append(container);
+  const ir = {
+    version: IR_VERSION,
+    root: [
+      {
+        kind: "stack",
+        children: [
+          { kind: "text", content: "<&", style: { classes: ["label"] } },
+          {
+            kind: "checkbox",
+            label: "Enabled",
+            checked: true,
+            bind: "enabled",
+          },
+          {
+            kind: "picker",
+            bind: "choice",
+            options: [{ value: "a", label: "A" }],
+          },
+          {
+            kind: "if",
+            condition: "false",
+            thenChildren: [{ kind: "text", content: "placeholder" }],
+            elseChildren: [],
+          },
+          {
+            kind: "forEach",
+            bind: "rows",
+            itemName: "row",
+            itemBody: [{ kind: "text", content: "item template" }],
+          },
+        ],
+      },
+    ],
+  } as never;
+  const stop = render(() => renderDOM(ir, { rootTag: "section" }), container);
+  try {
+    expect(
+      container.querySelector("section")!.getAttribute("data-crepus-target"),
+    ).toBe("solid");
+    expect(container.querySelector("span.label")!.textContent).toBe("<&");
+    expect(container.querySelector("input")!.checked).toBe(true);
+    expect(container.querySelector("select")!.options[0]!.value).toBe("a");
+    expect(container.querySelector("[data-crepus-if]")!.textContent).toBe(
+      "placeholder",
+    );
+    expect(container.querySelector("[data-crepus-for-each]")!.textContent).toBe(
+      "item template",
+    );
+    expect(() =>
+      renderDOM({
+        version: IR_VERSION,
+        root: [{ kind: "constructor" }],
+      } as never),
+    ).toThrow(TypeError);
+  } finally {
+    stop();
+    expect(container.childNodes).toHaveLength(0);
+    container.remove();
+  }
 });

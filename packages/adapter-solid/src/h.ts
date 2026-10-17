@@ -1,4 +1,2 @@
-/**
- * solid-js/h hyperscript for IR / non-JSX usage.
- */
-export { default } from "solid-js/h";
+export { h as default, h } from "./component-factory";
+export type { DOMChild } from "@tschk/moonshine-dom/dom";

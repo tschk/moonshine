@@ -1,124 +1,41 @@
 import type { RenderContext, Renderer } from "@tschk/moonshine-framework";
-import type { JSX } from "solid-js";
-import {
-  createComponent,
-  escape,
-  hydrate as solidHydrate,
-  isServer,
-  renderToStream,
-  renderToStringAsync,
-  ssr,
-} from "solid-js/web";
+import { escapeHtml } from "@tschk/moonshine-dom/ssr";
+import type { DOMChild } from "@tschk/moonshine-dom/dom";
 
-type SsrNode = ReturnType<typeof ssr>;
-
-type PageProps = {
-  params: Record<string, string>;
-  data: unknown;
-};
-
-async function loadComponent(
-  file: string,
-): Promise<(props: unknown) => SsrNode> {
-  const mod = await import(file);
-  return (mod.default ?? mod) as (props: unknown) => SsrNode;
+async function prerender(context: RenderContext): Promise<string> {
+  const { sourceRenderer } =
+    await import("@tschk/moonshine-dom/framework-source");
+  const html = await sourceRenderer.prerender(context);
+  return context.route.mode === "api"
+    ? html
+    : html.replace(
+        "<body>",
+        `<body data-moonshine-mode="${escapeHtml(context.route.mode)}">`,
+      );
 }
 
-function escapeAttr(value: string): string {
-  return (escape as (s: string, attr: boolean) => string)(value, true);
-}
-
-function Shell(props: { mode: string; children: SsrNode }): SsrNode {
-  return ssr(
-    ["<!DOCTYPE html><html><head></head>", "</html>"],
-    ssr(
-      ['<body data-moonshine-mode="', '">', "</body>"],
-      escapeAttr(props.mode),
-      props.children,
-    ),
-  );
-}
-
-async function buildBody(context: RenderContext): Promise<SsrNode> {
-  const Page = await loadComponent(context.route.file);
-  const pageProps: PageProps = { params: context.params, data: context.data };
-  let body = Page(pageProps);
-  if (context.route.layouts) {
-    for (let i = context.route.layouts.length - 1; i >= 0; i--) {
-      const Layout = await loadComponent(context.route.layouts[i]!);
-      body = Layout({ ...pageProps, children: body });
-    }
-  }
-  return Shell({ mode: context.route.mode, children: body });
-}
-
-function buildSpaShell(context: RenderContext): SsrNode {
-  const clientTags = context.route.clientEntries
-    .map((href) => `<script type="module" src="${escapeAttr(href)}"></script>`)
-    .join("");
-  const body = ssr(
-    [
-      '<body data-moonshine-mode="',
-      '"><div id="moonshine-app" data-moonshine-app="',
-      '"></div>',
-      "</body>",
-    ],
-    escapeAttr(context.route.mode),
-    escapeAttr(context.route.id),
-    clientTags,
-  );
-  return ssr(
-    ["<!DOCTYPE html><html><head>", "</head>", "</html>"],
-    clientTags,
-    body,
-  );
-}
-
-async function renderPageToString(context: RenderContext): Promise<string> {
-  const body = await buildBody(context);
-  return renderToStringAsync(() => body);
-}
-
-async function renderPage(context: RenderContext): Promise<Response> {
-  const body = await buildBody(context);
-  const { readable, writable } = new TransformStream();
-  const stream = renderToStream(() => body);
-  stream.pipeTo(writable);
-  return new Response(readable, {
-    headers: { "content-type": "text/html; charset=utf-8" },
-  });
-}
-
+/** Compatibility name for the independent, buffered server renderer. */
 export const solidRenderer: Renderer = {
   name: "solid",
-  async prerender(context) {
-    if (context.route.mode === "api") return JSON.stringify(context.data);
-    if (context.route.mode === "spa") {
-      return renderToStringAsync(() => buildSpaShell(context));
-    }
-    return renderPageToString(context);
-  },
+  prerender,
   async render(context) {
-    if (context.route.mode === "api") {
-      return new Response(JSON.stringify(context.data), {
-        headers: { "content-type": "application/json; charset=utf-8" },
-      });
-    }
-    if (context.route.mode === "spa") {
-      const html = await renderToStringAsync(() => buildSpaShell(context));
-      return new Response(html, {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
-    }
-    return renderPage(context);
+    return new Response(await prerender(context), {
+      headers: {
+        "content-type":
+          context.route.mode === "api"
+            ? "application/json; charset=utf-8"
+            : "text/html; charset=utf-8",
+      },
+    });
   },
 };
 
 export function hydrateSolid<T>(
-  Component: (props: T) => JSX.Element,
-  props: T,
-  container: Element,
-): (() => void) | undefined {
-  if (isServer) return;
-  return solidHydrate(() => createComponent(Component, props), container);
+  _Component: (props: T) => DOMChild,
+  _props: T,
+  _container: Element,
+): never {
+  throw new Error(
+    "Solid hydration is not implemented; compile with Crepus and use native render for a fresh mount",
+  );
 }

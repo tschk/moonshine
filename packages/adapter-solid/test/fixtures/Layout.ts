@@ -1,5 +1,5 @@
-import { ssr } from "solid-js/web";
+import { h, type SSRChild } from "@tschk/moonshine-dom/ssr";
 
-export default function Layout(props: { children: { t: string } }) {
-  return ssr(["<main>", "</main>"], props.children);
+export default function Layout(props: { children: SSRChild }) {
+  return h("main", null, props.children);
 }

@@ -1,28 +1,34 @@
 {
   "name": "@tschk/moonshine-solid",
   "version": "0.4.2",
-  "description": "Solid adapter — moonshine IR bridge + solid-js library re-exports",
+  "description": "Independent Moonshine replacement for supported Solid APIs and Crepus IR",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./reactive": "./src/reactive.ts",
+    "./dom": "./src/dom.ts",
+    "./control": "./src/control.ts",
+    "./ssr": "./src/ssr.ts",
+    "./framework-native": "./src/framework-native.ts",
     "./solid": "./src/solid.ts",
     "./store": "./src/store.ts",
-    "./h": "./src/h.ts"
+    "./h": "./src/h.ts",
+    "./portal": "./src/portal.ts",
+    "./dynamic": "./src/dynamic.ts"
   },
   "dependencies": {
-    "@tschk/crepuscularity-wasm": "^0.1.3",
     "@tschk/moonshine": "^0.4.2",
-    "@tschk/moonshine-framework": "^0.4.2",
-    "@tschk/crepus-moonshine": "^0.4.2"
+    "@tschk/moonshine-dom": "^0.4.2"
   },
   "devDependencies": {
     "typescript": "7.0.2"
   },
   "peerDependencies": {
-    "solid-js": ">=1.8"
+    "@tschk/crepuscularity-wasm": "^0.1.3",
+    "@tschk/moonshine-framework": "^0.4.2"
   },
   "files": [
     "src",
@@ -38,5 +44,13 @@
     "lint": "bunx oxlint .",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test"
+  },
+  "peerDependenciesMeta": {
+    "@tschk/crepuscularity-wasm": {
+      "optional": true
+    },
+    "@tschk/moonshine-framework": {
+      "optional": true
+    }
   }
 }

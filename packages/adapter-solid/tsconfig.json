@@ -1,8 +1,4 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js"
-  },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "test/portal.types.ts", "test/dynamic.types.ts"]
 }
