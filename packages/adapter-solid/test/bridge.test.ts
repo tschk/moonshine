@@ -35,13 +35,26 @@ test("Solid bridge unsubscribes once when its owner is disposed", async () => {
               console.log("bridge disposed");
             `,
     );
-    const result = await Bun.build({
-      entrypoints: [entry],
-      target: "browser",
-    });
-    expect(result.success, result.logs.join("\n")).toBe(true);
     const file = join(dir, "fixture.js");
-    await Bun.write(file, result.outputs[0]!);
+    // Keep the browser build isolated from Bun test's loaded module cache.
+    const build = Bun.spawn(
+      [
+        process.execPath,
+        "build",
+        entry,
+        "--target",
+        "browser",
+        "--outfile",
+        file,
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const [buildStdout, buildStderr, buildExit] = await Promise.all([
+      new Response(build.stdout).text(),
+      new Response(build.stderr).text(),
+      build.exited,
+    ]);
+    expect(buildExit, buildStdout + buildStderr).toBe(0);
     const child = Bun.spawn([process.execPath, file], {
       stdout: "pipe",
       stderr: "pipe",
