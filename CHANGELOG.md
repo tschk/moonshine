@@ -1,3 +1,13 @@
+# Moonshine 0.4.13
+
+- Add opt-in native `bindFiles` and the independent Svelte binding re-export,
+  preserving FileList writes, nullish models, connected-form reset and cleanup.
+- Keep the signal-only default entry unchanged. Native disposal removes saved
+  detached-input listeners, an explicit difference from the Svelte reference.
+- Authored `bind:files` compilation is verified locally in Crepuscularity and
+  requires this runtime export; compiler publication is separate. Hydration,
+  dynamic input types, spreads and function bindings remain unsupported.
+
 # Moonshine 0.4.12
 
 - Add independent `readonly(store)` subscriptions on the opt-in Svelte store

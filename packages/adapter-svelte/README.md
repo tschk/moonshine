@@ -495,5 +495,5 @@ verified Crepus compiler lowers authored `bind:files` on static file inputs with
 identifier/member targets, including keyed rows. SSR omits the value without
 reading it and retains unreachable checks for typed assignments/change handlers.
 Function bindings, dynamic input types, spreads and hydration remain unsupported.
-This compiler change is unpublished and requires the `bindFiles` runtime added in
-Moonshine commit `f214d60`, which is absent from the 0.4.12 release.
+This compiler change is unpublished and requires the `bindFiles` runtime from
+Moonshine 0.4.13 or newer.
