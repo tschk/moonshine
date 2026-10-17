@@ -1,4 +1,5 @@
 import type { RenderMode, RouteDefinition, RuntimeTarget } from "./routes";
+import type { RendererName } from "./renderer";
 
 export const MANIFEST_VERSION = 1 as const;
 
@@ -14,6 +15,7 @@ export type RouteArtifact = RouteDefinition & {
   decision: string;
   serverEntry?: string;
   clientEntries: string[];
+  clientStyles?: string[];
   staticOutput?: string;
   cache?: { control?: string; revalidate?: number };
   headers?: Record<string, string>;
@@ -22,6 +24,8 @@ export type RouteArtifact = RouteDefinition & {
 export type MoonshineManifest = {
   version: typeof MANIFEST_VERSION;
   frameworkVersion: string;
+  renderer?: RendererName;
+  requestContext?: boolean;
   routes: RouteArtifact[];
   assets: Array<{ path: string; file: string; integrity?: string }>;
   entries: { server?: string; client?: string };

@@ -1,0 +1,59 @@
+{
+  "name": "@tschk/moonshine-dom",
+  "version": "0.4.2",
+  "description": "Independent Moonshine DOM, SSR and reactive rendering",
+  "license": "ISC",
+  "type": "module",
+  "main": "./src/dom.ts",
+  "types": "./src/dom.ts",
+  "exports": {
+    ".": "./src/dom.ts",
+    "./dom": "./src/dom.ts",
+    "./reactive": "./src/reactive.ts",
+    "./component": "./src/component.ts",
+    "./component-instance": "./src/component-instance.ts",
+    "./ssr": "./src/ssr.ts",
+    "./control": "./src/control.ts",
+    "./store": "./src/store.ts",
+    "./resource": "./src/resource.ts",
+    "./framework-native": "./src/framework-native.ts",
+    "./framework-source": "./src/framework-source.ts",
+    "./jsx-types": {
+      "types": "./src/jsx-types.d.ts"
+    },
+    "./binding": "./src/binding.ts",
+    "./custom-element": "./src/custom-element.ts",
+    "./ssr-owner": "./src/ssr-owner.ts",
+    "./ssr-attempt": "./src/ssr-attempt.ts",
+    "./html": "./src/html.ts",
+    "./framework-lazy": "./src/framework-lazy.ts",
+    "./render-scheduler": "./src/render-scheduler.ts",
+    "./rotating-text": "./src/rotating-text.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "format": "bunx prettier --check .",
+    "lint": "bunx oxlint .",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tschk/moonshine": "^0.4.2"
+  },
+  "peerDependencies": {
+    "@tschk/moonshine-framework": "^0.4.2"
+  },
+  "peerDependenciesMeta": {
+    "@tschk/moonshine-framework": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.14",
+    "typescript": "7.0.2"
+  }
+}

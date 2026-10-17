@@ -3,6 +3,7 @@ import type { RenderMode, RuntimeTarget } from "./routes";
 export type MoonshineConfig = {
   mode?: RenderMode;
   runtime?: RuntimeTarget;
+  requestContext?: boolean;
 };
 
 export function defineConfig<T extends MoonshineConfig>(config: T): T {
