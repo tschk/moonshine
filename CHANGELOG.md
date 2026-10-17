@@ -1,3 +1,14 @@
+# Moonshine 0.4.10
+
+- Add an explicit compiler-facing SSR selection policy that preserves authored
+  option selection flags alongside raw binding matches. Native selection boxes
+  retain their existing override behavior.
+- Preserve typed source option value attribute placement without invoking an
+  overridden value getter, and validate selection-policy metadata as own data.
+- Keep the signal-only default entry unchanged. Select source lowering belongs
+  to the separately maintained Crepuscularity compiler and is not published by
+  this runtime release. Hydration and full SFC compatibility remain incomplete.
+
 # Moonshine 0.4.9
 
 - Extend the opt-in DOM `hNS` factory to MathML and custom namespace strings,
