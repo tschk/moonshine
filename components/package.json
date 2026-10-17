@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-components",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "Moonshine dither charts, primitives, and motion components",
   "license": "ISC",
   "type": "module",

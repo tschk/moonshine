@@ -1,3 +1,15 @@
+# Moonshine 0.4.7
+
+- Add opt-in DOM `/head` and synchronous `/head-ssr` entries for owned head
+  nodes, reactive document titles and separate SSR head/body output.
+- Collect component head declarations in the native framework renderer;
+  component titles override fallback route metadata.
+- Isolate nested SSR requests and accepted render buffers while preserving
+  component lifecycle cleanup and discarding failed head declarations.
+- Keep the default signal entry unchanged. Matching authored Svelte lowering
+  remains in Crepuscularity and is not published by this runtime release.
+  Hydration, asynchronous SSR and complete SFC compatibility remain unsupported.
+
 # Moonshine 0.4.6
 
 - Add the opt-in `@tschk/moonshine-dom/platform` compiler entry, providing
