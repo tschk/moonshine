@@ -32,6 +32,47 @@ called, so signal bridge consumers do not load server rendering.
 Legacy entries require their optional host peers: `@angular/core` and `@angular/common`. They cannot be
 aliased over arbitrary host-compiled output to remove the host.
 
-Angular component decorators, dependency injection, templates and lifecycle remain host APIs on the legacy entries. Native rendering does not execute Angular component classes or claim Ivy instruction compatibility.
+Angular component decorators, dependency injection, compiled-template instructions and lifecycle remain host APIs on the legacy entries. Native rendering does not execute Angular component classes or claim Ivy instruction compatibility.
 Source parsing and compilation belong to Crepuscularity; these root runtime
 changes do not establish full Angular source support.
+
+## Native template protocol
+
+The locally verified Crepus template emitter accepts `.component.html` templates
+without Angular. Compiler publication is separate from the Moonshine SDK.
+
+```html
+<ul>
+  <li *ngFor="let item of items">{{ item }}</li>
+</ul>
+<button (click)="save()">Save</button>
+```
+
+```sh
+crepus web build --site src --entry app.component.html --emit moonshine-dom --out-dir generated
+```
+
+```ts
+import Template from "./generated/CrepusEmit.moonshine-dom.ts";
+import { createBridgedSignal } from "@tschk/moonshine-angular";
+import { h, render } from "@tschk/moonshine-dom";
+
+const items = createBridgedSignal(["first", "second"]);
+render(
+  () =>
+    h(Template, {
+      scope: () => ({ items: items() }),
+      handlers: {
+        "save()": () => items.update((values) => [...values, "saved"]),
+      },
+    }),
+  document.getElementById("app")!,
+);
+```
+
+The scope reader keeps list updates live; handler keys are literal source
+expressions, so this template uses `"save()"`. Browser checks cover clicks,
+reordering with retained row identity, removal, append and disposal. The
+`moonshine-ssr` target renders the same template with an explicit scope object
+and escaped values on Bun and Node. This protocol does not instantiate Angular
+component classes, run their lifecycle hooks or implement Ivy instructions.

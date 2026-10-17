@@ -34,3 +34,9 @@ aliased over arbitrary host-compiled output to remove the host.
 The compiler entry still requires Astro. Native rendering expects compiled Moonshine server factories; it does not execute Astro frontmatter or implement the Astro compiler result shapes.
 Source parsing and compilation belong to Crepuscularity; these root runtime
 changes do not establish full Astro source support.
+
+The legacy Crepus template emit currently accepts fenced Astro input while
+skipping its frontmatter and reading template expressions from an explicit
+`scope`. A successful template build does not establish execution of constants,
+`Astro.props`, imports or top-level `await`. Authored Astro server-module lowering
+remains a compiler gap; it must be implemented in Crepuscularity.
