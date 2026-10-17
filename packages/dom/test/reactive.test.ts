@@ -727,6 +727,7 @@ test("on input/value histories, defer, dynamic dependencies and callback writes 
   const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join, resolve } = await import("node:path");
+  const { createRequire } = await import("node:module");
   const directory = await mkdtemp(join(tmpdir(), "moonshine-on-reference-"));
   try {
     const entry = join(directory, "reference.ts");
@@ -734,11 +735,15 @@ test("on input/value histories, defer, dynamic dependencies and callback writes 
       entry,
       `export {on,createSignal,createComputed,createRoot,batch} from ${JSON.stringify(resolve(import.meta.dir, "../../../node_modules/solid-js/dist/solid.js"))};`,
     );
-    const result = await Bun.build({ entrypoints: [entry], target: "browser" });
+    const result = await Bun.build({
+      entrypoints: [entry],
+      target: "browser",
+      format: "cjs",
+    });
     expect(result.success).toBe(true);
-    const reference = (await import(
-      `data:text/javascript;base64,${Buffer.from(await result.outputs[0]!.text()).toString("base64")}`
-    )) as {
+    const referenceFile = join(directory, "reference.cjs");
+    await writeFile(referenceFile, await result.outputs[0]!.text());
+    const reference = createRequire(import.meta.url)(referenceFile) as {
       on: typeof on;
       createSignal: typeof createSignal;
       createComputed: typeof createComputed;

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { createMutable, createStore, produce, reconcile } from "../src/store";
 import { createComputed, createRoot, onCleanup } from "../src/reactive";
 
@@ -21,6 +22,7 @@ async function loadSolid() {
     const result = await Bun.build({
       entrypoints: [input],
       target: "browser",
+      format: "cjs",
       plugins: [
         {
           name: "solid-browser",
@@ -36,9 +38,9 @@ async function loadSolid() {
       ],
     });
     if (!result.success) throw new Error(JSON.stringify(result.logs));
-    return (await import(
-      `data:text/javascript;base64,${Buffer.from(await result.outputs[0]!.text()).toString("base64")}`
-    )) as {
+    const output = join(dir, "reference.cjs");
+    await writeFile(output, await result.outputs[0]!.text());
+    return createRequire(import.meta.url)(output) as {
       createStore: typeof createStore;
       produce: typeof produce;
       reconcile: typeof reconcile;

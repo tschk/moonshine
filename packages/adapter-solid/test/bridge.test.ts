@@ -6,21 +6,10 @@ import { join, resolve } from "node:path";
 test("Solid bridge unsubscribes once when its owner is disposed", async () => {
   const dir = await mkdtemp(join(tmpdir(), "moonshine-solid-bridge-"));
   try {
-    const result = await Bun.build({
-      entrypoints: ["bridge-fixture"],
-      target: "browser",
-      plugins: [
-        {
-          name: "bridge-fixture",
-          setup(build) {
-            build.onResolve({ filter: /^bridge-fixture$/ }, () => ({
-              path: "fixture",
-              namespace: "bridge",
-            }));
-            build.onLoad({ filter: /.*/, namespace: "bridge" }, () => ({
-              loader: "ts",
-              resolveDir: resolve(import.meta.dir, ".."),
-              contents: `
+    const entry = join(dir, "fixture.ts");
+    await Bun.write(
+      entry,
+      `
               import { createRoot } from ${JSON.stringify(resolve(import.meta.dir, "../../dom/src/reactive.ts"))};
               import { fromMoonshineSignal } from ${JSON.stringify(resolve(import.meta.dir, "../src/index.ts"))};
               let value = 1;
@@ -45,10 +34,10 @@ test("Solid bridge unsubscribes once when its owner is disposed", async () => {
               if (set(4) !== 4 || value !== 4 || get() !== 2) throw Error("disposed bridge setter contract");
               console.log("bridge disposed");
             `,
-            }));
-          },
-        },
-      ],
+    );
+    const result = await Bun.build({
+      entrypoints: [entry],
+      target: "browser",
     });
     expect(result.success, result.logs.join("\n")).toBe(true);
     const file = join(dir, "fixture.js");
