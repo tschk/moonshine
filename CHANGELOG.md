@@ -1,3 +1,14 @@
+# Moonshine 0.4.15
+
+- Preserve native Solid list callback capture, unbound calls and DOM callback arity.
+- Retain duplicate row identity and indexed slot values, dispose removed rows before
+  replacement setup, and own lazy fallbacks across notified empty-list changes.
+- Observe notified changes to the same array while preserving default native mapper
+  scheduling and strict generic Svelte helper types. Keep the core signal-only.
+- Authored list lowering is verified locally in Crepuscularity and remains
+  unpublished. Hydration, async SSR and the full Solid compiled ABI remain
+  unsupported. The measured list fixture is larger than the Solid reference.
+
 # Moonshine 0.4.14
 
 - Add independent synchronous Solid `For` and `Index` helpers on `/ssr`,
