@@ -1,3 +1,13 @@
+# Moonshine 0.4.6
+
+- Add the opt-in `@tschk/moonshine-dom/platform` compiler entry, providing
+  `sourceRealm` and type-only `GlobalTypes` exports for generated code.
+- Ship the platform entry as JavaScript with type declarations so the public
+  npm subpath loads directly in Node without TypeScript stripping.
+- The signal-only entry remains unchanged. Source parsing and lowering stay in
+  Crepuscularity; this runtime release does not publish new component syntax or
+  claim complete SFC, hydration or async SSR support.
+
 # Moonshine 0.4.5
 
 - Add opt-in `hSource` intrinsic SSR construction with source attribute semantics,
