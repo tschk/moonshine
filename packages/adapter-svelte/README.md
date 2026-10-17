@@ -490,6 +490,10 @@ The optional `/binding` entry re-exports native `bindFiles` for independent
 file-input factories. Nullish models preserve selected files; clearing requires
 an empty `FileList`. Change and connected-form reset write the current list.
 Disposal removes listeners, including on retained detached inputs; Svelte's
-reference can still update its model from those saved elements. Authored
-`bind:files` lowering remains pending in Crepuscularity; this runtime helper
-does not claim source-level support or hydration.
+reference can still update its model from those saved elements. The locally
+verified Crepus compiler lowers authored `bind:files` on static file inputs with
+identifier/member targets, including keyed rows. SSR omits the value without
+reading it and retains unreachable checks for typed assignments/change handlers.
+Function bindings, dynamic input types, spreads and hydration remain unsupported.
+This compiler change is unpublished and requires the `bindFiles` runtime added in
+Moonshine commit `f214d60`, which is absent from the 0.4.12 release.
