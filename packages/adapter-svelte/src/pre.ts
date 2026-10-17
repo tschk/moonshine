@@ -12,6 +12,8 @@ import {
   getOwner,
   getRenderScheduler,
   onCleanup,
+  onBeforeDispose,
+  queuePostCommit,
   runWithOwner,
   untrack,
   type Owner,
@@ -29,7 +31,11 @@ import { flushComponentReferences } from "@tschk/moonshine-dom/component-instanc
 import { holdHistory, releaseHistory, withHistoryCleanup } from "./history";
 import { queueTickWork, removeTickWork } from "./tick-queue";
 const runeConsumerKey = /* @__PURE__ */ Symbol("moonshine.svelte.consumer");
+const runeNodeKey = /* @__PURE__ */ Symbol("moonshine.svelte.node");
 type Node = {
+  source?: true;
+  componentCap?: Node;
+  referenceTail?: { owner: Owner; callbacks: Array<() => void> };
   consumer?: ComponentContext;
   owner: Owner;
   parent?: Node;
@@ -258,8 +264,12 @@ function cancel(): void {
 }
 function carrier(parent: Node | undefined): RenderScheduler & {
   readonly [runeConsumerKey]: ComponentContext | undefined;
+  readonly [runeNodeKey]: Node | undefined;
 } {
   return {
+    get [runeNodeKey]() {
+      return parent;
+    },
     get [runeConsumerKey]() {
       for (let value = parent; value; value = value.parent)
         if (value.consumer) return value.consumer;
@@ -548,15 +558,92 @@ export function getRuneConsumer(): ComponentContext | undefined {
       | undefined
   )?.[runeConsumerKey];
 }
+function runeNode(): Node | undefined {
+  return (
+    getRenderScheduler() as
+      (RenderScheduler & { readonly [runeNodeKey]?: Node }) | undefined
+  )?.[runeNodeKey];
+}
+function sourceNode(value: Node | undefined): Node | undefined {
+  for (; value; value = value.parent) if (value.source) return value;
+}
+/** Compiler-only: called inside an actual source control callback, not synthetic groups. */
+export function markRuneSourceEffect(): void {
+  const value = runeNode();
+  if (
+    !value ||
+    value.owner !== getOwner() ||
+    value.owner.disposed ||
+    value.owner.disposing
+  )
+    throw Error("Source effects require a live current Rune group");
+  value.source = true;
+}
+/** Internal intrinsic-reference cleanup policy; captures provenance before its synthetic branch. */
+export function captureRuneReferenceCleanup(): (clear: () => void) => void {
+  const value = runeNode();
+  const source = sourceNode(value);
+  let cap: Node | undefined;
+  for (let n = value; n; n = n.parent)
+    if (n.componentCap) {
+      cap = n.componentCap;
+      break;
+    }
+  if (!source || !cap || !isAncestor(cap, source))
+    throw Error("Element references require valid Rune source provenance");
+  const path: Node[] = [];
+  for (let n: Node | undefined = source; n; n = n.parent) {
+    if (n.source) path.push(n);
+    if (n === cap) break;
+  }
+  for (const n of path) {
+    if (n.referenceTail) continue;
+    const owner =
+      n.componentCap === n
+        ? (n.consumer?.owner ?? n.owner.parent ?? n.owner)
+        : n.owner;
+    if (owner.disposed || owner.disposing)
+      throw Error("Reference tails require live source owners");
+    const callbacks: Array<() => void> = [];
+    n.referenceTail = { owner, callbacks };
+    runWithOwner(owner, () =>
+      onBeforeDispose(() =>
+        onCleanup(() => {
+          let failed = false,
+            failure: unknown;
+          while (callbacks.length) {
+            try {
+              untrack(callbacks.pop()!);
+            } catch (error) {
+              if (!failed) failure = error;
+              failed = true;
+            }
+          }
+          if (failed) throw failure;
+        }),
+      ),
+    );
+  }
+  return (clear) => {
+    let selected: Node | undefined;
+    for (const n of path) if (n.referenceTail!.owner.disposing) selected = n;
+    if (selected) selected.referenceTail!.callbacks.push(clear);
+    else queuePostCommit(clear);
+  };
+}
 export function withRuneScheduler<T>(fn: () => T): T {
   if (isSSRRendering() || peekComponentContext()?.mode === "ssr") return fn();
   const parent = getOwner();
   if (!parent || parent.disposed)
     throw new Error("Rune scheduling requires a live native owner");
   const consumer = peekComponentContext();
+  const inherited = runeNode();
+  const inheritedSource = sourceNode(inherited);
   return createComponentScope(() => {
     const owner = getOwner()!;
-    const group = node(owner, current);
+    const group = node(owner, inherited ?? current);
+    if (!inheritedSource) group.source = true;
+    group.componentCap = inheritedSource ?? group;
     if (consumer?.active) group.consumer = consumer;
     onCleanup(() => {
       group.disposed = true;

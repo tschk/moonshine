@@ -6,6 +6,7 @@
     "test/raw-snippet.types.ts",
     "test/store-write.types.ts",
     "test/action.types.ts",
+    "test/binding.types.ts",
     "test/private-class-state.types.ts",
     "test/mount.types.ts",
     "test/spread-props.types.ts"
