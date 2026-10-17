@@ -139,6 +139,7 @@ export default function Page() {
       ["moonshine-router", "router"],
       ["moonshine-server", "server"],
       ["moonshine-deploy-bun", "deploy-bun"],
+      ["moonshine-next", "adapter-next"],
     ]) {
       const target = join(artifact, "node_modules/@tschk", name!);
       await cp(join(root, "packages", folder!, "src"), join(target, "src"), {

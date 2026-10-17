@@ -133,8 +133,10 @@ Be aware of these before migrating — none of them are stubbed to silently
 - **No file-system routing conventions.** `layout.tsx`, `loading.tsx`,
   `error.tsx`, `template.tsx`, route groups, parallel and intercepting routes
   are not interpreted. Use the moonshine router.
-- **No `next/headers` mutation.** `cookies()` is read-only — no `set()` or
-  `delete()`. `draftMode()` always reports disabled.
+- **Bounded cookie mutation.** `cookies().set()` and `.delete()` use the opt-in
+  request response-header scope on Bun/Node. `headers()` has no response mutation
+  API, and `draftMode()` always reports disabled. Streaming Server Actions and
+  Next's render-phase restrictions are not implemented.
 - **Other `next/*` modules are absent**, including `next/server`
   (`NextRequest` / `NextResponse`), `next/og`, `next/cache`, and
   `next/navigation`'s `unstable_*` APIs. Route Handlers take and return plain
@@ -149,3 +151,20 @@ Request helpers require `requestContext: true` in Moonshine config (enabled by
 Next adoption). Bun/Node deployment and preview inject the runner from the same
 compiled bundle as the route modules; a separately imported context cannot scope
 an already-bundled route. Edge request context is currently unsupported.
+
+`cookies()` retains synchronous reads (`await cookies()` also works). With
+`requestContext: true`, loaders, actions and buffered rendering can call
+`set(name, value, options)` or `set({name, value, ...options})`. Values are
+percent-encoded; invalid names and attributes reject before changing headers or
+same-request reads. The default path is `/`. Each write appends a separate
+`Set-Cookie`; later writes to the same name update the shared request-local jar.
+Ordinary incoming cookies still read without a response scope; mutation requires
+one. This does not install a Next runtime.
+
+`delete(name)` expires the root-path cookie. Use `delete({name, path, domain})`
+for another scope; the incoming Cookie header cannot reveal a cookie's original
+path or domain. Deletion leaves an empty tombstone in same-request reads; the
+browser applies expiration on receipt. Signed/encrypted sessions, domain ownership
+checks, cookie prefix policies, streaming and Next cache invalidation are outside
+this API. Standard expiry, age, security, SameSite, priority and partitioned
+attributes are serialized; browser acceptance still follows browser policy.
