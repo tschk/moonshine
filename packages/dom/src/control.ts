@@ -241,6 +241,7 @@ export function Show<T, U>(
   schedule: (
     read: () => U | undefined,
   ) => Accessor<U | undefined> = createRenderMemo,
+  cache: <V>(read: () => V) => Accessor<V> = createMemo,
 ): Accessor<U | undefined> {
   const owner = getRenderScheduler() ? getOwner() : undefined;
   let branch: { value: U | undefined; dispose: () => void } | undefined;
@@ -251,11 +252,12 @@ export function Show<T, U>(
     branch?.dispose();
     branch = undefined;
   });
-  const value = createMemo(props.when);
+  const value = cache(props.when);
   if (disposed) return () => undefined;
-  const condition = createMemo(() => Boolean(value()));
+  const condition = cache(() => Boolean(value()));
   if (disposed) return () => undefined;
   return schedule(() => {
+    if (disposed) return undefined;
     const nextVisible = condition();
     if (visible !== nextVisible) {
       branch?.dispose();
