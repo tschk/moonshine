@@ -1,0 +1,142 @@
+import { expect, test } from "bun:test";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+async function standalone(script: string, framework = false) {
+  const root = join(import.meta.dir, "..");
+  const dir = await mkdtemp(join(tmpdir(), "moonshine-vue-independent-"));
+  try {
+    for (const [name, source] of [
+      ["moonshine", join(root, "../core")],
+      ["moonshine-dom", join(root, "../dom")],
+      ["moonshine-vue", root],
+      ...(framework
+        ? [["moonshine-framework", join(root, "../framework")]]
+        : []),
+    ]) {
+      const target = join(dir, "node_modules/@tschk", name!);
+      await cp(join(source!, "src"), join(target, "src"), { recursive: true });
+      await cp(join(source!, "package.json"), join(target, "package.json"));
+    }
+    const child = Bun.spawn([Bun.which("bun")!, "--no-install", "-e", script], {
+      cwd: dir,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [output, error, code] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect(code, output + error).toBe(0);
+    expect(error).toBe("");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+test("native entries work without Vue, framework, React, Crepus or WASM installed", async () => {
+  const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
+  expect(Object.keys(pkg.dependencies)).toEqual([
+    "@tschk/moonshine",
+    "@tschk/moonshine-dom",
+  ]);
+  expect(pkg.peerDependenciesMeta.vue.optional).toBe(true);
+  expect(pkg.peerDependenciesMeta["@tschk/moonshine-framework"].optional).toBe(
+    true,
+  );
+  for (const name of [
+    "vue",
+    "react",
+    "react-dom",
+    "@tschk/crepuscularity-wasm",
+    "@tschk/crepus-moonshine",
+    "@tschk/moonshine-framework",
+  ])
+    expect(pkg.dependencies).not.toHaveProperty(name);
+  await standalone(`
+import assert from 'node:assert/strict';
+import {existsSync} from 'node:fs';
+import * as root from '@tschk/moonshine-vue';
+import {crepusRenderer} from '@tschk/moonshine-vue/framework';
+import {ref,shallowRef,reactive,toRefs,computed,watch,watchSyncEffect} from '@tschk/moonshine-vue/reactive';
+import {toDisplayString,toDisplayStringSSR} from '@tschk/moonshine-vue/text';
+import {withComponentErrorHandler} from '@tschk/moonshine-vue/errors';
+import {createDefaultProps,createServerDefaultProps,withVueScheduler} from '@tschk/moonshine-vue/props';
+import {provide,inject,hasInjectionContext} from '@tschk/moonshine-vue/context';
+import {onMounted,onBeforeUnmount,onUnmounted} from '@tschk/moonshine-vue/lifecycle';
+import {createRoot} from '@tschk/moonshine-dom/reactive';
+import {h,renderToString} from '@tschk/moonshine-dom/ssr';
+for(const name of ['vue','react','react-dom','@tschk/crepuscularity-wasm','@tschk/crepus-moonshine','@tschk/moonshine-framework']) {
+ assert.equal(existsSync('node_modules/'+name),false);
+ assert.throws(()=>Bun.resolveSync(name,process.cwd()));
+}
+for(const name of ['createBridgedRef','fromMoonshineSignal','createMoonshineSignal','createResource','createMsSignal','createMemo','batch','untrack'])assert.equal(typeof root[name],'function',name);
+assert.equal(root.crepusRenderer,crepusRenderer);
+assert.equal(toDisplayString(ref(false)),'false');
+assert.equal(toDisplayString({toJSON:()=>undefined}),undefined);
+assert.equal(renderToString(()=>h('p',{},toDisplayStringSSR({toJSON:()=>undefined}))),'<p>undefined</p>');
+await Bun.write('bridge.ts',"export {createBridgedRef} from '@tschk/moonshine-vue';");
+for(const target of ['browser','bun','node']){
+ const built=await Bun.build({entrypoints:[process.cwd()+'/bridge.ts'],target,minify:true});
+ assert.equal(built.success,true,String(built.logs));
+ const output=await built.outputs[0].text();
+ for(const forbidden of ['framework-source','@tschk/moonshine-framework','react-dom','@tschk/crepus','Server children'])assert.ok(!output.includes(forbidden),target+': '+forbidden);
+}
+const first=()=>1,second=()=>2;
+const signal=root.createMoonshineSignal(first), bridge=root.fromMoonshineSignal(signal);
+bridge.value=second;assert.equal(signal(),second);signal.set(()=>first);assert.equal(bridge.value,first);
+assert.equal(root.createBridgedRef(first).value,first);
+const count=ref(2), doubled=computed(()=>count.value*2), state=reactive({nested:{count}});
+const values=[];let stop;
+createRoot(dispose=>{stop=dispose;watch(doubled,value=>values.push(value),{flush:'sync',immediate:true})});
+state.nested.count=3;assert.deepEqual(values,[4,6]);stop();count.value=4;assert.deepEqual(values,[4,6]);assert.equal(doubled.value,8);
+const policyValue=ref(0),policyFailure={original:true},policyErrors=[];let stopPolicy,rejectPolicy;
+createRoot(dispose=>{stopPolicy=dispose;withComponentErrorHandler((error,info)=>policyErrors.push([error,info.phase,info.component]),()=>watch(policyValue,()=>new Promise((_,reject)=>{rejectPolicy=reject}),{flush:'sync'}))});
+policyValue.value=1;stopPolicy();rejectPolicy(policyFailure);await Promise.resolve();
+assert.deepEqual(policyErrors,[[policyFailure,'watch callback',undefined]]);
+
+const linked=toRefs(state);linked.nested.value.count=5;assert.equal(state.nested.count,5);
+const sync=ref(0), syncTrace=[];
+const endSync=watchSyncEffect(clean=>{const value=sync.value;syncTrace.push(value);clean(()=>syncTrace.push('clean:'+value));});
+sync.value=1;endSync();sync.value=2;assert.deepEqual(syncTrace,[0,'clean:0',1,'clean:1']);
+const external={count:1},shallow=shallowRef(external);assert.equal(shallow.value,external);shallow.value=external;assert.equal(shallowRef(shallow),shallow);
+const literal=ref(first);literal.value=second;assert.equal(literal.value,second);
+assert.equal(renderToString(()=>h('p',null,'<native>&')),'<p>&lt;native&gt;&amp;</p>');
+let defaultCalls=0;
+createRoot(stop=>{withVueScheduler(()=>{const {props}=createDefaultProps({label:undefined},['label'],[],[['label',()=>{defaultCalls++;return '<default>'},true]]);assert.equal(props.label,'<default>')});stop()});
+assert.equal(defaultCalls,1);
+for(let request=0;request<2;request++)assert.equal(renderToString(()=>h(()=>withVueScheduler(()=>{const props=createServerDefaultProps({},['label'],[],[['label',()=>{defaultCalls++;return '<server>'},true]]);return h('p',null,props.label)}),null)),'<p>&lt;server&gt;</p>');
+assert.equal(defaultCalls,3);
+assert.equal(hasInjectionContext(),false);
+let lifecycleCalls=0;
+assert.equal(renderToString(()=>h(()=>{onMounted(()=>lifecycleCalls++);onBeforeUnmount(()=>lifecycleCalls++);onUnmounted(()=>lifecycleCalls++);return h('p',null,'server')},null)),'<p>server</p>');
+assert.equal(lifecycleCalls,0);
+assert.equal(renderToString(()=>h(()=>{provide('value','<context>');return h(()=>h('p',null,inject('value')),null)},null)),'<p>&lt;context&gt;</p>');
+`);
+});
+
+test("optional framework compatibility renderer serves native SSR, API and SPA", async () => {
+  await standalone(
+    `
+import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {crepusRenderer} from '@tschk/moonshine-vue';
+for(const name of ['svelte','react','react-dom','@tschk/crepuscularity-wasm','@tschk/crepus-moonshine'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
+const page=join(process.cwd(),'page.ts');
+await writeFile(page,\`import {h} from '@tschk/moonshine-dom/ssr';
+export const metadata={title:'native <title>',description:'safe<&'};
+export default function Page({data}){return h('p',null,data.name);}\`);
+const context={request:new Request('https://example.com/'),route:{id:'home',path:'/',file:page,mode:'ssr',runtime:'bun',decision:'standalone',clientEntries:[]},params:{},data:{name:'<alice>&'},signal:new AbortController().signal};
+const response=await crepusRenderer.render(context);assert.equal(response.status,200);
+const html=await response.text();assert.ok(html.includes('<title>native &lt;title&gt;</title>'));assert.ok(html.includes('<p>&lt;alice&gt;&amp;</p>'));assert.ok(html.includes('content="safe&lt;&amp;"'));
+const api=await crepusRenderer.render({...context,route:{...context.route,mode:'api'}});assert.ok(api.headers.get('content-type').includes('application/json'));assert.deepEqual(await api.json(),context.data);
+const spa=await crepusRenderer.prerender({...context,route:{...context.route,id:'counter',file:'missing-server-page.ts',mode:'spa',clientEntries:['/client.js']},params:{id:'2'},data:{name:'</script>'}});
+assert.ok(spa.includes('data-moonshine-app="counter"'));assert.ok(spa.includes('src="/client.js"'));
+const payload=spa.split('data-moonshine-props>')[1].split('</script>')[0];assert.ok(!payload.includes('<'));assert.deepEqual(JSON.parse(payload),{params:{id:'2'},data:{name:'</script>'}});
+`,
+    true,
+  );
+});

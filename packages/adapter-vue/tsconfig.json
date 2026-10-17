@@ -1,4 +1,16 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*",
+    "test/shallow-ref.types.ts",
+    "test/to-refs.types.ts",
+    "test/props.types.ts",
+    "test/slots.types.ts",
+    "test/events.types.ts",
+    "test/normalize.types.ts",
+    "test/errors.types.ts",
+    "test/unref.types.ts",
+    "test/defaults.types.ts",
+    "test/app.types.ts"
+  ]
 }

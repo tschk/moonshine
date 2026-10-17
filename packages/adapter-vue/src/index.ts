@@ -1,9 +1,8 @@
 /**
  * @tschk/moonshine-vue
  *
- * Hosting adapter: Vue compiles `.vue` SFCs; moonshine cannot replace that
- * compiler. `vue` is a peer, re-exported on subpaths, with moonshine signal
- * bridges onto Vue refs.
+ * Independent signal bridges and lazy native SSR compatibility renderer.
+ * Legacy Vue runtime/compiler entries are separate from native `/reactive`.
  */
 import {
   createSignal as msCreateSignal,
@@ -21,7 +20,7 @@ export function fromMoonshineSignal<T>(signal: MsSignal<T>): VueRef<T> {
       return signal();
     },
     set value(next: T) {
-      signal.set(next);
+      signal.set(() => next);
     },
   };
 }
@@ -40,4 +39,4 @@ export {
   untrack,
 } from "@tschk/moonshine";
 export type { Resource, ResourceStatus } from "@tschk/moonshine";
-export { crepusRenderer } from "@tschk/crepus-moonshine";
+export { crepusRenderer } from "./framework";

@@ -16,4 +16,13 @@ describe("@tschk/moonshine-vue", () => {
     r.value = "b";
     expect(r.value).toBe("b");
   });
+
+  test("function values are stored without invoking them as updaters", () => {
+    const initial = () => 1;
+    const next = () => 2;
+    const ref = createBridgedRef(initial);
+    ref.value = next;
+    expect(ref.value).toBe(next);
+    expect(ref.value()).toBe(2);
+  });
 });
