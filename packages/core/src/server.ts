@@ -100,8 +100,17 @@ export async function handleMoonshineRequest(
 ): Promise<Response> {
   const req = toMoonshineRequest(request);
 
-  if (options.staticDir && req.method === "GET" && req.pathname !== "/") {
-    const staticRes = await tryServeStatic(options.staticDir, req.pathname);
+  if (
+    options.staticDir &&
+    (req.method === "GET" || req.method === "HEAD") &&
+    req.pathname !== "/"
+  ) {
+    const staticRes = await tryServeStatic(
+      options.staticDir,
+      req.pathname,
+      undefined,
+      request.method,
+    );
     if (staticRes) return staticRes;
   }
 

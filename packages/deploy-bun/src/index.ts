@@ -6,6 +6,7 @@ import {
   type Harness,
   type HarnessFactory,
   copyAsset,
+  validateRuntime,
 } from "@tschk/moonshine-framework";
 import { tryServeStatic } from "@tschk/moonshine-server";
 
@@ -30,7 +31,12 @@ export function createBunServer(options: BunServerOptions): BunServer {
       (request.method === "GET" || request.method === "HEAD") &&
       pathname !== "/"
     ) {
-      const res = await tryServeStatic(options.staticDir, pathname);
+      const res = await tryServeStatic(
+        options.staticDir,
+        pathname,
+        undefined,
+        request.method,
+      );
       if (res) return res;
     }
     return options.fetch(request);
@@ -62,6 +68,7 @@ export const bunAdapter: DeploymentAdapter = {
   runtimes: ["bun"],
   capabilities: ["streaming", "islands", "revalidation"],
   build: async (manifest, outDir) => {
+    validateRuntime(bunAdapter, manifest);
     await mkdir(outDir, { recursive: true });
     const assets: MoonshineManifest["assets"] = await Promise.all(
       manifest.assets.map(async (asset) => {
@@ -74,12 +81,16 @@ export const bunAdapter: DeploymentAdapter = {
       resolve(outDir, "manifest.json"),
       JSON.stringify(builtManifest, null, 2) + "\n",
     );
+    const native = manifest.renderer === "native";
+    const rendererImport = native
+      ? 'import { modules, renderer } from "./dist/server.js";'
+      : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
     const entry = `import { createRequestHandler } from "@tschk/moonshine-server";
-import { reactRenderer } from "@tschk/moonshine-react";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
 import { resolve } from "node:path";
 import manifest from "./manifest.json" with { type: "json" };
-import { modules } from "./dist/server.js";
+${rendererImport}
+${manifest.requestContext ? 'import { requestScope } from "./dist/server.js";' : ""}
 
 const projectDir = resolve(import.meta.dir, "..");
 const abs = (p) => (p ? resolve(projectDir, p) : undefined);
@@ -96,16 +107,15 @@ const resolvedManifest = {
 };
 
 const fetch = createRequestHandler({
-  manifest: resolvedManifest,
+  manifest: ${native ? "manifest" : "resolvedManifest"},
   modules,
-  renderer: reactRenderer,
+  renderer,${manifest.requestContext ? "\n  requestScope," : ""}
   staticDir: import.meta.dir + "/public",
 });
 const envPort = Number(process.env.PORT);
-const server = createBunServer({
+export const server = createBunServer({
   fetch,
   port: Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535 ? envPort : 0,
-  staticDir: import.meta.dir + "/public",
 });
 `;
     await writeFile(resolve(outDir, "server.ts"), entry);

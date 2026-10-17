@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -253,4 +254,116 @@ describe("vercel build output", () => {
     expect(nodeConfig.runtime).toBe("nodejs20.x");
     expect(nodeConfig.launcherType).toBe("Nodejs");
   });
+});
+
+test("legacy Vercel static output excludes server assets", async () => {
+  const buildDir = mkdtempSync(resolve(tmpdir(), "ms-vc-private-"));
+  try {
+    mkdirSync(resolve(buildDir, "public"), { recursive: true });
+    mkdirSync(resolve(buildDir, "dist"), { recursive: true });
+    mkdirSync(resolve(buildDir, ".vercel/output/static/dist"), {
+      recursive: true,
+    });
+    writeFileSync(
+      resolve(buildDir, ".vercel/output/static/dist/server.js"),
+      "STALE_PRIVATE_SERVER",
+    );
+    writeFileSync(resolve(buildDir, "public/client.js"), "public client");
+    writeFileSync(
+      resolve(buildDir, "public/source.css"),
+      "aliased public asset",
+    );
+    writeFileSync(resolve(buildDir, "external.css"), "external public asset");
+    for (const name of ["100%.svg", "a%20b.svg", "a b.svg"])
+      writeFileSync(resolve(buildDir, "public", name), name);
+    writeFileSync(resolve(buildDir, "dist/server.js"), "PRIVATE_SERVER_MARKER");
+    symlinkSync(
+      resolve(buildDir, "dist/server.js"),
+      resolve(buildDir, "public/leak.js"),
+    );
+    await vercelAdapter.build(
+      {
+        version: MANIFEST_VERSION,
+        frameworkVersion: "0.4.2",
+        routes: [],
+        entries: {},
+        capabilities: [],
+        assets: [
+          { file: "public/client.js", path: "/client.js" },
+          { file: "public/source.css", path: "/alias.css" },
+          { file: resolve(buildDir, "external.css"), path: "/external.css" },
+          { file: "dist/server.js", path: "/dist/server.js" },
+          ...["100%.svg", "a%20b.svg", "a b.svg"].map((name) => ({
+            file: `public/${name}`,
+            path: `/${encodeURIComponent(name)}`,
+          })),
+        ],
+      },
+      buildDir,
+    );
+    expect(
+      readFileSync(
+        resolve(buildDir, ".vercel/output/static/client.js"),
+        "utf8",
+      ),
+    ).toBe("public client");
+    expect(
+      existsSync(resolve(buildDir, ".vercel/output/static/dist/server.js")),
+    ).toBe(false);
+    expect(
+      readFileSync(
+        resolve(buildDir, ".vercel/output/static/alias.css"),
+        "utf8",
+      ),
+    ).toBe("aliased public asset");
+    expect(
+      existsSync(resolve(buildDir, ".vercel/output/static/source.css")),
+    ).toBe(false);
+    expect(
+      readFileSync(
+        resolve(buildDir, ".vercel/output/static/external.css"),
+        "utf8",
+      ),
+    ).toBe("external public asset");
+    for (const name of ["100%.svg", "a%20b.svg", "a b.svg"])
+      expect(
+        readFileSync(resolve(buildDir, ".vercel/output/static", name), "utf8"),
+      ).toBe(name);
+    expect(existsSync(resolve(buildDir, ".vercel/output/static/leak.js"))).toBe(
+      false,
+    );
+  } finally {
+    rmSync(buildDir, { recursive: true, force: true });
+  }
+});
+
+test("Vercel rejects unsafe public asset destinations", async () => {
+  const buildDir = mkdtempSync(resolve(tmpdir(), "ms-vc-path-"));
+  try {
+    mkdirSync(resolve(buildDir, "public"), { recursive: true });
+    writeFileSync(resolve(buildDir, "public/client.js"), "client");
+    for (const path of [
+      "/../secret",
+      "/%2e%2e/secret",
+      "/foo\\bar",
+      "/bad\u0000name",
+      "C:/secret",
+    ]) {
+      await expect(
+        vercelAdapter.build(
+          {
+            version: MANIFEST_VERSION,
+            frameworkVersion: "0.4.2",
+            routes: [],
+            entries: {},
+            capabilities: [],
+            assets: [{ file: "public/client.js", path }],
+          },
+          buildDir,
+        ),
+      ).rejects.toThrow("Invalid public asset path");
+    }
+  } finally {
+    rmSync(buildDir, { recursive: true, force: true });
+  }
 });

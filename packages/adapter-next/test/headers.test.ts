@@ -44,6 +44,62 @@ describe("next/headers", () => {
     );
   });
 
+  test("cookies() preserves malformed URI values without losing a mixed jar", () => {
+    const values = {
+      valid: "hello world/✓",
+      literal: "100%",
+      malformed: "%GG",
+      short: "%2",
+      truncated: "%E2%82",
+      equals: "a=b=c",
+      mixed: "%41%GG",
+      after: "done",
+    };
+    const req = request({
+      headers: {
+        cookie:
+          "valid=hello%20world%2F%E2%9C%93; literal=100%; malformed=%GG; short=%2; truncated=%E2%82; equals=a=b=c; mixed=%41%GG; after=done",
+      },
+    });
+    runWithRequest(req, () => {
+      const jar = cookies();
+      expect(jar.getAll()).toEqual(
+        Object.entries(values).map(([name, value]) => ({ name, value })),
+      );
+      for (const [name, value] of Object.entries(values))
+        expect(jar.get(name)).toEqual({ name, value });
+    });
+  });
+
+  test("concurrent cookie jars remain scoped when one request contains malformed escapes", async () => {
+    const first = request({
+      headers: { cookie: "session=first%; next=%2Ffirst" },
+    });
+    const second = request({
+      headers: { cookie: "session=second; next=%2Fsecond" },
+    });
+    const result = await Promise.all(
+      [first, second].map((req) =>
+        runWithRequest(req, async () => {
+          const before = cookies().getAll();
+          await Promise.resolve();
+          expect(cookies().getAll()).toEqual(before);
+          return before;
+        }),
+      ),
+    );
+    expect(result).toEqual([
+      [
+        { name: "session", value: "first%" },
+        { name: "next", value: "/first" },
+      ],
+      [
+        { name: "session", value: "second" },
+        { name: "next", value: "/second" },
+      ],
+    ]);
+  });
+
   test("cookies() is empty without a cookie header", () => {
     expect(runWithRequest(request(), () => cookies().getAll())).toEqual([]);
   });

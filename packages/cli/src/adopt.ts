@@ -19,13 +19,7 @@
  */
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { hasFrontend, parserVersion } from "./adopt/frameworks.js";
-import {
-  detectFramework,
-  findProjectRoot,
-  readJson,
-  type PackageJson,
-} from "./adopt/scan.js";
+import { findProjectRoot } from "./adopt/scan.js";
 import { planAdoption, applyPlan } from "./adopt/plan.js";
 import { formatReport, confirmPlan } from "./adopt/report.js";
 import { terminalTui, type Tui } from "./tui.js";
@@ -60,12 +54,20 @@ export async function adoptCommand(
   let dryRun = false;
   let force = false;
   let yes = false;
+  let compiler: string | undefined;
   const fail = (message: string): AdoptResult => {
     console.error(message);
     return { code: 1, applied: false };
   };
 
-  for (const arg of args) {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--compiler") {
+      compiler = args[++i];
+      if (!compiler || compiler.startsWith("--"))
+        return fail("--compiler requires a path");
+      continue;
+    }
     if (arg === "--dry-run") dryRun = true;
     else if (arg === "--force") force = true;
     else if (arg === "--yes" || arg === "-y") yes = true;
@@ -82,18 +84,14 @@ export async function adoptCommand(
     );
   }
 
-  const pkg = readJson<PackageJson>(join(dir, "package.json"));
-  const detected = detectFramework(dir, pkg).framework;
-  if (!(await hasFrontend(detected))) {
-    const installed = await parserVersion();
+  let plan: AdoptPlan;
+  try {
+    plan = await planAdoption(dir, { force, compiler });
+  } catch (error) {
     return fail(
-      `${dir} is a ${detected} project, but the installed @tschk/crepuscularity-wasm${installed ? ` (${installed})` : ""} has no ${detected} template frontend.\n` +
-        `Its dispatcher falls back to generic markup for an extension it does not know, which drops ${detected === "astro" ? "`{cond && <m/>}` / `{list.map(…)}` lowering" : "`@if` / `@for` blocks and the structural directives"} silently — so adopting against this build would produce quietly wrong pages.\n` +
-        `Upgrade @tschk/crepuscularity-wasm to a build that carries parser/${detected}/. Nothing was written.`,
+      `${error instanceof Error ? error.message : String(error)}. Nothing was written.`,
     );
   }
-
-  const plan = await planAdoption(dir, { force });
   if (plan.scan.framework === "unknown") {
     return fail(
       `Could not identify a JavaScript app in ${dir}.\n` +

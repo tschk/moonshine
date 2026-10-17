@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { discoverRoutes, segmentToPattern } from "../src/discover.js";
 
@@ -95,4 +97,42 @@ describe("segmentToPattern", () => {
     expect(segmentToPattern("[...slug]")).toBe("*slug");
     expect(segmentToPattern("[...path]")).toBe("*path");
   });
+});
+
+test("Waku discovers JSX pages, nested layouts and unprefixed API endpoints", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "moonshine-waku-"));
+  try {
+    for (const file of [
+      "_layout.jsx",
+      "index.jsx",
+      "blog/_layout.tsx",
+      "blog/[slug].jsx",
+      "docs/[...path].tsx",
+      "_api/contact.ts",
+      "_slices/header.tsx",
+      "_interceptors/auth.ts",
+      "_components/widget.tsx",
+      "about.test.tsx",
+    ]) {
+      const path = join(dir, file);
+      await mkdir(join(path, ".."), { recursive: true });
+      await writeFile(path, "");
+    }
+    const routes = await discoverRoutes({ routesDir: dir, convention: "waku" });
+    expect(routes.map((route) => route.path)).toEqual([
+      "/",
+      "/blog/:slug",
+      "/contact",
+      "/docs/*path",
+    ]);
+    expect(
+      routes.find((route) => route.path === "/blog/:slug")?.layouts,
+    ).toEqual([join(dir, "_layout.jsx"), join(dir, "blog/_layout.tsx")]);
+    expect(
+      routes.find((route) => route.path === "/contact")?.layouts,
+    ).toBeUndefined();
+    expect(routes.find((route) => route.path === "/contact")?.mode).toBe("api");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

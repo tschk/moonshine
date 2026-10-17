@@ -1,9 +1,10 @@
 import type {
   MoonshineManifest,
   Renderer,
+  RequestScope,
   RouteDefinition,
 } from "@tschk/moonshine-framework";
-import type { RouteGraph } from "@tschk/moonshine-router";
+import type { RouteGraph } from "@tschk/moonshine-router/graph";
 
 export type RouteContext = {
   request: Request;
@@ -29,6 +30,7 @@ export type ErrorBoundary = (
 ) => Response | Promise<Response>;
 
 export type RouteModule = {
+  methods?: readonly string[];
   before?: Middleware[];
   after?: Middleware[];
   loader?: Loader;
@@ -38,6 +40,7 @@ export type RouteModule = {
 };
 
 export type RequestHandlerOptions = {
+  requestScope?: RequestScope;
   graph?: RouteGraph<RouteDefinition>;
   routes?: RouteDefinition[];
   manifest?: MoonshineManifest;
@@ -57,7 +60,7 @@ export function createRouteContext(
     request,
     params,
     signal: request.signal,
-    data: {},
+    data: Object.create(null),
   };
 }
 

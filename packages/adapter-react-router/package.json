@@ -39,5 +39,13 @@
     "lint": "bunx oxlint .",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   }
 }

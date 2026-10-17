@@ -201,6 +201,24 @@ export function detectFramework(
   const deps = allDeps(pkg);
   const template = detectTemplateFramework(projectDir, deps);
   if (template) return template;
+  if (
+    deps.waku ||
+    ["waku.config.ts", "waku.config.js", "waku.config.mjs"].some((file) =>
+      existsSync(join(projectDir, file)),
+    )
+  ) {
+    if (existsSync(join(projectDir, "src/pages"))) {
+      return { framework: "waku", routesDir: "src/pages", convention: "waku" };
+    }
+    const routesDir = findMoonshineRoutes(projectDir);
+    return {
+      framework: "waku",
+      ...(routesDir && {
+        routesDir,
+        convention: "moonshine" as RouteConvention,
+      }),
+    };
+  }
   for (const dir of ["app", "src/app"]) {
     if (
       existsSync(join(projectDir, dir, "page.tsx")) ||
@@ -227,9 +245,6 @@ export function detectFramework(
     ...(routesDir && { routesDir, convention: "moonshine" as RouteConvention }),
   });
 
-  if (deps.waku || existsSync(join(projectDir, "waku.config.ts"))) {
-    return routed("waku");
-  }
   if (deps["@tanstack/react-router"] || deps["@tanstack/react-start"]) {
     return routed("tanstack");
   }

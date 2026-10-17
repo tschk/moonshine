@@ -26,7 +26,7 @@ export function formatReport(plan: AdoptPlan, dryRun: boolean): string {
   if (scan.templates.length) {
     const ok = scan.templates.filter((t) => t.ok);
     push(
-      `  templates        ${ok.length}/${scan.templates.length} compiled to View IR`,
+      `  templates        ${ok.length}/${scan.templates.length} compiled to native SSR`,
     );
     for (const template of scan.templates) {
       const mark = template.ok
@@ -35,7 +35,7 @@ export function formatReport(plan: AdoptPlan, dryRun: boolean): string {
           : "no url"
         : "FAILED";
       push(
-        `      ${template.file.padEnd(34)} ${mark.padEnd(7)} ${template.ok ? `${template.nodes} nodes${template.route ? ` → ${template.route}` : ""}` : template.error}`,
+        `      ${template.file.padEnd(34)} ${mark.padEnd(7)} ${template.ok ? `${template.nodes === undefined ? "native SSR" : `${template.nodes} nodes`}${template.route ? ` → ${template.route}` : ""}` : template.error}`,
       );
     }
   }

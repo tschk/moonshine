@@ -11,7 +11,7 @@ export type DiscoverOptions = {
   programmatic?: RouteDefinition[];
   /**
    * File-system routing dialect. `moonshine` is the native `src/routes` layout;
-   * the two `next-*` values read an adopted Next app in place.
+   * `next-*` and `waku` read adopted framework routes in place.
    */
   convention?: RouteConvention;
 };
@@ -149,6 +149,31 @@ function discoverNextPages(
   return raw;
 }
 
+/** Waku pages and `_api` endpoints; underscore specials are not pages. */
+function discoverWaku(files: string[], routesDir: string): RouteDefinition[] {
+  const raw: RouteDefinition[] = [];
+  for (const file of files) {
+    const rel = toPosix(relative(routesDir, file));
+    const name = basename(rel);
+    if (!ROUTE_EXT.test(name) || name.startsWith("_")) continue;
+    if (/\.(test|spec|d)\.[jt]sx?$/.test(name)) continue;
+    const base = name.replace(ROUTE_EXT, "");
+    const parts = rel.split("/").slice(0, -1);
+    const api = parts[0] === "_api";
+    const directories = api ? parts.slice(1) : parts;
+    if (directories.some((part) => part.startsWith("_"))) continue;
+    const segments = directories.map(segmentToPattern);
+    if (base !== "index") segments.push(segmentToPattern(base));
+    raw.push({
+      id: rel.replace(ROUTE_EXT, ""),
+      path: segments.length ? `/${segments.join("/")}` : "/",
+      file,
+      ...(api && { mode: "api" as const }),
+    });
+  }
+  return raw;
+}
+
 function discoverMoonshine(
   files: string[],
   routesDir: string,
@@ -219,7 +244,9 @@ export async function discoverRoutes(
       ? discoverNextApp(files, routesDir)
       : convention === "next-pages"
         ? discoverNextPages(files, routesDir)
-        : discoverMoonshine(files, routesDir);
+        : convention === "waku"
+          ? discoverWaku(files, routesDir)
+          : discoverMoonshine(files, routesDir);
 
   const merged = mergeRoutes(
     raw,

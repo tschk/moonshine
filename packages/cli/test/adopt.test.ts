@@ -1,14 +1,17 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   cpSync,
+  chmodSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   planAdoption,
   applyPlan,
@@ -16,7 +19,6 @@ import {
   formatPlan,
   adoptCommand,
   findProjectRoot,
-  hasFrontend,
 } from "../src/adopt";
 import type { Tui } from "../src/tui";
 import { startPreview } from "../src/preview";
@@ -27,10 +29,6 @@ const vueFixture = join(import.meta.dir, "fixtures", "vue-app");
 const astroFixture = join(import.meta.dir, "fixtures", "astro-app");
 const angularFixture = join(import.meta.dir, "fixtures", "angular-app");
 const tmp = join(import.meta.dir, ".tmp-cli-adopt");
-
-// The installed parser build decides which branch of the template tests is real.
-const astroReady = await hasFrontend("astro");
-const angularReady = await hasFrontend("angular");
 
 function clean() {
   if (existsSync(tmp)) rmSync(tmp, { recursive: true, force: true });
@@ -197,6 +195,7 @@ describe("moonshine adopt — rewrite", () => {
 
     const config = readFileSync(join(dir, "moonshine.config.ts"), "utf8");
     expect(config).toContain(`"convention": "next-app"`);
+    expect(config).toContain(`"requestContext": true`);
     expect(config).toContain(`"routesDir": "app"`);
 
     const pkg = json<{
@@ -240,22 +239,16 @@ describe("moonshine adopt — project detection", () => {
     expect(result.plan!.scan.projectDir).toBe(dir);
   });
 
-  test("a parser build without the frontend is refused and writes nothing", async () => {
-    // The dispatcher falls back to generic markup silently, so adopt probes for
-    // the frontend before touching anything. Which branch runs depends on the
-    // installed @tschk/crepuscularity-wasm, and both are asserted.
+  test("missing native compiler refuses before any project writes", async () => {
     const dir = project("astro-probe", astroFixture);
     const before = snapshot(dir);
-    const result = await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
-
-    if (astroReady) {
-      expect(result.code).toBe(0);
-    } else {
-      expect(result.code).toBe(1);
-      expect(result.applied).toBe(false);
-      expect(snapshot(dir)).toEqual(before);
-      expect(existsSync(join(dir, "moonshine.config.ts"))).toBe(false);
-    }
+    const result = await adoptCommand(
+      [dir, "--yes", "--compiler", join(dir, "absent")],
+      fakeTui(""),
+    );
+    expect(result.code).toBe(1);
+    expect(result.applied).toBe(false);
+    expect(snapshot(dir)).toEqual(before);
   });
 });
 
@@ -346,198 +339,220 @@ describe("moonshine adopt — confirmation", () => {
   });
 });
 
-describe("moonshine adopt — svelte and vue templates", () => {
-  test("svelte templates compile to View IR and become generated routes", async () => {
-    const dir = project("svelte", svelteFixture);
-    const result = await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
-
-    expect(result.code).toBe(0);
-    const scan = result.plan!.scan;
-    expect(scan.framework).toBe("svelte");
-    expect(scan.templates.every((t) => t.ok)).toBe(true);
-    expect(
-      scan.templates
-        .filter((t) => t.route)
-        .map((t) => t.route)
-        .toSorted(),
-    ).toEqual(["/", "/about"]);
-
-    const generated = readFileSync(
-      join(dir, "moonshine", "routes", "index.tsx"),
-      "utf8",
-    );
-    expect(generated).toContain("renderCrepusIr");
-    expect(generated).toContain("svelte on moonshine");
-    // Source templates are never edited.
-    expect(readFileSync(join(dir, "src/routes/+page.svelte"), "utf8")).toBe(
-      readFileSync(join(svelteFixture, "src/routes/+page.svelte"), "utf8"),
-    );
-
-    const joined = scan.manual.join("\n");
-    expect(joined).toContain("<script> blocks are not executed");
-    expect(joined).toContain("src/lib/Card.svelte");
-  });
-
-  test("an adopted svelte app builds and serves its templates as HTML", async () => {
-    const dir = project("svelte-e2e", svelteFixture);
-    await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
-
-    await buildInSubprocess(dir);
-    const manifest = json<{ routes: { path: string }[] }>(
-      join(dir, ".moonshine", "manifest.json"),
-    );
-    expect(manifest.routes.map((r) => r.path).toSorted()).toEqual([
-      "/",
-      "/about",
-    ]);
-
-    const preview = await startPreview({ projectDir: dir, port: 0 });
-    try {
-      const home = await fetch(new URL("/", preview.url).href);
-      expect(home.status).toBe(200);
-      const html = await home.text();
-      expect(html).toContain('data-crepus-ir-version="7"');
-      expect(html).toContain("svelte on moonshine");
-      expect(html).toContain('class="home"');
-
-      const about = await fetch(new URL("/about", preview.url).href);
-      expect(await about.text()).toContain("about this app");
-    } finally {
-      await preview.stop();
-    }
-  }, 60_000);
-
-  test.if(astroReady)(
-    "astro pages compile, component tags fail per file, and the app SSRs",
-    async () => {
-      const dir = project("astro", astroFixture);
-      const result = await inDir(dir, () =>
-        adoptCommand(["--yes"], fakeTui("")),
-      );
-
-      expect(result.code).toBe(0);
-      const { templates } = result.plan!.scan;
-      expect(result.plan!.scan.framework).toBe("astro");
-
-      const byFile = new Map(templates.map((t) => [t.file, t]));
-      expect(byFile.get("src/pages/index.astro")!.route).toBe("/");
-      expect(byFile.get("src/pages/about.astro")!.route).toBe("/about");
-      // A page that uses an imported component is a hard error, not a partial page.
-      expect(byFile.get("src/pages/blog/first.astro")!.ok).toBe(false);
-      expect(byFile.get("src/pages/blog/first.astro")!.error).toContain(
-        "component tag `<Layout>` is not supported",
-      );
-      expect(byFile.get("src/components/Layout.astro")!.error).toContain(
-        "`<slot />` is not supported",
-      );
-      expect(
-        byFile.get("src/pages/blog/first.astro")!.generated,
-      ).toBeUndefined();
-
-      // The frontmatter never runs, so {title} renders empty rather than "astro on moonshine".
-      const joined = result.plan!.scan.manual.join("\n");
-      expect(joined).toContain("`---` frontmatter is blanked");
-      expect(joined).toContain("src/pages/blog/first.astro: did not compile");
-
-      await buildInSubprocess(dir);
-      const manifest = json<{ routes: { path: string }[] }>(
-        join(dir, ".moonshine", "manifest.json"),
-      );
-      expect(manifest.routes.map((r) => r.path).toSorted()).toEqual([
-        "/",
-        "/about",
-      ]);
-      const preview = await startPreview({ projectDir: dir, port: 0 });
-      try {
-        const html = await (await fetch(new URL("/", preview.url).href)).text();
-        expect(html).toContain('data-crepus-ir-version="7"');
-        expect(html).toContain('data-crepus-for-each="items"');
-        expect(html).toContain("frontmatter is not executed");
-        const about = await (
-          await fetch(new URL("/about", preview.url).href)
-        ).text();
-        expect(about).toContain("about this app");
-      } finally {
-        await preview.stop();
-      }
-    },
-    60_000,
-  );
-
-  test.if(angularReady)(
-    "angular templates compile to unmounted components and index.html is left alone",
-    async () => {
-      const dir = project("angular", angularFixture);
-      const result = await inDir(dir, () =>
-        adoptCommand(["--yes"], fakeTui("")),
-      );
-
-      expect(result.code).toBe(0);
-      const { templates } = result.plan!.scan;
-      expect(result.plan!.scan.framework).toBe("angular");
-
-      // Only *.component.html, *.ng.html and *.ng are claimed — never plain .html.
-      expect(templates.map((t) => t.file).toSorted()).toEqual([
-        "src/app/blocks.ng.html",
-        "src/app/home/home.component.html",
-        "src/app/legacy.component.html",
-      ]);
-      expect(existsSync(join(dir, "moonshine/components/src/index.tsx"))).toBe(
-        false,
-      );
-      expect(readFileSync(join(dir, "src/index.html"), "utf8")).toBe(
-        readFileSync(join(angularFixture, "src/index.html"), "utf8"),
-      );
-
-      // No file-based routing: nothing is mounted, everything compiled is importable.
-      expect(templates.every((t) => t.route === undefined)).toBe(true);
-      const home = templates.find(
-        (t) => t.file === "src/app/home/home.component.html",
-      )!;
-      expect(home.ok).toBe(true);
-      expect(home.generated).toBe("moonshine/components/src/app/home/home.tsx");
-      expect(readFileSync(join(dir, home.generated!), "utf8")).toContain(
-        "export default function Component()",
-      );
-      expect(
-        templates.find((t) => t.file === "src/app/legacy.component.html")!
-          .error,
-      ).toContain("`<ng-template>` is not supported");
-
-      const joined = result.plan!.scan.manual.join("\n");
-      expect(joined).toContain("component class is not executed");
-      expect(joined).toContain("Angular has no file-based routing");
-
-      // Mounting one by hand is the documented next step, and it renders.
-      mkdirSync(join(dir, "moonshine/routes"), { recursive: true });
+describe("moonshine adopt — native template handoff", () => {
+  test("all failed or missing compiler outputs refuse adoption without project writes", async () => {
+    for (const missing of [false, true, "asset"] as const) {
+      const dir = project(`all-failed-${missing}`, vueFixture);
       writeFileSync(
-        join(dir, "moonshine/routes/index.tsx"),
-        `import Home from "../components/src/app/home/home";\n\nexport default function Page() {\n  return <Home />;\n}\n`,
+        join(dir, "moonshine.config.ts"),
+        "export default {renderer: 'react'};\n",
       );
-      await buildInSubprocess(dir);
-      const preview = await startPreview({ projectDir: dir, port: 0 });
+      const compiler = join(tmp, `all-failed-compiler-${missing}`);
+      writeFileSync(
+        compiler,
+        `#!${process.execPath}\n${missing === "asset" ? `import {writeFileSync} from 'node:fs';import {join} from 'node:path';const args=process.argv.slice(2);writeFileSync(join(args[args.indexOf('--out-dir')+1],'CrepusEmit.moonshine-ssr.ts'),'import "./view.css";export default () => null;');` : `console.error('unsupported fixture template');process.exit(${missing ? 0 : 2});`}`,
+      );
+      chmodSync(compiler, 0o755);
+      const before = snapshot(dir);
+      let diagnostic = "";
       try {
-        const html = await (await fetch(new URL("/", preview.url).href)).text();
-        expect(html).toContain('class="home"');
-        expect(html).toContain('data-crepus-for-each="items"');
-      } finally {
-        await preview.stop();
+        await planAdoption(dir, { force: true, compiler });
+      } catch (error) {
+        diagnostic = String(error);
       }
-    },
-    60_000,
-  );
+      expect(diagnostic).toContain("No templates compiled");
+      expect(diagnostic).toContain("src/pages/index.vue");
+      expect(diagnostic).toContain(
+        missing === "asset"
+          ? "unsupported filesystem import"
+          : missing
+            ? "did not emit expected file"
+            : "unsupported fixture template",
+      );
+      const result = await adoptCommand(
+        [dir, "--yes", "--force", "--compiler", compiler],
+        fakeTui(""),
+      );
+      expect(result.code).toBe(1);
+      expect(result.applied).toBe(false);
+      expect(snapshot(dir)).toEqual(before);
+      expect(existsSync(join(dir, "moonshine/routes"))).toBe(false);
+    }
+  }, 30_000);
 
-  test("vue templates compile and the run is idempotent", async () => {
-    const dir = project("vue", vueFixture);
-    const first = await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
-    expect(first.code).toBe(0);
-    expect(first.plan!.scan.framework).toBe("vue");
-
-    const after = snapshot(dir);
-    const second = await inDir(dir, () => adoptCommand(["--yes"], fakeTui("")));
-    expect(second.plan!.changes.every((c) => c.alreadyApplied)).toBe(true);
-    expect(snapshot(dir)).toEqual(after);
-  });
+  test("template plans use unchanged SSR components, explicit scope wrappers and no added React", async () => {
+    const compiler = join(tmp, "crepus-stub");
+    mkdirSync(tmp, { recursive: true });
+    writeFileSync(
+      compiler,
+      `#!${process.execPath}
+      import {readFileSync,writeFileSync} from 'node:fs';import {join} from 'node:path';
+      const args=process.argv.slice(2),flag=name=>args[args.indexOf(name)+1];
+      if(flag('--emit')!=='moonshine-ssr')throw Error('wrongtarget');
+      const entry=flag('--entry');readFileSync(join(flag('--site'),entry),'utf8');
+      if(entry.includes('Card')){console.error('unsupported component');process.exit(2)}
+      writeFileSync(join(flag('--out-dir'),'CrepusEmit.moonshine-ssr.ts'), ${JSON.stringify('import {h} from "@tschk/moonshine-dom/ssr";\nexport default function Component(props: {scope?:unknown} = {}) { return h("p", null, "native SSR fixture"); }\n')});
+      writeFileSync(join(flag('--out-dir'),'crepus-view-ir.json'),JSON.stringify({version:7,root:[{kind:'text'}]}));
+    `,
+    );
+    chmodSync(compiler, 0o755);
+    for (const [name, fixtureDir] of [
+      ["svelte", svelteFixture],
+      ["vue", vueFixture],
+      ["astro", astroFixture],
+      ["angular", angularFixture],
+    ]) {
+      const dir = project(`native-${name}`, fixtureDir);
+      const originalPackage = json<Record<string, unknown>>(
+        join(dir, "package.json"),
+      );
+      writeFileSync(
+        join(dir, "package.json"),
+        JSON.stringify({
+          ...originalPackage,
+          overrides: { "custom-user-package": "1.0.0" },
+        }),
+      );
+      if (name === "svelte") {
+        mkdirSync(join(dir, "moonshine/routes"), { recursive: true });
+        writeFileSync(
+          join(dir, "moonshine/routes/index.tsx"),
+          'import {renderCrepusIr} from "@tschk/crepus-moonshine"; export default () => renderCrepusIr({version:7,root:[]});',
+        );
+      }
+      const beforeSources = readFileSync(join(dir, "package.json"), "utf8");
+      const result = await adoptCommand(
+        [dir, "--yes", "--compiler", compiler],
+        fakeTui(""),
+      );
+      expect(result.code).toBe(0);
+      const plan = result.plan!;
+      const config = readFileSync(join(dir, "moonshine.config.ts"), "utf8");
+      expect(config).toContain('"renderer": "native"');
+      const pkg = json<{
+        dependencies: Record<string, string>;
+        devDependencies?: Record<string, string>;
+        overrides?: Record<string, string>;
+      }>(join(dir, "package.json"));
+      expect(pkg.dependencies["@tschk/moonshine-dom"]).toBeDefined();
+      expect(pkg.dependencies["@tschk/moonshine-compiler"]).toBeUndefined();
+      expect(pkg.devDependencies?.["@tschk/moonshine-cli"]).toBeDefined();
+      expect(pkg.devDependencies?.["@tschk/moonshine-compiler"]).toBeDefined();
+      expect(pkg.overrides?.["custom-user-package"]).toBe("1.0.0");
+      expect(pkg.overrides?.["@tschk/moonshine-dom"]).toContain("file:");
+      expect(pkg.dependencies["@tschk/moonshine-react"]).toBeUndefined();
+      expect(pkg.dependencies["@tschk/crepus-moonshine"]).toBeUndefined();
+      for (const key of Object.keys(
+        JSON.parse(beforeSources).dependencies ?? {},
+      ))
+        expect(pkg.dependencies[key]).toBeDefined();
+      expect(
+        plan.changes.find((change) => change.file === "tsconfig.json")?.action,
+      ).toBe("none");
+      for (const template of plan.scan.templates.filter((entry) => entry.ok)) {
+        expect(readFileSync(join(dir, template.component!), "utf8")).toBe(
+          template.source!,
+        );
+        expect(template.nodes).toBe(1);
+        if (template.route !== undefined) {
+          const wrapper = readFileSync(join(dir, template.generated!), "utf8");
+          expect(wrapper).toContain("scope: { params, data }");
+          expect(wrapper).not.toContain("handlers:");
+        }
+      }
+      if (name === "svelte") {
+        const wrapper = readFileSync(
+          join(dir, "moonshine/routes/index.tsx"),
+          "utf8",
+        );
+        expect(wrapper).toContain("scope: { params, data }");
+        expect(wrapper).not.toContain("renderCrepusIr");
+        expect(existsSync(join(dir, "moonshine/routes/index.ts"))).toBe(false);
+        expect(
+          plan.changes.find(
+            (change) => change.file === "moonshine/routes/index.tsx",
+          )?.action,
+        ).toBe("modify");
+      }
+      if (name === "angular") expect(plan.scan.routes).toEqual([]);
+      if (name === "svelte") {
+        expect(plan.scan.templates.some((entry) => entry.ok)).toBe(true);
+        expect(plan.scan.templates.some((entry) => !entry.ok)).toBe(true);
+      }
+      if (name === "svelte")
+        expect(
+          plan.scan.templates.find((t) => t.file.endsWith("Card.svelte"))
+            ?.error,
+        ).toContain("unsupported component");
+      expect(plan.scan.manual.join("\n")).toContain(
+        "Route scope exposes only params and data",
+      );
+      expect(plan.scan.manual.join("\n")).toContain("forms and accessibility");
+      const after = snapshot(dir);
+      const second = await adoptCommand(
+        [dir, "--yes", "--compiler", compiler],
+        fakeTui(""),
+      );
+      expect(
+        second.plan!.changes.every((change) => change.alreadyApplied),
+      ).toBe(true);
+      expect(snapshot(dir)).toEqual(after);
+      if (name === "svelte") {
+        writeFileSync(
+          join(dir, "moonshine/routes/index.ts"),
+          "export default () => null;",
+        );
+        const conflictBefore = snapshot(dir);
+        const conflict = await adoptCommand(
+          [dir, "--yes", "--compiler", compiler],
+          fakeTui(""),
+        );
+        expect(conflict.code).toBe(1);
+        expect(conflict.applied).toBe(false);
+        expect(snapshot(dir)).toEqual(conflictBefore);
+        rmSync(join(dir, "moonshine/routes/index.ts"));
+        const failingCompiler = join(tmp, "failed-compiler");
+        writeFileSync(
+          failingCompiler,
+          `#!${process.execPath}\nconsole.error('emission failed');process.exit(2);`,
+        );
+        chmodSync(failingCompiler, 0o755);
+        const staleBefore = snapshot(dir);
+        const stale = await adoptCommand(
+          [dir, "--yes", "--force", "--compiler", failingCompiler],
+          fakeTui(""),
+        );
+        expect(stale.code).toBe(1);
+        expect(stale.applied).toBe(false);
+        expect(snapshot(dir)).toEqual(staleBefore);
+      }
+    }
+    const external = mkdtempSync(join(tmpdir(), "moonshine-published-adopt-"));
+    const previousRoot = process.env.MOONSHINE_PATH;
+    delete process.env.MOONSHINE_PATH;
+    try {
+      cpSync(svelteFixture, external, { recursive: true });
+      const plan = await inDir(external, () =>
+        planAdoption(external, { compiler }),
+      );
+      const pkg = JSON.parse(
+        plan.changes.find((change) => change.file === "package.json")!
+          .contents!,
+      );
+      const version =
+        "^" +
+        json<{ version: string }>(join(import.meta.dir, "../package.json"))
+          .version;
+      expect(pkg.dependencies["@tschk/moonshine-dom"]).toBe(version);
+      expect(pkg.devDependencies["@tschk/moonshine-cli"]).toBe(version);
+      expect(pkg.devDependencies["@tschk/moonshine-compiler"]).toBe(version);
+      expect(pkg.overrides).toBeUndefined();
+    } finally {
+      if (previousRoot === undefined) delete process.env.MOONSHINE_PATH;
+      else process.env.MOONSHINE_PATH = previousRoot;
+      rmSync(external, { recursive: true, force: true });
+    }
+  }, 30_000);
 });
 
 describe("moonshine adopt — end to end", () => {

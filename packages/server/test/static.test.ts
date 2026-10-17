@@ -66,14 +66,21 @@ describe("isContained", () => {
 });
 
 describe("tryServeStatic", () => {
-  test("returns null if typeof Bun is undefined", async () => {
-    // We can't safely re-assign global Bun in Bun environment, but we can verify our other branches.
-    // Given the difficulty, we will omit the typeof Bun === "undefined" test
-    // unless we use some other trick. We'll skip it for now and focus on the rest.
-  });
-
   test("returns null for non-existent file", async () => {
     expect(await tryServeStatic(staticDir, "/missing.txt")).toBeNull();
+  });
+
+  test("HEAD matches GET headers without a body; writes never serve files", async () => {
+    const get = await tryServeStatic(staticDir, "/ok.txt");
+    const head = await tryServeStatic(staticDir, "/ok.txt", undefined, "HEAD");
+    expect(head?.body).toBeNull();
+    expect(await head!.text()).toBe("");
+    expect(Array.from(head!.headers)).toEqual(Array.from(get!.headers));
+    expect(head!.headers.get("content-length")).toBe("2");
+    expect(await get!.text()).toBe("ok");
+    expect(
+      await tryServeStatic(staticDir, "/ok.txt", undefined, "POST"),
+    ).toBeNull();
   });
 
   test("returns null if isContained throws", async () => {
@@ -95,4 +102,42 @@ describe("tryServeStatic", () => {
     expect(res?.headers.get("content-type")).toBe("application/octet-stream");
     expect(res?.headers.get("x-content-type-options")).toBe("nosniff");
   });
+});
+
+test("bundled static serving runs on Node without Bun and preserves containment and HEAD", async () => {
+  const entry = resolve(tmpDir, "node-static.ts");
+  await Bun.write(
+    entry,
+    `
+import assert from "node:assert/strict";
+import { tryServeStatic } from ${JSON.stringify(resolve(import.meta.dir, "../src/static.ts"))};
+const root = ${JSON.stringify(staticDir)};
+assert.equal(typeof Bun, "undefined");
+const get = await tryServeStatic(root, "/ok.txt", { "x-custom": "kept" });
+assert.equal(await get.text(), "ok");
+assert.equal(get.headers.get("content-length"), "2");
+assert.equal(get.headers.get("x-custom"), "kept");
+const head = await tryServeStatic(root, "/ok.txt", undefined, "HEAD");
+assert.equal(head.body, null);
+assert.equal(head.headers.get("content-length"), "2");
+for (const path of ["/escape.txt", "/%2e%2e/secret.txt", "/missing.txt", "/"]) {
+  assert.equal(await tryServeStatic(root, path), null);
+}
+assert.equal(await tryServeStatic(root, "/ok.txt", undefined, "POST"), null);
+console.log("node-static-ok");
+`,
+  );
+  const output = resolve(tmpDir, "node-static.mjs");
+  const build = await Bun.build({ entrypoints: [entry], target: "node" });
+  expect(build.success).toBe(true);
+  await Bun.write(output, build.outputs[0]!);
+  const child = Bun.spawn(["node", output], { stdout: "pipe", stderr: "pipe" });
+  const [code, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect(stderr).toBe("");
+  expect(code).toBe(0);
+  expect(stdout.trim()).toBe("node-static-ok");
 });

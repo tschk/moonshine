@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
 import { readManifest } from "@tschk/moonshine-compiler";
 import {
@@ -13,6 +14,7 @@ import {
   type RouteArtifact,
 } from "@tschk/moonshine-framework";
 import { findConfig, loadConfig, type MoonshineCliConfig } from "./config.js";
+import { startNativePreview } from "./preview-native";
 
 export type PreviewHandle = {
   url: URL;
@@ -32,6 +34,7 @@ function resolveManifest(
     routes: manifest.routes.map((route: RouteArtifact) => ({
       ...route,
       file: abs(route.file)!,
+      clientFile: abs(route.clientFile),
       dataFile: abs(route.dataFile),
       layouts: route.layouts?.map(abs).filter(Boolean) as string[] | undefined,
       middleware: route.middleware?.map(abs).filter(Boolean) as
@@ -50,16 +53,46 @@ async function loadConfigMaybe(
 
 async function resolveRenderer(
   name: string | undefined,
-): Promise<Renderer | undefined> {
-  switch (name) {
-    case "solid":
-      return (await import("@tschk/moonshine-solid")).solidRenderer;
-    case "crepus":
-      return (await import("@tschk/crepus-moonshine")).crepusRenderer;
-    case "react":
-    default:
-      return (await import("@tschk/moonshine-react")).reactRenderer;
+  projectDir: string,
+): Promise<Renderer> {
+  const [specifier, exported] =
+    name === "solid"
+      ? (["@tschk/moonshine-solid", "solidRenderer"] as const)
+      : name === "crepus"
+        ? (["@tschk/crepus-moonshine", "crepusRenderer"] as const)
+        : (["@tschk/moonshine-react", "reactRenderer"] as const);
+  function installedPath(base: string): string {
+    const directories =
+      createRequire(resolve(base, "package.json")).resolve.paths(specifier) ??
+      [];
+    if (
+      !directories.some((directory) =>
+        existsSync(join(directory, specifier, "package.json")),
+      )
+    )
+      throw new Error(`Renderer package ${specifier} is not installed`);
+    return Bun.resolveSync(specifier, base);
   }
+  let path: string;
+  try {
+    path = installedPath(projectDir);
+  } catch {
+    try {
+      path = installedPath(import.meta.dir);
+    } catch (error) {
+      throw new Error(
+        `Renderer package ${specifier} is not installed; run bun add ${specifier} in ${projectDir}`,
+        { cause: error },
+      );
+    }
+  }
+  const module = await import(path);
+  const renderer = module[exported];
+  if (typeof renderer?.render !== "function")
+    throw new Error(
+      `Renderer package ${specifier} does not export ${exported}`,
+    );
+  return renderer as Renderer;
 }
 
 export async function startPreview(options: {
@@ -76,9 +109,15 @@ export async function startPreview(options: {
   }
 
   const raw = await readManifest(manifestPath);
-  const manifest = resolveManifest(projectDir, raw);
+  if (raw.renderer === "native") {
+    return startNativePreview({ projectDir, manifestPath, port: options.port });
+  }
   const config = await loadConfigMaybe(projectDir);
-  const renderer = await resolveRenderer(config.renderer);
+  const manifest = resolveManifest(projectDir, raw);
+  const renderer = await resolveRenderer(
+    raw.renderer ?? config.renderer,
+    projectDir,
+  );
   const staticDir = resolve(projectDir, ".moonshine", PUBLIC_DIR);
   const serverBundlePath = resolve(
     projectDir,
@@ -91,28 +130,36 @@ export async function startPreview(options: {
   // that was never supposed to be loaded at runtime. Say which bundle failed
   // and why, once, instead of making the user infer it from the wreckage.
   let modules: Record<string, RouteModule> = {};
+  let requestScope: Parameters<typeof createRequestHandler>[0]["requestScope"];
   try {
     const bundle = (await import(serverBundlePath)) as {
       modules?: Record<string, RouteModule>;
+      requestScope?: typeof requestScope;
     };
     modules = bundle.modules ?? {};
+    requestScope = bundle.requestScope;
   } catch (error) {
+    if (raw.requestContext) throw error;
     console.warn(
       `moonshine preview: could not load ${serverBundlePath}\n` +
         `  ${error instanceof Error ? error.message : String(error)}\n` +
         `  Server-rendered routes will fail. Run \`moonshine build\` first.`,
     );
   }
+  if (raw.requestContext && typeof requestScope !== "function")
+    throw new Error(
+      "Request context runner missing from server bundle; rebuild the project",
+    );
   const fetch = createRequestHandler({
     manifest,
     modules,
     renderer,
+    ...(raw.requestContext ? { requestScope } : {}),
     staticDir,
   });
   const server = createBunServer({
     fetch,
     port: options.port ?? 0,
-    staticDir,
   });
 
   return {

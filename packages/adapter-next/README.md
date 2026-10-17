@@ -137,3 +137,8 @@ Does **not** export `MoonshineRouter` from the client entry — import it from
 `@tschk/moonshine/router` if you want the moonshine router directly.
 
 See [Moonshine README](../../README.md).
+
+Request helpers require `requestContext: true` in Moonshine config (enabled by
+Next adoption). Bun/Node deployment and preview inject the runner from the same
+compiled bundle as the route modules; a separately imported context cannot scope
+an already-bundled route. Edge request context is currently unsupported.

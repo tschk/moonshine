@@ -78,7 +78,9 @@ function buildIslandHeadAndTail(
   const modules: Record<string, string> = {};
 
   for (const entry of registry.entries.values()) {
-    preloads.add(escapeHtml(entry.specifier));
+    if (entry.hydrate !== "idle" && entry.hydrate !== "visible") {
+      preloads.add(escapeHtml(entry.specifier));
+    }
     modules[entry.id] = entry.specifier;
   }
 
@@ -106,6 +108,10 @@ function buildIslandHeadAndTail(
   return { head: headParts.join(""), tail: tailParts.join("") };
 }
 
+/** Document shell matching crepuscularity CLI `assets/web/index.html`. */
+const DOCUMENT_HEAD =
+  '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>html{scroll-behavior:smooth}html,body{margin:0}body{min-height:100vh}</style>';
+
 async function renderPage(context: RenderContext): Promise<string> {
   const registry: IslandRegistry = { entries: new Map() };
   const body = await buildBody(context, registry);
@@ -116,7 +122,7 @@ async function renderPage(context: RenderContext): Promise<string> {
     context.route.clientEntries,
     isIslandMode,
   );
-  return `<!DOCTYPE html><html><head>${head}</head><body>${bodyMarkup}${tail}</body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head>${DOCUMENT_HEAD}${head}</head><body>${bodyMarkup}${tail}</body></html>`;
 }
 
 function renderSpaShell(context: RenderContext): string {
@@ -127,7 +133,7 @@ function renderSpaShell(context: RenderContext): string {
     head.push(`<link rel="modulepreload" href="${escapeHtml(entry)}">`);
     tail.push(`<script type="module" src="${escapeHtml(entry)}"></script>`);
   }
-  return `<!DOCTYPE html><html><head>${head.join("")}</head><body><div id="moonshine-app" data-moonshine-app="${escapeHtml(context.route.id)}"></div>${tail.join("")}</body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head>${DOCUMENT_HEAD}${head.join("")}</head><body><div id="moonshine-app" data-moonshine-app="${escapeHtml(context.route.id)}"></div>${tail.join("")}</body></html>`;
 }
 
 export const reactRenderer: Renderer = {

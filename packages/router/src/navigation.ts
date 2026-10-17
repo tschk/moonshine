@@ -1,4 +1,3 @@
-import { createSignal, type Signal } from "@tschk/moonshine";
 import {
   createContext,
   createElement,
@@ -12,86 +11,35 @@ import {
 import { type RouteDefinition } from "@tschk/moonshine-framework";
 import { createRouteGraph, matchRoutes, type RouteMatch } from "./graph.js";
 
+import {
+  createMoonshineRouter,
+  getBrowserPath,
+  splitLocation,
+  type HistorySnapshot,
+  type MoonshineRouterInstance,
+} from "./runtime.js";
+
 export type RouteParams = Record<string, string>;
 
-/**
- * The location the signal carries: pathname plus query.
- *
- * The query has to be in the signal, not read off `window.location` at render
- * time. A navigation that changes only the query would otherwise write the
- * same pathname back, notify no subscriber, and leave every `useSearchParams`
- * caller rendering the previous query — a tab bar driven by `?section=` would
- * change the URL and not the page. The hash stays out: it is still pushed to
- * history, but these hooks do not read it and including it would corrupt the
- * query when consumers split on the first "?".
- */
-function getBrowserPath(): string {
-  if (typeof window === "undefined") return "/";
-  return (window.location.pathname || "/") + window.location.search;
-}
+export { createMoonshineRouter, splitLocation } from "./runtime.js";
+export type { MoonshineRouterInstance } from "./runtime.js";
 
-/** Splits `"/a/b?x=1"` into its pathname and its raw query string. */
-export function splitLocation(location: string): [string, string] {
-  const index = location.indexOf("?");
-  return index === -1
-    ? [location, ""]
-    : [location.slice(0, index), location.slice(index + 1)];
-}
+const INITIAL_HISTORY: HistorySnapshot = { action: "POP", state: null };
 
-export type MoonshineRouterInstance = {
-  /** Navigate via History API (no full reload). */
-  navigate: (to: string, options?: { replace?: boolean }) => void;
-  /** Current pathname and query (reactive signal). */
-  getLocation: () => string;
-  /** Subscribe-friendly location signal, carrying pathname and query. */
-  location: Signal<string>;
-  /** Sync signal from `window.location`. */
-  syncFromBrowser: () => void;
-};
-
-/** Create an isolated router runtime (no shared global path). */
-export function createMoonshineRouter(
-  initialPath = getBrowserPath(),
-): MoonshineRouterInstance {
-  const location = createSignal(initialPath);
-
-  const syncFromBrowser = () => {
-    location.set(getBrowserPath());
-  };
-
-  const navigate = (to: string, options?: { replace?: boolean }) => {
-    if (typeof window === "undefined") {
-      location.set(to);
-      return;
-    }
-    const url = new URL(to, window.location.origin);
-    if (options?.replace) {
-      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
-    } else {
-      window.history.pushState({}, "", url.pathname + url.search + url.hash);
-    }
-    location.set(url.pathname + url.search);
-  };
-
-  return {
-    navigate,
-    getLocation: () => location(),
-    location,
-    syncFromBrowser,
-  };
-}
-
-/** Active mounted router for module-level navigate/getLocation. */
-let activeRouter: MoonshineRouterInstance | null = null;
+/** Mount tokens keep module-level navigation valid regardless of unmount order. */
+const mountedRouters: Array<{ runtime: MoonshineRouterInstance }> = [];
 /** Fallback when nothing mounted (tests / early navigate). */
 const fallbackRouter = createMoonshineRouter();
 
 function currentRouter(): MoonshineRouterInstance {
-  return activeRouter ?? fallbackRouter;
+  return mountedRouters.at(-1)?.runtime ?? fallbackRouter;
 }
 
 /** Navigate via History API (targets active mounted router). */
-export function navigate(to: string, options?: { replace?: boolean }): void {
+export function navigate(
+  to: string,
+  options?: { replace?: boolean; state?: unknown },
+): void {
   currentRouter().navigate(to, options);
 }
 
@@ -106,7 +54,18 @@ export function useLocation(): string {
   return useSyncExternalStore(
     source.subscribe,
     () => source.peek(),
-    () => "/",
+    () => ctx?.runtime.location.peek() ?? "/",
+  );
+}
+
+/** Read scoped history without leaking process-level fallback state into SSR. */
+export function useHistory(): HistorySnapshot {
+  const ctx = useContext(RouterContext);
+  const source = ctx?.runtime.history ?? fallbackRouter.history;
+  return useSyncExternalStore(
+    source.subscribe,
+    source.peek,
+    () => ctx?.runtime.history.peek() ?? INITIAL_HISTORY,
   );
 }
 
@@ -195,20 +154,22 @@ export function MoonshineRouter(props: MoonshineRouterProps): ReactNode {
   );
 
   useEffect(() => {
-    const prev = activeRouter;
-    activeRouter = runtime;
+    const mounted = { runtime };
+    mountedRouters.push(mounted);
+    const deactivate = () => {
+      const index = mountedRouters.indexOf(mounted);
+      if (index !== -1) mountedRouters.splice(index, 1);
+    };
     if (props.path === undefined) {
       runtime.syncFromBrowser();
       const onPop = () => runtime.syncFromBrowser();
       window.addEventListener("popstate", onPop);
       return () => {
         window.removeEventListener("popstate", onPop);
-        activeRouter = prev;
+        deactivate();
       };
     }
-    return () => {
-      activeRouter = prev;
-    };
+    return deactivate;
   }, [runtime, props.path]);
 
   const matched = matchRoutes<InternalRoute>(graph, pathname);
@@ -263,7 +224,8 @@ export function safeHref(href: string): string {
  * carrying a scheme (`https:`, `mailto:`, `tel:`), a protocol-relative `//host`,
  * a bare fragment, or an explicit non-`_self` target belongs to the browser: it
  * opens a mail client, a new tab, or another origin, none of which this router
- * can do.
+ * can do. A present `download` attribute also belongs to the browser; null
+ * and false match React's omitted-attribute behavior.
  *
  * `safeHref` deliberately allows those schemes through — it only strips ones
  * that could execute. Allowing a scheme is not the same as claiming to handle
@@ -276,7 +238,12 @@ export function safeHref(href: string): string {
  * a copy — three of them already did, byte for byte, and the copy this module
  * lacked is exactly the one that was wrong.
  */
-export function isExternal(href: string, target?: string): boolean {
+export function isExternal(
+  href: string,
+  target?: string,
+  download?: unknown,
+): boolean {
+  if (download != null && download !== false) return true;
   if (target && target !== "_self") return true;
   return (
     /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(href) ||

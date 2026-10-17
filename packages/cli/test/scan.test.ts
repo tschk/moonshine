@@ -82,6 +82,26 @@ describe("detectFramework", () => {
   });
 
   describe("Waku detection", () => {
+    test("prefers declared Waku over Next-like pages and app directories", () => {
+      const dir = createProject(["src/pages/index.jsx", "app/page.tsx"]);
+      expect(detectFramework(dir, { dependencies: { waku: "1.0.0" } })).toEqual(
+        {
+          framework: "waku",
+          routesDir: "src/pages",
+          convention: "waku",
+        },
+      );
+    });
+
+    test("recognizes JavaScript Waku configuration with pages", () => {
+      const dir = createProject(["waku.config.mjs", "src/pages/index.tsx"]);
+      expect(detectFramework(dir, undefined)).toEqual({
+        framework: "waku",
+        routesDir: "src/pages",
+        convention: "waku",
+      });
+    });
+
     test("detects via dependency", () => {
       const dir = createProject([]);
       expect(detectFramework(dir, { dependencies: { waku: "1.0.0" } })).toEqual(

@@ -1,5 +1,4 @@
-import { createReadStream } from "node:fs";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -13,12 +12,9 @@ import {
   type Harness,
   type HarnessFactory,
   copyAsset,
+  validateRuntime,
 } from "@tschk/moonshine-framework";
-import {
-  isContained,
-  resolveStaticPath,
-  staticFileHeaders,
-} from "@tschk/moonshine-server";
+import { tryServeStatic } from "@tschk/moonshine-server";
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -36,67 +32,17 @@ function isHopByHopHeader(key: string): boolean {
   return HOP_BY_HOP.has(key.toLowerCase());
 }
 
-const MIME: Record<string, string> = {
-  ".css": "text/css; charset=utf-8",
-  ".gif": "image/gif",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".map": "application/json; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".txt": "text/plain; charset=utf-8",
-  ".wasm": "application/wasm",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-};
-
-function extOf(path: string): string {
-  const i = path.lastIndexOf(".");
-  return i >= 0 ? path.slice(i).toLowerCase() : "";
-}
-
-async function tryServeNodeStatic(
-  staticDir: string,
-  pathname: string,
-): Promise<Response | null> {
-  const filePath = resolveStaticPath(staticDir, pathname);
-  if (!filePath) return null;
-  let stats = null;
-  try {
-    stats = await stat(filePath);
-  } catch {
-    return null;
-  }
-  if (!stats.isFile()) return null;
-  try {
-    if (!isContained(staticDir, filePath)) return null;
-  } catch {
-    return null;
-  }
-  const type = MIME[extOf(filePath)] ?? "application/octet-stream";
-  const stream = createReadStream(filePath);
-  const headers = staticFileHeaders(type);
-  headers.set("content-length", String(stats.size));
-  return new Response(Readable.toWeb(stream) as unknown as ReadableStream, {
-    headers,
-  });
-}
-
 async function sendNodeResponse(
   res: ServerResponse,
   response: Response,
 ): Promise<void> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string | string[]> = {};
   for (const [key, value] of response.headers.entries()) {
-    if (isHopByHopHeader(key)) continue;
+    if (isHopByHopHeader(key) || key.toLowerCase() === "set-cookie") continue;
     headers[key] = value;
   }
+  const cookies = response.headers.getSetCookie();
+  if (cookies.length > 0) headers["set-cookie"] = cookies;
   res.writeHead(response.status, headers);
   if (!response.body) {
     res.end();
@@ -143,7 +89,12 @@ export function createNodeHandler(
       (method === "GET" || method === "HEAD") &&
       pathname !== "/"
     ) {
-      const staticRes = await tryServeNodeStatic(options.staticDir, pathname);
+      const staticRes = await tryServeStatic(
+        options.staticDir,
+        pathname,
+        undefined,
+        method,
+      );
       if (staticRes) {
         await sendNodeResponse(res, staticRes);
         return;
@@ -230,6 +181,7 @@ export const nodeAdapter: DeploymentAdapter = {
   runtimes: ["node"],
   capabilities: ["streaming", "islands", "revalidation"],
   build: async (manifest, outDir) => {
+    validateRuntime(nodeAdapter, manifest);
     await mkdir(outDir, { recursive: true });
     const assets = await Promise.all(
       manifest.assets.map(async (asset) => {
@@ -242,15 +194,21 @@ export const nodeAdapter: DeploymentAdapter = {
       resolve(outDir, "manifest.json"),
       JSON.stringify(builtManifest, null, 2) + "\n",
     );
+    const native = manifest.renderer === "native";
+    const rendererImport = native
+      ? 'import { modules, renderer } from "./dist/server.js";'
+      : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
     const entry = `import { createServer } from "node:http";
 import { createRequestHandler } from "@tschk/moonshine-server";
-import { reactRenderer } from "@tschk/moonshine-react";
 import { createNodeHandler } from "@tschk/moonshine-deploy-node";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import manifest from "./manifest.json" with { type: "json" };
-import { modules } from "./dist/server.js";
+${rendererImport}
+${manifest.requestContext ? 'import { requestScope } from "./dist/server.js";' : ""}
 
-const projectDir = resolve(import.meta.dir, "..");
+const artifactDir = dirname(fileURLToPath(import.meta.url));
+const projectDir = resolve(artifactDir, "..");
 const abs = (p) => (p ? resolve(projectDir, p) : undefined);
 const resolvedManifest = {
   ...manifest,
@@ -265,18 +223,33 @@ const resolvedManifest = {
 };
 
 const fetch = createRequestHandler({
-  manifest: resolvedManifest,
+  manifest: ${native ? "manifest" : "resolvedManifest"},
   modules,
-  renderer: reactRenderer,
-  staticDir: import.meta.dir + "/public",
+  renderer,${manifest.requestContext ? "\n  requestScope," : ""}
+  staticDir: artifactDir + "/public",
 });
-const server = createServer(createNodeHandler({ fetch, staticDir: import.meta.dir + "/public" }));
+export const server = createServer(createNodeHandler({ fetch }));
 const envPort = Number(process.env.PORT);
 server.listen(Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535 ? envPort : 0, () => {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
+  console.log("http://localhost:" + port + "/");
 });
 `;
-    await writeFile(resolve(outDir, "server.ts"), entry);
+    const entryPath = resolve(outDir, "server.ts");
+    await writeFile(entryPath, entry);
+    if (native) {
+      const result = await Bun.build({
+        entrypoints: [entryPath],
+        outdir: outDir,
+        target: "node",
+        packages: "bundle",
+      });
+      if (!result.success)
+        throw new AggregateError(
+          result.logs,
+          "Native Node server bundle failed",
+        );
+    }
   },
 };

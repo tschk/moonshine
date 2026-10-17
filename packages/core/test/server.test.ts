@@ -8,6 +8,31 @@ import {
   type MoonshinePageModule,
 } from "../src/server.js";
 import * as serverModule from "@tschk/moonshine-server";
+test("legacy server serves static HEAD with GET metadata and no body", async () => {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const directory = await mkdtemp(join(tmpdir(), "moonshine-head-"));
+  try {
+    await Bun.write(join(directory, "asset.txt"), "hello");
+    const options = { pages: {}, staticDir: directory };
+    const get = await handleMoonshineRequest(
+      new Request("http://localhost/asset.txt"),
+      options,
+    );
+    const head = await handleMoonshineRequest(
+      new Request("http://localhost/asset.txt", { method: "HEAD" }),
+      options,
+    );
+    expect(head.status).toBe(200);
+    expect(head.body).toBeNull();
+    expect(Array.from(head.headers)).toEqual(Array.from(get.headers));
+    expect(head.headers.get("content-length")).toBe("5");
+    expect(await get.text()).toBe("hello");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 describe("toMoonshineRequest", () => {
   test("extracts request details into MoonshineRequest", () => {
     const req = new Request("http://localhost:3000/api/users?id=123", {
@@ -110,7 +135,12 @@ describe("handleMoonshineRequest with staticDir", () => {
         pages: {},
         staticDir: "./public",
       });
-      expect(mockServeStatic).toHaveBeenCalledWith("./public", "/test.txt");
+      expect(mockServeStatic).toHaveBeenCalledWith(
+        "./public",
+        "/test.txt",
+        undefined,
+        "GET",
+      );
       expect(res.status).toBe(200);
       expect(await res.text()).toBe("static file content");
     } finally {
@@ -128,7 +158,12 @@ describe("handleMoonshineRequest with staticDir", () => {
         pages: { "/test.txt": { render: () => "page content" } },
         staticDir: "./public",
       });
-      expect(mockServeStatic).toHaveBeenCalledWith("./public", "/test.txt");
+      expect(mockServeStatic).toHaveBeenCalledWith(
+        "./public",
+        "/test.txt",
+        undefined,
+        "GET",
+      );
       expect(res.status).toBe(200);
       expect(await res.text()).toBe("page content");
     } finally {

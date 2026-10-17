@@ -11,10 +11,10 @@ export { createRouteGraph, matchRoutes } from "./graph.js";
 export type { RouteGraph, RouteMatch } from "./graph.js";
 
 export {
-  createMoonshineRouter,
   navigate,
   getLocation,
   useLocation,
+  useHistory,
   useParams,
   useNavigate,
   useRouter,
@@ -24,7 +24,9 @@ export {
   safeHref,
 } from "./navigation.js";
 export type {
-  MoonshineRouterInstance,
   MoonshineRouterProps,
   MoonshineRouteDefinition,
 } from "./navigation.js";
+
+export { createMoonshineRouter, splitLocation } from "./runtime.js";
+export type { MoonshineRouterInstance, HistorySnapshot } from "./runtime.js";

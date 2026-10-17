@@ -1,9 +1,12 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { copyFile, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tryServeStatic } from "@tschk/moonshine-server";
-import { reactRenderer, type RenderContext } from "@tschk/moonshine-react";
+
 import {
   type DeploymentAdapter,
+  type MoonshineManifest,
+  type RenderContext,
   type RouteArtifact,
   type Harness,
   type HarnessFactory,
@@ -80,7 +83,153 @@ async function prerenderRoute(route: RouteArtifact): Promise<string> {
     data: {},
     signal: new AbortController().signal,
   };
+  const { reactRenderer } = await import("@tschk/moonshine-react");
   return reactRenderer.prerender(context);
+}
+
+function validateAssetPath(path: string): void {
+  let decoded = path;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    /* Literal percent filenames are valid. */
+  }
+  for (const value of [path, decoded]) {
+    if (
+      !value.startsWith("/") ||
+      value.includes("\\") ||
+      Array.from(value).some(
+        (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+      ) ||
+      value.split("/").includes("..")
+    )
+      throw new Error(`Invalid public asset path: ${path}`);
+  }
+}
+
+/** Native output exposes only public files; legacy registries exclude server bundles. */
+async function copyPublicAssets(
+  manifest: MoonshineManifest,
+  outDir: string,
+  staticDir: string,
+) {
+  await Promise.all(
+    manifest.assets.map(async (asset) => {
+      const source = await realpath(
+        isAbsolute(asset.file) ? asset.file : resolve(outDir, asset.file),
+      );
+      const directory = resolve(
+        outDir,
+        manifest.renderer === "native" ? "public" : "dist",
+      );
+      const canonicalDirectory = await realpath(directory).catch(
+        () => directory,
+      );
+      const sourcePath = relative(canonicalDirectory, source);
+      const withinDirectory =
+        sourcePath !== ".." &&
+        !sourcePath.startsWith(`..${sep}`) &&
+        !isAbsolute(sourcePath);
+      if (manifest.renderer === "native" ? !withinDirectory : withinDirectory)
+        return;
+      if (manifest.renderer !== "native" && manifest.entries.server) {
+        const entry = resolve(outDir, manifest.entries.server);
+        if (source === (await realpath(entry).catch(() => entry))) return;
+      }
+      validateAssetPath(asset.path);
+      const publicDirectory = resolve(outDir, "public");
+      const canonicalPublic = await realpath(publicDirectory).catch(
+        () => publicDirectory,
+      );
+      const publicPath = relative(canonicalPublic, source);
+      const withinPublic =
+        publicPath !== ".." &&
+        !publicPath.startsWith(`..${sep}`) &&
+        !isAbsolute(publicPath);
+      const canonicalUrl =
+        "/" + publicPath.split(sep).map(encodeURIComponent).join("/");
+      const preservePublicFilename =
+        withinPublic &&
+        (manifest.renderer === "native" || asset.path === canonicalUrl);
+      const target = resolve(
+        staticDir,
+        preservePublicFilename ? publicPath : asset.path.replace(/^\/+/, ""),
+      );
+      const targetPath = relative(staticDir, target);
+      if (
+        !targetPath ||
+        targetPath === ".." ||
+        targetPath.startsWith(`..${sep}`) ||
+        isAbsolute(targetPath)
+      )
+        throw new Error(`Invalid public asset path: ${asset.path}`);
+      await mkdir(dirname(target), { recursive: true });
+      if (source !== target) await copyFile(source, target);
+    }),
+  );
+}
+
+async function buildNativeFunction(
+  manifest: MoonshineManifest,
+  outDir: string,
+) {
+  const output = resolve(outDir, ".vercel/output");
+  const funcDir = resolve(output, "functions/moonshine.func");
+  const staticDir = resolve(output, "static");
+  await mkdir(funcDir, { recursive: true });
+  await mkdir(staticDir, { recursive: true });
+  await writeFile(
+    resolve(outDir, "manifest.json"),
+    JSON.stringify(manifest) + "\n",
+  );
+  await copyPublicAssets(manifest, outDir, staticDir);
+  const entryPath = resolve(outDir, "vercel-native.ts");
+  await writeFile(
+    entryPath,
+    `import { createRequestHandler } from "@tschk/moonshine-server";
+import { createNodeHandler } from ${JSON.stringify(fileURLToPath(import.meta.resolve("@tschk/moonshine-deploy-node")))};
+import { modules, renderer } from "./dist/server.js";
+import manifest from "./manifest.json" with { type: "json" };
+const fetch = createRequestHandler({ manifest, modules, renderer });
+export default createNodeHandler({ fetch });
+`,
+  );
+  const result = await Bun.build({
+    entrypoints: [entryPath],
+    outdir: funcDir,
+    naming: "index.mjs",
+    target: "node",
+    packages: "bundle",
+  });
+  if (!result.success)
+    throw new AggregateError(
+      result.logs,
+      "Native Vercel Node function bundle failed",
+    );
+  await writeFile(
+    resolve(funcDir, ".vc-config.json"),
+    JSON.stringify(
+      {
+        runtime: "nodejs22.x",
+        handler: "index.mjs",
+        launcherType: "Nodejs",
+        supportsResponseStreaming: true,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  await writeFile(
+    resolve(output, "config.json"),
+    JSON.stringify(
+      {
+        version: 3,
+        routes: [{ handle: "filesystem" }, { src: "/.*", dest: "/moonshine" }],
+      },
+      null,
+      2,
+    ) + "\n",
+  );
 }
 
 export const vercelAdapter: DeploymentAdapter = {
@@ -88,10 +237,35 @@ export const vercelAdapter: DeploymentAdapter = {
   runtimes: ["node", "vercel-edge"],
   capabilities: ["streaming", "islands", "edge"],
   build: async (manifest, outDir) => {
+    if (manifest.renderer === "native") {
+      if (manifest.routes.some((route) => route.runtime !== "node"))
+        throw new Error("Native Vercel supports only the Node runtime");
+      if (manifest.requestContext)
+        throw new Error("Native Vercel request context is not supported");
+      if (manifest.routes.some((route) => route.mode === "island"))
+        throw new Error("Native island hydration is not implemented");
+      if (
+        manifest.routes.some((route) => route.cache) ||
+        manifest.capabilities.includes("revalidation")
+      )
+        throw new Error(
+          "Native Vercel caching/revalidation is not implemented",
+        );
+    }
     validateRuntime(vercelAdapter, manifest);
     validateCapabilities(vercelAdapter, manifest);
 
     await mkdir(outDir, { recursive: true });
+    await rm(resolve(outDir, ".vercel/output"), {
+      recursive: true,
+      force: true,
+    });
+    if (manifest.renderer === "native") {
+      await buildNativeFunction(manifest, outDir);
+      return;
+    }
+    for (const asset of manifest.assets) validateAssetPath(asset.path);
+    await copyAssets(manifest.assets, outDir);
     const projectRoot = resolve(outDir, "..");
     const resolvedManifest = resolveManifestFiles(manifest, projectRoot);
 
@@ -99,7 +273,6 @@ export const vercelAdapter: DeploymentAdapter = {
       resolve(outDir, "manifest.json"),
       JSON.stringify(resolvedManifest, null, 2) + "\n",
     );
-    await copyAssets(manifest.assets, outDir);
 
     const vercelOutput = resolve(outDir, ".vercel/output");
     const staticDir = resolve(vercelOutput, "static");
@@ -165,21 +338,7 @@ export default { fetch };
     );
     config.routes.push(...routesConfig);
 
-    await Promise.all(
-      resolvedManifest.assets.map(async (asset) => {
-        const source = isAbsolute(asset.file)
-          ? asset.file
-          : resolve(outDir, asset.file);
-        const target = resolve(
-          staticDir,
-          (asset.path ?? asset.file).replace(/^\/+/, ""),
-        );
-        await mkdir(dirname(target), { recursive: true });
-        if (source !== target) {
-          await copyFile(source, target);
-        }
-      }),
-    );
+    await copyPublicAssets(resolvedManifest, outDir, staticDir);
 
     await writeFile(
       resolve(vercelOutput, "manifest.json"),
@@ -218,7 +377,12 @@ export const vercelHarness: HarnessFactory = (fetch, options) => {
         (request.method === "GET" || request.method === "HEAD") &&
         pathname !== "/"
       ) {
-        const res = await tryServeStatic(options.staticDir, pathname);
+        const res = await tryServeStatic(
+          options.staticDir,
+          pathname,
+          undefined,
+          request.method,
+        );
         if (res) return res;
       }
       return fetch(request);

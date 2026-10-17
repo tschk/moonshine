@@ -81,6 +81,21 @@ describe("react islands", () => {
     expect(parsed.text).toBe(text);
   });
 
+  test("emits deferred hydration mode without changing default island IDs", async () => {
+    const load = () => import("./fixtures/Counter");
+    const Eager = island(load);
+    const Visible = island(load, { hydrate: "visible" });
+    const Idle = island(load, { hydrate: "idle" });
+    const eager = await renderIsland(createElement(Eager));
+    const visible = await renderIsland(createElement(Visible));
+    const idle = await renderIsland(createElement(Idle));
+    expect(eager).not.toContain("data-moonshine-hydrate");
+    expect(visible).toContain('data-moonshine-hydrate="visible"');
+    expect(idle).toContain('data-moonshine-hydrate="idle"');
+    expect(extractIslandId(visible)).toBe(`${extractIslandId(eager)}-visible`);
+    expect(extractIslandId(idle)).toBe(`${extractIslandId(eager)}-idle`);
+  });
+
   test("island mode emits one modulepreload per shared entry", async () => {
     const res = await reactRenderer.render(
       makeContext(
@@ -118,5 +133,42 @@ describe("react islands", () => {
     expect(html).not.toContain("/client.js");
     expect(html).not.toContain("<script");
     expect(html).not.toContain("modulepreload");
+  });
+
+  test("deferred modules skip preloading while keeping the hydration bootstrap", async () => {
+    const res = await reactRenderer.render(
+      makeContext(
+        makeRoute({
+          mode: "island",
+          file: join(fixtures, "DeferredIslandPage.tsx"),
+          clientEntries: ["/client.js"],
+        }),
+      ),
+    );
+    const html = await res.text();
+    expect(html).not.toContain('<link rel="modulepreload" href="./Counter">');
+    expect(html).not.toContain('<link rel="modulepreload" href="./Greet">');
+    expect(html).toContain('<script type="module" src="/client.js"></script>');
+    expect(html).toContain("data-moonshine-island-modules");
+    expect(html).toContain('data-moonshine-hydrate="visible"');
+    expect(html).toContain('data-moonshine-hydrate="idle"');
+  });
+
+  test("a module shared by eager and visible islands is preloaded once", async () => {
+    const res = await reactRenderer.render(
+      makeContext(
+        makeRoute({
+          mode: "island",
+          file: join(fixtures, "DeferredIslandPage.tsx"),
+          clientEntries: ["/client.js"],
+        }),
+        { data: { eager: true } },
+      ),
+    );
+    const html = await res.text();
+    expect(
+      html.match(/<link rel="modulepreload" href="\.\/Counter">/g),
+    ).toHaveLength(1);
+    expect(html).not.toContain('<link rel="modulepreload" href="./Greet">');
   });
 });

@@ -1,18 +1,28 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import type {
   MoonshineManifest,
   RouteArtifact,
   RouteDefinition,
   RuntimeTarget,
+  RenderMode,
+  RendererName,
 } from "@tschk/moonshine-framework";
 import { MANIFEST_VERSION } from "@tschk/moonshine-framework";
 import { analyzeModule } from "./analyze.js";
-import { buildBundles } from "./build.js";
+import { buildBundles, preparePublicAssets } from "./build.js";
 import { classifyRoute } from "./classify.js";
 import { discoverRoutes } from "./discover.js";
 import type { RouteConvention } from "./inherit.js";
-import { toPosix } from "./path.js";
+import { canonicalPath, toPosix } from "./path.js";
 
 export type BuildOptions = {
   projectDir: string;
@@ -21,11 +31,59 @@ export type BuildOptions = {
   programmatic?: RouteDefinition[];
   runtime?: RuntimeTarget;
   convention?: RouteConvention;
+  renderer?: RendererName;
+  requestContext?: boolean;
+  mode?: RenderMode;
 };
 
 function toProjectRelative(projectDir: string, p: string): string {
-  const rel = toPosix(relative(projectDir, resolve(p)));
-  return rel.startsWith("..") ? toPosix(p) : rel || ".";
+  const normalize = (path: string) => (sep === "\\" ? toPosix(path) : path);
+  const rel = normalize(relative(projectDir, resolve(p)));
+  return rel.startsWith("..") ? normalize(p) : rel || ".";
+}
+
+function contains(directory: string, path: string): boolean {
+  const rel = relative(directory, path);
+  return !isAbsolute(rel) && rel !== ".." && !rel.startsWith(".." + sep);
+}
+
+async function validateOutput(
+  projectDir: string,
+  routesDir: string,
+  outDir: string,
+  routes: RouteArtifact[],
+): Promise<void> {
+  const [project, sourceRoutes, output] = await Promise.all(
+    [projectDir, routesDir, outDir].map(canonicalPath),
+  );
+  if (contains(output!, project!))
+    throw new Error("Build output must not contain the project directory");
+  if (contains(output!, sourceRoutes!) || contains(sourceRoutes!, output!))
+    throw new Error("Build output and route source directory must not overlap");
+  const files = new Set(
+    routes
+      .flatMap((route) => [
+        route.file,
+        route.clientFile,
+        route.dataFile,
+        route.errorBoundary,
+        ...(route.layouts ?? []),
+        ...(route.middleware ?? []),
+      ])
+      .filter((file): file is string => Boolean(file)),
+  );
+  for (const file of files) {
+    const [target, parent] = await Promise.all([
+      canonicalPath(file),
+      canonicalPath(dirname(file)),
+    ]);
+    if (
+      contains(outDir, file) ||
+      contains(output!, target) ||
+      contains(output!, join(parent, basename(file)))
+    )
+      throw new Error(`Build output must not contain source file: ${file}`);
+  }
 }
 
 async function resolveFrameworkVersion(): Promise<string> {
@@ -55,12 +113,13 @@ function sortedStringify(value: unknown): string {
 
 function deriveCapabilities(
   routes: RouteArtifact[],
+  native: boolean,
 ): MoonshineManifest["capabilities"] {
   const capabilities: Set<MoonshineManifest["capabilities"][number]> =
     new Set();
-  capabilities.add("streaming");
+  if (!native) capabilities.add("streaming");
   for (const route of routes) {
-    if (route.mode === "island" || route.mode === "spa") {
+    if (route.mode === "island" || (!native && route.mode === "spa")) {
       capabilities.add("islands");
     }
     if (route.runtime === "cloudflare" || route.runtime === "vercel-edge") {
@@ -95,10 +154,31 @@ export async function buildProject(
   );
   const outDir = resolve(options.outDir ?? join(projectDir, ".moonshine"));
   const runtime = options.runtime ?? "bun";
+  if (options.requestContext && !["bun", "node"].includes(runtime)) {
+    throw new Error(
+      "Request context currently supports only Bun and Node runtimes",
+    );
+  }
 
   const rawRoutes = await discoverRoutes({
     routesDir,
-    programmatic: options.programmatic,
+    programmatic: options.programmatic?.map((route) => ({
+      ...route,
+      file: resolve(projectDir, route.file),
+      ...(route.clientFile && {
+        clientFile: resolve(projectDir, route.clientFile),
+      }),
+      ...(route.dataFile && { dataFile: resolve(projectDir, route.dataFile) }),
+      ...(route.layouts && {
+        layouts: route.layouts.map((file) => resolve(projectDir, file)),
+      }),
+      ...(route.middleware && {
+        middleware: route.middleware.map((file) => resolve(projectDir, file)),
+      }),
+      ...(route.errorBoundary && {
+        errorBoundary: resolve(projectDir, route.errorBoundary),
+      }),
+    })),
     ...(options.convention && { convention: options.convention }),
   });
 
@@ -111,8 +191,38 @@ export async function buildProject(
   const buildRoutes: RouteArtifact[] = [];
   for (let i = 0; i < rawRoutes.length; i++) {
     const route = rawRoutes[i];
+    if (options.requestContext && (route.runtime ?? runtime) !== runtime) {
+      throw new Error(
+        "Request-context routes must match the configured server runtime",
+      );
+    }
     const facts = analyzeModule(route.file, undefined, rawRouteTexts[i]);
-    const decision = classifyRoute({ explicit: route.mode, facts });
+    const decision = classifyRoute({
+      explicit: route.mode ?? options.mode,
+      facts,
+    });
+    if (options.renderer === "native") {
+      if (!["bun", "node", "cloudflare"].includes(route.runtime ?? runtime)) {
+        throw new Error(
+          "Native renderer currently supports only the Bun, Node and Cloudflare runtimes",
+        );
+      }
+      if (decision.mode === "island") {
+        throw new Error(
+          `Native route "${route.path}" cannot use island mode: hydration is not implemented`,
+        );
+      }
+      if ((decision.mode === "spa" || facts.interactive) && !route.clientFile) {
+        throw new Error(
+          `Native interactive route "${route.path}" requires an explicit clientFile`,
+        );
+      }
+      if (route.clientFile && decision.mode !== "spa") {
+        throw new Error(
+          `Native route "${route.path}" with clientFile must use spa mode`,
+        );
+      }
+    }
     buildRoutes.push({
       ...route,
       mode: decision.mode,
@@ -127,6 +237,15 @@ export async function buildProject(
     } as RouteArtifact);
   }
 
+  if (
+    options.renderer === "native" &&
+    new Set(buildRoutes.map((route) => route.runtime)).size > 1
+  ) {
+    throw new Error("Native routes must use one server runtime per build");
+  }
+
+  await validateOutput(projectDir, routesDir, outDir, buildRoutes);
+  const publicAssets = await preparePublicAssets(projectDir, outDir);
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
@@ -134,12 +253,26 @@ export async function buildProject(
     root: projectDir,
     outDir,
     routes: buildRoutes,
+    renderer: options.renderer,
+    requestContext: options.requestContext,
+    publicAssets,
   });
   const clientFile = bundles.entryFiles.client;
 
   for (const route of buildRoutes) {
     if ((route.mode === "island" || route.mode === "spa") && clientFile) {
-      route.clientEntries = [clientFile];
+      route.clientEntries = [
+        options.renderer === "native"
+          ? bundles.routeClientEntries[route.id]!
+          : clientFile,
+      ];
+    }
+    if (
+      options.renderer === "native" &&
+      Object.hasOwn(bundles.routeClientStyles, route.id) &&
+      bundles.routeClientStyles[route.id]!.length
+    ) {
+      route.clientStyles = bundles.routeClientStyles[route.id];
     }
     route.serverEntry = bundles.entryFiles.server;
   }
@@ -151,9 +284,14 @@ export async function buildProject(
   const manifest: MoonshineManifest = {
     version: MANIFEST_VERSION,
     frameworkVersion: await resolveFrameworkVersion(),
+    ...(options.renderer && { renderer: options.renderer }),
+    ...(options.requestContext && { requestContext: true }),
     routes: buildRoutes.map((route) => ({
       ...route,
       file: toProjectRelative(projectDir, route.file),
+      ...(route.clientFile && {
+        clientFile: toProjectRelative(projectDir, route.clientFile),
+      }),
       ...(route.dataFile && {
         dataFile: toProjectRelative(projectDir, route.dataFile),
       }),
@@ -174,7 +312,10 @@ export async function buildProject(
       ...(bundles.entryFiles.server && { server: bundles.entryFiles.server }),
       ...(clientFile && { client: clientFile }),
     },
-    capabilities: deriveCapabilities(buildRoutes),
+    capabilities: deriveCapabilities(
+      buildRoutes,
+      options.renderer === "native",
+    ),
   };
 
   await writeFile(join(outDir, "manifest.json"), sortedStringify(manifest));

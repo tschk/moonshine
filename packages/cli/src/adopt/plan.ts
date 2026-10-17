@@ -6,7 +6,7 @@ import type { AdoptChange, AdoptPlan, AdoptScan, Framework } from "./types.js";
 import { RUNTIME_DEPS, readJson, toPosix } from "./scan.js";
 import { planTemplateRoutes } from "./templates.js";
 import { scanProject } from "./project.js";
-import { detectMoonshineRoot, packagePath } from "../new.js";
+import { detectMoonshineRoot, packagePath, localOverrides } from "../new.js";
 
 /**
  * Where the project will find `@tschk/moonshine-next` on disk. Only installed
@@ -53,6 +53,14 @@ export function aliasPaths(
 }
 
 function planTsconfig(scan: AdoptScan): AdoptChange {
+  if (templateGlobs(scan.framework))
+    return {
+      file: "tsconfig.json",
+      action: "none",
+      details: [],
+      summary: "native templates need no JSX or host import aliases",
+      alreadyApplied: true,
+    };
   const path = join(scan.projectDir, "tsconfig.json");
   const existing =
     readJson<{ compilerOptions?: Record<string, unknown> }>(path) ?? {};
@@ -102,7 +110,11 @@ function planConfig(scan: AdoptScan, force: boolean): AdoptChange {
   const entries: Record<string, unknown> = {
     runtime: "bun",
     adapter: "bun",
-    renderer: "react",
+    renderer: templateGlobs(scan.framework) ? "native" : "react",
+    ...(templateGlobs(scan.framework) && { mode: "ssr" }),
+    ...(["next-app", "next-pages"].includes(scan.framework) && {
+      requestContext: true,
+    }),
     ...(scan.routesDir && { routesDir: scan.routesDir }),
     ...(scan.convention && { convention: scan.convention }),
   };
@@ -128,12 +140,14 @@ export default defineConfig(${JSON.stringify(entries, null, 2)});
   };
 }
 
-function planPackageJson(scan: AdoptScan): AdoptChange {
+async function planPackageJson(scan: AdoptScan): Promise<AdoptChange> {
   const path = join(scan.projectDir, "package.json");
   const pkg =
     readJson<{
       dependencies?: Record<string, string>;
       scripts?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      overrides?: Record<string, string>;
     }>(path) ?? {};
   const root = detectMoonshineRoot();
   const version = `^${cliVersion()}`;
@@ -143,9 +157,15 @@ function planPackageJson(scan: AdoptScan): AdoptChange {
   const adapter = adapterFor(scan.framework);
   const template = templateGlobs(scan.framework) !== undefined;
   for (const name of [
-    ...RUNTIME_DEPS,
+    ...(template
+      ? RUNTIME_DEPS.filter(
+          (pkgName) =>
+            pkgName !== "@tschk/moonshine-react" &&
+            pkgName !== "@tschk/moonshine-compiler",
+        )
+      : RUNTIME_DEPS),
     ...(adapter ? [adapter.pkg] : []),
-    ...(template ? ["@tschk/crepus-moonshine"] : []),
+    ...(template ? ["@tschk/moonshine-dom"] : []),
   ] as string[]) {
     if (dependencies[name]) continue;
     const spec = packagePath(name, root, version);
@@ -154,6 +174,21 @@ function planPackageJson(scan: AdoptScan): AdoptChange {
     added.push(name);
   }
 
+  const devDependencies = { ...pkg.devDependencies };
+  const addedDev: string[] = [];
+  if (template)
+    for (const name of ["@tschk/moonshine-cli", "@tschk/moonshine-compiler"]) {
+      if (!dependencies[name] && !devDependencies[name]) {
+        devDependencies[name] = packagePath(name, root, version)!;
+        addedDev.push(name);
+      }
+    }
+  const overrides =
+    template && root
+      ? { ...(await localOverrides(root)), ...pkg.overrides }
+      : pkg.overrides;
+  const overridesChanged =
+    JSON.stringify(overrides) !== JSON.stringify(pkg.overrides);
   const scripts = { ...pkg.scripts };
   const repointed: string[] = [];
   const mapping: Record<string, string> = {
@@ -174,8 +209,14 @@ function planPackageJson(scan: AdoptScan): AdoptChange {
     repointed.push(key);
   }
 
-  const alreadyApplied = added.length === 0 && repointed.length === 0;
+  const alreadyApplied =
+    added.length === 0 &&
+    addedDev.length === 0 &&
+    !overridesChanged &&
+    repointed.length === 0;
   const parts: string[] = [];
+  if (addedDev.length) parts.push(`+${addedDev.length} dev dependencies`);
+  if (overridesChanged) parts.push("local workspace overrides");
   if (added.length) parts.push(`+${added.length} dependencies`);
   if (repointed.length)
     parts.push(`scripts ${repointed.join(", ")} → moonshine`);
@@ -187,32 +228,57 @@ function planPackageJson(scan: AdoptScan): AdoptChange {
       ...added.map(
         (name) => `dependencies["${name}"] = "${dependencies[name]}"`,
       ),
+      ...addedDev.map(
+        (name) => `devDependencies["${name}"] = "${devDependencies[name]}"`,
+      ),
+      ...(overridesChanged
+        ? ["local workspace overrides (existing overrides preserved)"]
+        : []),
       ...repointed.map((key) => `scripts["${key}"] = "${scripts[key]}"`),
     ],
     summary: alreadyApplied ? "already adopted" : parts.join(", "),
     alreadyApplied,
-    contents: JSON.stringify({ ...pkg, dependencies, scripts }, null, 2) + "\n",
+    contents:
+      JSON.stringify(
+        {
+          ...pkg,
+          dependencies,
+          ...(template ? { devDependencies } : {}),
+          ...(overrides ? { overrides } : {}),
+          scripts,
+        },
+        null,
+        2,
+      ) + "\n",
   };
 }
 
 function cliVersion(): string {
   const pkg = readJson<{ version?: string }>(
-    join(import.meta.dir, "..", "package.json"),
+    join(import.meta.dir, "../..", "package.json"),
   );
   return pkg?.version ?? "0.3.2";
 }
 
 export async function planAdoption(
   projectDir: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; compiler?: string } = {},
 ): Promise<AdoptPlan> {
-  const scan = await scanProject(projectDir);
+  const scan = await scanProject(projectDir, options);
+  if (
+    scan.templates.length > 0 &&
+    scan.templates.every((template) => !template.ok)
+  ) {
+    throw new Error(
+      `No templates compiled; resolve the compiler diagnostics before adopting:\n${scan.templates.map((template) => `  ${template.file}: ${template.error ?? "native emission failed"}`).join("\n")}`,
+    );
+  }
   return {
     scan,
     changes: [
       planTsconfig(scan),
       planConfig(scan, options.force ?? false),
-      planPackageJson(scan),
+      await planPackageJson(scan),
       ...(await planTemplateRoutes(scan)),
     ],
     // Aliasing covers every specifier the adapter implements, so nothing in the

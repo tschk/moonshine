@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-type Renderer = "react" | "solid" | "crepus";
+type Renderer = "native" | "react" | "crepus";
 type Adapter = "bun" | "node" | "cloudflare" | "vercel";
 
 export function detectMoonshineRoot(): string | null {
@@ -33,12 +33,14 @@ export function packagePath(
 ): string | undefined {
   const map: Record<string, string> = {
     "@tschk/moonshine": "packages/core",
+    "@tschk/moonshine-dom": "packages/dom",
     "@tschk/moonshine-next": "packages/adapter-next",
     "@tschk/moonshine-react-router": "packages/adapter-react-router",
     "@tschk/moonshine-tanstack": "packages/adapter-tanstack",
     "@tschk/moonshine-waku": "packages/adapter-waku",
     "@tschk/moonshine-framework": "packages/framework",
     "@tschk/moonshine-compiler": "packages/compiler",
+    "@tschk/moonshine-cli": "packages/cli",
     "@tschk/moonshine-server": "packages/server",
     "@tschk/moonshine-react": "packages/react",
     "@tschk/moonshine-solid": "packages/adapter-solid",
@@ -52,14 +54,33 @@ export function packagePath(
   return rel ? dep(root, rel, version) : undefined;
 }
 
-function runtimeForAdapter(adapter: Adapter): string {
+/** Keep transitive local package references off the registry while developing Moonshine. */
+export async function localOverrides(
+  root: string | null,
+): Promise<Record<string, string> | undefined> {
+  if (!root) return undefined;
+  const overrides: Record<string, string> = {};
+  for (const entry of await readdir(join(root, "packages"), {
+    withFileTypes: true,
+  })) {
+    if (!entry.isDirectory()) continue;
+    const directory = join(root, "packages", entry.name);
+    const manifestFile = Bun.file(join(directory, "package.json"));
+    if (!(await manifestFile.exists())) continue;
+    const manifest = (await manifestFile.json()) as { name?: string };
+    if (manifest.name) overrides[manifest.name] = `file:${directory}`;
+  }
+  return overrides;
+}
+
+function runtimeForAdapter(adapter: Adapter, renderer?: Renderer): string {
   switch (adapter) {
     case "node":
       return "node";
     case "cloudflare":
       return "cloudflare";
     case "vercel":
-      return "vercel-edge";
+      return renderer === "native" ? "node" : "vercel-edge";
     case "bun":
     default:
       return "bun";
@@ -78,8 +99,9 @@ function parseArgs(args: string[]): {
   let vite = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
-    if (a === "--react") renderer = "react";
-    else if (a === "--solid") renderer = "solid";
+    if (a === "--native") renderer = "native";
+    else if (a === "--react") renderer = "react";
+    else if (a === "--solid") renderer = "native";
     else if (a === "--crepus") renderer = "crepus";
     else if (a === "--adapter") {
       const next = args[++i];
@@ -102,11 +124,11 @@ function parseArgs(args: string[]): {
   }
   if (!name) {
     console.error(
-      "Usage: moonshine new <name> [--react|--solid|--crepus] [--adapter bun|node|cloudflare|vercel] [--vite]",
+      "Usage: moonshine new <name> [--native|--react|--solid|--crepus] [--adapter bun|node|cloudflare|vercel] [--vite]",
     );
     process.exit(1);
   }
-  return { name, renderer, adapter, vite };
+  return { name, renderer: renderer ?? "native", adapter, vite };
 }
 
 async function writePackageJson(
@@ -116,21 +138,44 @@ async function writePackageJson(
   renderer: Renderer | undefined,
   adapter: Adapter,
 ): Promise<void> {
-  const dependencies: Record<string, string> = {
-    "@tschk/moonshine": packagePath("@tschk/moonshine", root)!,
-    "@tschk/moonshine-framework": packagePath(
-      "@tschk/moonshine-framework",
-      root,
-    )!,
-    "@tschk/moonshine-compiler": packagePath(
-      "@tschk/moonshine-compiler",
-      root,
-    )!,
-    "@tschk/moonshine-server": packagePath("@tschk/moonshine-server", root)!,
-  };
+  const dependencies: Record<string, string> =
+    renderer === "native"
+      ? {
+          "@tschk/moonshine-dom": packagePath(
+            "@tschk/moonshine-dom",
+            root,
+            "^0.4.2",
+          )!,
+          "@tschk/moonshine-framework": packagePath(
+            "@tschk/moonshine-framework",
+            root,
+            "^0.4.2",
+          )!,
+          "@tschk/moonshine-server": packagePath(
+            "@tschk/moonshine-server",
+            root,
+            "^0.4.2",
+          )!,
+        }
+      : {
+          "@tschk/moonshine": packagePath("@tschk/moonshine", root)!,
+          "@tschk/moonshine-framework": packagePath(
+            "@tschk/moonshine-framework",
+            root,
+          )!,
+          "@tschk/moonshine-compiler": packagePath(
+            "@tschk/moonshine-compiler",
+            root,
+          )!,
+          "@tschk/moonshine-server": packagePath(
+            "@tschk/moonshine-server",
+            root,
+          )!,
+        };
   dependencies[`@tschk/moonshine-deploy-${adapter}`] = packagePath(
     `@tschk/moonshine-deploy-${adapter}`,
     root,
+    renderer === "native" ? "^0.4.2" : "^0.2.0",
   )!;
 
   const devDependencies: Record<string, string> = {
@@ -138,7 +183,11 @@ async function writePackageJson(
     typescript: "~7.0.0",
   };
 
-  if (renderer === "react") {
+  if (renderer === "native") {
+    devDependencies["@tschk/moonshine-cli"] = root
+      ? dep(root, "packages/cli")
+      : "^0.4.2";
+  } else if (renderer === "react") {
     dependencies["@tschk/moonshine-react"] = packagePath(
       "@tschk/moonshine-react",
       root,
@@ -147,12 +196,6 @@ async function writePackageJson(
     dependencies["react-dom"] = "^19.1.0";
     devDependencies["@types/react"] = "^19.1.0";
     devDependencies["@types/react-dom"] = "^19.1.0";
-  } else if (renderer === "solid") {
-    dependencies["@tschk/moonshine-solid"] = packagePath(
-      "@tschk/moonshine-solid",
-      root,
-    )!;
-    dependencies["solid-js"] = "^1.9.14";
   } else if (renderer === "crepus") {
     dependencies["@tschk/crepus-moonshine"] = packagePath(
       "@tschk/crepus-moonshine",
@@ -180,9 +223,15 @@ async function writePackageJson(
           build: "moonshine build",
           dev: "moonshine dev",
           preview: "moonshine preview",
+          ...(renderer === "native" && adapter === "node"
+            ? { start: "node .moonshine/server.js" }
+            : {}),
         },
         dependencies,
         devDependencies,
+        ...(renderer === "native" && root
+          ? { overrides: await localOverrides(root) }
+          : {}),
       },
       null,
       2,
@@ -198,16 +247,14 @@ async function writeTsconfig(
     target: "ES2024",
     module: "ESNext",
     moduleResolution: "Bundler",
-    jsx: renderer === "solid" ? "preserve" : "react-jsx",
+    jsx: "react-jsx",
     strict: true,
     skipLibCheck: true,
     noEmit: true,
     types: ["bun"],
     lib: ["ES2024", "DOM"],
   };
-  if (renderer === "solid") {
-    compilerOptions.jsxImportSource = "solid-js";
-  }
+  if (renderer === "native") delete compilerOptions.jsx;
   await writeFile(
     join(dir, "tsconfig.json"),
     JSON.stringify(
@@ -226,9 +273,20 @@ async function writeConfig(
   renderer: Renderer | undefined,
   adapter: Adapter,
 ): Promise<void> {
-  const runtime = runtimeForAdapter(adapter);
+  const runtime = runtimeForAdapter(adapter, renderer);
   const entries: Record<string, unknown> = { runtime, adapter };
   if (renderer) entries.renderer = renderer;
+  if (renderer === "native")
+    entries.routes = [
+      { id: "home", path: "/", file: "src/routes/home.ts", mode: "ssr" },
+      {
+        id: "counter",
+        path: "/counter",
+        file: "src/routes/counter.ts",
+        clientFile: "src/client/counter.ts",
+        mode: "spa",
+      },
+    ];
   await writeFile(
     join(dir, "moonshine.config.ts"),
     `import { defineConfig } from "@tschk/moonshine-framework";
@@ -243,7 +301,9 @@ async function writeRoute(
   renderer: Renderer | undefined,
 ): Promise<void> {
   await mkdir(join(dir, "src", "routes"), { recursive: true });
-  if (renderer === "react") {
+  if (renderer === "native") {
+    await writeNativeRoutes(dir);
+  } else if (renderer === "react") {
     await writeFile(
       join(dir, "src", "routes", "index.tsx"),
       `export default function Home({ data }: { data?: unknown }) {
@@ -252,21 +312,6 @@ async function writeRoute(
     <main data-moonshine-mode={d.mode ?? "default"}>
       <h1>Moonshine</h1>
     </main>
-  );
-}
-`,
-    );
-  } else if (renderer === "solid") {
-    await writeFile(
-      join(dir, "src", "routes", "index.ts"),
-      `import h from "@tschk/moonshine-solid/h";
-
-export default function Home({ data }: { data?: unknown }) {
-  const d = (data ?? {}) as Record<string, string>;
-  return h(
-    "main",
-    { "data-moonshine-mode": d.mode ?? "default" },
-    h("h1", null, "Moonshine"),
   );
 }
 `,
@@ -284,16 +329,63 @@ export default function Home({ data }: { data?: unknown }) {
   }
 }
 
+async function writeNativeRoutes(dir: string): Promise<void> {
+  await mkdir(join(dir, "src/client"), { recursive: true });
+  await Promise.all([
+    writeFile(
+      join(dir, "src/routes/home.ts"),
+      `import { h } from "@tschk/moonshine-dom/ssr";
+
+export function loader({ request }: { request: Request }) {
+  return { name: new URL(request.url).searchParams.get("name") ?? "world" };
+}
+
+export default function Home({ data }: { data: { home: ReturnType<typeof loader> } }) {
+  return h("main", null,
+    h("h1", null, "hello, ", data.home.name),
+    h("a", { href: "/counter" }, "open counter"),
+  );
+}
+`,
+    ),
+    writeFile(
+      join(dir, "src/routes/counter.ts"),
+      `export function loader() {
+  return { start: 0 };
+}
+`,
+    ),
+    writeFile(
+      join(dir, "src/client/counter.ts"),
+      `import { h } from "@tschk/moonshine-dom/dom";
+import { createSignal } from "@tschk/moonshine-dom/reactive";
+
+export default function Counter({ data }: { data: { counter: { start: number } } }) {
+  const [count, setCount] = createSignal(data.counter.start);
+  return h("main", null,
+    h("a", { href: "/" }, "home"),
+    h("h1", null, "Moonshine"),
+    h("button", { type: "button", onClick: () => setCount(count() + 1) }, () => "count " + count()),
+  );
+}
+`,
+    ),
+  ]);
+}
+
 async function writeReadme(
   dir: string,
   name: string,
   renderer: Renderer | undefined,
   adapter: Adapter,
 ): Promise<void> {
-  const runtime = runtimeForAdapter(adapter);
+  const runtime = runtimeForAdapter(adapter, renderer);
   let body = `# ${name}\n\nMoonshine on **${adapter}** (${runtime}).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n`;
+  if (renderer === "native")
+    body +=
+      "\nThe home page renders on the server. `/counter` mounts the independent DOM runtime.\nServer and browser entries are authored separately; hydration and islands are not supported.\n";
   if (!renderer)
-    body += `\nAdd \`--react\`, \`--solid\`, or \`--crepus\` for a UI renderer.\n`;
+    body += `\nAdd \`--react\` or \`--crepus\` for a legacy UI renderer.\n`;
   await writeFile(join(dir, "README.md"), body);
 }
 
@@ -301,6 +393,7 @@ async function writeViteApp(
   dir: string,
   name: string,
   root: string | null,
+  renderer: Renderer,
 ): Promise<void> {
   await mkdir(join(dir, "src"), { recursive: true });
 
@@ -318,15 +411,31 @@ async function writeViteApp(
             build: "vite build",
             preview: "vite preview",
           },
-          dependencies: {
-            "@tschk/moonshine": dep(root, "packages/core"),
-            react: "^19.1.0",
-            "react-dom": "^19.1.0",
-          },
+          ...(renderer === "native" && root
+            ? { overrides: await localOverrides(root) }
+            : {}),
+          dependencies:
+            renderer === "native"
+              ? {
+                  "@tschk/moonshine-dom": packagePath(
+                    "@tschk/moonshine-dom",
+                    root,
+                    "^0.4.2",
+                  )!,
+                }
+              : {
+                  "@tschk/moonshine": dep(root, "packages/core"),
+                  react: "^19.1.0",
+                  "react-dom": "^19.1.0",
+                },
           devDependencies: {
-            "@types/react": "^19.1.0",
-            "@types/react-dom": "^19.1.0",
-            "@vitejs/plugin-react": "^4.5.0",
+            ...(renderer === "react"
+              ? {
+                  "@types/react": "^19.1.0",
+                  "@types/react-dom": "^19.1.0",
+                  "@vitejs/plugin-react": "^4.5.0",
+                }
+              : {}),
             typescript: "~7.0.0",
             vite: "^6.3.5",
           },
@@ -343,7 +452,7 @@ async function writeViteApp(
             target: "ES2024",
             module: "ESNext",
             moduleResolution: "Bundler",
-            jsx: "react-jsx",
+            ...(renderer === "react" ? { jsx: "react-jsx" } : {}),
             strict: true,
             skipLibCheck: true,
             noEmit: true,
@@ -357,7 +466,11 @@ async function writeViteApp(
     ),
     writeFile(
       join(dir, "vite.config.ts"),
-      `import { defineConfig } from "vite";
+      renderer === "native"
+        ? `import { defineConfig } from "vite";
+export default defineConfig({});
+`
+        : `import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
@@ -376,14 +489,26 @@ export default defineConfig({
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.${renderer === "native" ? "ts" : "tsx"}"></script>
   </body>
 </html>
 `,
     ),
     writeFile(
-      join(dir, "src/main.tsx"),
-      `import { createSignal, useSignal, createApp } from "@tschk/moonshine/react";
+      join(dir, renderer === "native" ? "src/main.ts" : "src/main.tsx"),
+      renderer === "native"
+        ? `import { h, render } from "@tschk/moonshine-dom/dom";
+import { createSignal } from "@tschk/moonshine-dom/reactive";
+
+render(() => {
+  const [count, setCount] = createSignal(0);
+  return h("main", null,
+    h("h1", null, "Moonshine"),
+    h("button", { type: "button", onClick: () => setCount(count() + 1) }, () => "count " + count()),
+  );
+}, document.querySelector("#app")!);
+`
+        : `import { createSignal, useSignal, createApp } from "@tschk/moonshine/react";
 
 const count = createSignal(0);
 
@@ -405,7 +530,7 @@ createApp({ root: App }).mount("#app");
     ),
     writeFile(
       join(dir, "README.md"),
-      `# ${name}\n\nVite + moonshine signals (client SPA).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n\nFull-stack Bun (server + static + hydrate): \`moonshine new app --bun\`.\n`,
+      `# ${name}\n\nVite + Moonshine ${renderer === "native" ? "independent DOM runtime" : "signals"} (client SPA).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n\nFull-stack Bun (SSR and separate browser entries; no hydration): \`moonshine new app\`.\n`,
     ),
   ]);
 }
@@ -430,10 +555,11 @@ async function writeBunApp(
 
 export async function newCommand(args: string[]): Promise<void> {
   const { name, renderer, adapter, vite } = parseArgs(args);
-  if (vite && (renderer === "solid" || renderer === "crepus")) {
-    console.error("--vite only supports React scaffolds");
+  if (vite && renderer !== "react" && renderer !== "native") {
+    console.error("--vite supports --native or --react scaffolds");
     process.exit(1);
   }
+
   const root = detectMoonshineRoot();
   const dir = resolve(process.cwd(), name);
   if (existsSync(dir)) {
@@ -442,7 +568,7 @@ export async function newCommand(args: string[]): Promise<void> {
   }
 
   await mkdir(dir, { recursive: true });
-  if (vite) await writeViteApp(dir, name, root);
+  if (vite) await writeViteApp(dir, name, root, renderer!);
   else await writeBunApp(dir, name, root, renderer, adapter);
 
   console.log(`Created ${name}/ (${vite ? "vite" : adapter})`);

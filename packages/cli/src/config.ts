@@ -5,10 +5,11 @@ import { defineConfig as baseDefineConfig } from "@tschk/moonshine-framework";
 import type { RouteConvention } from "@tschk/moonshine-compiler";
 import type {
   MoonshineConfig,
+  RendererName,
   RouteDefinition,
 } from "@tschk/moonshine-framework";
 
-export type RendererName = "react" | "solid" | "crepus";
+export type { RendererName } from "@tschk/moonshine-framework";
 
 export type MoonshineCliConfig = MoonshineConfig & {
   adapter?: "bun" | "node" | "cloudflare" | "vercel";

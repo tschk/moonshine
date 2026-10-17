@@ -13,7 +13,7 @@ export type NextImport = {
 };
 
 export type TemplateFile = {
-  /** Project-relative `.svelte` / `.vue` file. */
+  /** Project-relative frontend template file. */
   file: string;
   /** URL path this template becomes, when it maps to one. */
   route?: string;
@@ -23,8 +23,11 @@ export type TemplateFile = {
   ok: boolean;
   /** View IR nodes produced. */
   nodes?: number;
-  /** The compiled View IR, embedded in the generated route module. */
+  /** Legacy parsed View IR; native adoption stores emitted source instead. */
   ir?: unknown;
+  /** Unchanged native SSR compiler output. */
+  source?: string;
+  component?: string;
   /** IR schema version the parser emitted. */
   irVersion?: number;
   /** Parse error, verbatim. Unsupported constructs are errors, not silent drops. */
@@ -38,7 +41,7 @@ export type AdoptScan = {
   routesDir?: string;
   convention?: RouteConvention;
   routes: { path: string; file: string }[];
-  /** Templates compiled to View IR, for the Svelte and Vue paths. */
+  /** Templates emitted as native SSR components for non-React frontends. */
   templates: TemplateFile[];
   imports: NextImport[];
   conventions: string[];

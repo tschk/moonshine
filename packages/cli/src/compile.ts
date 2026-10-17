@@ -1,23 +1,13 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function which(bin: string): Promise<string | null> {
-  const path = process.env.PATH ?? "";
-  for (const dir of path.split(":")) {
-    const candidate = join(dir, bin);
-    if (await exists(candidate)) return candidate;
-  }
-  return null;
-}
+import {
+  emitCrepusSource,
+  publishCrepusGraph,
+} from "@tschk/moonshine-compiler/source";
+export {
+  emitCrepusSource,
+  requireCrepusCompiler,
+} from "@tschk/moonshine-compiler/source";
 
 async function emitTsxFromIr(ir: unknown, outPath: string): Promise<void> {
   const json = JSON.stringify(ir, null, 2);
@@ -37,56 +27,74 @@ createApp({ root: App }).mount("#app");
 }
 
 export async function compileCommand(args: string[]): Promise<void> {
-  const input = args[0];
-  if (!input) {
-    console.error("Usage: moonshine compile <file.crepus|file.json>");
-    process.exit(1);
+  let input: string | undefined;
+  let compiler: string | undefined;
+  let site: string | undefined;
+  let target: "moonshine-dom" | "moonshine-ssr" | "react" = "moonshine-dom";
+  let selected = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--ssr" || arg === "--react") {
+      if (selected) throw new Error("Choose only one of --ssr or --react");
+      selected = true;
+      target = arg === "--ssr" ? "moonshine-ssr" : "react";
+    } else if (arg === "--compiler" || arg === "--site") {
+      const value = args[++i];
+      if (!value || value.startsWith("--"))
+        throw new Error(`${arg} requires a path`);
+      if (arg === "--compiler") compiler = value;
+      else site = value;
+    } else if (arg.startsWith("-")) throw new Error(`Unknown flag: ${arg}`);
+    else if (input) throw new Error(`Unexpected argument: ${arg}`);
+    else input = arg;
   }
-
-  const abs = resolve(process.cwd(), input);
-  if (!(await exists(abs))) {
-    console.error(`File not found: ${abs}`);
-    process.exit(1);
+  if (!input)
+    throw new Error(
+      "Usage: moonshine compile <source> [--ssr|--react] [--compiler <path>] [--site <root>]",
+    );
+  const abs = resolve(input);
+  try {
+    await access(abs);
+  } catch {
+    throw new Error(`File not found: ${abs}`);
   }
-
-  const ext = extname(abs).toLowerCase();
-  const outPath = join(dirname(abs), `${basename(abs, ext)}.tsx`);
-
+  const extension = extname(abs);
+  const ext = extension.toLowerCase();
+  const suffix =
+    target === "react"
+      ? ext === ".json"
+        ? ".tsx"
+        : ".react.tsx"
+      : target === "moonshine-ssr"
+        ? ".ssr.ts"
+        : ".dom.ts";
+  const outPath = join(dirname(abs), `${basename(abs, extension)}${suffix}`);
   if (ext === ".json") {
-    const ir = JSON.parse(await readFile(abs, "utf8"));
-    await emitTsxFromIr(ir, outPath);
+    if (target !== "react")
+      throw new Error(
+        "Native JSON IR emission is unavailable; compile frontend source or use --react for legacy JSON IR output",
+      );
+    await emitTsxFromIr(JSON.parse(await readFile(abs, "utf8")), outPath);
     return;
   }
-
-  if (ext === ".crepus") {
-    const crepus = await which("crepus");
-    if (crepus) {
-      const proc = Bun.spawn(
-        [crepus, "web", "build", "--emit", "moonshine", abs],
-        {
-          cwd: dirname(abs),
-          stdout: "inherit",
-          stderr: "inherit",
-        },
-      );
-      const code = await proc.exited;
-      if (code !== 0) process.exit(code);
-      console.log(`crepus emit finished for ${abs}`);
-      return;
-    }
-
-    console.error(
-      `No \`crepus\` on PATH and input is .crepus (not JSON IR).
-
-Install crepus (≥ 0.11) and retry, or pass View IR JSON:
-
-  moonshine compile view.json
-
-Hint: crepus web build --emit moonshine ${input}`,
-    );
-    process.exit(1);
+  // Crepus web/build.rs is_framework_template defines this frontend contract.
+  if (
+    ![
+      ".crepus",
+      ".jsx",
+      ".tsx",
+      ".csx",
+      ".svelte",
+      ".vue",
+      ".astro",
+      ".ng",
+      ".html",
+    ].includes(ext)
+  ) {
+    throw new Error(`Unsupported source extension: ${ext}`);
   }
-
-  console.error(`Unsupported extension: ${ext} (expected .crepus or .json)`);
-  process.exit(1);
+  const { source, graph } = await emitCrepusSource(abs, target, compiler, site);
+  if (graph) await publishCrepusGraph(outPath, graph);
+  else await writeFile(outPath, source);
+  console.log(`Wrote ${outPath}`);
 }

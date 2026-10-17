@@ -16,6 +16,20 @@ export async function findManualWork(
     if (!manual.includes(text)) manual.push(text);
   };
 
+  if (scan.framework === "waku") {
+    note(
+      "Waku RSC, server actions, slices, interceptors and middleware are not implemented; route discovery does not replace their runtime.",
+    );
+    note(
+      "Waku getConfig() is not read; render/staticPaths settings need Moonshine route configuration.",
+    );
+    if (files.some((file) => file.startsWith(`${scan.routesDir}/_api/`))) {
+      note(
+        "Waku _api paths support named HTTP method exports and handler(request); the Waku-specific second context argument requires porting.",
+      );
+    }
+  }
+
   for (const candidate of [
     "middleware.ts",
     "middleware.js",
@@ -150,7 +164,7 @@ export function templateManualWork(
   if (!templateGlobs(framework) || templates.length === 0) return [];
   const boundary: Readonly<Record<string, string>> = {
     svelte:
-      "<script> blocks are not executed: runes, stores, reactive statements, lifecycle hooks and event handler bodies are compiled as template text, not run. Port that logic to moonshine signals.",
+      "<script> blocks are not executed: runes, stores, reactive statements, lifecycle hooks and event handler bodies are discarded, not run. Port that logic to moonshine signals.",
     vue: "<script> blocks are not executed: the Composition API, reactive refs, computed properties and lifecycle hooks do not run. Port that logic to moonshine signals.",
     astro:
       "The `---` frontmatter is blanked, never executed: imports, top-level awaits, data fetching and `Astro.props` do not run. Only the markup below it is compiled.",
@@ -166,21 +180,34 @@ export function templateManualWork(
   const notes: string[] = [boundary[framework]!];
   if (rejects[framework]) notes.push(rejects[framework]!);
   notes.push(
-    "Route modules embed the View IR produced at adopt time. Re-run `moonshine adopt --force` after editing a template.",
+    "Native SSR components contain unchanged Crepus compiler output produced at adopt time. Re-run `moonshine adopt --force` after editing a template.",
   );
+  notes.push(
+    "Generated routes for removed source templates are not tracked or deleted automatically; review the generated route directory and retire stale routes explicitly.",
+  );
+  notes.push(
+    "Native adoption renders SSR only, without hydration or browser handlers. Route scope exposes only params and data; port all other state, writable bindings and handlers explicitly. Source scripts are never executed. Referenced images/assets are not emitted or copied by Crepus; review generated URLs and include assets explicitly in the application build. Use moonshine compile for an explicit DOM component and author a clientFile for SPA behavior.",
+  );
+  notes.push(
+    "Review generated forms and accessibility before replacing the original: accepted markup may lose form/submit semantics; v-model remains read-only without authored handlers. Verified Vue/Svelte email fixtures preserve type, explicit name, required, IDs, label associations and aria-label; review other frontend and attribute combinations.",
+  );
+  if (["svelte", "vue", "astro"].includes(framework))
+    notes.push(
+      "Component styles are not preserved by native emission: Svelte/Vue <style> blocks and scoped CSS are lost, and Astro <style> blocks can fail compilation. Port styles to authored CSS imports until Crepus supplies a stylesheet asset contract.",
+    );
   if (framework === "angular") {
     notes.push(
-      "Angular has no file-based routing, so no component is mounted at a URL. The generated IR is compiled but unrouted until you write route modules that render it.",
+      "Angular has no file-based routing, so no component is mounted at a URL. The generated SSR component is compiled but unrouted until you write route modules that render it.",
     );
   }
   for (const template of templates) {
     if (!template.ok) {
       notes.push(
-        `${template.file}: did not compile — ${template.error}. No route was generated for it; unsupported template constructs are parse errors, not silent drops.`,
+        `${template.file}: did not compile — ${template.error}. No route was generated for it; the compiler diagnostic must be resolved before mounting it.`,
       );
     } else if (!template.route) {
       notes.push(
-        `${template.file}: compiled (${template.nodes} nodes) but maps to no URL, so it is not mounted. Its IR is in ${template.generated} — import that from a route module to render it.`,
+        `${template.file}: compiled (${template.nodes} nodes) but maps to no URL, so it is not mounted. Its SSR component is in ${template.generated} — import that from a route module to render it.`,
       );
     }
   }

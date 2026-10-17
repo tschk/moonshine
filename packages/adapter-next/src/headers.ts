@@ -8,17 +8,11 @@
  * import { headers, cookies } from "@tschk/moonshine-next/headers";
  * ```
  */
-import { AsyncLocalStorage } from "node:async_hooks";
-
-const store = new AsyncLocalStorage<Request>();
-
-/** Runs `fn` with `request` visible to `headers()` and `cookies()`. */
-export function runWithRequest<T>(request: Request, fn: () => T): T {
-  return store.run(request, fn);
-}
+import { getRequest } from "@tschk/moonshine-framework/request";
+export { runWithRequest } from "@tschk/moonshine-framework/request";
 
 function current(): Request {
-  const request = store.getStore();
+  const request = getRequest();
   if (!request) {
     throw new Error(
       "headers() was called outside a request. Wrap the render in runWithRequest().",
@@ -40,7 +34,15 @@ function parseCookies(header: string | null): Map<string, string> {
     const index = part.indexOf("=");
     if (index === -1) continue;
     const name = part.slice(0, index).trim();
-    if (name) jar.set(name, decodeURIComponent(part.slice(index + 1).trim()));
+    if (!name) continue;
+    const raw = part.slice(index + 1).trim();
+    let value = raw;
+    try {
+      value = decodeURIComponent(raw);
+    } catch {
+      // Cookie values may contain literal percent signs or invalid URI sequences.
+    }
+    jar.set(name, value);
   }
   return jar;
 }

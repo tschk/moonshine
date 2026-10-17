@@ -15,7 +15,10 @@ import { compileTemplates } from "./templates.js";
 import { findConventions } from "./conventions.js";
 import { ALIAS_CAVEATS, findManualWork, templateManualWork } from "./gaps.js";
 
-export async function scanProject(projectDir: string): Promise<AdoptScan> {
+export async function scanProject(
+  projectDir: string,
+  options: { compiler?: string } = {},
+): Promise<AdoptScan> {
   const dir = resolve(projectDir);
   const pkg = readJson<PackageJson>(join(dir, "package.json"));
   const files = sourceFiles(dir);
@@ -28,11 +31,12 @@ export async function scanProject(projectDir: string): Promise<AdoptScan> {
 
   const globs = templateGlobs(detected.framework);
   const templates = globs
-    ? await compileTemplates(dir, detected.framework, globs)
+    ? await compileTemplates(dir, detected.framework, globs, options.compiler)
     : [];
 
   const routes: { path: string; file: string }[] = [];
   if (
+    !globs &&
     detected.routesDir &&
     detected.convention &&
     existsSync(join(dir, detected.routesDir))
@@ -49,6 +53,12 @@ export async function scanProject(projectDir: string): Promise<AdoptScan> {
       });
     }
   }
+
+  if (globs)
+    for (const template of templates) {
+      if (template.ok && template.route !== undefined && template.generated)
+        routes.push({ path: template.route, file: template.generated });
+    }
 
   return {
     projectDir: dir,

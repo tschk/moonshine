@@ -1,19 +1,20 @@
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import type { RouteDefinition } from "@tschk/moonshine-framework";
-import { createRouteGraph } from "@tschk/moonshine-router";
+import { createRouteGraph } from "@tschk/moonshine-router/graph";
 import { toPosix } from "./path.js";
 
 type SpecialKind = "layout" | "error" | "middleware";
 
 /**
  * Moonshine names co-located specials `+layout.tsx`; the Next App Router names
- * them `layout.tsx`. Only the prefix differs, so one lookup serves both.
+ * them `layout.tsx`, and Waku uses `_layout.tsx`. Only the prefix differs.
  */
-export type RouteConvention = "moonshine" | "next-app" | "next-pages";
+export type RouteConvention = "moonshine" | "next-app" | "next-pages" | "waku";
 
 const specialPrefix: Readonly<Record<RouteConvention, string | null>> = {
   moonshine: "+",
+  waku: "_",
   "next-app": "",
   // The Pages Router has no per-directory specials; `_app` wraps everything.
   "next-pages": null,
@@ -26,6 +27,7 @@ const specialPrefix: Readonly<Record<RouteConvention, string | null>> = {
  */
 const specialKinds: Readonly<Record<RouteConvention, SpecialKind[]>> = {
   moonshine: ["layout", "error", "middleware"],
+  waku: ["layout"],
   "next-app": ["layout"],
   "next-pages": [],
 };
@@ -69,7 +71,8 @@ function applyInheritance(
   const resolvedDir = resolve(routesDir);
   const cache = new Map<string, string | undefined>();
   for (const route of routes) {
-    if (!route.file) continue;
+    if (!route.file || (convention === "waku" && route.mode === "api"))
+      continue;
     const rel = toPosix(relative(resolvedDir, resolve(route.file)));
     const dir = dirname(rel);
     const parts = dir === "." ? [] : dir.split("/").filter(Boolean);

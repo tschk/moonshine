@@ -1,4 +1,6 @@
-import { realpathSync } from "node:fs";
+import { createReadStream, realpathSync } from "node:fs";
+import { stat } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { join, normalize, resolve, sep } from "node:path";
 
 function decodeSegment(part: string): string | null {
@@ -103,10 +105,33 @@ export async function tryServeStatic(
   staticDir: string,
   pathname: string,
   customHeaders?: HeadersInit,
+  method = "GET",
 ): Promise<Response | null> {
-  if (typeof Bun === "undefined") return null;
+  if (method !== "GET" && method !== "HEAD") return null;
   const filePath = resolveStaticPath(staticDir, pathname);
   if (!filePath) return null;
+  if (typeof Bun === "undefined") {
+    let info;
+    try {
+      info = await stat(filePath);
+      if (!info.isFile() || !isContained(staticDir, filePath)) return null;
+    } catch {
+      return null;
+    }
+    const headers = staticFileHeaders(
+      MIME[extOf(filePath)] ?? "application/octet-stream",
+      customHeaders,
+    );
+    headers.set("content-length", String(info.size));
+    return new Response(
+      method === "HEAD"
+        ? null
+        : (Readable.toWeb(
+            createReadStream(filePath),
+          ) as unknown as ReadableStream),
+      { headers },
+    );
+  }
   const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
   try {
@@ -117,7 +142,7 @@ export async function tryServeStatic(
   const type =
     MIME[extOf(filePath)] ?? (file.type || "application/octet-stream");
 
-  return new Response(file, {
-    headers: staticFileHeaders(type, customHeaders),
-  });
+  const headers = staticFileHeaders(type, customHeaders);
+  headers.set("content-length", String(file.size));
+  return new Response(method === "HEAD" ? null : file, { headers });
 }

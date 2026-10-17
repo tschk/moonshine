@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./source": "./src/source.ts"
   },
   "files": [
     "src"
@@ -19,10 +20,10 @@
   },
   "dependencies": {
     "@tschk/moonshine-framework": "^0.4.2",
-    "@tschk/moonshine-router": "^0.4.2"
+    "@tschk/moonshine-router": "^0.4.2",
+    "typescript": "^5.8.2"
   },
   "devDependencies": {
-    "@types/bun": "1.3.14",
-    "typescript": "^5.8.2"
+    "@types/bun": "1.3.14"
   }
 }

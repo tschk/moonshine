@@ -1,4 +1,4 @@
-import { createRouteGraph, matchRoutes } from "@tschk/moonshine-router";
+import { createRouteGraph, matchRoutes } from "@tschk/moonshine-router/graph";
 import type {
   RouteArtifact,
   RouteDefinition,
@@ -46,12 +46,12 @@ function buildModuleChain(
   const chain: ModuleChainItem[] = [];
 
   for (const key of route.layouts ?? []) {
-    const module = modules[key];
+    const module = Object.hasOwn(modules, key) ? modules[key] : undefined;
     if (module) chain.push({ key, module });
   }
 
   for (const key of route.middleware ?? []) {
-    const module = modules[key];
+    const module = Object.hasOwn(modules, key) ? modules[key] : undefined;
     if (module) chain.push({ key, module });
   }
 
@@ -62,7 +62,7 @@ function buildModuleChain(
   ];
 
   for (const key of leafKeys) {
-    const module = modules[key];
+    const module = Object.hasOwn(modules, key) ? modules[key] : undefined;
     if (module) {
       chain.push({ key, module });
       break;
@@ -80,24 +80,38 @@ function mergeHeaders(
   for (const source of sources) {
     if (!source) continue;
 
-    if (source instanceof Headers) {
-      for (const [key, value] of source.entries()) {
-        headers.set(key, value);
-      }
-    } else if (Array.isArray(source)) {
-      for (const [key, value] of source) {
-        headers.set(key, value);
-      }
-    } else {
-      for (const [key, value] of Object.entries(
-        source as Record<string, string>,
-      )) {
-        headers.set(key, value);
-      }
+    const entries =
+      source instanceof Headers || Array.isArray(source)
+        ? source
+        : Object.entries(source);
+    for (const [key, value] of entries) {
+      // Cookies are separate response fields; joining or replacing loses sessions.
+      if (key.toLowerCase() === "set-cookie") headers.append(key, value);
+      else headers.set(key, value);
     }
   }
 
   return headers;
+}
+
+function discardResponse(response: Response, retained?: Response): void {
+  const body = response.body;
+  if (!body || body === retained?.body || body.locked || response.bodyUsed)
+    return;
+  try {
+    void body.cancel().catch(() => {});
+  } catch {
+    // Discarding an unused body must not replace the selected response/error.
+  }
+}
+
+function discardReplacedResponse(
+  response: Response,
+  retained?: Response,
+): void {
+  // shortcut: a returned stream may consume this body later; stronger cleanup needs explicit ownership.
+  if (retained?.body) return;
+  discardResponse(response, retained);
 }
 
 function finalizeResponse(
@@ -105,13 +119,11 @@ function finalizeResponse(
   baseHeaders?: HeadersInit,
   method?: string,
 ): Response {
-  const headers = new Headers(baseHeaders);
-  for (const [key, value] of response.headers.entries()) {
-    headers.set(key, value);
-  }
+  const headers = mergeHeaders(baseHeaders, response.headers);
   // HEAD must carry the GET headers and no body; shipping one is a protocol
   // violation and mismatches Content-Length on runtimes that do not strip it.
   const body = method === "HEAD" ? null : response.body;
+  if (method === "HEAD") discardResponse(response);
   return new Response(body, {
     status: response.status,
     statusText: response.statusText,
@@ -129,7 +141,9 @@ function findErrorBoundary(
   }
 
   if (route.errorBoundary) {
-    const module = modules[route.errorBoundary];
+    const module = Object.hasOwn(modules, route.errorBoundary)
+      ? modules[route.errorBoundary]
+      : undefined;
     if (module?.errorBoundary) return module.errorBoundary;
   }
 
@@ -151,6 +165,7 @@ function resolveBaseHeaders(
 // Derived from the leaf, never hardcoded: an Allow header that lists methods
 // the route cannot serve sends clients down paths that will 405 again.
 function allowedMethods(leaf: ModuleChainItem | undefined): string {
+  if (leaf?.module.methods) return leaf.module.methods.join(", ");
   const methods = ["GET", "HEAD"];
   if (leaf?.module.action) methods.push("POST", "PUT", "PATCH", "DELETE");
   return methods.join(", ");
@@ -165,6 +180,14 @@ async function runCoreAndAfters(
   const method = ctx.request.method;
   const leaf = chain[chain.length - 1];
 
+  if (leaf?.module.methods && !leaf.module.methods.includes(method)) {
+    return new Response(null, {
+      status: 405,
+      headers: { allow: allowedMethods(leaf) },
+    });
+  }
+
+  let actionResponse: Response | undefined;
   if (method !== "GET" && method !== "HEAD") {
     // Without an action there is nothing to serve a write method. Falling
     // through would run the loaders — reachable by any verb, so a
@@ -178,39 +201,67 @@ async function runCoreAndAfters(
     }
 
     const result = await callAction(leaf.module.action, ctx);
-    if (result instanceof Response) return result;
-    if (result !== undefined) {
+    if (result instanceof Response) actionResponse = result;
+    else if (result !== undefined) {
       if (leaf.module.loader) ctx.data.__action = result;
       else ctx.data[leaf.key] = result;
     }
   }
 
-  const loaderEntries = chain.filter((c) => c.module.loader);
+  let loaderResponse: Response | undefined;
+  const loaderEntries = actionResponse
+    ? []
+    : chain.filter((c) => c.module.loader);
   if (loaderEntries.length > 0) {
     ctx.signal.throwIfAborted();
-    const results = await Promise.all(
-      loaderEntries.map(async (c) => {
-        const value = await callLoader(c.module.loader!, ctx);
-        return { key: c.key, value };
-      }),
-    );
-    for (const { key, value } of results) {
-      if (value !== undefined) ctx.data[key] = value;
+    const resolvedResponses: Response[] = [];
+    let failed = false;
+    let failureResponse: Response | undefined;
+    let results: Array<{ key: string; value: unknown }>;
+    try {
+      results = await Promise.all(
+        loaderEntries.map(async (c) => {
+          const value = await callLoader(c.module.loader!, ctx);
+          if (value instanceof Response) {
+            if (failed) discardResponse(value, failureResponse);
+            else resolvedResponses.push(value);
+          }
+          return { key: c.key, value };
+        }),
+      );
+      ctx.signal.throwIfAborted();
+    } catch (error) {
+      failed = true;
+      failureResponse = error instanceof Response ? error : undefined;
+      for (const response of resolvedResponses)
+        discardResponse(response, failureResponse);
+      throw error;
     }
+    // Promise.all preserves chain order: outer loaders take response precedence.
+    for (const { key, value } of results) {
+      if (value instanceof Response) loaderResponse ??= value;
+      else if (value !== undefined) ctx.data[key] = value;
+    }
+    for (const response of resolvedResponses)
+      discardResponse(response, loaderResponse);
   }
 
-  ctx.signal.throwIfAborted();
+  if (!actionResponse) ctx.signal.throwIfAborted();
 
   let response: Response;
-  if (route.mode === "api") {
-    const leafData = leaf ? ctx.data[leaf.key] : undefined;
-    response = leafData instanceof Response ? leafData : json(ctx.data);
+  if (actionResponse) {
+    response = actionResponse;
+  } else if (loaderResponse) {
+    response = loaderResponse;
+  } else if (route.mode === "api") {
+    response = json(ctx.data);
   } else if (route.mode === "static" && options.staticDir) {
     const pathname = new URL(ctx.request.url).pathname;
     const staticRes = await tryServeStatic(
       options.staticDir,
       pathname,
       options.defaultMeta?.headers,
+      method,
     );
     if (staticRes) {
       response = staticRes;
@@ -239,15 +290,25 @@ async function runCoreAndAfters(
 
   for (let i = chain.length - 1; i >= 0; i--) {
     for (const after of chain[i].module.after ?? []) {
-      const next = async () => response;
-      response = await after(ctx, next);
+      const previous = response;
+      const next = async () => previous;
+      try {
+        response = await after(ctx, next);
+      } catch (error) {
+        discardReplacedResponse(
+          previous,
+          error instanceof Response ? error : undefined,
+        );
+        throw error;
+      }
+      discardReplacedResponse(previous, response);
     }
   }
 
   return response;
 }
 
-function runBefores(
+async function runBefores(
   ctx: RouteContext,
   index: number,
   befores: Middleware[],
@@ -260,18 +321,64 @@ function runBefores(
   }
 
   const mw = befores[index]!;
-  const next = () => runBefores(ctx, index + 1, befores, chain, options, route);
-  return mw(ctx, next);
+  const delivered: Response[] = [];
+  let settled = false;
+  let retained: Response | undefined;
+  const next = () => {
+    const pending = runBefores(
+      ctx,
+      index + 1,
+      befores,
+      chain,
+      options,
+      route,
+    ).then(
+      (response) => {
+        if (settled) discardReplacedResponse(response, retained);
+        else delivered.push(response);
+        return response;
+      },
+      (error) => {
+        if (error instanceof Response) {
+          if (settled) discardReplacedResponse(error, retained);
+          else delivered.push(error);
+        }
+        throw error;
+      },
+    );
+    // A middleware may return before its next() settles; still observe rejection.
+    void pending.catch(() => {});
+    return pending;
+  };
+  try {
+    retained = await mw(ctx, next);
+    return retained;
+  } catch (error) {
+    retained = error instanceof Response ? error : undefined;
+    throw error;
+  } finally {
+    settled = true;
+    for (const response of delivered)
+      discardReplacedResponse(response, retained);
+  }
 }
 
 export function createRequestHandler(
   options: RequestHandlerOptions,
 ): (request: Request) => Promise<Response> {
+  if (
+    options.manifest?.requestContext &&
+    typeof options.requestScope !== "function"
+  ) {
+    throw new Error(
+      "Request-context manifests require their bundled requestScope",
+    );
+  }
   // Compiling the route graph is linear in the route count, so build it once
   // per handler instead of once per request.
   let cachedGraph = options.graph;
 
-  return async (request) => {
+  const handler = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     const pathname = url.pathname.replace(/\/+$/, "") || "/";
     const method = request.method;
@@ -285,6 +392,7 @@ export function createRequestHandler(
         options.staticDir,
         pathname,
         options.defaultMeta?.headers,
+        method,
       );
       if (staticRes) return staticRes;
     }
@@ -295,15 +403,23 @@ export function createRequestHandler(
         ? createRouteGraph(options.manifest.routes)
         : undefined);
     if (!graph) {
-      return new Response("No route graph configured", { status: 500 });
+      return finalizeResponse(
+        new Response("No route graph configured", { status: 500 }),
+        options.defaultMeta?.headers,
+        method,
+      );
     }
 
     const match = matchRoutes(graph, pathname);
     if (!match) {
       const ctx = createRouteContext(request, {});
-      return options.notFound
-        ? await options.notFound(ctx)
-        : new Response("Not Found", { status: 404 });
+      return finalizeResponse(
+        options.notFound
+          ? await options.notFound(ctx)
+          : new Response("Not Found", { status: 404 }),
+        options.defaultMeta?.headers,
+        method,
+      );
     }
 
     const route = match.route;
@@ -319,10 +435,14 @@ export function createRequestHandler(
     } catch (error) {
       if (error instanceof Redirect) {
         if (!isSafeRedirect(error.location, request)) {
-          return new Response("Invalid redirect", {
-            status: 400,
-            headers: baseHeaders,
-          });
+          return finalizeResponse(
+            new Response("Invalid redirect", {
+              status: 400,
+              headers: baseHeaders,
+            }),
+            undefined,
+            method,
+          );
         }
         const headers = new Headers(baseHeaders);
         headers.set("location", error.location);
@@ -331,7 +451,18 @@ export function createRequestHandler(
 
       const boundary = findErrorBoundary(chain, route, options.modules ?? {});
       if (boundary) {
-        const res = await boundary(ctx, error);
+        let res: Response;
+        try {
+          res = await boundary(ctx, error);
+        } catch (boundaryError) {
+          if (error instanceof Response)
+            discardReplacedResponse(
+              error,
+              boundaryError instanceof Response ? boundaryError : undefined,
+            );
+          throw boundaryError;
+        }
+        if (error instanceof Response) discardReplacedResponse(error, res);
         return finalizeResponse(res, baseHeaders, method);
       }
 
@@ -346,4 +477,8 @@ export function createRequestHandler(
       );
     }
   };
+  const requestScope = options.requestScope;
+  return requestScope
+    ? (request) => requestScope(request, () => handler(request))
+    : handler;
 }

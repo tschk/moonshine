@@ -74,3 +74,10 @@ describe("isExternal", () => {
     expect(isExternal("/path", "_self")).toBe(false);
   });
 });
+
+test("download presence leaves navigation to browser", () => {
+  for (const value of [true, "", "file.txt"])
+    expect(isExternal("/file", undefined, value)).toBe(true);
+  for (const value of [false, null, undefined])
+    expect(isExternal("/file", undefined, value)).toBe(false);
+});

@@ -21,7 +21,7 @@ function defaultRuntime(adapter: AdapterName): string {
 
 export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
   let projectDir = "";
-  let adapter: AdapterName = "bun";
+  let adapter: AdapterName | undefined;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--adapter") {
@@ -45,12 +45,45 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
   const resolvedDir = resolve(projectDir || process.cwd());
   const configPath = findConfig(resolvedDir);
   const config = configPath ? await loadConfig(configPath) : {};
-  const runtime = (config.runtime ?? defaultRuntime(adapter)) as
+  adapter ??= config.adapter ?? "bun";
+  if (!["bun", "node", "cloudflare", "vercel"].includes(adapter)) {
+    throw new Error(`Invalid configured adapter: ${adapter}`);
+  }
+  const nativeRuntime = adapter === "vercel" ? "node" : adapter;
+  const runtime = (config.runtime ??
+    (config.renderer === "native"
+      ? nativeRuntime
+      : defaultRuntime(adapter))) as
     "bun" | "node" | "cloudflare" | "vercel-edge";
+
+  const unsupportedServerTarget =
+    !["bun", "node"].includes(adapter) ||
+    runtime !== adapter ||
+    config.routes?.some((route) => route.runtime && route.runtime !== adapter);
+  const unsupportedNativeTarget =
+    runtime !== nativeRuntime ||
+    config.routes?.some(
+      (route) => route.runtime && route.runtime !== nativeRuntime,
+    );
+  if (config.renderer === "native" && unsupportedNativeTarget) {
+    throw new Error(
+      "Native renderer requires matching Bun, Node or Cloudflare runtimes; Vercel native functions require Node",
+    );
+  }
+
+  if (config.requestContext && unsupportedServerTarget) {
+    throw new Error(
+      "Request context supports only matching Bun or Node deployment adapters/runtimes",
+    );
+  }
 
   const manifest = await buildProject({
     projectDir: resolvedDir,
     runtime,
+    renderer: config.renderer,
+    requestContext: config.requestContext,
+    mode: config.mode,
+    programmatic: config.routes,
     ...(config.routesDir && {
       routesDir: resolve(resolvedDir, config.routesDir),
     }),
@@ -58,7 +91,14 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
   });
 
   const outDir = resolve(resolvedDir, ".moonshine");
-  const adapterModule = await import(`@tschk/moonshine-deploy-${adapter}`);
+  const adapterSpecifier = `@tschk/moonshine-deploy-${adapter}`;
+  let adapterPath: string;
+  try {
+    adapterPath = Bun.resolveSync(adapterSpecifier, resolvedDir);
+  } catch {
+    adapterPath = Bun.resolveSync(adapterSpecifier, import.meta.dir);
+  }
+  const adapterModule = await import(adapterPath);
   const adapterFn = adapterModule[`${adapter}Adapter`];
   if (typeof adapterFn?.build !== "function") {
     throw new Error(`Adapter "${adapter}" does not export a build function`);
