@@ -306,6 +306,12 @@ their value once with HTML escaping; nullish/function values omit the attribute.
 Single selections compare raw values with `===`; multiple arrays use `includes`,
 matching Svelte 5.57 SSR. All matching options receive `selected`; an unmatched
 typed selection is allowed. Ordinary string select behavior stays unchanged.
+For compiled source, a select box may also set `preserveSelected: true` to keep
+authored option selection flags alongside binding matches. The optional flag must
+be an own boolean data property; ordinary native boxes retain override behavior.
+With `hSource`, an ordinary option `value` slot preserves attribute placement
+without reading its overridden value/getter. The boxed value still determines
+serialization and comparison identity.
 These symbols provide SSR output, not hydration or client identity transport.
 
 Intentional reference difference: Chromium probes of Svelte 5.46.4 and cached

@@ -32,7 +32,7 @@ export { scopeSSRChild } from "./ssr-owner";
 /** Compiler-only typed selection; payloads preserve literal function/object identity. */
 export const selectBinding = Symbol("moonshine server select binding");
 export const optionBinding = Symbol("moonshine server option binding");
-type BindingValue = { value: unknown };
+type BindingValue = { value: unknown; preserveSelected?: boolean };
 function bindingValue(
   props: Record<string, unknown> | null,
   key: symbol,
@@ -51,7 +51,19 @@ function bindingValue(
   const descriptor = Object.getOwnPropertyDescriptor(box, "value");
   if (!descriptor || !("value" in descriptor))
     throw new TypeError("Server binding metadata requires an own data value");
-  return { value: descriptor.value };
+  const preserveSelected = Object.getOwnPropertyDescriptor(
+    box,
+    "preserveSelected",
+  );
+  if (
+    preserveSelected &&
+    (!("value" in preserveSelected) ||
+      typeof preserveSelected.value !== "boolean")
+  )
+    throw new TypeError(
+      "Server selected policy requires an own boolean data value",
+    );
+  return { value: descriptor.value, preserveSelected: preserveSelected?.value };
 }
 const html = Symbol("moonshine server HTML");
 type Selection = {
@@ -407,6 +419,7 @@ function intrinsic(
   let hasSelectValue = false;
   let multiple = false;
   let optionValue: string | undefined;
+  let typedOptionValueSlot = false;
   let selectedAttribute = "";
   let sourceNamespace: unknown;
   for (const name of Object.keys(props ?? {})) {
@@ -433,7 +446,19 @@ function intrinsic(
     if (property !== name && Object.hasOwn(props!, property)) continue;
     // Typed options carry their serialized value as well as comparison identity.
     // The ordinary value prop loses precedence without invoking its getter/accessor.
-    if (name === "value" && (typedOption || typedSelect)) continue;
+    if (name === "value" && (typedOption || typedSelect)) {
+      if (typedOption && sourceCodec) {
+        typedOptionValueSlot = true;
+        if (
+          typedOption.value != null &&
+          typeof typedOption.value !== "function"
+        ) {
+          optionValue = String(typedOption.value);
+          attributes.push(["value", optionValue]);
+        }
+      }
+      continue;
+    }
     const supplied = props![name];
     let value = typeof supplied === "function" ? supplied() : supplied;
     if (name === "xmlns") sourceNamespace = value;
@@ -503,6 +528,7 @@ function intrinsic(
   }
   if (
     typedOption &&
+    !typedOptionValueSlot &&
     typedOption.value != null &&
     typeof typedOption.value !== "function"
   ) {
@@ -606,7 +632,10 @@ function intrinsic(
             : raw === selection.binding.value
           : selection.values!.has(value) &&
             (selection.multiple || !selection.matched);
-        selected = matches ? ` selected=""` : "";
+        selected =
+          matches || (selection.binding?.preserveSelected && selectedAttribute)
+            ? ` selected=""`
+            : "";
         if (matches) selection.matched = true;
       }
       let body =

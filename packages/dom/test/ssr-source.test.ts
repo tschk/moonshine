@@ -261,3 +261,72 @@ test("source select presence avoids object coercion while typed selection overri
   );
   expect(coercions).toBe(0);
 });
+
+test("compiled select policy retains authored selected flags without changing native defaults", () => {
+  const render = (preserveSelected: boolean) =>
+    renderToString(() =>
+      hSource(
+        "select",
+        { [selectBinding]: { value: "b", preserveSelected } },
+        () => [
+          hSource(
+            "option",
+            { [optionBinding]: { value: "a" }, selected: true },
+            "a",
+          ),
+          hSource("option", { [optionBinding]: { value: "b" } }, "b"),
+        ],
+      ),
+    );
+  expect(render(true)).toBe(
+    '<select><option value="a" selected="">a</option><option value="b" selected="">b</option></select>',
+  );
+  expect(render(false)).toBe(
+    '<select><option value="a">a</option><option value="b" selected="">b</option></select>',
+  );
+  let reads = 0;
+  const box = {
+    value: "b",
+    get preserveSelected() {
+      reads++;
+      return true;
+    },
+  };
+  expect(() =>
+    renderToString(() => hSource("select", { [selectBinding]: box })),
+  ).toThrow("own boolean data value");
+  expect(reads).toBe(0);
+});
+
+test("source typed options retain the value attribute slot without reading its override", () => {
+  const calls: string[] = [];
+  const raw = {
+    toString() {
+      calls.push("value");
+      return "raw";
+    },
+  };
+  const props = {
+    "data-before": () => {
+      calls.push("before");
+      return "a";
+    },
+    get value(): never {
+      throw new Error("typed value override must stay unread");
+    },
+    "data-after": () => {
+      calls.push("after");
+      return "b";
+    },
+    [optionBinding]: { value: raw },
+  };
+  expect(
+    renderToString(() =>
+      hSource("option", props, () => {
+        calls.push("child");
+        return "x";
+      }),
+    ),
+  ).toBe('<option data-before="a" value="raw" data-after="b">x</option>');
+  expect(calls).toEqual(["before", "value", "after", "child"]);
+});
