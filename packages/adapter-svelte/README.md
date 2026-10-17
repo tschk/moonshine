@@ -14,14 +14,20 @@ This requirement does not apply to the signal-only `@tschk/moonshine` core entry
 | ---------- | ------------------------------------------------------------------- |
 | `.`        | signal bridges and lazy native SSR compatibility renderer           |
 | `./svelte` | lifecycle, context, typed `createContext`, component event dispatch |
-| `./class`  | opt-in `classValue` normalization for source class expressions      |
+| `./class`  | opt-in `classValue` and `classDirectives` for source classes        |
 | `./store`  | independent `writable`, `readable`, `derived`, and `get`            |
 
 `classValue` flattens nested class arrays and includes truthy object keys. Empty
 results return `undefined`, omitting the DOM/SSR attribute. Top-level primitive
 values retain Svelte 5.57 stringification; nested falsy values are omitted. This
-helper does not change ordinary native `h()` attributes or implement class/style
-directives.
+helper does not change ordinary native `h()` attributes.
+
+`classDirectives(base, hash, flags)` normalizes the base, appends an optional scope
+hash, then applies own class flags in order. Truthy flags append tokens; false
+flags remove matching tokens, including a matching hash. The local Crepus compiler
+uses it for authored intrinsic `class:` directives, including dynamic elements.
+Source parsing and independent input memoization belong to Crepus; this helper
+does not execute Svelte's compiled component instructions or implement style directives.
 
 The optional `/runes` entry exports compiler-facing `createState`, `createDerived`
 and `createRuneEffect`.
