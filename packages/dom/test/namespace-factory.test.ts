@@ -90,8 +90,20 @@ test("ordinary h retains its existing inferred and authored namespace behavior",
   expect(document.querySelector("a")!.namespaceURI).toBe(SVG);
 });
 
-test("invalid explicit namespaces reject at the public boundary", () => {
-  expect(() => Reflect.apply(hNS, null, ["invalid", "title"])).toThrow(
-    "Unsupported element namespace",
-  );
+test("arbitrary namespace URIs are delegated to createElementNS", () => {
+  const MATH = "http://www.w3.org/1998/Math/MathML";
+  const math = hNS(MATH, "math", { xmlns: HTML }, hNS(MATH, "mi", null, "x"));
+  expect(math.namespaceURI).toBe(MATH);
+  expect(math.getAttribute("xmlns")).toBe(HTML);
+  expect(math.firstElementChild!.namespaceURI).toBe(MATH);
+  const custom = hNS("urn:custom", "x-y");
+  expect(custom.namespaceURI).toBe("urn:custom");
+  expect(hNS("", "x").namespaceURI || null).toBeNull();
+});
+
+test("non-string explicit namespaces reject at the public boundary", () => {
+  for (const value of [null, undefined, 1, {}])
+    expect(() => Reflect.apply(hNS, null, [value, "title"])).toThrow(
+      "Unsupported element namespace",
+    );
 });

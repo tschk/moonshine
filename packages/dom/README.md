@@ -13,6 +13,14 @@ const dispose = render(() => {
 }, document.getElementById("app")!);
 ```
 
+The browser factory `hNS(namespace, tag, props, ...children)` takes an explicit
+namespace URI string. HTML, SVG and MathML literals retain their known element
+types; custom URIs return `Element`. An empty URI creates a null-namespace node.
+Authored `xmlns` stays an ordinary attribute and does not override this choice.
+Pass each child's lexical namespace explicitly when using compiler-owned trees.
+Non-string namespaces fail at the boundary; URI/tag validity follows the browser's
+`createElementNS` behavior.
+
 - `/reactive`: signals, memos, owned computations, cleanup and batching.
   `on(accessor, callback, { defer: true })` limits an effect or memo to explicit
   dependencies and skips its first callback. An array of accessors supplies a

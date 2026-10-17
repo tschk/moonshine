@@ -594,19 +594,25 @@ export function hNS<K extends keyof HTMLElementTagNameMap>(
   props?: Record<string, unknown> | null,
   ...children: DOMChild[]
 ): HTMLElementTagNameMap[K];
+export function hNS<K extends keyof MathMLElementTagNameMap>(
+  elementNamespace: "http://www.w3.org/1998/Math/MathML",
+  tag: K,
+  props?: Record<string, unknown> | null,
+  ...children: DOMChild[]
+): MathMLElementTagNameMap[K];
 export function hNS(
-  elementNamespace: typeof HTML | typeof SVG,
+  elementNamespace: string,
   tag: string,
   props?: Record<string, unknown> | null,
   ...children: DOMChild[]
 ): Element;
 export function hNS(
-  elementNamespace: typeof HTML | typeof SVG,
+  elementNamespace: string,
   tag: string,
   props: Record<string, unknown> | null = null,
   ...children: DOMChild[]
 ): Element {
-  if (elementNamespace !== HTML && elementNamespace !== SVG)
+  if (typeof elementNamespace !== "string")
     throw new TypeError("Unsupported element namespace");
   return createIntrinsic(tag, props, children, elementNamespace);
 }

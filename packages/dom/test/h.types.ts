@@ -21,6 +21,11 @@ const anchor: HTMLAnchorElement = hNS(HTML, "a");
 const wrongTitle: HTMLTitleElement = hNS(SVG, "title");
 // @ts-expect-error A lexical HTML anchor is not an SVG anchor.
 const wrongAnchor: SVGAElement = hNS(HTML, "a");
+const math: MathMLElement = hNS("http://www.w3.org/1998/Math/MathML", "math");
+const custom: Element = hNS("urn:custom", "x-y");
+// @ts-expect-error Custom namespace strings return generic Element.
+const wrongCustom: HTMLElement = hNS("urn:custom", "x-y");
+void [math, custom, wrongCustom];
 void [title, anchor, wrongTitle, wrongAnchor];
 
 hSource("div", { title: () => "source" }, () => "child");
