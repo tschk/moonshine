@@ -21,6 +21,11 @@ Pass each child's lexical namespace explicitly when using compiler-owned trees.
 Non-string namespaces fail at the boundary; URI/tag validity follows the browser's
 `createElementNS` behavior.
 
+The compiler-facing `hSourceNS(namespace, tag, props, ...children)` also accepts
+runtime namespace values. Nullish values select HTML; other values reach the
+browser unchanged for DOMString conversion and native namespace errors. Ordinary
+`h` keeps its existing string conversion, and `hNS` keeps its string-only guard.
+
 - `/reactive`: signals, memos, owned computations, cleanup and batching.
   `on(accessor, callback, { defer: true })` limits an effect or memo to explicit
   dependencies and skips its first callback. An array of accessors supplies a

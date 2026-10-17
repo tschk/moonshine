@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { h, hNS, render } from "../src/dom";
+import { h, hNS, hSourceNS, render } from "../src/dom";
 import { createSignal } from "../src/reactive";
 import "../../react/test/dom";
 
@@ -106,4 +106,35 @@ test("non-string explicit namespaces reject at the public boundary", () => {
     expect(() => Reflect.apply(hNS, null, [value, "title"])).toThrow(
       "Unsupported element namespace",
     );
+});
+
+test("hSourceNS defaults nullish to HTML", () => {
+  expect(hSourceNS(null, "div").namespaceURI).toBe(HTML);
+  expect(hSourceNS(undefined, "div").namespaceURI).toBe(HTML);
+  expect(hSourceNS(SVG, "title").namespaceURI).toBe(SVG);
+  expect(hSourceNS("", "x").namespaceURI || null).toBeNull();
+});
+
+test("hSourceNS passes non-nullish namespaces to createElementNS unconverted", () => {
+  const original = document.createElementNS;
+  const seen: unknown[] = [];
+  document.createElementNS = function (this: Document, ns: never, tag: string) {
+    seen.push(ns);
+    return original.call(this, "urn:stub" as never, tag);
+  } as typeof original;
+  try {
+    const sym = Symbol("ns");
+    const obj = { toString: () => "urn:obj" };
+    const invalid = "http://www.w3.org/2000/xmlns/";
+    for (const value of [true, 1, obj, sym, invalid, ""]) hSourceNS(value, "x");
+    expect(seen).toEqual([true, 1, obj, sym, invalid, ""]);
+  } finally {
+    document.createElementNS = original;
+  }
+});
+
+test("hSourceNS keeps xmlns as a separate attribute", () => {
+  const node = hSourceNS(SVG, "title", { xmlns: HTML });
+  expect(node.namespaceURI).toBe(SVG);
+  expect(node.getAttribute("xmlns")).toBe(HTML);
 });

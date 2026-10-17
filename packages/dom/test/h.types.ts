@@ -1,4 +1,4 @@
-import { h, hNS } from "../src/dom";
+import { h, hNS, hSourceNS } from "../src/dom";
 import { h as serverH, hSource } from "../src/ssr";
 
 interface Props {
@@ -27,6 +27,9 @@ const custom: Element = hNS("urn:custom", "x-y");
 const wrongCustom: HTMLElement = hNS("urn:custom", "x-y");
 void [math, custom, wrongCustom];
 void [title, anchor, wrongTitle, wrongAnchor];
+const sourceEl: Element = hSourceNS(undefined as unknown, "x-y");
+const sourceNull: Element = hSourceNS(null, "x-y", null, "text");
+void [sourceEl, sourceNull];
 
 hSource("div", { title: () => "source" }, () => "child");
 // @ts-expect-error Compiler source factory accepts intrinsic tags only.
