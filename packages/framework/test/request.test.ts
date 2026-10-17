@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { getRequest, runWithRequest } from "../src/request";
+import { getRequest, getResponseHeaders, runWithRequest } from "../src/request";
 
 test("request scopes return values and restore nested and outside contexts", () => {
   const outer = new Request("http://outer/");
@@ -47,4 +47,24 @@ test("overlapping async requests retain isolated contexts across awaits", async 
   expect(getRequest()).toBeUndefined();
   expect(await Promise.all([pending, next])).toEqual(["first", "second"]);
   expect(getRequest()).toBeUndefined();
+});
+
+test("response headers follow explicit nested scopes and restore outside", async () => {
+  const request = new Request("http://outer/");
+  const headers = new Headers();
+  expect(getResponseHeaders()).toBeUndefined();
+  await runWithRequest(
+    request,
+    async () => {
+      expect(getResponseHeaders()).toBe(headers);
+      await Promise.resolve();
+      expect(getResponseHeaders()).toBe(headers);
+      runWithRequest(request, () =>
+        expect(getResponseHeaders()).toBeUndefined(),
+      );
+      expect(getResponseHeaders()).toBe(headers);
+    },
+    headers,
+  );
+  expect(getResponseHeaders()).toBeUndefined();
 });

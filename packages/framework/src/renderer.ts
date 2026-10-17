@@ -28,4 +28,8 @@ export type Renderer = {
 };
 
 /** Runs the entire request pipeline in an optional server context. */
-export type RequestScope = <T>(request: Request, fn: () => T) => T;
+export type RequestScope = <T>(
+  request: Request,
+  fn: () => T,
+  responseHeaders?: Headers,
+) => T;

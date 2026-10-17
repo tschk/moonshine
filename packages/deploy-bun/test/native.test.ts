@@ -164,12 +164,14 @@ test("native Bun deployment injects its bundled request runner", async () => {
       bundlePath,
       (await Bun.file(bundlePath).text()) +
         `
-import {getRequest,runWithRequest} from "@tschk/moonshine-framework/request";
+import {getRequest,getResponseHeaders,runWithRequest} from "@tschk/moonshine-framework/request";
 export {runWithRequest as requestScope};
 modules.home.loader=async()=>{
   const request=getRequest();
   await new Promise(resolve=>setTimeout(resolve,2));
   if(getRequest()!==request)throw new Error("Request scope leaked");
+  getResponseHeaders().set("x-request-name", request.headers.get("x-name") ?? "anonymous");
+  getResponseHeaders().append("set-cookie", "request=" + (request.headers.get("x-name") ?? "anonymous") + "; Path=/; HttpOnly");
   return {name:request.headers.get("x-name")};
 };
 `,
@@ -186,6 +188,10 @@ modules.home.loader=async()=>{
           headers: { "x-name": name },
         });
         expect(response.status).toBe(200);
+        expect(response.headers.get("x-request-name")).toBe(name);
+        expect(response.headers.getSetCookie()).toEqual([
+          `request=${name}; Path=/; HttpOnly`,
+        ]);
         return response.text();
       }),
     );

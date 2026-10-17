@@ -479,6 +479,18 @@ export function createRequestHandler(
   };
   const requestScope = options.requestScope;
   return requestScope
-    ? (request) => requestScope(request, () => handler(request))
+    ? (request) => {
+        const responseHeaders = new Headers();
+        return requestScope(
+          request,
+          async () => {
+            const response = await handler(request);
+            return responseHeaders.keys().next().done
+              ? response
+              : finalizeResponse(response, responseHeaders, request.method);
+          },
+          responseHeaders,
+        );
+      }
     : handler;
 }

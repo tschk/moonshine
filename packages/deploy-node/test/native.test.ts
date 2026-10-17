@@ -17,12 +17,14 @@ test("native artifact runs in actual Node without runtime packages", async () =>
       bundlePath,
       (await readFile(bundlePath, "utf8")) +
         `
-import { getRequest, runWithRequest } from "@tschk/moonshine-framework/request";
+import { getRequest, getResponseHeaders, runWithRequest } from "@tschk/moonshine-framework/request";
 export { runWithRequest as requestScope };
 modules.home.loader = async () => {
   const request = getRequest();
   await new Promise(resolve => setTimeout(resolve, 2));
   if (getRequest() !== request) throw new Error("Request scope leaked");
+  getResponseHeaders().set("x-request-name", request.headers.get("x-name") ?? "anonymous");
+  getResponseHeaders().append("set-cookie", "request=" + (request.headers.get("x-name") ?? "anonymous") + "; Path=/; HttpOnly");
   return {name: request.headers.get("x-name") ?? new URL(request.url).searchParams.get("name") ?? "world"};
 };
 `,
@@ -110,6 +112,10 @@ await nodeAdapter.build(manifest,out);
           const response = await fetch(new URL("/", url), {
             headers: { "x-name": name },
           });
+          expect(response.headers.get("x-request-name")).toBe(name);
+          expect(response.headers.getSetCookie()).toEqual([
+            `request=${name}; Path=/; HttpOnly`,
+          ]);
           return response.text();
         }),
       );

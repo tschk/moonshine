@@ -64,3 +64,11 @@ Metadata applies to native SSR, static output, and SPA document shells without
 mounting the SPA server component. API responses skip it. This adds no client head
 manager: subsequent client-side navigation must update document metadata explicitly.
 Legacy React rendering does not consume this export.
+
+With an opt-in request scope, `getResponseHeaders()` from
+`@tschk/moonshine-framework/request` returns the request's mutable response-header
+sink. The pipeline merges it into completed responses, including redirects,
+errors, not-found and HEAD responses. Explicit response headers win for ordinary
+fields; `Set-Cookie` fields append separately. Without a supplied sink the helper
+returns `undefined`. Custom scope wrappers must forward the optional third
+`responseHeaders` argument to `runWithRequest`. The signal-only root is unchanged.
