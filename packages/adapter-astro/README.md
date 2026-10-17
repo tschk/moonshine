@@ -18,6 +18,7 @@ import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-astro";
 | ------------ | ---------------------------------------------- |
 | `.`          | Native signal bridges and lazy native renderer |
 | `./compiler` | Legacy Astro compiler re-exports               |
+| `./ssr`      | Independent synchronous Astro source factories |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install
@@ -31,12 +32,21 @@ called, so signal bridge consumers do not load server rendering.
 Legacy entries require their optional host peers: `astro`. They cannot be
 aliased over arbitrary host-compiled output to remove the host.
 
-The compiler entry still requires Astro. Native rendering expects compiled Moonshine server factories; it does not execute Astro frontmatter or implement the Astro compiler result shapes.
-Source parsing and compilation belong to Crepuscularity; these root runtime
-changes do not establish full Astro source support.
+The compiler entry still requires Astro. The independent `/ssr` entry supplies
+factories for Crepuscularity-authored server modules; it does not implement
+Astro's compiled component ABI. It preserves HTML attributes, normalizes
+`class:list` and style objects, escapes ordinary children and keeps component
+props independent of any host runtime.
 
-The legacy Crepus template emit currently accepts fenced Astro input while
-skipping its frontmatter and reading template expressions from an explicit
-`scope`. A successful template build does not establish execution of constants,
-`Astro.props`, imports or top-level `await`. Authored Astro server-module lowering
-remains a compiler gap; it must be implemented in Crepuscularity.
+Local Crepuscularity integration now lowers fenced `.astro` frontmatter into
+per-render synchronous factories, including typed `Props`, `Astro.props`, static
+imports, imported children, conditionals and simple maps. This compiler work is
+not yet published. Scriptless entry files retain the older scope-based template
+path. Parsing and lowering stay in Crepuscularity.
+
+This remains a bounded source slice: top-level await, dynamic imports, slots,
+client directives, script/style blocks, runtime exports, async children,
+combined `class`/`class:list` attributes and
+Astro globals other than `Astro.props` are unsupported. Hydration and arbitrary
+host-compiled output are unsupported. Use the legacy compiler explicitly for
+applications requiring the full Astro compiler contract.

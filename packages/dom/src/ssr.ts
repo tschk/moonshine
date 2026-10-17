@@ -403,12 +403,22 @@ export function hSourceEntries(
   return intrinsic(tag, null, children, sourceAttributeValue, entries);
 }
 
+/** Explicit HTML attributes without DOM property aliases or form-binding inference. */
+export function hAttributes(
+  tag: string,
+  attributes: Record<string, unknown> | null = null,
+  ...children: SSRChild[]
+): HTML {
+  return intrinsic(tag, attributes, children, undefined, undefined, true);
+}
+
 function intrinsic(
   tag: string,
   props: Record<string, unknown> | null,
   children: SSRChild[],
   sourceCodec?: typeof sourceAttributeValue,
   sourceEntries?: ReadonlyArray<readonly [string, unknown]>,
+  explicitAttributes = false,
 ): HTML {
   if (!/^[a-zA-Z][a-zA-Z0-9:_-]*$/.test(tag)) {
     throw new TypeError("Invalid server element name");
@@ -416,9 +426,13 @@ function intrinsic(
   const owner = getOwner();
   const lower = tag.toLowerCase();
   const typedSelect =
-    lower === "select" ? bindingValue(props, selectBinding) : undefined;
+    !explicitAttributes && lower === "select"
+      ? bindingValue(props, selectBinding)
+      : undefined;
   const typedOption =
-    lower === "option" ? bindingValue(props, optionBinding) : undefined;
+    !explicitAttributes && lower === "option"
+      ? bindingValue(props, optionBinding)
+      : undefined;
   if (lower === "script" || lower === "style") {
     throw new TypeError("Server script/style elements are unsupported");
   }
@@ -441,20 +455,32 @@ function intrinsic(
       throw new TypeError("Invalid server attribute name");
     }
     // Event and ref handlers are client-only and must never execute on the server.
-    if (/^on/i.test(name) || name === "ref" || name === "children") continue;
-    if (["innerHTML", "outerHTML", "dangerouslySetInnerHTML"].includes(name)) {
+    if (
+      /^on/i.test(name) ||
+      (!explicitAttributes && (name === "ref" || name === "children"))
+    )
+      continue;
+    if (
+      !explicitAttributes &&
+      ["innerHTML", "outerHTML", "dangerouslySetInnerHTML"].includes(name)
+    ) {
       throw new TypeError("Raw server HTML is unsupported");
     }
-    if (name === "defaultValue" && lower !== "input" && lower !== "textarea")
+    if (
+      !explicitAttributes &&
+      name === "defaultValue" &&
+      lower !== "input" &&
+      lower !== "textarea"
+    )
       throw new TypeError(
         "defaultValue is supported only on input and textarea",
       );
-    if (name === "defaultChecked" && lower !== "input")
+    if (!explicitAttributes && name === "defaultChecked" && lower !== "input")
       throw new TypeError("defaultChecked is supported only on input");
     const property =
-      name === "defaultValue"
+      !explicitAttributes && name === "defaultValue"
         ? "value"
-        : name === "defaultChecked"
+        : !explicitAttributes && name === "defaultChecked"
           ? "checked"
           : name;
     if (
@@ -482,7 +508,7 @@ function intrinsic(
     const supplied = sourceEntries ? sourceEntries[index]![1] : props![name];
     let value = typeof supplied === "function" ? supplied() : supplied;
     if (name === "xmlns") sourceNamespace = value;
-    if (name === "style") {
+    if (!explicitAttributes && name === "style") {
       if (value == null || value === false) value = undefined;
       else if (typeof value === "object") {
         value = styleEntries(value)
@@ -497,18 +523,18 @@ function intrinsic(
       }
     }
 
-    if (lower === "select" && name === "multiple") {
+    if (!explicitAttributes && lower === "select" && name === "multiple") {
       multiple =
         (sourceCodec
           ? sourceCodec(name, value, true)
           : attributeValue(name, value, true)) !== undefined;
     }
-    if (lower === "select" && name === "value") {
+    if (!explicitAttributes && lower === "select" && name === "value") {
       selectValue = value;
       hasSelectValue = true;
       continue;
     }
-    if (lower === "option" && name === "selected") {
+    if (!explicitAttributes && lower === "option" && name === "selected") {
       if (
         (sourceCodec
           ? sourceCodec(name, value, true)
@@ -517,18 +543,18 @@ function intrinsic(
         selectedAttribute = ` selected=""`;
       continue;
     }
-    if (lower === "textarea" && property === "value") {
+    if (!explicitAttributes && lower === "textarea" && property === "value") {
       textareaValue = value;
       hasTextareaValue = true;
       continue;
     }
     const attr =
-      property === "className"
+      !explicitAttributes && property === "className"
         ? "class"
-        : property === "htmlFor"
+        : !explicitAttributes && property === "htmlFor"
           ? "for"
           : property;
-    if (property === "value") {
+    if (!explicitAttributes && property === "value") {
       const serialized = sourceCodec
         ? sourceCodec("value", value, typeof supplied === "function")
         : value;
@@ -572,7 +598,9 @@ function intrinsic(
         ? children[0]
         : children.length
           ? children
-          : (props?.children as SSRChild);
+          : explicitAttributes
+            ? undefined
+            : (props?.children as SSRChild);
   const bodyChild = resolve(sourceChild);
   const bodyText = textOnly
     ? hasTextareaValue
@@ -589,9 +617,12 @@ function intrinsic(
   const renderAttributes = (svg: boolean) =>
     attributes
       .map(([attr, value]) => {
+        if (explicitAttributes)
+          return value == null ? "" : ` ${attr}="${escapeHtml(value)}"`;
         if (sourceCodec)
           return value === undefined ? "" : ` ${attr}="${escapeHtml(value)}"`;
-        if (!svg && attr === "checked" && !value) return "";
+        if (!explicitAttributes && !svg && attr === "checked" && !value)
+          return "";
         const text = attributeValue(
           attr,
           !svg &&

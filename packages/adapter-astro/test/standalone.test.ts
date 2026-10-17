@@ -89,3 +89,13 @@ const payload=spa.split('data-moonshine-props>')[1].split('</script>')[0];assert
     true,
   );
 });
+
+test("native Astro SSR factories load without hosts, parser WASM or framework", async () => {
+  await standalone(`
+import assert from 'node:assert/strict';
+import {h,renderToString,classList,sourceChild} from '@tschk/moonshine-astro/ssr';
+for(const name of ['astro','react','react-dom','@tschk/crepuscularity-wasm','@tschk/moonshine-framework'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
+assert.equal(renderToString(()=>h('p',{'data-ready':()=>true},sourceChild([true,false,0,'<&']))),'<p data-ready="true">true0&lt;&amp;</p>');
+assert.equal(classList(['a',{active:true}]),'a active');
+`);
+});
