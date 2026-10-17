@@ -1,34 +1,40 @@
-/**
- * @tschk/moonshine-svelte
- *
- * Hosting adapter: Svelte stays the compiler. Moonshine cannot replace
- * `.svelte` files. This package re-exports `svelte` on subpaths and
- * bridges moonshine signals onto a Svelte-store shape.
- */
+/** Independent store bridge; component-language parsing belongs in Crepus. */
 import {
   createSignal as msCreateSignal,
   type Signal as MsSignal,
 } from "@tschk/moonshine";
+import { writable, type Writable } from "./store";
 
-export type SvelteWritable<T> = {
-  subscribe: (fn: (value: T) => void) => () => void;
-  set: (value: T) => void;
-  update: (fn: (value: T) => T) => void;
-};
+export type SvelteWritable<T> = Writable<T>;
 
-/** One-way share: moonshine signal → Svelte writable contract. */
+/** Store subscribers share one kernel subscription while they are active. */
 export function fromMoonshineSignal<T>(signal: MsSignal<T>): SvelteWritable<T> {
+  let mirrored = signal.peek();
+  const store = writable(mirrored, (set) => {
+    mirrored = signal.peek();
+    set(mirrored);
+    return signal.subscribe(() => {
+      const current = signal.peek();
+      if (!Object.is(mirrored, current)) {
+        mirrored = current;
+        set(current);
+      }
+    });
+  });
+  function set(next: T): void {
+    const previous = signal.peek();
+    signal.set(() => next);
+    const current = signal.peek();
+    // Preserve store object notifications without duplicating deferred kernel writes.
+    if (Object.is(previous, current) || !Object.is(mirrored, current)) {
+      mirrored = current;
+      store.set(current);
+    }
+  }
   return {
-    subscribe(fn) {
-      fn(signal());
-      return signal.subscribe(() => fn(signal()));
-    },
-    set(value) {
-      signal.set(value);
-    },
-    update(fn) {
-      signal.set(fn(signal.peek()));
-    },
+    subscribe: store.subscribe,
+    set,
+    update: (fn) => set(fn(signal.peek())),
   };
 }
 
@@ -46,4 +52,4 @@ export {
   untrack,
 } from "@tschk/moonshine";
 export type { Resource, ResourceStatus } from "@tschk/moonshine";
-export { crepusRenderer } from "@tschk/crepus-moonshine";
+export { crepusRenderer } from "./framework";

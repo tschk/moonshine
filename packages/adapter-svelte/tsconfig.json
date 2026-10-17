@@ -1,4 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*",
+    "test/snippet.types.ts",
+    "test/raw-snippet.types.ts",
+    "test/store-write.types.ts",
+    "test/action.types.ts",
+    "test/private-class-state.types.ts",
+    "test/mount.types.ts",
+    "test/spread-props.types.ts"
+  ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-svelte",
   "version": "0.4.2",
-  "description": "Svelte hosting adapter — peer svelte re-exports plus moonshine signal bridges",
+  "description": "Independent Svelte store and native lifecycle APIs with Moonshine signal bridges",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -9,21 +9,35 @@
   "exports": {
     ".": "./src/index.ts",
     "./svelte": "./src/svelte.ts",
-    "./store": "./src/store.ts"
+    "./store": "./src/store.ts",
+    "./runes": "./src/runes.ts",
+    "./binding": "./src/binding.ts",
+    "./class": "./src/class.ts",
+    "./ssr": "./src/ssr.ts",
+    "./pre": "./src/pre.ts",
+    "./directives": "./src/directives.ts",
+    "./await": "./src/await.ts",
+    "./store-binding": "./src/store-binding.ts",
+    "./raw-snippet": "./src/raw-snippet.ts",
+    "./raw-snippet-dom": "./src/raw-snippet-dom.ts",
+    "./raw-snippet-ssr": "./src/raw-snippet-ssr.ts",
+    "./each": "./src/each.ts",
+    "./mount": "./src/mount.ts",
+    "./server-mount": "./src/server-mount.ts",
+    "./const": "./src/const-derived.ts"
   },
   "dependencies": {
-    "@tschk/crepus-moonshine": "^0.4.2",
     "@tschk/moonshine": "^0.4.2",
-    "@tschk/moonshine-framework": "^0.4.2"
+    "@tschk/moonshine-dom": "^0.4.2"
   },
   "devDependencies": {
     "typescript": "7.0.2"
   },
   "peerDependencies": {
-    "svelte": ">=4"
+    "@tschk/moonshine-framework": "^0.4.2"
   },
   "peerDependenciesMeta": {
-    "svelte": {
+    "@tschk/moonshine-framework": {
       "optional": true
     }
   },
