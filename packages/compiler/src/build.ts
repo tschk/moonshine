@@ -414,7 +414,7 @@ function findEntry(
 async function cssRoots(graph: InputGraph, files: string[]): Promise<string[]> {
   const visited = new Set<string>();
   const css: string[] = [];
-  const visit = (file: string) => {
+  const visit = async (file: string) => {
     file = resolve(file);
     if (visited.has(file)) return;
     visited.add(file);
@@ -425,9 +425,25 @@ async function cssRoots(graph: InputGraph, files: string[]): Promise<string[]> {
       return;
     }
     // Dynamic imports contribute CSS eagerly until the native loader supports lazy styles.
-    for (const edge of input.imports) if (!edge.external) visit(edge.path);
+    for (const edge of input.imports) {
+      if (edge.external) continue;
+      let target = edge.path;
+      // Bun may leave duplicate import edges as their original relative specifier.
+      if (
+        !isAbsolute(target) &&
+        (target.startsWith("./") || target.startsWith("../"))
+      ) {
+        target = await realpath(Bun.resolveSync(target, dirname(file)));
+        if (!graph.has(target)) {
+          throw new Error(
+            `Missing CSS dependency graph input for ${edge.path} imported by ${file}`,
+          );
+        }
+      }
+      await visit(target);
+    }
   };
-  for (const file of files) visit(await realpath(file));
+  for (const file of files) await visit(await realpath(file));
   return css;
 }
 

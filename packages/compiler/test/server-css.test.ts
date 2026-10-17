@@ -19,7 +19,9 @@ test("native SSR/static CSS stays route-specific, ordered and public without pri
     const sources = {
       "shared.ts":
         'import "./shared.css"; export const shared = "PRIVATE_SHARED_JS";',
-      "shared.css": ".shared-rule { color: black; }",
+      "shared.css":
+        '.shared-rule { color: black; background: url("./shared.bin"); }',
+      "shared.bin": "shared-asset".repeat(8192),
       "layout.ts": `import { h } from "@tschk/moonshine-dom/ssr";
         import "./shared"; export default props => h("main", null, props.children);`,
       "data.ts": `import "./data.css"; export const loader = () => ({ secret: "PRIVATE_DATA_JS" });`,
@@ -116,6 +118,12 @@ test("native SSR/static CSS stays route-specific, ordered and public without pri
     expect(beta).toContain(".beta-rule");
     expect(beta).not.toContain(".alpha-rule");
     expect(beta).not.toContain(".lazy-rule");
+    const sharedURL = `data:application/octet-stream;base64,${Buffer.from(sources["shared.bin"]).toString("base64")}`;
+    expect(alpha.split(sharedURL)).toHaveLength(2);
+    expect(beta.split(sharedURL)).toHaveLength(2);
+    expect(new Set(manifest.assets.map((asset) => asset.path)).size).toBe(
+      manifest.assets.length,
+    );
     const files = await Array.fromAsync(
       new Bun.Glob("**/*").scan({ cwd: join(out, "public"), onlyFiles: true }),
     );
