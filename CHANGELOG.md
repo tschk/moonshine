@@ -1,3 +1,13 @@
+# Moonshine 0.4.5
+
+- Add opt-in `hSource` intrinsic SSR construction with source attribute semantics,
+  eager reads/coercion, nullish value omission and existing owned child contracts.
+  Component calls and generic `h` keep their existing behavior.
+- The signal-only kernel remains unchanged. The matching Crepuscularity source
+  compiler candidate is validated separately and is not published by this release.
+  Full Svelte ABI, hydration, async SSR and arbitrary SVG remain unsupported.
+- See docs/native-source-ssr.md for verification scope and bundle-size tradeoffs.
+
 # Moonshine 0.4.4
 
 - Add opt-in lexical HTML/SVG factories for compiler-generated DOM components.
