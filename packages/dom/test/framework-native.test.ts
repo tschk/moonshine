@@ -1,3 +1,4 @@
+import { head, title } from "../src/head-ssr";
 import { expect, test } from "bun:test";
 import type { RenderContext } from "@tschk/moonshine-framework";
 import { createNativeRenderer } from "../src/framework-native";
@@ -335,4 +336,40 @@ test("unsupported asynchronous metadata observes rejected promises", async () =>
   );
   // Give delayed callback rejections a turn to surface as test-runner failures.
   await new Promise((resolve) => setTimeout(resolve, 0));
+});
+
+test("component head overrides metadata title and stays request-local", async () => {
+  const renderer = createNativeRenderer({
+    account: {
+      metadata: { title: "server default", description: "default description" },
+      default: ({ params }) => {
+        head(() => [
+          title(() => "Page:" + params.name),
+          h("meta", { name: "description", content: params.name }),
+        ]);
+        return h("p", null, params.name);
+      },
+    },
+    "/relocated/layout.ts": {
+      default: ({ children }) => h("main", null, children),
+    },
+  });
+  for (const name of ["<alice>", "bob"]) {
+    const ctx = context();
+    ctx.params.name = name;
+    const html = await renderer.prerender(ctx);
+    const escaped = name === "<alice>" ? "&lt;alice&gt;" : name;
+    expect(html).toContain("<title>Page:" + escaped + "</title>");
+    expect(html.match(/<title>/g)?.length).toBe(1);
+    expect(html).not.toContain("server default");
+    expect(html).toContain(
+      '<meta name="description" content="default description">',
+    );
+    expect(html).toContain(
+      '<meta name="description" content="' + escaped + '">',
+    );
+    const body = html.slice(html.indexOf("<body>"));
+    expect(body).not.toContain("<meta");
+    expect(body).not.toContain("<title");
+  }
 });

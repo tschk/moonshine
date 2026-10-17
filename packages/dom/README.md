@@ -102,6 +102,15 @@ const dispose = render(() => {
   Externally captured `scopeSSRChild` values retain their lexical owner and error
   policy; an error already swallowed there cannot reach this boundary. This is a
   native serialization API, with no async, reset, hydration or SFC boundary ABI.
+- `/head`: owned browser head declarations. `head(() => children)` adds only its
+  owner's nodes; cleanup removes them. `title(() => text)` updates the document
+  title and leaves the last title in place when its owner is disposed.
+- `/head-ssr`: synchronous `renderWithHead(() => child)` returns `{ body, head }`.
+  Use this entry's `head` and `title` functions inside that render scope. Ordinary
+  meta tags retain declaration order and duplicates. Within a head scope the first
+  accepted title wins; later head scopes can override it. Request and boundary
+  ownership are preserved. The framework renderer collects component head output
+  automatically; component titles override route metadata's fallback title.
 - `/framework-native`: the bundled framework renderer; requires the optional
   `@tschk/moonshine-framework` peer. Supports Bun, Node and Cloudflare SSR, static-mode rendering and
   fresh SPA mounts with separate authored client entries.

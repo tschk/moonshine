@@ -1,7 +1,13 @@
 import { createRawSnippet } from "../src/raw-snippet";
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { h, renderToString, settle } from "@tschk/moonshine-dom/ssr";
+import {
+  h,
+  renderToString,
+  settle,
+  boundary,
+  defer,
+} from "@tschk/moonshine-dom/ssr";
 import {
   peekComponentContext,
   setContext,
@@ -52,3 +58,25 @@ function invokeRawSSR<P extends unknown[]>(
 ) {
   return bridgeSSR(createRawSnippet<P>(factory), values, consumer);
 }
+
+test("nested SSR requests finish lifecycle cleanup inside a pending outer boundary", () => {
+  const trace: string[] = [];
+  function Inner() {
+    onDestroy(() => trace.push("inner-destroy"));
+    return "inner";
+  }
+  const result = renderToString(() =>
+    boundary(
+      () =>
+        defer(() => {
+          const inner = renderToString(() => h(Inner, {}));
+          assert.equal(inner, "inner");
+          assert.deepEqual(trace, ["inner-destroy"]);
+          return "outer";
+        }),
+      () => "fallback",
+    ),
+  );
+  assert.equal(result, "outer");
+  assert.deepEqual(trace, ["inner-destroy"]);
+});

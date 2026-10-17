@@ -29,7 +29,9 @@
     "./html": "./src/html.ts",
     "./framework-lazy": "./src/framework-lazy.ts",
     "./render-scheduler": "./src/render-scheduler.ts",
-    "./rotating-text": "./src/rotating-text.ts"
+    "./rotating-text": "./src/rotating-text.ts",
+    "./head": "./src/head.ts",
+    "./head-ssr": "./src/head-ssr.ts"
   },
   "files": [
     "src",

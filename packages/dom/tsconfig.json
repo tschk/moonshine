@@ -4,6 +4,7 @@
     "src/**/*",
     "test/control.types.ts",
     "test/h.types.ts",
-    "test/platform.types.ts"
+    "test/platform.types.ts",
+    "test/head.types.ts"
   ]
 }

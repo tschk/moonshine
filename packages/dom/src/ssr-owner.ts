@@ -3,13 +3,20 @@ import { getOwner, type Owner } from "./reactive";
 import type { SSRChild } from "./ssr";
 
 let rendering = 0;
+let renderScope: object | undefined;
+export function getSSRRenderScope(): object | undefined {
+  return renderScope;
+}
 /** shortcut: synchronous SSR only; use request-local context for async rendering. */
 export function withSSRRendering<T>(fn: () => T): T {
+  const previous = renderScope;
+  renderScope = {};
   rendering++;
   try {
     return fn();
   } finally {
     rendering--;
+    renderScope = previous;
   }
 }
 export function isSSRRendering(): boolean {

@@ -5,7 +5,8 @@ import {
   type DocumentMetadata,
   type RenderContext,
 } from "@tschk/moonshine-framework";
-import { h, defer, renderToString, escapeHtml, type SSRChild } from "./ssr";
+import { h, defer, escapeHtml, type SSRChild } from "./ssr";
+import { head, title, renderWithHead } from "./head-ssr";
 
 type PageProps = {
   params: Record<string, string>;
@@ -71,11 +72,24 @@ export function createNativeRenderer(
       }
     }
     let body: string;
+    let headHTML = "";
+    const renderBody = (read: () => SSRChild): string => {
+      const result = renderWithHead(() => {
+        if (metadata.description != null)
+          head(() =>
+            h("meta", { name: "description", content: metadata.description }),
+          );
+        if (metadata.title != null) title(() => metadata.title);
+        return read();
+      });
+      headHTML = result.head;
+      return result.body;
+    };
     let scripts = "";
     if (route.mode === "spa") {
       if (!route.clientEntries.length)
         throw new Error("Native SPA route requires a client entry");
-      body = renderToString(() =>
+      body = renderBody(() =>
         h("div", { id: "moonshine-app", "data-moonshine-app": route.id }),
       );
       scripts = `<script type="application/json" data-moonshine-props>${serializeData({ params, data })}</script>`;
@@ -85,7 +99,7 @@ export function createNativeRenderer(
     } else {
       const Page = component(pageKey);
       const layouts = layoutKeys.map(component);
-      body = renderToString(() => {
+      body = renderBody(() => {
         let child: () => SSRChild = () => h(Page, { params, data });
         for (let index = layouts.length - 1; index >= 0; index--) {
           const Layout = layouts[index]!;
@@ -100,14 +114,7 @@ export function createNativeRenderer(
       .join("");
     const lang =
       metadata.lang == null ? "" : ` lang="${escapeHtml(metadata.lang)}"`;
-    const head =
-      (metadata.title == null
-        ? ""
-        : `<title>${escapeHtml(metadata.title)}</title>`) +
-      (metadata.description == null
-        ? ""
-        : `<meta name="description" content="${escapeHtml(metadata.description)}">`);
-    return `<!doctype html><html${lang}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${head}${styles}</head><body>${body}${scripts}</body></html>`;
+    return `<!doctype html><html${lang}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${headHTML}${styles}</head><body>${body}${scripts}</body></html>`;
   }
 
   return {

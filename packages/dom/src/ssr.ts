@@ -15,8 +15,18 @@ import {
 import { styleEntries } from "./style";
 import { attributeValue, sourceAttributeValue } from "./attributes";
 import { createComponent } from "./component";
-import { createSSRRenderAttempt, type SSRRenderAttempt } from "./ssr-attempt";
-import { ssrOwner, withSSRRendering, type OwnedSSRChild } from "./ssr-owner";
+import {
+  createSSRRenderAttempt,
+  resetSSRRenderAttempt,
+  withSSRRenderAttempt,
+  type SSRRenderAttempt,
+} from "./ssr-attempt";
+import {
+  ssrOwner,
+  withSSRRendering,
+  isSSRRendering,
+  type OwnedSSRChild,
+} from "./ssr-owner";
 export { scopeSSRChild } from "./ssr-owner";
 
 /** Compiler-only typed selection; payloads preserve literal function/object identity. */
@@ -150,6 +160,16 @@ function content(child: SSRChild, selection?: Selection, svg = false): string {
   return escapeHtml(child);
 }
 
+/** Serialize within the active request and owner without starting or disposing a root. */
+export function serializeSSRChild(child: SSRChild): string {
+  const owner = getOwner();
+  if (!isSSRRendering() || !owner || owner.disposed)
+    throw new Error(
+      "SSR child serialization requires a live server render owner",
+    );
+  return content(child);
+}
+
 function inSSRScope<T>(child: OwnedSSRChild, render: () => T): T {
   const owner = child[ssrOwner];
   if (owner.disposed)
@@ -200,7 +220,9 @@ export function boundary(
               // The attempt owns a fresh context map; setup errors belong to this buffer.
               scope.context!.delete(errorHandlerKey);
               try {
-                return content(renderBranch(), localSelection, svg);
+                return withSSRRenderAttempt(attempt, () =>
+                  content(renderBranch(), localSelection, svg),
+                );
               } catch (error) {
                 // createRoot cleans failed setup before returning to the outer catch.
                 attempt.status = "discarded";
@@ -269,12 +291,14 @@ export function settle(
               stop = dispose;
               scope = getOwner()!;
               attempt = createSSRRenderAttempt();
-              return content(
-                renderTemplate(() => {
-                  dirty = true;
-                }),
-                localSelection,
-                svg,
+              return withSSRRenderAttempt(attempt, () =>
+                content(
+                  renderTemplate(() => {
+                    dirty = true;
+                  }),
+                  localSelection,
+                  svg,
+                ),
               );
             }),
           );
@@ -612,30 +636,33 @@ function intrinsic(
 }
 
 export function renderToString(fn: () => SSRChild): string {
-  return withSSRRendering(() => {
-    let dispose = () => {};
-    let result: string;
-    try {
-      result = createRoot((stop) => {
-        dispose = stop;
-        const requestOwner = getOwner()!;
-        if (requestOwner.context?.has(cleanupOrderKey)) {
-          requestOwner.context = new Map(requestOwner.context);
-          requestOwner.context.delete(cleanupOrderKey);
-        }
-        return content(fn());
-      });
-    } catch (error) {
+  return withSSRRendering(() =>
+    withSSRRenderAttempt(undefined, () => {
+      let dispose = () => {};
+      let result: string;
       try {
-        dispose();
-      } catch {
-        /* Preserve the render error. */
+        result = createRoot((stop) => {
+          dispose = stop;
+          resetSSRRenderAttempt();
+          const requestOwner = getOwner()!;
+          if (requestOwner.context?.has(cleanupOrderKey)) {
+            requestOwner.context = new Map(requestOwner.context);
+            requestOwner.context.delete(cleanupOrderKey);
+          }
+          return content(fn());
+        });
+      } catch (error) {
+        try {
+          dispose();
+        } catch {
+          /* Preserve the render error. */
+        }
+        throw error;
       }
-      throw error;
-    }
-    dispose();
-    return result;
-  });
+      dispose();
+      return result;
+    }),
+  );
 }
 
 /** Server lowering must import lifecycle hooks here; browser effects never run. */
