@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   h,
   hSource,
+  hSourceEntries,
   renderToString,
   selectBinding,
   optionBinding,
@@ -329,4 +330,92 @@ test("source typed options retain the value attribute slot without reading its o
     ),
   ).toBe('<option data-before="a" value="raw" data-after="b">x</option>');
   expect(calls).toEqual(["before", "value", "after", "child"]);
+});
+
+test("ordered source entries retain duplicate attributes and lazy evaluation order", () => {
+  const trace: string[] = [];
+  const value = {
+    toString() {
+      trace.push("coerce");
+      return "<&";
+    },
+  };
+  const output = renderToString(() =>
+    hSourceEntries("input", [
+      ["type", "checkbox"],
+      ["checked", true],
+      [
+        "value",
+        () => {
+          trace.push("value");
+          return value;
+        },
+      ],
+      [
+        "checked",
+        () => {
+          trace.push("binding");
+          return true;
+        },
+      ],
+      [
+        "data-after",
+        () => {
+          trace.push("after");
+          return "done";
+        },
+      ],
+    ]),
+  );
+  expect(output).toBe(
+    '<input type="checkbox" checked="" value="&lt;&amp;" checked="" data-after="done">',
+  );
+  expect(trace).toEqual(["value", "coerce", "binding", "after"]);
+});
+
+test("ordered source entries retain validation, client suppression and fail-fast reads", () => {
+  let reads = 0;
+  expect(
+    renderToString(() =>
+      hSourceEntries("input", [
+        [
+          "onchange",
+          () => {
+            throw Error("client-only");
+          },
+        ],
+        ["value", () => undefined],
+      ]),
+    ),
+  ).toBe("<input>");
+  expect(() =>
+    renderToString(() =>
+      hSourceEntries("input", [
+        ["bad name", "x"],
+        ["title", () => ++reads],
+      ]),
+    ),
+  ).toThrow("Invalid server attribute name");
+  expect(() =>
+    renderToString(() =>
+      hSourceEntries("input", [
+        ["innerHTML", "x"],
+        ["title", () => ++reads],
+      ]),
+    ),
+  ).toThrow("Raw server HTML is unsupported");
+  expect(() =>
+    renderToString(() =>
+      hSourceEntries("input", [
+        [
+          "value",
+          () => {
+            throw Error("value failed");
+          },
+        ],
+        ["title", () => ++reads],
+      ]),
+    ),
+  ).toThrow("value failed");
+  expect(reads).toBe(0);
 });

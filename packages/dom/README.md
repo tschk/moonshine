@@ -314,6 +314,12 @@ without reading its overridden value/getter. The boxed value still determines
 serialization and comparison identity.
 These symbols provide SSR output, not hydration or client identity transport.
 
+Compiler emitters can use `hSourceEntries(tag, entries, ...children)` from `/ssr`
+when ordered source attributes include repeated names. Entries are `[name, value]`
+pairs; function values are lazy readers, evaluated and serialized in entry order.
+The existing source codec, escaping, validation and client-only attribute suppression
+apply. This is attribute serialization; it does not implement group bindings.
+
 Intentional reference difference: Chromium probes of Svelte 5.46.4 and cached
 5.57.1 initialize an undefined
 multiple-select binding to only the first selected scalar. Native bindings adopt

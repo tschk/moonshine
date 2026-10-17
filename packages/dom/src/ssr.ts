@@ -394,11 +394,21 @@ export function hSource(
   return intrinsic(tag, props, children, sourceAttributeValue);
 }
 
+/** Compiler-only ordered source attributes, including repeated authored names. */
+export function hSourceEntries(
+  tag: string,
+  entries: ReadonlyArray<readonly [string, unknown]>,
+  ...children: SSRChild[]
+): HTML {
+  return intrinsic(tag, null, children, sourceAttributeValue, entries);
+}
+
 function intrinsic(
   tag: string,
   props: Record<string, unknown> | null,
   children: SSRChild[],
   sourceCodec?: typeof sourceAttributeValue,
+  sourceEntries?: ReadonlyArray<readonly [string, unknown]>,
 ): HTML {
   if (!/^[a-zA-Z][a-zA-Z0-9:_-]*$/.test(tag)) {
     throw new TypeError("Invalid server element name");
@@ -422,7 +432,11 @@ function intrinsic(
   let typedOptionValueSlot = false;
   let selectedAttribute = "";
   let sourceNamespace: unknown;
-  for (const name of Object.keys(props ?? {})) {
+  const names = sourceEntries
+    ? sourceEntries.map(([name]) => name)
+    : Object.keys(props ?? {});
+  for (let index = 0; index < names.length; index++) {
+    const name = names[index]!;
     if (!/^[a-zA-Z_:][a-zA-Z0-9:_.-]*$/.test(name)) {
       throw new TypeError("Invalid server attribute name");
     }
@@ -443,7 +457,13 @@ function intrinsic(
         : name === "defaultChecked"
           ? "checked"
           : name;
-    if (property !== name && Object.hasOwn(props!, property)) continue;
+    if (
+      property !== name &&
+      (sourceEntries
+        ? names.includes(property)
+        : Object.hasOwn(props!, property))
+    )
+      continue;
     // Typed options carry their serialized value as well as comparison identity.
     // The ordinary value prop loses precedence without invoking its getter/accessor.
     if (name === "value" && (typedOption || typedSelect)) {
@@ -459,7 +479,7 @@ function intrinsic(
       }
       continue;
     }
-    const supplied = props![name];
+    const supplied = sourceEntries ? sourceEntries[index]![1] : props![name];
     let value = typeof supplied === "function" ? supplied() : supplied;
     if (name === "xmlns") sourceNamespace = value;
     if (name === "style") {
