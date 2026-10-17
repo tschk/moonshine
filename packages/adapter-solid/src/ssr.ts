@@ -69,3 +69,6 @@ export function Index<T, U, F = U>(props: {
       })
     : props.fallback;
 }
+
+export { getOwner, runWithOwner } from "./owner";
+export type { Owner } from "./owner";

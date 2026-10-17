@@ -350,3 +350,21 @@ bootstrap. Native SSR, strict types and pinned-reference browser acceptance are
 verified separately; hydration, async SSR and the full compiled Solid ABI remain
 unsupported. Bare intrinsic `data-*` attributes now retain empty values, while
 explicit `data-x={true}` retains `"true"`.
+
+### Captured owners
+
+`getOwner`, `runWithOwner` and the native `Owner` type are available on `/solid`
+and `/ssr`. Capture an owner during setup and re-enter it synchronously inside a
+later callback to retain context and attach cleanup/effects to that owner.
+Reads inside `runWithOwner` do not subscribe the calling computation, and new
+effects start after callback setup. The previous owner and dependency collection
+are restored when the callback returns or throws. Captured error owners handle
+synchronous failures. Re-enter after each `await`; an async function does not
+keep the owner active across its own suspension.
+
+These are Moonshine owners, not Solid compiler owners. Disposed owners reject
+new owned work. Existing effects retain native update timing: repeated writes
+can rerun them during the callback, unlike Solid's deferred effect flush; failed
+callbacks also retain native cleanup/error scheduling. Transition/Suspense
+scheduling is unsupported. The generic DOM `runWithOwner` keeps its original
+owner-swap contract; only the adapter uses the untracked callback boundary.

@@ -196,3 +196,6 @@ export { mergeProps, splitProps } from "./props";
 export { lazy } from "./lazy";
 
 export { createRoot } from "./cleanup-policy";
+
+export { getOwner, runWithOwner } from "./owner";
+export type { Owner } from "./owner";

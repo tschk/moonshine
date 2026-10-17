@@ -371,6 +371,24 @@ export function runWithOwner<T>(scope: Owner | null, fn: () => T): T {
   }
 }
 
+/** Untracked callback scope; newly created effects start after the callback. */
+export function runWithOwnerCallback<T>(
+  scope: Owner | null,
+  fn: () => T,
+): T | undefined {
+  return runWithOwner(scope, () =>
+    untrack(() =>
+      runUpdates(() => {
+        try {
+          return fn();
+        } catch (error) {
+          if (!scope || !routeHandler(scope)?.(error)) throw error;
+        }
+      }),
+    ),
+  );
+}
+
 /** Attached component setup: isolate dependencies and dispose failed owned work. */
 export function createComponentScope<T>(fn: () => T): T {
   return invokeCallback(() => {

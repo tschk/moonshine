@@ -74,8 +74,13 @@ for (const name of ['solid-js','react','react-dom','@tschk/crepuscularity-wasm',
  assert.throws(()=>Bun.resolveSync(name,process.cwd()));
 }
 for(const [compat,native] of [[reactive,nativeReactive],[dom,nativeDOM],[control,nativeControl],[ssr,nativeSSR],[store,nativeStore]])
- for(const name of Object.keys(native)){if(compat===dom&&(name==='h'||name==='render')){assert.notEqual(compat[name],native[name],name);continue}assert.equal(compat[name],native[name],name);}
+ for(const name of Object.keys(native)){if(compat===dom&&(name==='h'||name==='render')){assert.notEqual(compat[name],native[name],name);continue}if(compat===ssr&&name==='runWithOwner'){assert.equal(compat[name],solid[name]);continue}assert.equal(compat[name],native[name],name);}
 assert.equal(h,namedH);assert.equal(h,dom.h);assert.notEqual(h,nativeDOM.h);
+solid.createRoot(dispose=>{
+ const owner=solid.getOwner();const [read,write]=solid.createSignal(0);let calls=0;
+ const memo=ssr.createMemo(()=>{calls++;ssr.runWithOwner(owner,()=>read());return 0;});
+ memo();write(1);memo();assert.equal(calls,1);dispose();
+});
 const cleanupOrder=[];const stopOrder=solid.createRoot(stop=>{solid.onCleanup(()=>cleanupOrder.push(1));solid.onCleanup(()=>cleanupOrder.push(2));return stop});stopOrder();assert.deepEqual(cleanupOrder,[2,1]);
 assert.equal(typeof portal.h,'function');assert.equal(typeof portal.Portal,'function');
 const unreadPortal={get mount(){throw Error('mount read')},get children(){throw Error('children read')}};
