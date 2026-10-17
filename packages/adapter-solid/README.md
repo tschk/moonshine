@@ -264,7 +264,7 @@ and SSR bundles contain no Solid runtime or parser WASM. Strict legacy IR export
 types still resolve the adapter's declared optional Crepus WASM type peer.
 
 This requires explicit manual native bootstrap. Existing tsconfig selection,
-normal raw-TSX project builds, imported/foreign component dispatch, hydration and
+normal raw-TSX project builds, foreign/dynamic component dispatch, hydration and
 the full compiler ABI remain unfinished. Native SSR cleanup remains synchronous
 FIFO; no full server cleanup timing parity is claimed. Source acceptance adds no
 Moonshine runtime changes or new performance claim.
@@ -289,3 +289,26 @@ The minified acceptance application, including its driver, measures 22,259 bytes
 fixture sizes, not isolated runtime measurements; no speed improvement is claimed.
 SSR rejects resource imports, including type-only forms. Async SSR, hydration,
 Suspense and the full Solid resource option surface remain unsupported.
+
+### Local imported Solid components
+
+The local Crepus CLI now verifies relative default and named component imports,
+local aliases and explicit named/default reexport chains before emitting the
+module graph. Every component and barrel on that chain needs its own leading
+`/** @jsxImportSource solid-js */` directive. The ultimate export must be a stable
+synchronous function. Existing site boundaries, symlink checks and preflight
+output protection remain in force. Standalone compilation stays fail-closed;
+resolver-aware native compiler entry points provide the graph proof.
+
+Thirteen pinned-reference browser phases match imported child setup, mount,
+reactive props, connected cleanup, resource transitions, focus, selection and node
+identity. Four fresh SSR requests across Bun and Node produce matching parsed
+attributes/text; Moonshine additionally escapes `<` in quoted attributes and
+`"` in text, so raw HTML differs. Both strict type checkers pass the DOM and SSR graphs.
+
+The complete browser acceptance fixture is 23,012 minified bytes / 8,680 gzip,
+versus Solid's 21,202 / 8,101. This includes the driver and makes no speed claim.
+The compiler increment remains local and unpublished, using SDK 0.4.13's existing
+independent renderer. Manual bootstrap is required. External or foreign
+components, namespace/member tags, dynamic identities, component lookup through
+`export *`, hydration and async SSR remain unsupported.
