@@ -1,3 +1,15 @@
+# Moonshine 0.4.4
+
+- Add opt-in lexical HTML/SVG factories for compiler-generated DOM components.
+  Authored xmlns attributes no longer have to select their creation namespace.
+- Add native Svelte element references with typed paths, action/publication
+  ordering, replacement protection and source-owned teardown. Existing component
+  references keep their default types and behavior.
+- The signal-only entry is unchanged. Source parsing remains in Crepuscularity;
+  this release supplies runtime helpers, not new syntax in its published compiler.
+  Source SVG SSR, intrinsic spreads and arbitrary precompiled Svelte remain
+  unsupported. See docs/native-element-references.md.
+
 # Moonshine 0.4.3
 
 - Native `Show` accepts an optional compiler-provided condition cache, allowing
