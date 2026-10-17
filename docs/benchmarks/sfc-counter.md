@@ -41,3 +41,20 @@ differences need further runs under comparable load. Startup uses a warm browser
 and localhost module fetch; paint, cold browser startup, routing, remote network,
 asynchronous data and hydration are outside this workload. These results do not
 establish a universal smallest or fastest framework.
+
+## Rejected experiment: skip empty SSR attribute scans
+
+A follow-up changed only intrinsic SSR `h` to skip `Object.keys(props ?? {})`
+when props are absent. On the unchanged compiled counter this avoided one empty
+attribute scan per render. Both versions passed the same 84 scoped tests,
+389 assertions and strict type checks; rendered HTML stayed identical.
+
+An alternating paired run used 50 samples per version, 5,000 fresh renders per
+sample and five warmups. Baseline median was 2.015 µs; candidate median was
+2.042 µs, with the candidate faster in 16 of 50 pairs. The candidate's bundle
+changed by +1 raw byte, -2 gzip bytes and +1 Brotli byte. Input and bundle hashes
+were checked before/after measurement. Host load was still elevated.
+
+This run demonstrated no speed benefit, so the change was rejected. It does
+not establish that the guard is universally slower; the runtime remains
+unchanged rather than adding an unproven optimization.
