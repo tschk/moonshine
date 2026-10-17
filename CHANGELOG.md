@@ -1,3 +1,17 @@
+# Moonshine 0.4.2
+
+- The signal kernel installs no runtime dependencies. Rendering and framework
+  bridges remain separate imports; dependency observation is opt-in on `/tracking`.
+- New `@tschk/moonshine-dom` provides independent owned DOM and buffered SSR
+  rendering, reactive controls, stores, resources and component contexts.
+- Solid and Svelte adapters replace their host runtime dependencies with native
+  Moonshine APIs. Recompile authored components through Crepuscularity; arbitrary
+  precompiled components, hydration and async SSR are not supported.
+- Vue adds native composition, component lifecycle and application helpers.
+  `/vue` and `/compiler-sfc` remain explicit legacy entries requiring Vue.
+- Native framework contracts add document metadata and opt-in Bun/Node request
+  context. The signal-only entry does not load these capabilities.
+
 # Moonshine 0.3.6
 
 ## Compiler
