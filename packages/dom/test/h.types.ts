@@ -1,5 +1,5 @@
 import { h, hNS } from "../src/dom";
-import { h as serverH } from "../src/ssr";
+import { h as serverH, hSource } from "../src/ssr";
 
 interface Props {
   readonly label: string;
@@ -22,3 +22,9 @@ const wrongTitle: HTMLTitleElement = hNS(SVG, "title");
 // @ts-expect-error A lexical HTML anchor is not an SVG anchor.
 const wrongAnchor: SVGAElement = hNS(HTML, "a");
 void [title, anchor, wrongTitle, wrongAnchor];
+
+hSource("div", { title: () => "source" }, () => "child");
+// @ts-expect-error Compiler source factory accepts intrinsic tags only.
+hSource(Component, props);
+// @ts-expect-error Source children use the existing SSR child contract.
+hSource("div", null, { arbitrary: true });

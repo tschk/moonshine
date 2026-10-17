@@ -13,7 +13,7 @@ import {
   type Owner,
 } from "./reactive";
 import { styleEntries } from "./style";
-import { attributeValue } from "./attributes";
+import { attributeValue, sourceAttributeValue } from "./attributes";
 import { createComponent } from "./component";
 import { createSSRRenderAttempt, type SSRRenderAttempt } from "./ssr-attempt";
 import { ssrOwner, withSSRRendering, type OwnedSSRChild } from "./ssr-owner";
@@ -346,6 +346,24 @@ export function h<P extends Record<string, unknown>>(
       "ssr",
     );
   }
+  return intrinsic(tag, props, children);
+}
+
+/** Compiler-only source attribute codec; children use the existing lazy contract. */
+export function hSource(
+  tag: string,
+  props: Record<string, unknown> | null = null,
+  ...children: SSRChild[]
+): HTML {
+  return intrinsic(tag, props, children, sourceAttributeValue);
+}
+
+function intrinsic(
+  tag: string,
+  props: Record<string, unknown> | null,
+  children: SSRChild[],
+  sourceCodec?: typeof sourceAttributeValue,
+): HTML {
   if (!/^[a-zA-Z][a-zA-Z0-9:_-]*$/.test(tag)) {
     throw new TypeError("Invalid server element name");
   }
@@ -366,6 +384,7 @@ export function h<P extends Record<string, unknown>>(
   let multiple = false;
   let optionValue: string | undefined;
   let selectedAttribute = "";
+  let sourceNamespace: unknown;
   for (const name of Object.keys(props ?? {})) {
     if (!/^[a-zA-Z_:][a-zA-Z0-9:_.-]*$/.test(name)) {
       throw new TypeError("Invalid server attribute name");
@@ -393,6 +412,7 @@ export function h<P extends Record<string, unknown>>(
     if (name === "value" && (typedOption || typedSelect)) continue;
     const supplied = props![name];
     let value = typeof supplied === "function" ? supplied() : supplied;
+    if (name === "xmlns") sourceNamespace = value;
     if (name === "style") {
       if (value == null || value === false) value = undefined;
       else if (typeof value === "object") {
@@ -409,7 +429,10 @@ export function h<P extends Record<string, unknown>>(
     }
 
     if (lower === "select" && name === "multiple") {
-      multiple = attributeValue(name, value, true) !== undefined;
+      multiple =
+        (sourceCodec
+          ? sourceCodec(name, value, true)
+          : attributeValue(name, value, true)) !== undefined;
     }
     if (lower === "select" && name === "value") {
       selectValue = value;
@@ -417,7 +440,11 @@ export function h<P extends Record<string, unknown>>(
       continue;
     }
     if (lower === "option" && name === "selected") {
-      if (attributeValue(name, value, true) !== undefined)
+      if (
+        (sourceCodec
+          ? sourceCodec(name, value, true)
+          : attributeValue(name, value, true)) !== undefined
+      )
         selectedAttribute = ` selected=""`;
       continue;
     }
@@ -433,11 +460,22 @@ export function h<P extends Record<string, unknown>>(
           ? "for"
           : property;
     if (property === "value") {
-      if (lower === "option") optionValue = String(value ?? "");
-      attributes.push(["value", value]);
+      const serialized = sourceCodec
+        ? sourceCodec("value", value, typeof supplied === "function")
+        : value;
+      if (lower === "option")
+        optionValue = sourceCodec
+          ? String(serialized ?? "")
+          : String(value ?? "");
+      attributes.push(["value", serialized]);
       continue;
     }
-    attributes.push([attr, value]);
+    attributes.push([
+      attr,
+      sourceCodec
+        ? sourceCodec(attr, value, typeof supplied === "function")
+        : value,
+    ]);
   }
   if (
     typedOption &&
@@ -471,7 +509,9 @@ export function h<P extends Record<string, unknown>>(
       ? String(textareaValue ?? "")
       : text(bodyChild)
     : undefined;
-  const explicitNamespace = attributes.find(([name]) => name === "xmlns")?.[1];
+  const explicitNamespace = sourceCodec
+    ? sourceNamespace
+    : attributes.find(([name]) => name === "xmlns")?.[1];
   const isSvg = (inherited = false) =>
     explicitNamespace != null
       ? explicitNamespace === "http://www.w3.org/2000/svg"
@@ -479,6 +519,8 @@ export function h<P extends Record<string, unknown>>(
   const renderAttributes = (svg: boolean) =>
     attributes
       .map(([attr, value]) => {
+        if (sourceCodec)
+          return value === undefined ? "" : ` ${attr}="${escapeHtml(value)}"`;
         if (!svg && attr === "checked" && !value) return "";
         const text = attributeValue(
           attr,
