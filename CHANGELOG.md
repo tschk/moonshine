@@ -1,3 +1,12 @@
+# Moonshine 0.4.14
+
+- Add independent synchronous Solid `For` and `Index` helpers on `/ssr`,
+  retaining request context, captured row values and lazy empty-list fallbacks.
+- Infer DOM and SSR list fallback types independently from row results while
+  preserving explicit two-type-argument calls. Keep the signal-only core unchanged.
+- Authored `<For>` / `<Index>` compilation remains unsupported until callback
+  contextual types are preserved. Hydration and async SSR remain unsupported.
+
 # Moonshine 0.4.13
 
 - Add opt-in native `bindFiles` and the independent Svelte binding re-export,
