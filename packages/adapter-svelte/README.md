@@ -10,12 +10,12 @@ exports `crepusRenderer` with the framework's `Renderer` contract. The framework
 remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
 This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
 
-| Subpath    | Provides                                                            |
-| ---------- | ------------------------------------------------------------------- |
-| `.`        | signal bridges and lazy native SSR compatibility renderer           |
-| `./svelte` | lifecycle, context, typed `createContext`, component event dispatch |
-| `./class`  | opt-in `classValue` and `classDirectives` for source classes        |
-| `./store`  | independent `writable`, `readable`, `derived`, and `get`            |
+| Subpath    | Provides                                                             |
+| ---------- | -------------------------------------------------------------------- |
+| `.`        | signal bridges and lazy native SSR compatibility renderer            |
+| `./svelte` | lifecycle, context, typed `createContext`, component event dispatch  |
+| `./class`  | opt-in `classValue` and `classDirectives` for source classes         |
+| `./store`  | independent `writable`, `readable`, `readonly`, `derived`, and `get` |
 
 `classValue` flattens nested class arrays and includes truthy object keys. Empty
 results return `undefined`, omitting the DOM/SSR attribute. Top-level primitive
@@ -478,3 +478,9 @@ behavior/type tests and bounded private-class source acceptance in the shared
 shared source gate.
 
 The optional `/mount` entry freshly mounts compiler-marked native SFC factories and returns their synchronous typed exports. It supports owned teardown, target-local anchors and copied root contexts; `/server-mount` rejects client mounting on the server. Hydration, transitions/outros, legacy event options and error transforms remain unsupported and reject explicitly. Both boolean `intro` values are accepted for sources without transitions. The erased `ComponentView<View, Exports, Props>` return metadata and `ComponentFactory<Implementation>` callable type preserve required/optional props and export types. Generated public functions must also preserve ESM hoisting. Public mounting checks metadata props rather than an implementation parameter typed `any`. The standalone `scripts/check-native-svelte-mount.ts --compiler <path>` source check verifies 28 generated modules with frozen compiler `703ceb65`: unchanged authored launchers, typed synchronous exports, two independent instances, anchor/context/cleanup behavior, DOM-free server imports and real Bun/Node ESM cycles. The combined await/source gate currently uses a separate compiler snapshot; merging those compiler lineages remains open. Declaration emission for setup-local interfaces is also unfinished.
+
+`readonly(store)` exposes only a bound `subscribe`, preserving custom store
+receivers, invalidators and cleanup. Writes through the original store still
+notify its subscribers. This facade does not freeze stored values. Authored
+`svelte/store` imports of `readonly` still require a Crepus compiler update;
+the direct Moonshine `/store` API is available independently.

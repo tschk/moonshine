@@ -101,6 +101,11 @@ export function readable<T>(
   return { subscribe: writable(initial, start).subscribe };
 }
 
+/** Expose subscriptions without forwarding a store's mutation methods. */
+export function readonly<T>(store: Readable<T>): Readable<T> {
+  return { subscribe: store.subscribe.bind(store) };
+}
+
 type Stores = Readable<any> | readonly Readable<any>[];
 type Values<S> =
   S extends Readable<infer T>
