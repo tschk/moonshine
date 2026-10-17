@@ -31,3 +31,56 @@ mapArray(items, identity, undefined, invalidSchedule);
 // @ts-expect-error scheduled Show result must retain its branch payload
 Show({ when: () => true, children: () => 1 }, invalidSchedule);
 void [keyed, delayed, indexed, forwarded, shown];
+
+const early: () => string[] = mapArray(
+  items,
+  (value) => String(value),
+  undefined,
+  pull,
+  "before-map",
+);
+// @ts-expect-error removal order is an explicit supported mode
+mapArray(items, identity, undefined, pull, "invalid");
+void early;
+
+const earlyIndexed: () => number[] = indexArray(
+  items,
+  (value) => value(),
+  pull,
+  "before-map",
+);
+// @ts-expect-error indexed update order is an explicit supported mode
+indexArray(items, (value) => value(), pull, "invalid");
+void earlyIndexed;
+
+const fallbackMapped: () => number[] | string = mapArray(
+  items,
+  (value) => value,
+  undefined,
+  pull,
+  "before-map",
+  () => "empty",
+);
+const fallbackIndexed: () => number[] | string = indexArray(
+  items,
+  (value) => value(),
+  pull,
+  "before-map",
+  () => "empty",
+);
+void [fallbackMapped, fallbackIndexed];
+
+// Generated Svelte helpers allow a single child or a mapped child accessor.
+function genericKeyed<T, U extends import("../src/dom").DOMChild>(
+  each: () => readonly T[],
+  child: (item: T, index: () => number) => U,
+): U | (() => U[]) {
+  return mapArray(each, child, undefined, pull);
+}
+function genericIndexed<T, U extends import("../src/dom").DOMChild>(
+  each: () => readonly T[],
+  child: (item: () => T, index: number) => U,
+): U | (() => U[]) {
+  return indexArray(each, child, pull);
+}
+void [genericKeyed, genericIndexed];

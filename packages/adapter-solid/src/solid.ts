@@ -3,8 +3,8 @@ import { peekComponentContext } from "@tschk/moonshine-dom/component";
 /** Native source-level helpers; Solid compiler instructions are not supported. */
 import {
   ErrorBoundary as nativeErrorBoundary,
-  For as nativeFor,
-  Index as nativeIndex,
+  mapArray as nativeMapArray,
+  indexArray as nativeIndexArray,
   Show as nativeShow,
   Match as nativeMatch,
   Switch as nativeSwitch,
@@ -35,32 +35,22 @@ type ListProps<T, F> = {
   readonly each: readonly T[] | false | null | undefined;
   readonly fallback?: F;
 };
-function withFallback<U, F>(
-  mapped: Accessor<U[]>,
-  fallback: () => F | undefined,
-): Accessor<U[] | F | undefined> {
-  const selected = nativeShow<boolean, F | Accessor<U[]> | undefined>({
-    when: () => mapped().length > 0,
-    children: () => mapped,
-    fallback,
-  });
-  return () => {
-    const value = selected();
-    return value === mapped ? mapped() : (value as F | undefined);
-  };
-}
 export function For<T, U, F = U>(
   props: ListProps<T, F> & {
     children: (item: T, index: Accessor<number>) => U;
   },
 ): Accessor<U[] | F | undefined> {
-  const items = createMemo(() => props.each || []);
-  return withFallback(
-    nativeFor({
-      each: items,
-      children: (item, index) => props.children(item, index),
-    }),
-    () => props.fallback,
+  const child = props.children;
+  const map =
+    child.length > 1 ? child : (item: T) => (child as (item: T) => U)(item);
+  const items = () => props.each || [];
+  return nativeMapArray(
+    items,
+    map,
+    undefined,
+    undefined,
+    "before-map",
+    "fallback" in props ? () => props.fallback : undefined,
   );
 }
 export function Index<T, U, F = U>(
@@ -68,13 +58,14 @@ export function Index<T, U, F = U>(
     children: (item: Accessor<T>, index: number) => U;
   },
 ): Accessor<U[] | F | undefined> {
-  const items = createMemo(() => props.each || []);
-  return withFallback(
-    nativeIndex({
-      each: items,
-      children: (item, index) => props.children(item, index),
-    }),
-    () => props.fallback,
+  const child = props.children;
+  const items = () => props.each || [];
+  return nativeIndexArray(
+    items,
+    child,
+    undefined,
+    "before-map",
+    "fallback" in props ? () => props.fallback : undefined,
   );
 }
 type ConditionalProps<T, U, Keyed extends boolean = false> = {

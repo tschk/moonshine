@@ -322,7 +322,31 @@ value and an index accessor; `Index` passes an accessor for the captured row val
 and a numeric index. Rows retain the request context and native FIFO cleanup.
 
 DOM and SSR list helpers infer fallback types independently from row results;
-existing explicit two-type-argument calls remain valid. Authored `<For>` and
-`<Index>` compilation is still rejected: preserving callback contextual types
-through compiler lowering remains unfinished. No hydration or async SSR support
-is implied.
+existing explicit two-type-argument calls remain valid. Authored list compilation uses the local Crepus contract below. No hydration or
+async SSR support is implied.
+
+### Local authored lists
+
+The local Crepus compiler accepts named `For` / `Index` imports and aliases from
+`solid-js` with a leading `/** @jsxImportSource solid-js */` directive. Typed lazy
+factories preserve row/index inference, callback lookups, component ownership and
+fallback laziness. Nested lists in callbacks and fallbacks, imported children and
+an explicit `children={callback}` on self-closing controls are covered. `each`
+and `fallback` use expression props. Spread props, namespace/member tags, mutable
+component aliases, JSX type arguments and extra callback children reject.
+
+The SDK 0.4.15 runtime captures callbacks once and invokes them unbound. DOM `For`
+provides an index accessor only when the callback declares a second parameter.
+Retained duplicate prefixes/suffixes keep their row state; removed rows and
+fallbacks clean up before replacement setup. `Index` retains positions and
+publishes retained values before constructing later slots. Notified changes to
+the same array are observed, and each new empty value replaces the owned
+fallback. Generic native mappers keep their default update order; the Solid
+adapter opts into the earlier mapping phases. Failed roots are disposed and
+cleanup failures drain, so exact Solid failure timing is not claimed.
+
+This compiler increment remains local and unpublished and needs manual native
+bootstrap. Native SSR, strict types and pinned-reference browser acceptance are
+verified separately; hydration, async SSR and the full compiled Solid ABI remain
+unsupported. Bare intrinsic `data-*` attributes now retain empty values, while
+explicit `data-x={true}` retains `"true"`.

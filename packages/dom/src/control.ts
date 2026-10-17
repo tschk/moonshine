@@ -66,42 +66,112 @@ function disposeAll(entries: Iterable<{ dispose: () => void }>): void {
   if (failed) throw failure;
 }
 
-/** Optional deferRemoved takes ownership of removed roots; throwing falls back to disposal. */
-export function mapArray<T, U>(
+/** Deferred removals transfer root ownership; immediate fallbacks own one empty branch per read. */
+export function mapArray<T, U, F = never>(
   list: Accessor<readonly T[]>,
   map: (item: T, index: Accessor<number>) => U,
   deferRemoved?: (dispose: () => void) => void,
-  schedule: (read: () => U[]) => Accessor<U[]> = createRenderMemo,
-): Accessor<U[]> {
+  schedule: (
+    read: () => U[] | NoInfer<F>,
+  ) => Accessor<U[] | NoInfer<F>> = createRenderMemo,
+  removalOrder: "after-map" | "before-map" = "after-map",
+  fallback?: () => F,
+): Accessor<U[] | NoInfer<F>> {
+  if (deferRemoved && removalOrder === "before-map")
+    throw new TypeError("Removal before mapping cannot be deferred");
+  if (deferRemoved && fallback)
+    throw new TypeError("Owned fallback removal cannot be deferred");
   const owner = getRenderScheduler()
     ? createComponentScope(() => getOwner()!)
     : undefined;
   let entries: Entry<T, U>[] = [];
+  let fallbackRoot: ReturnType<typeof owned<F>> | undefined;
   let disposed = false;
   onCleanup(() => {
     disposed = true;
-    const previous = entries;
+    const previous = entries,
+      previousFallback = fallbackRoot;
     entries = [];
-    disposeAll(previous);
+    fallbackRoot = undefined;
+    disposeAll(previousFallback ? [...previous, previousFallback] : previous);
   });
   return schedule(() => {
     const items = list();
+    const mappedLength =
+      removalOrder === "before-map" ? items.length : undefined;
+    const previousFallback = fallbackRoot;
+    fallbackRoot = undefined;
+    previousFallback?.dispose();
+    if (fallback && (mappedLength ?? items.length) === 0) {
+      const previous = entries;
+      entries = [];
+      disposeAll(previous);
+      if (disposed) return [];
+      const root = owned(fallback, undefined, owner);
+      if (disposed) {
+        root.dispose();
+        return [];
+      }
+      fallbackRoot = root;
+      return root.value;
+    }
     const available = new Map<T, Entry<T, U>[]>();
-    for (let i = entries.length - 1; i >= 0; i--) {
+    let retainedPlan: Array<Entry<T, U> | undefined> | undefined;
+    let start = 0,
+      end = entries.length - 1,
+      newEnd = 0;
+    if (removalOrder === "before-map") {
+      newEnd = mappedLength! - 1;
+      retainedPlan = [];
+      while (
+        start <= Math.min(end, newEnd) &&
+        entries[start]!.item === items[start]
+      ) {
+        retainedPlan[start] = entries[start];
+        start++;
+      }
+      while (
+        end >= start &&
+        newEnd >= start &&
+        entries[end]!.item === items[newEnd]
+      ) {
+        retainedPlan[newEnd--] = entries[end--];
+      }
+    }
+    for (let i = end; i >= start; i--) {
       const entry = entries[i]!;
       const bucket = available.get(entry.item);
       if (bucket) bucket.push(entry);
       else available.set(entry.item, [entry]);
     }
+    if (retainedPlan) {
+      for (let position = start; position <= newEnd; position++)
+        retainedPlan[position] = available.get(items[position]!)?.pop();
+      const retained = new Set(retainedPlan);
+      const previous = entries;
+      entries = [];
+      const removed: Entry<T, U>[] = [];
+      for (const entry of previous)
+        (retained.has(entry) ? entries : removed).push(entry);
+      // Keep only live survivors if cleanup throws or a replacement mapper fails.
+      disposeAll(removed);
+    }
     const created: Entry<T, U>[] = [];
     let next: Entry<T, U>[];
     try {
       next = [];
-      for (let position = 0; position < items.length; position++) {
+      for (
+        let position = 0;
+        position < (mappedLength ?? items.length);
+        position++
+      ) {
         if (disposed) break;
         const item = items[position]!;
-        const retained = available.get(item)?.pop();
+        const retained = retainedPlan
+          ? retainedPlan[position]
+          : available.get(item)?.pop();
         if (retained) {
+          if (retainedPlan) retained.index(position);
           next.push(retained);
           continue;
         }
@@ -156,12 +226,16 @@ export function mapArray<T, U>(
   });
 }
 
-/** Retain each position while its item accessor follows the current list value. */
-export function indexArray<T, U>(
+/** Retain positions; before-map publishes item values before creating later slots. */
+export function indexArray<T, U, F = never>(
   list: Accessor<readonly T[]>,
   map: (item: Accessor<T>, index: number) => U,
-  schedule: (read: () => U[]) => Accessor<U[]> = createRenderMemo,
-): Accessor<U[]> {
+  schedule: (
+    read: () => U[] | NoInfer<F>,
+  ) => Accessor<U[] | NoInfer<F>> = createRenderMemo,
+  updateOrder: "after-map" | "before-map" = "after-map",
+  fallback?: () => F,
+): Accessor<U[] | NoInfer<F>> {
   const owner = getRenderScheduler()
     ? createComponentScope(() => getOwner()!)
     : undefined;
@@ -171,19 +245,46 @@ export function indexArray<T, U>(
     write: Setter<T>;
     scope?: Owner;
   }> = [];
+  let fallbackRoot: ReturnType<typeof owned<F>> | undefined;
   let disposed = false;
   onCleanup(() => {
     disposed = true;
-    const previous = entries;
+    const previous = entries,
+      previousFallback = fallbackRoot;
     entries = [];
-    disposeAll(previous);
+    fallbackRoot = undefined;
+    disposeAll(previousFallback ? [...previous, previousFallback] : previous);
   });
   return schedule(() => {
     const items = list();
-    const next = entries.slice(0, items.length);
+    const mappedLength =
+      updateOrder === "before-map" ? items.length : undefined;
+    const previousFallback = fallbackRoot;
+    fallbackRoot = undefined;
+    previousFallback?.dispose();
+    if (fallback && (mappedLength ?? items.length) === 0) {
+      const previous = entries;
+      entries = [];
+      disposeAll(previous);
+      if (disposed) return [];
+      const root = owned(fallback, undefined, owner);
+      if (disposed) {
+        root.dispose();
+        return [];
+      }
+      fallbackRoot = root;
+      return root.value;
+    }
+    const next = entries.slice(0, mappedLength ?? items.length);
+    if (mappedLength !== undefined)
+      next.forEach((entry, index) => entry.write(() => items[index]!));
     const created: typeof entries = [];
     try {
-      for (let index = next.length; index < items.length; index++) {
+      for (
+        let index = next.length;
+        index < (mappedLength ?? items.length);
+        index++
+      ) {
         if (disposed) break;
         const [item, write] = createSignal<T>(items[index]!);
         const entry = {
@@ -205,10 +306,11 @@ export function indexArray<T, U>(
       disposeAll(created);
       return [];
     }
-    const removed = entries.slice(items.length);
+    const removed = entries.slice(mappedLength ?? items.length);
     entries = next;
     batch(() => {
-      next.forEach((entry, index) => entry.write(() => items[index]!));
+      if (mappedLength === undefined)
+        next.forEach((entry, index) => entry.write(() => items[index]!));
       disposeAll(removed);
     });
     return disposed ? [] : next.map((entry) => entry.value);
