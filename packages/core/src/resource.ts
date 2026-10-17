@@ -1,4 +1,4 @@
-import { createSignal, type Signal } from "./signal";
+import { batch, createSignal, type Signal } from "./signal";
 
 export type ResourceStatus = "pending" | "ready" | "errored";
 
@@ -51,25 +51,33 @@ export function createResource<T>(
 
   const refetch = async (): Promise<T | undefined> => {
     const current = ++generation;
-    loading.set(true);
-    status.set("pending");
-    error.set(undefined);
+    batch(() => {
+      loading.set(true);
+      status.set("pending");
+      error.set(undefined);
+    });
+    let value: T;
     try {
-      const value = await fetcher();
-      if (current !== generation) return data.peek();
-      data.set(() => value);
-      status.set("ready");
-      return value;
+      value = await fetcher();
     } catch (e) {
       if (current !== generation) return data.peek();
       const err = e instanceof Error ? e : new Error(String(e));
-      error.set(err);
-      status.set("errored");
+      batch(() => {
+        error.set(err);
+        status.set("errored");
+        loading.set(false);
+      });
       options.onError?.(err);
       return undefined;
-    } finally {
-      if (current === generation) loading.set(false);
     }
+    if (current !== generation) return data.peek();
+    // Subscriber failures reject refetch without reclassifying a successful fetch.
+    batch(() => {
+      data.set(() => value);
+      status.set("ready");
+      loading.set(false);
+    });
+    return value;
   };
 
   if (options.immediate !== false) {

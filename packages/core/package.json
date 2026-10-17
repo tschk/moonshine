@@ -11,17 +11,12 @@
     "./react": "./src/react.ts",
     "./host-react": "./src/host-react.ts",
     "./runes": "./src/runes.ts",
+    "./tracking": "./src/tracking.ts",
     "./jsx-runtime": "./src/jsx-runtime.ts",
     "./jsx-dev-runtime": "./src/jsx-runtime.ts",
     "./router": "./src/router.ts",
     "./server": "./src/server.ts",
     "./shaders": "./src/shaders.ts"
-  },
-  "dependencies": {
-    "@tschk/moonshine-react": "^0.4.2",
-    "@tschk/moonshine-router": "^0.4.2",
-    "@tschk/moonshine-server": "^0.4.2",
-    "@tschk/moonshine-shaders": "^0.4.2"
   },
   "scripts": {
     "test": "bun test",
@@ -30,10 +25,26 @@
     "lint": "bunx oxlint ."
   },
   "peerDependencies": {
+    "@tschk/moonshine-react": "^0.4.2",
+    "@tschk/moonshine-router": "^0.4.2",
+    "@tschk/moonshine-server": "^0.4.2",
+    "@tschk/moonshine-shaders": "^0.4.2",
     "react": ">=18",
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
+    "@tschk/moonshine-react": {
+      "optional": true
+    },
+    "@tschk/moonshine-router": {
+      "optional": true
+    },
+    "@tschk/moonshine-server": {
+      "optional": true
+    },
+    "@tschk/moonshine-shaders": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },
@@ -45,8 +56,6 @@
     "@types/bun": "1.3.14",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
     "typescript": "7.0.2"
   },
   "files": [

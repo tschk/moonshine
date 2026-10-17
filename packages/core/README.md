@@ -11,8 +11,15 @@ import { state, derived, effect } from "@tschk/moonshine/runes";
 The default export contains only signals, memos, stores, and resources. Router,
 server, compiler, and deployment packages are separate imports.
 
-Optional compatibility subpaths (`/react`, `/runes`, `/router`, `/server`,
-`/shaders`) remain available during the `0.3.x` line.
+Installing the kernel installs no runtime dependencies. Compatibility subpaths
+use optional peers: install `@tschk/moonshine-react`, `@tschk/moonshine-router`,
+`@tschk/moonshine-server`, or `@tschk/moonshine-shaders` when using its matching
+subpath. `/runes` needs no extra package. The React bridge also needs `react` and
+`react-dom`.
+
+The opt-in `/tracking` entry exposes dependency collection for native schedulers.
+It can observe first-read versions and preserve an enclosing memo's dependencies;
+it adds no scheduling or rendering behavior to the default kernel.
 
 See [Moonshine README](../../README.md), [DESIGN.md](../../DESIGN.md), and
 [docs/MANIFEST.md](../../docs/MANIFEST.md).
