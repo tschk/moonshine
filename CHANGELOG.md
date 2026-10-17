@@ -1,3 +1,15 @@
+# Moonshine 0.4.8
+
+- Add independent class directive normalization to the opt-in Svelte `/class`
+  entry, preserving base classes, scope-hash precedence, flag order and token
+  removal without loading Svelte.
+- Keep the default signal entry unchanged. Authored class directives, dynamic
+  elements, scoped-selector fixes and shared entity decoding belong to the
+  separately maintained Crepuscularity compiler; this runtime release does not
+  publish those compiler changes or claim full SFC coverage.
+- Hydration, asynchronous SSR and remaining source compatibility gaps stay
+  explicit.
+
 # Moonshine 0.4.7
 
 - Add opt-in DOM `/head` and synchronous `/head-ssr` entries for owned head
