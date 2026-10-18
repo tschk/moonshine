@@ -1,3 +1,21 @@
+# Moonshine 0.4.29
+
+- Add independent checkbox/radio DOM and source SSR factories on Vue's opt-in
+  model entries: typed scalar values, loose array membership in click order,
+  identity-based Sets, programmatic Set updates and owned listener cleanup.
+- Verify eleven direct browser cases and thirteen authored SFC phases against
+  Vue 3.5.13. Root, nested and fragment SSR contexts preserve the source policy;
+  twenty root/nested calibration cases and repeated Bun/minified Node renders
+  match structure, attributes and text, ignoring only attribute order and
+  equivalent checked-attribute spelling.
+- Full SDK checks pass, including 16,371 test executions with Bun file isolation,
+  both TypeScript lanes, the 856-module source gate and native compiler checks.
+  The existing counter bundle and 4,041-byte signal kernel stay unchanged.
+  The compared form workload is 9,957 gzip bytes versus Vue's 21,855; no speed claim.
+- Source lowering requires local unpublished Crepuscularity changes. Select and
+  component models, checked-model modifiers, dynamic types and hydration remain
+  unsupported. npm publication remains manual.
+
 # Moonshine 0.4.28
 
 - Add independent classic Set tracking to native Vue reactive state and deep
