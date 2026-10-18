@@ -68,6 +68,9 @@ the browser consumes the first newline after `pre`/`textarea`. Ordinary native
 DOM factories keep their existing textarea property-value behavior.
 
 Conditional and mapped markup retains text punctuation, including apostrophes,
-colons, question marks and operator-like text. Attribute spreads, namespace/directive attributes,
+colons, question marks and operator-like text. Nested template substitutions
+work in child and attribute expressions, while quoted attribute braces stay literal.
+Regex literals still need a complete parser-backed expression contract.
+Attribute spreads, namespace/directive attributes,
 generic `Props`, and map callbacks with index/destructuring/block bodies are not
 yet supported. These parser limits remain work in Crepuscularity.

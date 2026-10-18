@@ -144,7 +144,8 @@ const {enabled}=Astro.props;
 const items=['a','b'];
 ---
 <section>{enabled && <p>Don't: really? a && b .map(x)</p>}{enabled ? <b title="a>b?:}">Note: it's fine?</b> : <q>No: why?</q>}<ul>{items.map(item => <li>{item}'s: ready?</li>)}</ul></section>\`);
-for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out']]){
+await Bun.write('source/Template.astro',${JSON.stringify('---\nconst value="v";\n---\n<p title={`a${`b}c${value}`}d`} data-literal="{unclosed">{`a${`b}c${value}`}d`}</p>')});
+for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out'],['Template.astro','template-out']]){
 const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry',entry,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
 const [stdout,stderr,code]=await Promise.all([new Response(built.stdout).text(),new Response(built.stderr).text(),built.exited]);
 assert.equal(code,0,stdout+stderr);
@@ -152,7 +153,9 @@ assert.equal(code,0,stdout+stderr);
 await Bun.write('check.ts',\`import assert from 'node:assert/strict';
 import Page from './out/CrepusEmit.moonshine-ssr.ts';
 import Punctuation from './punctuation-out/CrepusEmit.moonshine-ssr.ts';
+import Template from './template-out/CrepusEmit.moonshine-ssr.ts';
 import{h,renderToString}from'@tschk/moonshine-astro/ssr';
+assert.equal(renderToString(()=>h(Template,{})),'<p title="ab}cvd" data-literal="{unclosed">ab}cvd</p>');
 for(const enabled of [true,false]){
 const html=renderToString(()=>h(Punctuation,{enabled}));
 assert.ok(html.includes(enabled?'<p>Don&#39;t: really? a &amp;&amp; b .map(x)</p>':'<q>No: why?</q>'),html);
