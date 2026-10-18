@@ -114,3 +114,29 @@ call rather than silently succeeding. TanStack loading state follows this runtim
 state when invalidating through the adapter. TanStack loader hooks, route
 registries, matches, SSR data seeding and hydration remain unsupported. This
 entry adds no automatic data endpoint, server serialization or route cache.
+
+React applications can read the complete owning runtime state through the
+separate `@tschk/moonshine-router/data-react` entry:
+
+```tsx
+import { useRouteData } from "@tschk/moonshine-router/data-react";
+
+function Page() {
+  const { status, data, error } = useRouteData();
+  if (status === "errored") return <p>{String(error)}</p>;
+  return (
+    <output aria-busy={status === "pending"}>
+      {String(data ?? "Loading")}
+    </output>
+  );
+}
+```
+
+Supply a `createDataRouter` runtime to the enclosing `MoonshineRouter`; a
+navigation-only runtime rejects this hook. The hook returns the complete stable
+state snapshot, including retained data during same-location reloads and loader
+errors as values. Data is `unknown` and applications must narrow it before use.
+Subscriptions follow the owning runtime and stop when the component unmounts.
+SSR reads only that runtime's current snapshot; this does not seed or serialize
+server data, suspend rendering, select nested route matches, or add hydration.
+The renderer-neutral `/data` entry remains React-free.

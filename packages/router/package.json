@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./graph": "./src/graph.ts",
     "./runtime": "./src/runtime.ts",
-    "./data": "./src/data.ts"
+    "./data": "./src/data.ts",
+    "./data-react": "./src/data-react.ts"
   },
   "files": [
     "src"

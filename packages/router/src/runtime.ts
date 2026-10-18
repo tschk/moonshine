@@ -1,4 +1,5 @@
 import { batch, createSignal, type Signal } from "@tschk/moonshine";
+import type { RouteDataState } from "./data.js";
 
 /**
  * The location the signal carries: pathname plus query.
@@ -33,7 +34,7 @@ export type MoonshineRouterInstance = {
   /** Optional opt-in data runtime; absent on navigation-only routers. */
   invalidate?: () => Promise<unknown>;
   data?: {
-    peek(): { status: "pending" | "ready" | "errored" };
+    peek(): RouteDataState<unknown>;
     subscribe(listener: () => void): () => void;
   };
   /** Navigate via History API (no full reload). */
