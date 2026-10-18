@@ -1,4 +1,5 @@
 /** Client resources without Suspense, hydration, or asynchronous SSR. */
+import { peekComponentContext } from "./component";
 import {
   batch,
   createComputed,
@@ -11,6 +12,7 @@ import {
   type Accessor,
   type Setter,
 } from "./reactive";
+import { isSSRRendering } from "./ssr-owner";
 
 export type ResourceState =
   "unresolved" | "pending" | "ready" | "refreshing" | "errored";
@@ -50,6 +52,10 @@ export function createResource<T, S, R = unknown>(
   fetcherOrOptions?: ResourceFetcher<S, T, R> | ResourceOptions<T>,
   suppliedOptions?: ResourceOptions<T>,
 ): ResourceReturn<T, R> {
+  if (isSSRRendering() || peekComponentContext()?.mode === "ssr")
+    throw new Error(
+      "Client createResource is unavailable during SSR; use createResource from the server resource module",
+    );
   const hasSource = typeof fetcherOrOptions === "function";
   const source = (hasSource ? sourceOrFetcher : true) as ResourceSource<S>;
   const fetcher = (
@@ -63,7 +69,7 @@ export function createResource<T, S, R = unknown>(
   }
   const [value, setValue] = createSignal<T | undefined>(options?.initialValue);
   const [error, setError] = createSignal<Error | undefined>(undefined);
-  let resolved = options != null && Object.hasOwn(options, "initialValue");
+  let resolved = options != null && "initialValue" in options;
   const [state, setState] = createSignal<ResourceState>(
     resolved ? "ready" : "unresolved",
   );

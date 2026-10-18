@@ -184,3 +184,35 @@ const child=Bun.spawn([process.execPath,'--no-install','dynamic-server.js'],{std
 for(const name of ['solid-js','react','react-dom','@tschk/moonshine-framework'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
 `);
 });
+
+test("server resources stay host-free in fresh Bun and minified Node", async () => {
+  const program = `import assert from 'node:assert/strict';
+import {createResource,h,renderToString} from '@tschk/moonshine-solid/ssr';
+import {createResource as clientResource} from '@tschk/moonshine-dom/resource';
+assert.equal(typeof document,'undefined');
+for(const host of ['solid-js','react','@tschk/crepuscularity-wasm'])assert.throws(()=>import.meta.resolve(host));
+let fetched=0;
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(()=>{
+ const [read,actions]=createResource(()=>true,()=>{fetched++;return 'fetched'},{initialValue:'seed'});
+ assert.equal(actions.refetch(),true);assert.equal(read.state,'ready');
+ assert.equal(actions.mutate('changed'),'changed');assert.equal(read.latest,'changed');
+ assert.throws(()=>clientResource(()=>{fetched++;return 'client'}),/Client createResource/);
+ return h('p',null,[read.state,read.loading,read()].join(':'));
+},{})),'<p>ready:true:changed</p>');
+assert.equal(fetched,0);
+assert.throws(()=>createResource(()=>''),/active SSR/);
+console.log('server resources standalone PASS');`;
+  await standalone(`
+import assert from 'node:assert/strict';
+await Bun.write('resource-server.ts',${JSON.stringify(program)});
+const build=await Bun.build({entrypoints:['./resource-server.ts'],target:'node',minify:true,metafile:true});
+assert.ok(build.success,JSON.stringify(build.logs));
+assert.ok(!Object.keys(build.metafile.inputs).some(path=>/node_modules\\/(solid-js|react|react-dom)\\//.test(path)||/crepuscularity-wasm|\\.wasm$/.test(path)));
+await Bun.write('resource-server.mjs',build.outputs[0]);
+for(const command of [['bun','resource-server.ts'],['node','resource-server.mjs']]){
+ const child=Bun.spawn(command,{stdout:'pipe',stderr:'pipe'});
+ const [output,error,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);
+ assert.equal(code,0,output+error);assert.equal(error,'');assert.ok(output.includes('standalone PASS'));
+}
+`);
+});

@@ -22,7 +22,13 @@ signal-only; React and web capabilities remain opt-in.
 The first four rows still use React. Removing their host framework does not
 remove React or establish compatibility with a complete existing application.
 `adapter-conformance` is shared verification support, not another framework.
-Package READMEs describe the supported subpaths and narrower source variants.
+Package READMEs describe the supported subpaths and narrower source variants. Native
+Solid now has opt-in synchronous resource snapshots on `/ssr`, with zero fetcher
+calls and separate server action types. The local unpublished source bridge
+routes explicit Solid SSR resources there; async SSR and Suspense remain open.
+The client resource entry rejects SSR use. The current client fixture is 8,545
+gzip bytes versus Solid's 7,636; the authored text-output SSR fixture is 4,927
+versus 14,042. These workloads establish bundle sizes, not speed or full parity.
 
 ## Seven remaining host-dependent entries
 

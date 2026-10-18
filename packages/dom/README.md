@@ -92,6 +92,7 @@ browser unchanged for DOMString conversion and native namespace errors. Ordinary
   the scheduling implementation. Ordinary native rendering stays synchronous;
   the signal kernel has no scheduler dependency.
 - `/resource`: owned client data fetching, separate from the kernel's resource API.
+- `/resource/ssr`: synchronous server snapshots that never invoke fetchers.
 - `/control`: keyed `For`/`mapArray`, position-stable `Index`/`indexArray`, and
   retained `Show` branches with explicit accessors. `Index({ each, children })`
   calls `children(itemAccessor, indexNumber)` once per position; replacement and
@@ -263,10 +264,20 @@ Each explicit `refetch` starts a request; calls within one microtask are not
 coalesced. Fetcher cleanup callbacks retain the resource's owner on refetch.
 
 Options support `initialValue` and an informational `name`; other options reject.
-This client API does not implement Suspense, transitions, hydration or async SSR,
-and is not yet admitted by the Solid compiler bridge. The Solid replacement's
-`/solid` export uses this client resource API; the kernel resource API keeps
-its existing contract.
+This client API rejects use during native SSR and does not implement Suspense,
+transitions, hydration or async SSR. The local unpublished Solid compiler bridge
+admits it with explicit Solid source provenance. The Solid replacement's `/solid`
+export uses this client resource API; the kernel resource API keeps its contract.
+
+`/resource/ssr` provides independent synchronous server resources. Creation needs
+an active native SSR render or server component context. The fetcher never runs;
+use `initialValue` for request-loaded data. State stays `ready` when that option
+is present (including inherited/undefined values), or `unresolved` otherwise.
+Loading is the source's boolean truthiness, so zero/empty string disable it.
+Server `refetch()` re-reads the source and returns loading; server `mutate(value)`
+stores values and functions literally without changing metadata. Reads/actions
+retain plain closure state after render. Only `initialValue`/`name` are supported;
+there is no async SSR, Suspense, hydration or client payload transfer.
 
 ### Optional input bindings
 

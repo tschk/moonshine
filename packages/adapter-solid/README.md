@@ -284,11 +284,45 @@ focus and selection. Both strict type checkers pass the source graph and reject
 three invalid resource uses each. Six native integration tests and the existing
 856-module source gate pass.
 
-The minified acceptance application, including its driver, measures 22,259 bytes
-(8,484 gzip) for Moonshine versus 19,826 (7,636 gzip) for Solid. These are whole
-fixture sizes, not isolated runtime measurements; no speed improvement is claimed.
-SSR rejects resource imports, including type-only forms. Async SSR, hydration,
-Suspense and the full Solid resource option surface remain unsupported.
+The current minified acceptance application, including its driver, measures
+22,464 bytes (8,545 gzip) for Moonshine versus 19,826 (7,636 gzip) for Solid.
+The SSR guard and inherited-seed correction add 44 gzip bytes against the same
+workload with the preceding resource implementation. These are whole fixture
+sizes; no speed improvement is claimed. Async SSR, hydration, Suspense and the
+full Solid resource option surface remain unsupported.
+
+### Native synchronous server resources
+
+`@tschk/moonshine-solid/ssr` exports an independent `createResource` that never
+calls its fetcher. Seed it with request-loaded data through `initialValue`, or
+render its unresolved value. Creation requires an active native SSR render or
+server component context. The client `/solid` resource entry now rejects SSR use
+before reading user callbacks or options.
+
+The server accessor snapshots `state` as `ready` when `initialValue` is present,
+including inherited/undefined values, or `unresolved` otherwise. `loading` uses
+source truthiness: zero and the empty string are false here. `refetch()` re-reads
+the source and returns that loading boolean, without fetching. `mutate(value)`
+stores its argument literally, including function values; it leaves state/loading
+unchanged. Retained reads and actions keep their local closure after rendering.
+Only `initialValue` and `name` options are supported. Client resources retain
+client fetching semantics; inherited seeds now correctly begin refreshing.
+
+The local unpublished Crepus bridge admits `createResource` and `Resource` in
+explicit Solid SSR source, including aliases, reexports and type queries, and
+routes them to `/ssr`. Each module still needs its Solid source directive.
+Resources created at module import time have no active native SSR context and
+reject. This supplies synchronous snapshots, without async fetching, Suspense,
+streaming, hydration or serialized client reuse.
+
+Sixteen source/seed cases in the same authored text-output component match Solid
+1.9.14 across repeated fresh Bun and minified Node processes, with zero fetcher
+calls. The native runtime graph contains no Solid/React/parser WASM. The minified
+server fixture is 4,927 gzip bytes versus Solid's 14,042; this text-output workload
+uses no JSX compiler and makes no startup/runtime speed claim. Thirty direct
+resource tests, six isolated consumer tests, source/declaration consumers and the
+existing thirteen client browser phases pass. IR declaration checks use the
+existing optional parser peer's type declarations; the runtime stays parser-free.
 
 ### Local imported Solid components
 

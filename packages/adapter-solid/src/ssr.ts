@@ -72,3 +72,17 @@ export function Index<T, U, F = U>(props: {
 
 export { getOwner, runWithOwner } from "./owner";
 export type { Owner } from "./owner";
+
+/** Synchronous resource snapshots never invoke the fetcher. */
+export { createResource } from "@tschk/moonshine-dom/resource/ssr";
+export type {
+  ServerResourceActions as ResourceActions,
+  ServerResourceReturn as ResourceReturn,
+} from "@tschk/moonshine-dom/resource/ssr";
+export type {
+  Resource,
+  ResourceFetcher,
+  ResourceOptions,
+  ResourceSource,
+  ResourceState,
+} from "@tschk/moonshine-dom/resource";

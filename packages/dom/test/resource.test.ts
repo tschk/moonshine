@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createResource } from "../src/resource";
+import { renderToString } from "../src/ssr";
 import {
   createComputed,
   createRoot,
@@ -406,5 +407,33 @@ test("source changes inside later fetches publish the latest request", () => {
     expect(value.state).toBe("ready");
     dispose();
     expect(cleanups).toEqual([1, 3, 4]);
+  });
+});
+
+test("client resources reject SSR before invoking user callbacks", () => {
+  let calls = 0;
+  expect(() =>
+    renderToString(() => {
+      createResource(
+        () => (calls++, true),
+        () => (calls++, 1),
+      );
+      return "";
+    }),
+  ).toThrow("unavailable during SSR");
+  expect(calls).toBe(0);
+});
+
+test("inherited initialValue keeps seeded async resources refreshing", () => {
+  createRoot((dispose) => {
+    const [read] = createResource(
+      () => new Promise<string>(() => {}),
+      Object.create({ initialValue: "seed" }),
+    );
+    expect(read()).toBe("seed");
+    expect(read.latest).toBe("seed");
+    expect(read.state).toBe("refreshing");
+    expect(read.loading).toBe(true);
+    dispose();
   });
 });

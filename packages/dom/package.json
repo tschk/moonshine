@@ -17,6 +17,7 @@
     "./control": "./src/control.ts",
     "./store": "./src/store.ts",
     "./resource": "./src/resource.ts",
+    "./resource/ssr": "./src/resource-ssr.ts",
     "./framework-native": "./src/framework-native.ts",
     "./framework-source": "./src/framework-source.ts",
     "./jsx-types": {
