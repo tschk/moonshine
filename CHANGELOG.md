@@ -1,3 +1,26 @@
+# Moonshine 0.4.33
+
+- Add independent component emit trim/number conversion to the opt-in Vue event
+  protocol. Flags are read live; all payload arguments and once listeners retain
+  Vue 3.5.13 conversion rules. No host runtime or new dependencies.
+- Local Crepuscularity now lowers component modifiers, preserving custom flag
+  order, repeated flags, named/kebab keys and the explicit modelValue distinction.
+  Required model props and callback payload types remain intact. Compiler changes
+  remain local/unpublished; dynamic arguments, defineModel and hydration remain
+  unsupported. Undeclared modifier root attrs are omitted; modifier-object
+  mutation across Vue render cycles is unverified.
+- Six direct Chromium cases and nine authored cases with nineteen browser phases
+  compare against Vue 3.5.13. Repeated fresh Bun/minified Node SSR, source and
+  declaration consumers, both full typecheckers, 531 core tests, 848 native
+  library tests, 50 focused compiler tests and core/owned-native Clippy pass.
+  The 856-module source gate and isolated package regression pass.
+- Full local SDK run: 16,400 passing executions and one unchanged build-boundary
+  timeout. The isolated test passes in 4.42 seconds under a longer observation
+  window; the full local run is not green.
+- Signal kernel remains 4,041 raw bytes. The modifier fixture is 10,943 gzip bytes
+  versus Vue's 21,493. Emit conversion adds 158 gzip bytes to the unchanged named
+  model control; no startup/runtime speed claim. npm publication remains manual.
+
 # Moonshine 0.4.32
 
 - Verify static named and multiple component models through the existing native
