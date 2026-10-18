@@ -1,3 +1,22 @@
+# Moonshine 0.4.28
+
+- Add independent classic Set tracking to native Vue reactive state and deep
+  refs: per-key membership, size/iteration, raw/proxy object identity, no-op
+  suppression and owned cleanup. Shallow refs and non-extensible Sets stay opaque.
+- Add native `/store` `unwrap`, also available through Solid's `/store` entry.
+  Direct stores return their original target; ordinary containers unwrap
+  embedded proxies, frozen containers copy, and mutable object getters skip.
+- Verify ten API and ten authored SFC browser phases against Vue 3.5.13,
+  repeated Bun/minified Node SSR and both public declaration consumer lanes.
+  Container unwrapping matches installed Solid 1.9.14 on the compared cases.
+- All 2,334 tests pass with Bun file isolation and the unchanged timeout;
+  standard CI also passes. The 856-module source gate and compiler checks pass.
+- The existing Vue counter fixture grows by 730 gzip bytes. Signal-only kernel
+  remains 4,041 raw bytes. No new dependencies or speed claim.
+- Global `Set<T>` source props require the local unpublished Crepus change.
+  Checkbox/radio models, Map/weak-collection reactivity, Set algebra and readonly
+  runtime views remain unsupported. npm publication remains manual.
+
 # Moonshine 0.4.27
 
 - Preserve own enumerable string and symbol props in native Astro component
