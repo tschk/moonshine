@@ -78,5 +78,5 @@ yet supported. These parser limits remain work in Crepuscularity.
 
 Combined `class` and `class:list` use the existing class-list helper, with the
 ordinary class evaluated first at the directive position. Empty HTML classes
-are omitted. Component factories currently receive an empty string for an empty
-class list; Astro itself omits that prop.
+are omitted. Component factories omit an empty normalized class-list prop while
+retaining an explicitly supplied empty ordinary `class` prop.
