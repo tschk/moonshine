@@ -310,3 +310,297 @@ test("SSR never evaluates layers and DOM install needs a live owner with a sched
   });
   expect(calls).toBe(0);
 });
+
+test("input spread keeps live values separate from reset defaults", async () => {
+  const input = document.createElement("input");
+  const [read, set] = createSignal<Record<string, unknown>>({
+    defaultValue: "seed",
+    value: "live",
+  });
+  const stop = mount(input, read);
+  expect(input.value).toBe("live");
+  expect(input.defaultValue).toBe("seed");
+  expect(input.getAttribute("value")).toBe("seed");
+  input.value = "typed";
+  set({ defaultValue: "seed", value: "live", title: "updated" });
+  await Promise.resolve();
+  expect(input.value).toBe("typed");
+  set({ defaultValue: "seed" });
+  await Promise.resolve();
+  expect(input.value).toBe("");
+  expect(input.defaultValue).toBe("seed");
+  expect(input.hasAttribute("__value")).toBe(false);
+  stop();
+});
+
+test("input spread applies type before live value and checked preserves defaults", async () => {
+  const input = document.createElement("input");
+  const [read, set] = createSignal<Record<string, unknown>>({
+    value: "5",
+    type: "number",
+  });
+  const stop = mount(input, read);
+  expect(input.type).toBe("number");
+  expect(input.value).toBe("5");
+  set({ type: "checkbox", defaultChecked: true, checked: false });
+  await Promise.resolve();
+  expect(input.checked).toBe(false);
+  expect(input.defaultChecked).toBe(true);
+  set({ type: "checkbox", defaultChecked: true });
+  await Promise.resolve();
+  expect(input.checked).toBe(false);
+  expect(input.defaultChecked).toBe(true);
+  stop();
+});
+
+test("textarea spread sets live properties without changing reset text", async () => {
+  const element = document.createElement("textarea");
+  const [read, set] = createSignal<Record<string, unknown>>({
+    defaultValue: "seed",
+    value: "live",
+  });
+  const stop = mount(element, read);
+  expect(element.value).toBe("live");
+  expect(element.defaultValue).toBe("seed");
+  expect(element.hasAttribute("value")).toBe(false);
+  set({ defaultValue: "seed" });
+  await Promise.resolve();
+  expect(element.value).toBe("");
+  expect(element.defaultValue).toBe("seed");
+  stop();
+});
+
+test("option spread retains typed identity for native select bindings", async () => {
+  const select = document.createElement("select");
+  const option = document.createElement("option");
+  option.textContent = "Label";
+  select.append(option);
+  const identity = { id: 1 };
+  const [read, set] = createSignal<Record<string, unknown>>({
+    value: identity,
+  });
+  const stop = mount(option, read);
+  let selected: unknown;
+  const { bindSelectValue } = await import("../src/binding");
+  let dispose!: () => void;
+  createRoot((end) => {
+    dispose = end;
+    bindSelectValue(
+      select,
+      () => identity,
+      (value) => {
+        selected = value;
+      },
+    );
+  });
+  select.dispatchEvent(new Event("change"));
+  expect(selected).toBe(identity);
+  expect(option.hasAttribute("__value")).toBe(false);
+  set({});
+  await Promise.resolve();
+  expect(option.value).toBe("");
+  expect(option.textContent).toBe("Label");
+  dispose();
+  stop();
+});
+
+test("select spread reconciles typed options, defaults and later option insertion", async () => {
+  const select = document.createElement("select");
+  const a = document.createElement("option"),
+    b = document.createElement("option");
+  a.value = "a";
+  b.value = "b";
+  select.append(a, b);
+  const [read, set] = createSignal<Record<string, unknown>>({
+    defaultValue: "a",
+    value: "b",
+  });
+  const stop = mount(select, read);
+  await Promise.resolve();
+  expect(select.value).toBe("b");
+  expect(a.hasAttribute("selected")).toBe(true);
+  expect(b.hasAttribute("selected")).toBe(false);
+  set({ value: "c", defaultValue: "a" });
+  await Promise.resolve();
+  expect(select.selectedIndex).toBe(-1);
+  const c = document.createElement("option");
+  c.value = "c";
+  select.append(c);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(select.value).toBe("c");
+  set({ multiple: true, value: ["b", "c"], defaultValue: ["a"] });
+  await Promise.resolve();
+  expect(select.multiple).toBe(true);
+  expect(
+    Array.from(select.options)
+      .filter((option) => option.selected)
+      .map((option) => option.value),
+  ).toEqual(["b", "c"]);
+  set({ multiple: true, value: null, defaultValue: ["a"] });
+  await Promise.resolve();
+  expect(Array.from(select.options).some((option) => option.selected)).toBe(
+    false,
+  );
+  stop();
+});
+
+test("spread checkbox values participate in native typed groups", async () => {
+  const { createInputGroup } = await import("../src/binding");
+  const first = { id: 1 },
+    second = { id: 2 };
+  const input = document.createElement("input");
+  const [read, set] = createSignal<Record<string, unknown>>({
+    type: "checkbox",
+    value: first,
+  });
+  const stop = mount(input, read);
+  let model: unknown = [first];
+  let dispose!: () => void;
+  createRoot((end) => {
+    dispose = end;
+    createInputGroup(
+      "checkbox",
+      () => model,
+      (value) => {
+        model = value;
+      },
+    ).bind(input);
+  });
+  expect(input.checked).toBe(true);
+  set({ type: "checkbox", value: second });
+  await Promise.resolve();
+  expect(input.checked).toBe(false);
+  input.checked = true;
+  input.dispatchEvent(new Event("change"));
+  expect((model as unknown[]).includes(second)).toBe(true);
+  expect((model as unknown[]).includes("[object Object]")).toBe(false);
+  dispose();
+  stop();
+});
+
+test("form spread sets property-only input booleans and option reset attributes", () => {
+  const input = document.createElement("input");
+  const stopInput = mount(input, { type: "checkbox", indeterminate: true });
+  expect(input.indeterminate).toBe(true);
+  expect(input.hasAttribute("indeterminate")).toBe(false);
+  const option = document.createElement("option");
+  const stopOption = mount(option, { selected: 1 });
+  expect(option.hasAttribute("selected")).toBe(true);
+  stopOption();
+  stopInput();
+});
+
+test("bound spreads install once with capture before binding and handlers after", async () => {
+  const { installBoundElementSpread } =
+    await import("../src/spread-element-dom");
+  const { bindValue } = await import("../src/binding");
+  const input = document.createElement("input");
+  const [model, write] = createSignal<string | number | null>("bound");
+  const trace: unknown[] = [];
+  const [attrs, update] = createSignal<Record<string, unknown>>({
+    value: "spread",
+    oninputcapture: () => trace.push(["capture", model()]),
+    oninput: () => trace.push(["handler", model()]),
+  });
+  let installs = 0,
+    stop!: () => void;
+  createRoot((dispose) => {
+    stop = dispose;
+    withRuneScheduler(() =>
+      installBoundElementSpread(
+        input,
+        [
+          (node) => {
+            installs++;
+            bindValue(node, model, write);
+          },
+        ],
+        attrs,
+      ),
+    );
+  });
+  expect(input.value).toBe("bound");
+  input.value = "typed";
+  input.dispatchEvent(new Event("input"));
+  expect(trace).toEqual([
+    ["capture", "bound"],
+    ["handler", "typed"],
+  ]);
+  await Promise.resolve();
+  update({
+    value: "later",
+    oninput: () => trace.push(["replacement", model()]),
+  });
+  await Promise.resolve();
+  expect(installs).toBe(1);
+  expect(input.value).toBe("later");
+  expect(model()).toBe("typed");
+  input.value = "again";
+  input.dispatchEvent(new Event("input"));
+  expect(trace.at(-1)).toEqual(["replacement", "again"]);
+  stop();
+});
+
+test("bound select spreads initialize after options and handlers see typed selection", async () => {
+  const { installBoundElementSpread } =
+    await import("../src/spread-element-dom");
+  const { bindSelectValue, setOptionValue } = await import("../src/binding");
+  const select = document.createElement("select"),
+    a = document.createElement("option"),
+    b = document.createElement("option");
+  const first = { id: 1 },
+    second = { id: 2 };
+  setOptionValue(a, first);
+  setOptionValue(b, second);
+  select.append(a, b);
+  const [read, write] = createSignal<unknown>(first);
+  const seen: unknown[] = [];
+  let stop!: () => void;
+  createRoot((dispose) => {
+    stop = dispose;
+    withRuneScheduler(() =>
+      installBoundElementSpread(
+        select,
+        [(node) => bindSelectValue(node, read, write)],
+        { value: second, onchange: () => seen.push(read()) },
+      ),
+    );
+  });
+  await Promise.resolve();
+  expect(a.selected).toBe(true);
+  expect(b.selected).toBe(false);
+  b.selected = true;
+  select.dispatchEvent(new Event("change"));
+  expect(read()).toBe(second);
+  expect(seen).toEqual([second]);
+  stop();
+});
+
+test("unchanged option selected data does not reclaim an externally removed default", async () => {
+  const option = document.createElement("option");
+  const [read, update] = createSignal<Record<string, unknown>>({
+    selected: true,
+  });
+  const stop = mount(option, read);
+  option.removeAttribute("selected");
+  update({ selected: true, title: "rest" });
+  await Promise.resolve();
+  expect(option.hasAttribute("selected")).toBe(false);
+  stop();
+});
+
+test("select default applies to a matching option inserted after mounting", async () => {
+  const select = document.createElement("select"),
+    first = document.createElement("option");
+  first.value = "first";
+  select.append(first);
+  const stop = mount(select, { defaultValue: "later" });
+  await Promise.resolve();
+  const later = document.createElement("option");
+  later.value = "later";
+  select.append(later);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(later.selected).toBe(true);
+  expect(select.value).toBe("later");
+  stop();
+});

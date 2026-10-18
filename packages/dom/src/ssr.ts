@@ -421,6 +421,20 @@ export function hAttributeEntries(
   return intrinsic(tag, null, children, undefined, entries, true);
 }
 
+/** Compiler-only explicit attributes with independent typed select/option identity. */
+export function hSelectionEntries(
+  tag: "select" | "option",
+  entries: ReadonlyArray<readonly [string, unknown]>,
+  selection: { value: unknown; preserveSelected?: boolean },
+  ...children: SSRChild[]
+): HTML {
+  if (tag !== "select" && tag !== "option")
+    throw new TypeError("Selection entries require select or option");
+  const key = tag === "select" ? selectBinding : optionBinding;
+  const box = bindingValue({ [key]: selection }, key)!;
+  return intrinsic(tag, null, children, undefined, entries, true, box);
+}
+
 function intrinsic(
   tag: string,
   props: Record<string, unknown> | null,
@@ -428,6 +442,7 @@ function intrinsic(
   sourceCodec?: typeof sourceAttributeValue,
   sourceEntries?: ReadonlyArray<readonly [string, unknown]>,
   explicitAttributes = false,
+  selectionBox?: BindingValue,
 ): HTML {
   if (!/^[a-zA-Z][a-zA-Z0-9:_-]*$/.test(tag)) {
     throw new TypeError("Invalid server element name");
@@ -435,12 +450,14 @@ function intrinsic(
   const owner = getOwner();
   const lower = tag.toLowerCase();
   const typedSelect =
-    !explicitAttributes && lower === "select"
-      ? bindingValue(props, selectBinding)
+    lower === "select"
+      ? (selectionBox ??
+        (!explicitAttributes ? bindingValue(props, selectBinding) : undefined))
       : undefined;
   const typedOption =
-    !explicitAttributes && lower === "option"
-      ? bindingValue(props, optionBinding)
+    lower === "option"
+      ? (selectionBox ??
+        (!explicitAttributes ? bindingValue(props, optionBinding) : undefined))
       : undefined;
   if (lower === "script" || lower === "style") {
     throw new TypeError("Server script/style elements are unsupported");
@@ -502,7 +519,7 @@ function intrinsic(
     // Typed options carry their serialized value as well as comparison identity.
     // The ordinary value prop loses precedence without invoking its getter/accessor.
     if (name === "value" && (typedOption || typedSelect)) {
-      if (typedOption && sourceCodec) {
+      if (typedOption && (sourceCodec || explicitAttributes)) {
         typedOptionValueSlot = true;
         if (
           typedOption.value != null &&
@@ -532,7 +549,11 @@ function intrinsic(
       }
     }
 
-    if (!explicitAttributes && lower === "select" && name === "multiple") {
+    if (
+      (!explicitAttributes || typedSelect) &&
+      lower === "select" &&
+      name === "multiple"
+    ) {
       multiple =
         (sourceCodec
           ? sourceCodec(name, value, true)

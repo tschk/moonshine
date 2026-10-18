@@ -55,7 +55,11 @@ static HTML elements through independent Moonshine helpers. This includes a
 wrapper's live `$props()` rest object, multiple interspersed layers, removed keys,
 and named attributes that override or fall back when spread keys disappear.
 `installElementSpread` on `/runes` owns DOM updates and direct event listeners;
+`installBoundElementSpread` installs compiler-owned binding callbacks once between
+capture and ordinary listeners, without filtering spread-provided live values;
 `spreadServerEntries` on `/ssr` supplies explicit server attribute entries.
+The local form-spread work adds `spreadServerElement` for input defaults and
+typed select/option identity; these form helpers require Moonshine 0.4.40 or newer.
 Component prop spreads keep their existing contract.
 
 Each layer expression and enumerable getter runs once per update/render in
@@ -68,8 +72,22 @@ strings are filtered consistently with native SSR, which is stricter than Svelte
 DOM content-replacement keys reject before mutation. String-valued `ref` and
 `children` remain attributes and do not replace template children.
 
-Source admission still rejects spreads on input/select/option/textarea,
-dynamic or namespaced/custom elements, and combinations with bindings, actions,
+The locally verified compiler also admits unbound input/select/option/textarea
+spreads. DOM values remain separate from reset defaults; option and input values
+use Moonshine's typed stores. Selects reconcile live/default selection after
+children mount and observe inserted options. An authored fixture matches Svelte
+in five Chromium phases and repeated SSR; an isolated Bun/Node source regression
+checks typed option identity. This does not establish full form compatibility.
+
+The local compiler also combines spreads with input/textarea `bind:value`,
+checkbox `bind:checked`, select `bind:value`, and static file-input `bind:files`.
+Authored input/checkbox/select/file
+fixtures match Svelte in Chromium and repeated SSR, including handler order and
+typed selections. File SSR preserves authored attributes without reading the
+bound model. Open/group binding combinations remain unsupported.
+
+Source admission still rejects spreads on title, dynamic or namespaced/custom
+elements, and combinations with actions,
 attachments, class/style directives or scoped CSS. Attachment symbols and
 autofocus behavior are not implemented by this helper. Hydration and arbitrary
 precompiled Svelte instructions remain unsupported.
@@ -78,7 +96,18 @@ The authored wrapper matches Svelte 5.57.1 through five Chromium update phases,
 including two independent instances, attribute fallback, clicks, node/focus
 retention and disposal. Repeated SSR and isolated Bun/Node source tests verify
 getter order and attribute output without installing a host runtime. These checks do
-not establish complete source compatibility or a speed comparison.
+not establish complete source compatibility.
+
+Reproduce the form SSR comparison with
+`bun scripts/benchmark-svelte-form-ssr.ts --compiler /path/to/crepus`
+from the repository root. Use `--svelte /path/to/installed/svelte` when the
+reference package is installed outside the root resolver. It runs seven
+alternating fresh Bun processes, 1,000 warmups and 5,000 timed renders per
+process, and reports minified bundle bytes, first-render and process wall time.
+Process wall time includes warmup/workload and is not startup-only. The measured
+native form bundle is smaller, while its repeated SSR is slower than Svelte
+5.57.1 in this workload. Machine contention is uncontrolled; this does not
+establish a general speed or size ranking.
 
 Lifecycle helpers require a live native owner. `onMount` runs untracked in a
 microtask after synchronous DOM insertion; a synchronous returned function is

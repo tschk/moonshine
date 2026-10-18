@@ -186,7 +186,7 @@ export function setOptionValue(
   const select = option.closest("select");
   if (select) untrack(() => selectUpdates.get(select)?.());
 }
-function optionValue(option: HTMLOptionElement): unknown {
+export function optionValue(option: HTMLOptionElement): unknown {
   return optionValues.has(option) ? optionValues.get(option) : option.value;
 }
 

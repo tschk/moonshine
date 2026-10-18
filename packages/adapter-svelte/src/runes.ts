@@ -5,7 +5,10 @@ export { createDerived } from "./derived";
 export { createProp } from "./prop";
 export { createRawState } from "./raw-state";
 export { spreadProps } from "./spread-props";
-export { installElementSpread } from "./spread-element-dom";
+export {
+  installElementSpread,
+  installBoundElementSpread,
+} from "./spread-element-dom";
 export {
   createPrivateState,
   createPrivateRawState,

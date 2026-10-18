@@ -2,6 +2,28 @@ import { expect, test } from "bun:test";
 import { spreadServerEntries } from "../src/spread-element-server";
 import { hAttributeEntries, renderToString } from "@tschk/moonshine-dom/ssr";
 
+const html = (layers: readonly unknown[]) =>
+  renderToString(() =>
+    hAttributeEntries("input", spreadServerEntries(layers, "input")),
+  );
+
+test("input defaults serialize as reset attributes only without an explicit live key", () => {
+  expect(html([{ defaultValue: "seed<&", defaultChecked: true }])).toBe(
+    '<input value="seed&lt;&amp;" checked="">',
+  );
+  for (const value of [null, undefined, () => "unused"])
+    expect(html([{ defaultValue: "seed", value }])).toBe("<input>");
+  expect(html([{ defaultChecked: true, checked: false }])).toBe("<input>");
+  expect(html([{ DEFAULTVALUE: "seed", Value: "live" }])).toBe(
+    '<input value="live">',
+  );
+  expect(html([{ value: null }, { defaultValue: "seed" }])).toBe("<input>");
+  // This flag is opt-in: ordinary elements keep their literal attribute names.
+  expect(spreadServerEntries([{ defaultValue: "seed" }])).toEqual([
+    ["defaultvalue", "seed"],
+  ]);
+});
+
 test("layers merge in order with later values winning at the first key position", () => {
   expect(
     spreadServerEntries([
@@ -205,4 +227,74 @@ test("entries serialize through hAttributeEntries with escaped values and unchan
   expect(renderToString(() => hAttributeEntries("input", entries))).toBe(
     `<input id="b" class="x y" disabled="" ref="r&lt;" children="c&amp;" title="&quot;&lt;&amp;&#39;&gt;x" translate="no">`,
   );
+});
+
+test("form spread SSR preserves typed selection, defaults and explicit HTML attributes", async () => {
+  const { spreadServerElement } = await import("../src/spread-element-server");
+  const identity = { id: 1 };
+  const output = renderToString(() =>
+    spreadServerElement(
+      "select",
+      [{ defaultValue: identity, ref: "literal" }],
+      spreadServerElement("option", [{ value: { id: 1 } }], "Different"),
+      spreadServerElement("option", [{ value: identity }], "Same"),
+    ),
+  );
+  expect(output).toBe(
+    '<select ref="literal"><option value="[object Object]">Different</option><option value="[object Object]" selected="">Same</option></select>',
+  );
+  expect(
+    renderToString(() =>
+      spreadServerElement(
+        "select",
+        [{ multiple: true, value: [2] }],
+        spreadServerElement("option", [{ value: 1 }], "One"),
+        spreadServerElement("option", [{ value: 2 }], "Two"),
+      ),
+    ),
+  ).toBe(
+    '<select multiple=""><option value="1">One</option><option value="2" selected="">Two</option></select>',
+  );
+  expect(
+    renderToString(() =>
+      spreadServerElement(
+        "select",
+        [{ value: "missing" }],
+        spreadServerElement("option", [{ selected: true }], "Label"),
+      ),
+    ),
+  ).toBe('<select><option selected="">Label</option></select>');
+});
+
+test("form SSR snapshots each source getter once before encoding or selection", async () => {
+  const { spreadServerElement } = await import("../src/spread-element-server");
+  const trace: string[] = [];
+  const layer = {
+    get value() {
+      trace.push("value");
+      return "a";
+    },
+    get title() {
+      trace.push("title");
+      return "safe";
+    },
+  };
+  const output = renderToString(() =>
+    spreadServerElement("input", [layer, { value: "b" }]),
+  );
+  expect(output).toBe('<input value="b" title="safe">');
+  expect(trace).toEqual(["value", "title"]);
+  trace.length = 0;
+  expect(
+    renderToString(() =>
+      spreadServerElement(
+        "select",
+        [layer],
+        spreadServerElement("option", [{ value: "a" }], "A"),
+      ),
+    ),
+  ).toBe(
+    '<select title="safe"><option value="a" selected="">A</option></select>',
+  );
+  expect(trace).toEqual(["value", "title"]);
 });
