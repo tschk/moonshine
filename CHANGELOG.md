@@ -1,3 +1,24 @@
+# Moonshine 0.4.38
+
+- Add opt-in native HTTP route loading/actions through router `/data-http` and
+  server `/data-http`, with Bun/Node builds and previews selecting the transport.
+  Preserve response metadata, cookies, abort signals and independent mutation
+  revalidation; reject malformed configuration and cross-origin browser requests.
+- Keep the default export signal-only and host-free. Direct server responses,
+  redirects and errors remain HTTP; host forms, fetchers, RSC and hydration are
+  not implemented. Applications own payload validation, authentication and Host
+  acceptance. Cancellation cannot roll back committed writes.
+- Reject already-aborted actions before execution. Real HTTP/browser lifecycles,
+  relocated Bun/Node builds, extracted package consumers, both typecheckers and
+  52 pinned-Bun transport/preview tests pass. The broader local test command has
+  two existing-test timeouts and one follow-on killed-process error; both timed
+  tests pass individually under their original deadlines. Feature CI passes on
+  Linux and macOS.
+- Signal kernel remains 4,041 raw bytes. A plain unused-transport SSR consumer
+  changes from 11,818 raw / 4,420 gzip to 12,155 raw / 4,574 gzip bytes; moving
+  transport into its own entry removes 603 gzip bytes from the inline draft.
+  No speed or host comparison claimed. npm publication stays manual.
+
 # Moonshine 0.4.37
 
 - Add opt-in Astro SSR helpers for ordered intrinsic attribute spreads. Local
