@@ -20,6 +20,7 @@ export {
   catchError,
   batch,
   createEffect,
+  createComputed,
   createMemo,
   createSignal,
   on,

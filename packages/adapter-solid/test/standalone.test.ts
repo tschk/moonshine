@@ -95,7 +95,7 @@ let stop;const seen=[];
 solid.createRoot(dispose=>{
  stop=dispose;
  const [state,setState]=store.createStore({count:1,nested:{name:'first'}});
- reactive.createComputed(solid.on(()=>state.count,(value)=>seen.push(value)));
+ solid.createComputed(solid.on(()=>state.count,(value)=>seen.push(value)));
  setState('count',2);setState(store.produce(draft=>{draft.count=3;}));
  setState(store.reconcile({count:4,nested:{name:'second'}}));
  assert.equal(state.nested.name,'second');assert.deepEqual(seen,[1,2,3,4]);

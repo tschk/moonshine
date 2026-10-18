@@ -11,7 +11,7 @@ implement Solid's compiled DOM instructions and cannot be aliased over arbitrary
 the native graph; unsupported APIs reject. Moonshine rejects generated native
 modules retaining a Solid runtime import.
 
-- `/solid`: native signals, memos, effects, roots, lifecycle, batching, `on`,
+- `/solid`: native signals, memos, effects, synchronous `createComputed`, roots, lifecycle, batching, `on`,
   context providers, memoized `children`, `mergeProps`/`splitProps`, client resources, `catchError`, DOM
   `ErrorBoundary`, and getter-based `For`, `Index`, `Show`, `Match`, `Switch`.
 - `/store`: independent `createStore`, `produce`, `reconcile` on the same graph.
