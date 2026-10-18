@@ -105,10 +105,21 @@ including empty setup, constants, JavaScript/TypeScript counters and imported
 children. It supplies an empty props type when no props macro is present, after
 the existing macro, import and async-setup validation. Components that declare
 typed props keep their existing contract. This removes an unnecessary
-`defineProps` declaration; it adds no attrs fallthrough, form directives, Options
-API or host VNode support. The compiler work is unpublished. Set
+`defineProps` declaration; it adds no attrs fallthrough, Options API or host VNode
+support. The compiler work is unpublished. Set
 `MOONSHINE_CREPUS_COMPILER` to the local compiler to enable the isolated source
 regression in `test/standalone.test.ts`.
+
+The local compiler lowers text and numeric input/textarea `v-model` to the opt-in
+`./model` DOM factory and `./model/ssr` server factory. Plain models and `.lazy`,
+`.trim`, `.number` use the independent graph, including IME composition handling,
+focused trimming, empty numeric strings and owner cleanup. Writable setup
+`ref`/`shallowRef` targets and member targets rooted in setup refs or `reactive`
+objects are supported. Input types must be static text, search, tel, url, email,
+password, number or range; textarea children and explicit value/defaultValue
+conflicts reject. Select, checkbox, radio, file and component models remain
+unsupported, as do dynamic types and readonly/unknown targets. Source lowering
+is local and unpublished; this does not implement Vue directives or hydration.
 
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection

@@ -46,13 +46,13 @@ import Child from './Child.vue';
 const count=ref(2);
 const doubled=computed(()=>count.value*2);
 function increment(){count.value++;}
-</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><Child/></div></template>`;
+</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><Child/></div></template>`;
     const child = `<script setup>const label='<b>&';</script><template><p>{{label}}</p></template>`;
     const check = `import assert from 'node:assert/strict';
 import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
 assert.equal(typeof document,'undefined');
-for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><p>&lt;b&gt;&amp;</p></div>');
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><input type="number" value="2"><p>&lt;b&gt;&amp;</p></div>');
 assert.equal(typeof document,'undefined');`;
     await standalone(`
 import assert from 'node:assert/strict';
@@ -107,6 +107,8 @@ import * as root from '@tschk/moonshine-vue';
 import {crepusRenderer} from '@tschk/moonshine-vue/framework';
 import {ref,shallowRef,reactive,toRefs,computed,watch,watchSyncEffect} from '@tschk/moonshine-vue/reactive';
 import {toDisplayString,toDisplayStringSSR} from '@tschk/moonshine-vue/text';
+import {bindTextModel,createTextModel} from '@tschk/moonshine-vue/model';
+import {createServerTextModel} from '@tschk/moonshine-vue/model/ssr';
 import {withComponentErrorHandler} from '@tschk/moonshine-vue/errors';
 import {createDefaultProps,createServerDefaultProps,withVueScheduler} from '@tschk/moonshine-vue/props';
 import {provide,inject,hasInjectionContext} from '@tschk/moonshine-vue/context';
@@ -119,6 +121,8 @@ for(const name of ['vue','react','react-dom','@tschk/crepuscularity-wasm','@tsch
 }
 for(const name of ['createBridgedRef','fromMoonshineSignal','createMoonshineSignal','createResource','createMsSignal','createMemo','batch','untrack'])assert.equal(typeof root[name],'function',name);
 assert.equal(root.crepusRenderer,crepusRenderer);
+assert.equal(typeof bindTextModel,'function');assert.equal(typeof createTextModel,'function');
+assert.equal(renderToString(()=>createServerTextModel('input',{},()=>null)),'<input>');
 assert.equal(toDisplayString(ref(false)),'false');
 assert.equal(toDisplayString({toJSON:()=>undefined}),undefined);
 assert.equal(renderToString(()=>h('p',{},toDisplayStringSSR({toJSON:()=>undefined}))),'<p>undefined</p>');
