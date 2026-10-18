@@ -1,3 +1,28 @@
+# Moonshine 0.4.34
+
+- Add independent synchronous server resources on DOM `/resource/ssr` and Solid
+  `/ssr`. Fetchers never run; request-loaded seeds and source truthiness determine
+  snapshots. Server refetch returns loading and mutation stores literal values,
+  including functions. Client resources reject SSR before invoking user callbacks.
+- Fix inherited initialValue presence for client resources: seeded pending fetches
+  report refreshing, matching Solid. No host runtime or new dependencies.
+- Local unpublished Crepuscularity now routes explicit Solid SSR createResource
+  and Resource imports, aliases, reexports and type queries to the native server
+  entry. Creation needs an active SSR scope. Async SSR, Suspense, hydration,
+  storage and full resource options remain unsupported.
+- Full SDK run: 16,831 passing test executions, zero failures. Both typecheckers
+  pass 25 projects. Thirty direct tests, six isolated consumer tests, declaration
+  consumers, 12 compiler tests, 848 native library tests, owned-target Clippy and
+  the 856-module source gate pass.
+- Sixteen authored text-output SSR cases repeat in fresh Bun/minified Node with
+  zero fetches and a host/parser-free runtime graph. Thirteen client browser
+  phases retain loading/error behavior, focus, selection, disposal and identity.
+- Signal kernel stays 4,041 raw bytes. The SSR text fixture is 4,927 gzip bytes
+  versus Solid 1.9.14's 14,042. The client fixture remains larger: 8,545 versus
+  7,636, adding 44 gzip bytes against the preceding resource implementation.
+  These are scoped bundle comparisons, with no startup/runtime speed claim.
+  Source compiler changes remain local/unpublished; npm publication stays manual.
+
 # Moonshine 0.4.33
 
 - Add independent component emit trim/number conversion to the opt-in Vue event
