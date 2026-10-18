@@ -1,6 +1,6 @@
 # Framework replacement status
 
-Audited against SDK 0.4.23 on 2026-10-18, with unpublished local static Astro slot integration. This is a replacement boundary audit,
+Audited against SDK 0.4.24 on 2026-10-18, with unpublished local static Astro slot integration. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
 signal-only; React and web capabilities remain opt-in.
@@ -61,7 +61,7 @@ checker alone does not establish independence.
 
 ## Performance boundary
 
-The verified 0.4.22 signal-only core bundle is 4,041 raw bytes. That is one entry,
+The verified 0.4.24 signal-only core bundle is 4,041 raw bytes. That is one entry,
 not a whole-framework comparison. The Solid README records a historical resource
 application workload where Moonshine's bundle is larger than Solid's; those
 numbers are tied to that fixture and snapshot. Refresh comparable bundle,

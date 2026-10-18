@@ -1,3 +1,16 @@
+# Moonshine 0.4.24
+
+- Add opt-in `@tschk/moonshine-router/data-react` with `useRouteData` for
+  the owning native runtime's complete pending, ready and error state.
+- Preserve retained data on reload, clear prior-location data on navigation,
+  follow runtime changes, and unsubscribe on unmount. SSR reads the supplied
+  runtime snapshot; loader errors remain state values.
+- Require a data runtime and keep payloads typed as `unknown` for application
+  narrowing. This does not implement TanStack route matches or loader hooks,
+  SSR data seeding, serialization, Suspense or hydration.
+- No new dependencies. The renderer-neutral `/data` bundle is byte-identical
+  and React-free; the signal kernel remains 4,041 raw bytes. No speed claim.
+
 # Moonshine 0.4.23
 
 - Skip empty cleanup tracking closures in the independent native effect and memo
