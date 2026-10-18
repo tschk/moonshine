@@ -497,3 +497,19 @@ reading it and retains unreachable checks for typed assignments/change handlers.
 Function bindings, dynamic input types, spreads and hydration remain unsupported.
 This compiler change is unpublished and requires the `bindFiles` runtime from
 Moonshine 0.4.13 or newer.
+
+The locally verified Crepus compiler also lowers `bind:open` on static HTML
+`<details>` elements through the existing independent `bindOpen` helper. Shorthand,
+state/prop identifiers, member targets, writable stores, keyed rows and imported
+child bindings have DOM/SSR source coverage. User `ontoggle` handlers run before
+the binding write, and member-based handlers are read at dispatch. SSR snapshots
+the boolean `open` attribute without installing listeners or running handlers.
+Nullish state closes the element without adopting its DOM state.
+
+This compiler work remains unpublished. Function-pair targets, dynamic elements,
+other element types, duplicate bindings and conflicting `open` attributes reject.
+Native owner cleanup removes listeners even from saved detached nodes; the
+Svelte 5.57.1 reference retains them. This is bounded authored-source support,
+without hydration or Svelte's compiled component ABI. Set
+`MOONSHINE_CREPUS_COMPILER` to the local compiler to enable the isolated source
+regression in `test/standalone.test.ts`.

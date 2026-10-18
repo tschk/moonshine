@@ -59,6 +59,61 @@ async function standalone(script: string, framework = false) {
   }
 }
 
+const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
+test.skipIf(!sourceCompiler)(
+  "authored details bindings compile independently and snapshot SSR state",
+  async () => {
+    const page = `<script lang="ts">
+import Child from './Child.svelte';
+import {writable} from 'svelte/store';
+let {initial=false}=$props<{initial?:boolean}>();
+let open=$state(initial);
+let model=$state({open:!initial});
+const store=writable(initial);
+</script><details id="main" bind:open ontoggle={()=>{throw Error('server event')}}>main</details><details id="member" bind:open={model.open}>member</details><details id="store" bind:open={$store}>store</details><Child bind:open/><p>{String(open)}</p>`;
+    const child = `<script>let {open=$bindable(false)}=$props();</script><details id="child" bind:open>child</details>`;
+    const check = `import assert from 'node:assert/strict';
+import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
+import {h,renderToString} from '@tschk/moonshine-dom/ssr';
+assert.equal(typeof document,'undefined');
+for(const initial of [false,true,false]){
+ const yes=initial?' open=""':'',no=initial?'':' open=""';
+ const expected='<details id="main"'+yes+'>main</details><details id="member"'+no+'>member</details><details id="store"'+yes+'>store</details><details id="child"'+yes+'>child</details><p>'+initial+'</p>';
+ assert.equal(renderToString(()=>h(Page,{initial})),expected);
+}
+assert.equal(typeof document,'undefined');`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+async function compile(entry,target,out){
+ const proc=Bun.spawn([compiler,'web','build','--site','source','--entry',entry,'--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
+ const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+ return {code,log:stdout+stderr};
+}
+await Bun.write('source/Page.svelte',${JSON.stringify(page)});
+await Bun.write('source/Child.svelte',${JSON.stringify(child)});
+for(const [target,out]of[['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
+ const result=await compile('Page.svelte',target,out);assert.equal(result.code,0,result.log);
+ const built=await Bun.build({entrypoints:[out+'/CrepusEmit.'+target+'.ts'],target:target==='moonshine-dom'?'browser':'node',minify:true,metafile:true});
+ assert.ok(built.success,String(built.logs));
+ assert.ok(!Object.keys(built.metafile.inputs).some(path=>['svelte','solid-js','react','react-dom'].some(name=>path.includes('node_modules/'+name+'/'))||path.endsWith('.wasm')));
+}
+await Bun.write('check.ts',${JSON.stringify(check)});
+await import(process.cwd()+'/check.ts');
+const built=await Bun.build({entrypoints:['check.ts'],target:'node',minify:true,outdir:'dist'});assert.ok(built.success,String(built.logs));
+const node=Bun.spawn(['node','dist/check.js'],{stdout:'pipe',stderr:'pipe'});
+const [out,err,code]=await Promise.all([new Response(node.stdout).text(),new Response(node.stderr).text(),node.exited]);assert.equal(code,0,out+err);
+for(const source of ['<script>let open=$state(false);</script><div bind:open/>','<script>const open=false;</script><details bind:open/>','<script>let open=$state(false);</script><details open bind:open/>']){
+ await Bun.write('source/Bad.svelte',source);
+ for(const target of ['moonshine-dom','moonshine-ssr']){
+  const entry='keep/CrepusEmit.'+target+'.ts';await Bun.write(entry,'preserve');
+  const result=await compile('Bad.svelte',target,'keep');assert.notEqual(result.code,0,result.log);assert.equal(await Bun.file(entry).text(),'preserve');
+ }
+}
+`);
+  },
+);
+
 test("stores, bridges and owner lifecycle work without host or optional packages", async () => {
   const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
   expect(Object.keys(pkg.dependencies)).toEqual([

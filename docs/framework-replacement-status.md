@@ -1,6 +1,7 @@
 # Framework replacement status
 
-Audited against SDK 0.4.25 on 2026-10-18, with unpublished local static Astro slot integration. This is a replacement boundary audit,
+Audited against SDK 0.4.25 on 2026-10-18, with unpublished local Astro slot and
+Svelte details-binding integration. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
 signal-only; React and web capabilities remain opt-in.
@@ -58,6 +59,10 @@ checker alone does not establish independence.
 2. Extend authored component composition through Crepuscularity, including Astro
    slots and remaining Vue/Svelte source variants. Require actual DOM/SSR and
    public-type consumers; primitives alone do not prove source compatibility.
+   Local `bind:open` now reaches the independent details helper, including store,
+   keyed-row and imported-child cases. The current CLI still rejects Vue text
+   `v-model` even with typed setup props, and Astro component prop spreads. Both
+   are useful application gaps identified by separate source audits.
 3. Design request/client identity transport before claiming hydration or Svelte
    `$props.id()` compatibility. Separate client/server counters do not satisfy
    matching hydrated IDs.

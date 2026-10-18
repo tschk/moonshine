@@ -400,7 +400,8 @@ write the boolean property after user listeners; browser coalescing is preserved
 It has no form-reset behavior. Cleanup removes the binding listener, including
 queued events and retained detached nodes (unlike the audited Svelte 5.57 listener).
 SSR uses the ordinary boolean `open` attribute snapshot. The Svelte `/binding`
-entry re-exports this helper; authored `bind:open` lowering remains pending.
+entry re-exports this helper. The unpublished local Crepus compiler now lowers
+bounded authored `bind:open`; see the Svelte adapter's source-support limits.
 
 `/store`'s `createMutable(value, { equals })` can select property-write equality.
 The default is strict equality (`===`); the optional comparator receives the
