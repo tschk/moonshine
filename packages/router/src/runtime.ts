@@ -30,6 +30,12 @@ export type HistorySnapshot = {
 };
 
 export type MoonshineRouterInstance = {
+  /** Optional opt-in data runtime; absent on navigation-only routers. */
+  invalidate?: () => Promise<unknown>;
+  data?: {
+    peek(): { status: "pending" | "ready" | "errored" };
+    subscribe(listener: () => void): () => void;
+  };
   /** Navigate via History API (no full reload). */
   navigate: (
     to: string,

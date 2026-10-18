@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./graph": "./src/graph.ts",
-    "./runtime": "./src/runtime.ts"
+    "./runtime": "./src/runtime.ts",
+    "./data": "./src/data.ts"
   },
   "files": [
     "src"

@@ -55,3 +55,62 @@ including `#`. Navigation and browser synchronization update it alongside
 history and location. `getLocation()` and `location` retain pathname plus query
 only. An explicit initial URL supplies its own fragment; the default runtime
 starts from the browser URL.
+
+## Opt-in client data
+
+`@tschk/moonshine-router/data` adds loading and mutation ownership without React
+or a host router. It does not import server route modules into the browser.
+Supply client-safe operations, such as requests to your existing API routes:
+
+```ts
+import { createDataRouter } from "@tschk/moonshine-router/data";
+
+const router = createDataRouter(async ({ location, signal }) => {
+  const response = await fetch(
+    `/api/page?path=${encodeURIComponent(location)}`,
+    {
+      signal,
+    },
+  );
+  if (!response.ok) throw new Error(`Load failed: ${response.status}`);
+  return response.json();
+}, "/");
+
+const unsubscribe = router.data.subscribe(() => {
+  const { status, data, error } = router.data.peek();
+  // Render pending, ready or errored state with your chosen renderer.
+});
+
+await router.submit(async ({ signal }) => {
+  const response = await fetch("/api/save", { method: "POST", signal });
+  if (!response.ok) throw new Error(`Save failed: ${response.status}`);
+  return response.json();
+});
+
+await router.invalidate();
+unsubscribe();
+router.dispose();
+```
+
+Loading starts immediately and follows pathname/query changes; history-only and
+fragment changes do not reload. Invalidation retains the current location's data
+while pending; navigation clears data from the previous location. Errors appear
+in `data` and explicit invalidation rejects. Superseded loads cannot publish,
+even if they ignore cancellation. Invalidation promises follow the latest load
+until it settles. Each runtime owns its own work.
+
+`submit` exposes `submitting`, returns the action result and revalidates after
+success. Failed actions reject. A failed follow-up load appears in `data.error`
+without changing the successful action result. A newer submission, navigation or
+disposal aborts the old action. Any successful write still revalidates the current
+location unless the runtime has been disposed.
+Abort signals do not roll back a server write, and operations that ignore them
+may still finish; their original promises retain their own results/errors.
+Dispose aborts work and unsubscribes navigation; later loads/submissions reject.
+
+Pass this runtime to `MoonshineRouter` for React consumers. TanStack's
+`useRouter().invalidate()` delegates to it. Navigation-only runtimes reject that
+call rather than silently succeeding. TanStack loading state follows this runtime; loader failures stay in its data
+state when invalidating through the adapter. TanStack loader hooks, route
+registries, matches, SSR data seeding and hydration remain unsupported. This
+entry adds no automatic data endpoint, server serialization or route cache.

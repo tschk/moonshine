@@ -7,10 +7,11 @@
  * import { useNavigate, useRouterState } from "@tschk/moonshine-tanstack";
  * ```
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   useNavigate as useMoonshineNavigate,
   useParams as useMoonshineParams,
+  useRouter as useMoonshineRouter,
 } from "@tschk/moonshine/router";
 import {
   buildHref,
@@ -31,7 +32,7 @@ export type RouterInstance = {
     forward(): void;
     go(delta: number): void;
   };
-  invalidate(): void;
+  invalidate(): Promise<void>;
   state: { location: ParsedLocation };
 };
 
@@ -54,6 +55,7 @@ export function useNavigate(): NavigateFn {
 }
 
 export function useRouter(): RouterInstance {
+  const runtime = useMoonshineRouter();
   const location = useParsedLocation();
   const go = useNavigate();
   return useMemo(
@@ -67,36 +69,49 @@ export function useRouter(): RouterInstance {
         forward: () => globalThis.history?.forward(),
         go: (delta: number) => globalThis.history?.go(delta),
       },
-      // Moonshine re-renders from its signal graph; there is nothing to
-      // invalidate.
-      invalidate: () => {},
+      invalidate: async () => {
+        if (!runtime.invalidate)
+          throw new Error(
+            "Route invalidation requires an opt-in Moonshine data router",
+          );
+        await runtime.invalidate().catch(() => {});
+      },
       state: { location },
     }),
-    [go, location],
+    [go, location, runtime],
   );
 }
 
 export type RouterState = {
   location: ParsedLocation;
-  status: "idle";
-  isLoading: false;
+  status: "idle" | "pending";
+  isLoading: boolean;
   isTransitioning: false;
   matches: never[];
 };
+
+const noop = () => {};
+const subscribeEmpty = () => noop;
 
 export function useRouterState<T = RouterState>(options?: {
   select?: (state: RouterState) => T;
 }): T {
   const location = useParsedLocation();
+  const runtime = useMoonshineRouter();
+  const pending = useSyncExternalStore(
+    runtime.data?.subscribe ?? subscribeEmpty,
+    () => runtime.data?.peek().status === "pending",
+    () => runtime.data?.peek().status === "pending",
+  );
   const state = useMemo<RouterState>(
     () => ({
       location,
-      status: "idle",
-      isLoading: false,
+      status: pending ? "pending" : "idle",
+      isLoading: pending,
       isTransitioning: false,
       matches: [],
     }),
-    [location],
+    [location, pending],
   );
   return (options?.select ? options.select(state) : state) as T;
 }

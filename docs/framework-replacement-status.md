@@ -1,22 +1,22 @@
 # Framework replacement status
 
-Audited against SDK 0.4.20 on 2026-10-18. This is a replacement boundary audit,
+Audited against SDK 0.4.20 on 2026-10-18, with unreleased client-data changes noted below. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
 signal-only; React and web capabilities remain opt-in.
 
-| Framework    | Independent behavior today                                                                           | Important remaining application boundary                                                                                 |
-| ------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Next         | React-based navigation, links and bounded request helpers; no Next dependency                        | RSC/server actions, cache revalidation, filesystem conventions, image optimization                                       |
-| React Router | React-based links, navigation, location and response helpers; no React Router dependency             | Client loader/action lifecycles, fetchers, forms and nested route configuration                                          |
-| TanStack     | React-based navigation hooks and links; no TanStack dependency                                       | Route tree/typing and loader lifecycles; `invalidate()` currently does nothing, status stays idle and matches stay empty |
-| Waku         | React-based client routing; no Waku dependency                                                       | RSC payloads/streaming, file routing, server APIs and search codecs                                                      |
-| Solid        | Independent graph, DOM/SSR factories, control flow, stores and client resources; no Solid dependency | Hydration, async SSR, Suspense, full resource options and arbitrary compiled instructions                                |
-| Svelte       | Independent stores, ownership and native source runtime                                              | Complete rune/component coverage, transitions and hydration; see the source coverage ledger                              |
-| Vue          | Independent composition helpers and bounded native SFC runtime                                       | Complete SFC lowering, attrs fallthrough and host VNode/compiler ABI                                                     |
-| Angular      | Native signal bridges and bounded template rendering                                                 | Component-class/decorator compilation, DI, lifecycle and compiled instructions                                           |
-| Astro        | Independent synchronous source SSR factories                                                         | Slots, islands/hydration, async rendering and complete compiler API                                                      |
-| Nuxt         | Native signal bridges and lazy renderer                                                              | App composables, payload/data lifecycle, auto-imports, Nitro and Vue component contracts                                 |
+| Framework    | Independent behavior today                                                                           | Important remaining application boundary                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Next         | React-based navigation, links and bounded request helpers; no Next dependency                        | RSC/server actions, cache revalidation, filesystem conventions, image optimization                              |
+| React Router | React-based links, navigation, location and response helpers; no React Router dependency             | Client loader/action lifecycles, fetchers, forms and nested route configuration                                 |
+| TanStack     | React-based navigation hooks and links; no TanStack dependency                                       | Route tree/typing and loader lifecycles; invalidation/loading need an explicit data runtime; matches stay empty |
+| Waku         | React-based client routing; no Waku dependency                                                       | RSC payloads/streaming, file routing, server APIs and search codecs                                             |
+| Solid        | Independent graph, DOM/SSR factories, control flow, stores and client resources; no Solid dependency | Hydration, async SSR, Suspense, full resource options and arbitrary compiled instructions                       |
+| Svelte       | Independent stores, ownership and native source runtime                                              | Complete rune/component coverage, transitions and hydration; see the source coverage ledger                     |
+| Vue          | Independent composition helpers and bounded native SFC runtime                                       | Complete SFC lowering, attrs fallthrough and host VNode/compiler ABI                                            |
+| Angular      | Native signal bridges and bounded template rendering                                                 | Component-class/decorator compilation, DI, lifecycle and compiled instructions                                  |
+| Astro        | Independent synchronous source SSR factories                                                         | Slots, islands/hydration, async rendering and complete compiler API                                             |
+| Nuxt         | Native signal bridges and lazy renderer                                                              | App composables, payload/data lifecycle, auto-imports, Nitro and Vue component contracts                        |
 
 The first four rows still use React. Removing their host framework does not
 remove React or establish compatibility with a complete existing application.
@@ -47,8 +47,8 @@ checker alone does not establish independence.
 
 1. Connect existing server route loaders/actions to a real client data lifecycle:
    cancellation, errors, invalidation and mutation revalidation. Share that web
-   behavior before adding compatibility hook names. TanStack's current no-op
-   invalidation is a concrete acceptance failure, not completed support.
+   behavior before adding compatibility hook names. The opt-in data runtime now
+   provides cancellation, invalidation and action revalidation; TanStack loader hooks and full data-router lifecycles remain open.
 2. Extend authored component composition through Crepuscularity, including Astro
    slots and remaining Vue/Svelte source variants. Require actual DOM/SSR and
    public-type consumers; primitives alone do not prove source compatibility.

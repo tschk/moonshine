@@ -57,13 +57,13 @@ own loader/RPC runtime, and are **not** provided:
   plain string/record with no route-tree inference — `from` is accepted and
   ignored, `strict` has no effect.
 - **Data loading**: `loader`, `useLoaderData`, `useLoaderDeps`, `beforeLoad`,
-  `validateSearch`, `router.invalidate()` (a no-op here), `useMatch`,
+  `validateSearch`, `useMatch`,
   `useMatches`, `useMatchRoute`, `Await`, `defer`, pending/error components.
 - **Server functions**: `createServerFn`, `createMiddleware`,
   `createStartHandler` — these depend on the build plugin's client/server
   splitting. Use `createServerRoute` on a moonshine route instead.
 - **Transitions/blocking**: `useBlocker`, `Block`, `isTransitioning`
-  (always `false`), `useRouterState().status` (always `"idle"`),
+  (always `false`), `useRouterState().status` (idle or pending for the opt-in data runtime),
   `matches` (always empty).
 - **History state hook**: navigation state is available in `location.state`;
   there is no separate `useHistoryState` hook.
@@ -71,3 +71,10 @@ own loader/RPC runtime, and are **not** provided:
   its scoped server snapshot.
 
 See [Moonshine README](../../README.md).
+
+`useRouter().invalidate()` now delegates to an explicitly supplied Moonshine
+`createDataRouter` runtime from `@tschk/moonshine-router/data`. It returns a
+promise and rejects for a navigation-only runtime. With a data runtime,
+`useRouterState` reports pending/loading and loader errors remain in native data
+state. This does not implement TanStack loader hooks, route caching, match
+state or route-tree inference.

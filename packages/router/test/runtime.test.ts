@@ -40,7 +40,7 @@ test("neutral runtime preserves state and atomic history for query-only navigati
   }
 });
 
-test("runtime subpath works without browser globals and bundles without a host", async () => {
+test("runtime and data subpaths work without browser globals and bundle without hosts", async () => {
   const runtime = resolve(import.meta.dir, "../src/runtime.ts");
   const child = Bun.spawn(
     [
@@ -62,13 +62,19 @@ relative.navigate('#details');
 if(relative.getLocation()!=='/owner/folder/page?page=2')throw Error('SSR fragment navigation lost path/query');
 relative.navigate('../detail?sort=next#ignored');
 if(relative.getLocation()!=='/owner/detail?sort=next')throw Error('SSR relative path or fragment normalization failed');
-const result=await Bun.build({entrypoints:[process.argv[1]],target:'browser',minify:true,plugins:[{
+const {createDataRouter}=await import(process.argv[2]);
+const data=createDataRouter(({location})=>location,'/data');
+await data.invalidate();
+if(data.data.peek().data!=='/data')throw Error('Data runtime failed');
+data.dispose();
+const result=await Bun.build({entrypoints:[process.argv[1],process.argv[2]],target:'browser',minify:true,plugins:[{
 name:'reject-host',setup(build){build.onResolve({filter:/^(react|react-dom|solid-js)(\\/|$)/},()=>{throw Error('Host runtime imported')})}
 }]});
 if(!result.success)throw new AggregateError(result.logs,'Host-free runtime bundle failed');
 console.log('isolated runtime passed');
 `,
       runtime,
+      resolve(import.meta.dir, "../src/data.ts"),
     ],
     { stdout: "pipe", stderr: "pipe" },
   );
