@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-dom",
-  "version": "0.4.22",
+  "version": "0.4.23",
   "description": "Independent Moonshine DOM, SSR and reactive rendering",
   "license": "ISC",
   "type": "module",
@@ -45,10 +45,10 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.22"
+    "@tschk/moonshine": "^0.4.23"
   },
   "peerDependencies": {
-    "@tschk/moonshine-framework": "^0.4.22"
+    "@tschk/moonshine-framework": "^0.4.23"
   },
   "peerDependenciesMeta": {
     "@tschk/moonshine-framework": {

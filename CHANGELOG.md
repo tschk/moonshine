@@ -1,3 +1,15 @@
+# Moonshine 0.4.23
+
+- Skip empty cleanup tracking closures in the independent native effect and memo
+  runtime. Preserve cleanup ownership, disposal and untracked cleanup reads.
+- Paired production Chromium reactive workloads measured roughly 7–13% lower
+  effect/memo times across three contexts. Cleanup-heavy timings stayed roughly
+  flat; the multi-workload fixture grows by 12 gzip bytes. This is reactive
+  throughput evidence, not an application, DOM, paint or universal speed claim.
+- The checked SSR fixture remains 11,523 raw / 4,528 gzip bytes. The signal-only
+  kernel remains 4,041 raw bytes. No new dependencies or compatibility APIs.
+- Hydration, async SSR and full source-language compatibility remain unsupported.
+
 # Moonshine 0.4.22
 
 - Add compiler-facing `sourceComponent`, `sourceSlot` and `SourceSlots` on the
