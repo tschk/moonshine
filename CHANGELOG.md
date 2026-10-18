@@ -1,3 +1,22 @@
+# Moonshine 0.4.30
+
+- Add independent opt-in Vue single/multiple select models and typed option
+  factories, including numeric conversion, Array/Set outputs, duplicate-choice
+  retention, reactive option values, programmatic Set updates and owner cleanup.
+- Reuse the existing Vue scheduler for authored component update semantics;
+  compiler helper elements retain the parent's update group. Source SSR keeps
+  its distinct option selection/serialization policy.
+- Eight direct Chromium cases, eleven source SSR cases and thirteen actual SFC
+  browser phases match Vue 3.5.13. Repeated fresh Bun/minified Node SSR, public
+  declaration consumers, full typechecks, 856-module source acceptance and native
+  checks pass. Full SDK run: 16,395 passing test executions with file isolation.
+- Existing counter bundle and 4,041-byte signal kernel stay unchanged. The select
+  fixture is 11,722 gzip bytes versus Vue's 21,900; no startup/runtime speed claim.
+- Source compilation requires local unpublished Crepuscularity changes. Only
+  inline options/optgroups and the number modifier are supported; nested selects,
+  component-supplied options, component models and hydration remain unsupported.
+  npm publication remains manual.
+
 # Moonshine 0.4.29
 
 - Add independent checkbox/radio DOM and source SSR factories on Vue's opt-in
