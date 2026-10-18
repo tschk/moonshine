@@ -145,6 +145,11 @@ export function sourceSlot(
   return sourceChild(Object.hasOwn(slots, name) ? slots[name] : fallback);
 }
 
+/** Check native slot presence without evaluating its supplied content. */
+export function sourceHasSlot(slots: SourceSlots, name: string): boolean {
+  return Object.hasOwn(slots, name);
+}
+
 export function h<P extends object>(
   component: (props: P & { children?: SSRChild }) => SSRChild,
   props: P | null,

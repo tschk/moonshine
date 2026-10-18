@@ -84,8 +84,10 @@ checker alone does not establish independence.
    nineteen browser phases and repeated SSR compare against Vue. Attrs fallthrough
    remains unsupported; modifier-object mutation after a parent update differs from Vue.
    Astro component prop spreads now compile locally with final class-list
-   normalization; intrinsic HTML spreads and synchronous slot-presence queries
-   remain useful additions to investigate.
+   normalization. Local synchronous Astro.slots.has calls now support dynamic
+   names and native own-slot presence without evaluating content. Intrinsic HTML
+   spreads remain useful work; async slots, the slot bag and host Slots instance
+   quirks stay outside the native contract.
 3. Design request/client identity transport before claiming hydration or Svelte
    `$props.id()` compatibility. Separate client/server counters do not satisfy
    matching hydrated IDs.

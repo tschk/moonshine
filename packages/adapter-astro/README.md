@@ -94,10 +94,39 @@ slots, grouping of same-name children, named Fragments and forwarding through
 imported layouts. An explicit empty slot suppresses fallback; whitespace-only
 ordinary component content supplies no slot. Projected HTML loses the marker,
 while projected components retain their ordinary `slot` prop. Dynamic/empty
-names, misplaced markers and `Astro.slots` utilities reject explicitly.
+outlet names and misplaced markers reject explicitly. `Astro.slots.render`, the
+slot bag, method extraction, computed/optional access and unrelated Astro globals
+remain unsupported.
 
-Generated calls use the compiler-facing `sourceComponent` / `sourceSlot`
-contract. Slot values stay outside ordinary props, including `children` and
+Local source now supports ordinary `Astro.slots.has(nameExpression)` calls in
+frontmatter and template expressions, including dynamic strings and nested
+`Astro.props` reads. For example:
+
+```astro
+---
+interface Props { lookup?: string }
+const present = Astro.slots.has(Astro.props.lookup ?? "head");
+---
+<section data-present={String(present)}><slot name="head">fallback</slot></section>
+```
+
+Presence uses the existing native own-slot protocol: an explicitly empty supplied
+slot counts, missing/inherited names do not. The query never renders content or
+reads its value. It works without a slot outlet; an unused child that would throw
+stays unevaluated. Shadowed local `Astro` bindings remain ordinary JavaScript.
+Native own-slot behavior differs from Astro's inherited-name and reserved-member
+quirks; it does not implement the host Slots instance ABI.
+
+The real Astro 7.4.0 Slots class and @astrojs/compiler 4.0.0 were checked separately
+for presence values and emitted slot shapes. Six native source cases pass
+repeated fresh Bun/minified Node SSR, with dynamic argument evaluation once and
+no Astro/React/parser WASM in the runtime graph. Both source/declaration type
+lanes pass. The native fixture is 5,592 gzip bytes; there is no full host bundle
+or timing comparison. A no-slot control bundle is byte-identical before/after
+the helper addition. Compiler changes remain local and unpublished.
+
+Generated calls use the compiler-facing `sourceComponent` / `sourceSlot` /
+`sourceHasSlot` contract. Slot values stay outside ordinary props, including `children` and
 `slots`. Props and template interpolations capture when the parent constructs
 its template; component frontmatter runs during serialization, once per
 invocation. Unused slot content stays lazy, repeated outlets render it again,

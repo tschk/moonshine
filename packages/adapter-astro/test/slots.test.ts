@@ -6,6 +6,7 @@ import {
   renderToString,
   sourceComponent,
   sourceSlot,
+  sourceHasSlot,
   type SourceSlots,
 } from "../src/ssr";
 
@@ -190,4 +191,24 @@ test("failed component initialization is cached and cleans up before boundary fa
     }),
   ).toBe("recoveredrecovered");
   expect(trace).toEqual(["setup", "cleanup", "fallback", "fallback"]);
+});
+
+test("slot presence queries are own-key checks and never evaluate supplied content", () => {
+  let calls = 0;
+  const inherited = { inherited: "parent" };
+  const slots = Object.create(inherited) as Record<string, unknown>;
+  Object.defineProperty(slots, "head", {
+    enumerable: true,
+    get() {
+      calls++;
+      throw new Error("content read");
+    },
+  });
+  slots.empty = undefined;
+  expect(sourceHasSlot(slots as SourceSlots, "head")).toBe(true);
+  expect(sourceHasSlot(slots as SourceSlots, "empty")).toBe(true);
+  expect(sourceHasSlot(slots as SourceSlots, "missing")).toBe(false);
+  expect(sourceHasSlot(slots as SourceSlots, "inherited")).toBe(false);
+  expect(sourceHasSlot(slots as SourceSlots, "toString")).toBe(false);
+  expect(calls).toBe(0);
 });
