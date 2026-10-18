@@ -100,6 +100,16 @@ handlers, non-finite defaults and unsupported Boolean prop variants still diagno
 scheduling, effectful parent getter timing, general component composition and
 the VNode ABI remain incomplete. These compiler changes are local and unreleased.
 
+The local compiler also accepts ordinary props-less `<script setup>` components,
+including empty setup, constants, JavaScript/TypeScript counters and imported
+children. It supplies an empty props type when no props macro is present, after
+the existing macro, import and async-setup validation. Components that declare
+typed props keep their existing contract. This removes an unnecessary
+`defineProps` declaration; it adds no attrs fallthrough, form directives, Options
+API or host VNode support. The compiler work is unpublished. Set
+`MOONSHINE_CREPUS_COMPILER` to the local compiler to enable the isolated source
+regression in `test/standalone.test.ts`.
+
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection
 searches ancestors, never the same component's own providers. Nearest ancestors

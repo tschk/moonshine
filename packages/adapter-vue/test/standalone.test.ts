@@ -36,6 +36,51 @@ async function standalone(script: string, framework = false) {
   }
 }
 
+const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
+test.skipIf(!sourceCompiler)(
+  "props-less setup components compile and render independently",
+  async () => {
+    const page = `<script setup lang="ts">
+import {ref,computed} from 'vue';
+import Child from './Child.vue';
+const count=ref(2);
+const doubled=computed(()=>count.value*2);
+function increment(){count.value++;}
+</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><Child/></div></template>`;
+    const child = `<script setup>const label='<b>&';</script><template><p>{{label}}</p></template>`;
+    const check = `import assert from 'node:assert/strict';
+import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
+import {h,renderToString} from '@tschk/moonshine-dom/ssr';
+assert.equal(typeof document,'undefined');
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><p>&lt;b&gt;&amp;</p></div>');
+assert.equal(typeof document,'undefined');`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+async function compile(entry,target,out){
+ const proc=Bun.spawn([compiler,'web','build','--site','source','--entry',entry,'--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
+ const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);return {code,log:stdout+stderr};
+}
+await Bun.write('source/Page.vue',${JSON.stringify(page)});
+await Bun.write('source/Child.vue',${JSON.stringify(child)});
+for(const[target,out]of[['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
+ const result=await compile('Page.vue',target,out);assert.equal(result.code,0,result.log);
+ const built=await Bun.build({entrypoints:[out+'/CrepusEmit.'+target+'.ts'],target:target==='moonshine-dom'?'browser':'node',metafile:true,minify:true});assert.ok(built.success,String(built.logs));
+ assert.ok(!Object.keys(built.metafile.inputs).some(path=>['vue','svelte','solid-js','react','react-dom'].some(name=>path.includes('node_modules/'+name+'/'))||path.includes('node_modules/@vue/')||path.endsWith('.wasm')));
+}
+await Bun.write('check.ts',${JSON.stringify(check)});await import(process.cwd()+'/check.ts');
+const built=await Bun.build({entrypoints:['check.ts'],target:'node',outdir:'dist',minify:true});assert.ok(built.success,String(built.logs));
+const node=Bun.spawn(['node','dist/check.js'],{stdout:'pipe',stderr:'pipe'});const[out,err,code]=await Promise.all([new Response(node.stdout).text(),new Response(node.stderr).text(),node.exited]);assert.equal(code,0,out+err);
+for(const body of ['defineExpose({});','const props=defineProps();','await Promise.resolve();']){
+ await Bun.write('source/Bad.vue','<script setup lang="ts">'+body+'</script><template><p>x</p></template>');
+ for(const target of ['moonshine-dom','moonshine-ssr']){
+  const entry='keep/CrepusEmit.'+target+'.ts';await Bun.write(entry,'preserve');const result=await compile('Bad.vue',target,'keep');assert.notEqual(result.code,0,result.log);assert.equal(await Bun.file(entry).text(),'preserve');
+ }
+}
+`);
+  },
+);
+
 test("native entries work without Vue, framework, React, Crepus or WASM installed", async () => {
   const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
   expect(Object.keys(pkg.dependencies)).toEqual([
