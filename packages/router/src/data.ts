@@ -11,7 +11,7 @@ export type RouteDataState<T> = {
 };
 export type DataRouter<T> = Omit<
   MoonshineRouterInstance,
-  "data" | "invalidate"
+  "data" | "invalidate" | "submit" | "submitting"
 > & {
   data: Signal<RouteDataState<T>>;
   submitting: Signal<boolean>;

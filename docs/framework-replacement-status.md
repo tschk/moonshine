@@ -56,7 +56,10 @@ checker alone does not establish independence.
    cancellation, errors, invalidation and mutation revalidation. Share that web
    behavior before adding compatibility hook names. The opt-in data runtime now
    provides cancellation, invalidation and action revalidation; TanStack loader hooks and full data-router lifecycles remain open.
-   The opt-in `/data-react` entry exposes the owning native state to React.
+   The opt-in `/data-react` entry exposes owning native data and submission state
+   to React, including generic action results and provider replacement. Existing
+   successful superseded writes still revalidate; cancellation does not roll back
+   writes. Host form APIs and navigation-state contracts remain separate work.
    Explicit location-bound ready seeds can reuse application-loaded data without
    an initial fetch; applications still own transport and validation. This does
    not implement [React Router’s hydration data contract](https://reactrouter.com/api/data-routers/createBrowserRouter).

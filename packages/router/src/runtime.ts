@@ -1,5 +1,5 @@
 import { batch, createSignal, type Signal } from "@tschk/moonshine";
-import type { RouteDataState } from "./data.js";
+import type { RouteDataContext, RouteDataState } from "./data.js";
 
 /**
  * The location the signal carries: pathname plus query.
@@ -35,6 +35,15 @@ export type MoonshineRouterInstance = {
   invalidate?: () => Promise<unknown>;
   data?: {
     peek(): RouteDataState<unknown>;
+    subscribe(listener: () => void): () => void;
+  };
+  /** Optional opt-in action runner; the owning data runtime's `submit`. */
+  submit?: <R>(
+    action: (context: RouteDataContext) => R | Promise<R>,
+  ) => Promise<R>;
+  /** Optional opt-in subscription to the latest active submission. */
+  submitting?: {
+    peek(): boolean;
     subscribe(listener: () => void): () => void;
   };
   /** Navigate via History API (no full reload). */

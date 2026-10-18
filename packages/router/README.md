@@ -164,3 +164,51 @@ Subscriptions follow the owning runtime and stop when the component unmounts.
 SSR reads only that runtime's current snapshot; this does not extract or serialize
 server data, suspend rendering, select nested route matches, or add hydration.
 The renderer-neutral `/data` entry remains React-free.
+
+Components can submit through that same owning runtime without capturing it
+outside the provider:
+
+```tsx
+import {
+  useRouteSubmit,
+  useRouteSubmitting,
+} from "@tschk/moonshine-router/data-react";
+import type { RouteDataContext } from "@tschk/moonshine-router/data";
+
+function Save({
+  write,
+  onError,
+}: {
+  write: (context: RouteDataContext) => Promise<void>;
+  onError: (error: unknown) => void;
+}) {
+  const submit = useRouteSubmit();
+  const pending = useRouteSubmitting();
+  return (
+    <button
+      disabled={pending}
+      onClick={() => void submit(write).catch(onError)}
+    >
+      Save
+    </button>
+  );
+}
+```
+
+`useRouteSubmit` preserves the action result type and returns the runtime's stable
+runner. `useRouteSubmitting` follows its latest active submission, including
+follow-up revalidation; it does not count all unresolved cancelled operations.
+Both follow provider replacement and reject a navigation-only runtime. SSR reads
+the owning state; unmount unsubscribes React, while the application still owns
+runtime disposal. Failed actions reject their own promises. A successful action
+keeps its result if the follow-up loader fails, with that error in `useRouteData`.
+Successful cancelled/superseded actions still revalidate current data unless
+disposed, since cancellation cannot undo their writes.
+
+A real HTTP/Chromium form checks ten phases covering write success/failure,
+supersession, reload failure, recovery, navigation and disposal, with input
+identity/focus/selection retained during updates. The existing reader-only
+consumer stays 3,084 raw / 1,343 gzip bytes; the whole form fixture is 60,836 gzip
+bytes including React DOM and test controls. No host-router or timing comparison
+is claimed. Applications own form serialization, transport and validation;
+host `useSubmit`/`useNavigation` semantics and nested loader lifecycles remain open.
