@@ -214,8 +214,9 @@ Bun/minified Node SSR comparisons against Vue 3.5.13. Source and declaration
 consumers pass both typecheckers. Undeclared modifier props still reach the raw
 emitter; Vue's extra root DOM attribute is omitted because native attrs
 fallthrough remains unsupported. Modifier objects have stable identity per native
-component instance; parity for modifier-object mutation across Vue render cycles
-is unverified. This
+component instance. Mutating a modifier object after a parent model update differs
+from Vue: native emits observe that mutation, while Vue emits use the new render's
+raw modifier object. This mutation pattern is not compatible yet. This
 fixture is 10,943 gzip bytes versus Vue's 21,493. The unchanged named-model control
 adds 158 gzip bytes for emit conversion (11,141 versus its previous 10,983);
 the signal kernel stays unchanged. No startup/runtime speed claim. Compiler

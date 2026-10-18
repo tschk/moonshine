@@ -76,7 +76,7 @@ checker alone does not establish independence.
    options, defineModel, hydration and attrs fallthrough remain gaps. Local
    component modifiers now preserve trim/number payload rules and custom flags;
    nineteen browser phases and repeated SSR compare against Vue. Attrs fallthrough
-   remains unsupported; modifier-object mutation across render cycles is unverified.
+   remains unsupported; modifier-object mutation after a parent update differs from Vue.
    Astro component prop spreads now compile locally with final class-list
    normalization; intrinsic HTML spreads and synchronous slot-presence queries
    remain useful additions to investigate.

@@ -8,7 +8,7 @@
   Required model props and callback payload types remain intact. Compiler changes
   remain local/unpublished; dynamic arguments, defineModel and hydration remain
   unsupported. Undeclared modifier root attrs are omitted; modifier-object
-  mutation across Vue render cycles is unverified.
+  mutation after a parent update differs from Vue and remains unsupported.
 - Six direct Chromium cases and nine authored cases with nineteen browser phases
   compare against Vue 3.5.13. Repeated fresh Bun/minified Node SSR, source and
   declaration consumers, both full typecheckers, 531 core tests, 848 native
