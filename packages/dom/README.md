@@ -358,9 +358,12 @@ commit; generic callbacks must manage their own cancellation. `/component` also
 provides `onComponentReady` during setup, fired once after successful setup with
 the frame inactive. Failed or already disposed instances do not become ready.
 
-`createInputGroup(kind, read, write)` returns `{ bind(input) }` for radio or
+`createInputGroup(kind, read, write)` returns `{ bind(input, watch?) }` for radio or
 checkbox groups. Create each token under a live owner, then bind inputs under
 their own live row/component owners after attributes and user change handlers.
+When an optional `watch` callback is passed to `bind(input, watch)`, the member's
+render effect invokes `watch()` before reading the group model so authored dynamic
+`value={expr}` attributes on spread inputs trigger group selection updates.
 Token disposal releases every member; row disposal unregisters only that member.
 The compiler allocates tokens per binding target/component and nested each path;
 there is no global name lookup or runtime ownership guessing. Browser HTML `name`
@@ -369,8 +372,10 @@ Use `createInputGroup("mixed", read, write)` when one target intentionally combi
 radio and checkbox members. Selection follows each input's fixed type; checkbox
 writes collect checked values from every member, including radio payloads.
 
-`setInputValue(input, value)` stores typed group values privately and refreshes
-selection on value changes. Ordinary inputs retain string values without this
+`setInputValue(input, value, notify = true)` stores typed group values privately and refreshes
+selection on value changes when `notify` is true. Passing `notify = false` (used by
+bound spread elements) updates the stored and DOM value without immediately
+re-running the group member's checked effect. Ordinary inputs retain string values without this
 hook. Checkbox models must be arrays or nullish; other values reject. Radios use
 `Object.is` on native identities (no Svelte proxy unwrapping); checkbox membership uses array inclusion and change
 collection deduplicates values in current DOM order. Unchecking a duplicate value

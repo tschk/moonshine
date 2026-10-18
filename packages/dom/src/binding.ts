@@ -285,13 +285,17 @@ const inputUpdates = /* @__PURE__ */ new WeakMap<
 >();
 
 /** Compiler hook for typed radio/checkbox values; ordinary DOM values stay strings. */
-export function setInputValue(input: HTMLInputElement, value: unknown): void {
+export function setInputValue(
+  input: HTMLInputElement,
+  value: unknown,
+  notify = true,
+): void {
   if (!(input instanceof HTMLInputElement))
     throw new TypeError("Input values require an input element");
   const text = value == null ? "" : String(value);
   inputValues.set(input, value);
   input.value = text;
-  untrack(() => inputUpdates.get(input)?.());
+  if (notify) untrack(() => inputUpdates.get(input)?.());
 }
 function inputValue(input: HTMLInputElement): unknown {
   return inputValues.has(input) ? inputValues.get(input) : input.value;
@@ -303,7 +307,7 @@ export function createInputGroup(
   read: () => unknown,
   write: (value: unknown) => void,
   equal: (left: unknown, right: unknown) => boolean = Object.is,
-): { bind(input: HTMLInputElement): void } {
+): { bind(input: HTMLInputElement, watch?: () => unknown): void } {
   const owner = getOwner();
   if (!owner || owner.disposed || owner.disposing)
     throw new Error("Input groups require a live native owner");
@@ -314,6 +318,7 @@ export function createInputGroup(
   type Member = {
     input: HTMLInputElement;
     checkbox: boolean;
+    watch: (() => unknown) | undefined;
     stop: () => void;
   };
   const members = new Set<Member>();
@@ -339,6 +344,7 @@ export function createInputGroup(
   });
   function apply(member: Member): void {
     if (!active || !members.has(member)) return;
+    member.watch?.();
     const value = read();
     if (member.checkbox) {
       if (value != null && !Array.isArray(value))
@@ -352,7 +358,7 @@ export function createInputGroup(
     } else member.input.checked = equal(inputValue(member.input), value);
   }
   return {
-    bind(input) {
+    bind(input, watch) {
       const current = getOwner();
       if (!active || !current || current.disposed || current.disposing)
         throw new Error(
@@ -369,11 +375,13 @@ export function createInputGroup(
             ? "Input group requires radio or checkbox inputs"
             : `Input group requires ${kind} inputs`,
         );
+      if (watch !== undefined && typeof watch !== "function")
+        throw new TypeError("Input group value watch must be a function");
       if (inputUpdates.has(input))
         throw new Error("Input already belongs to a group");
       const checkbox =
         kind === "checkbox" || (kind === "mixed" && input.type === "checkbox");
-      const member: Member = { input, checkbox, stop: () => {} };
+      const member: Member = { input, checkbox, watch, stop: () => {} };
       onCleanup(() => release(member));
       try {
         createRoot((stop) => {

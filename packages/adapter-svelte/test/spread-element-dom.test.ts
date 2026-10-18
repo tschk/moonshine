@@ -628,3 +628,146 @@ test("details spread toggle handlers precede the bound open write", async () => 
   expect(read()).toBe(true);
   stop();
 });
+
+test("bound group spreads preserve spread-only value semantics, event order, duplicates, keyed disposal and form reset", async () => {
+  const { installBoundElementSpread } =
+    await import("../src/spread-element-dom");
+  const { createInputGroup } = await import("../src/binding");
+  const form = document.createElement("form");
+  document.body.append(form);
+  const first = { id: 1 },
+    second = { id: 2 },
+    third = { id: 3 };
+  const [selected, setSelected] = createSignal<unknown[]>([first]);
+  const [radioChoice, setRadioChoice] = createSignal<unknown>(first);
+  const [firstAttrs, setFirstAttrs] = createSignal<Record<string, unknown>>({
+    value: first,
+    name: "group-box",
+  });
+  const [authoredVal, setAuthoredVal] = createSignal<unknown>(second);
+  const [secondAttrs, setSecondAttrs] = createSignal<Record<string, unknown>>({
+    name: "group-box",
+  });
+  const trace: unknown[] = [];
+  const boxA = document.createElement("input"),
+    boxB = document.createElement("input"),
+    boxDup = document.createElement("input"),
+    radioA = document.createElement("input"),
+    radioB = document.createElement("input");
+  form.append(boxA, boxB, boxDup, radioA, radioB);
+  let stopRow!: () => void;
+  let stop!: () => void;
+  createRoot((dispose) => {
+    stop = dispose;
+    const checks = createInputGroup("checkbox", selected, (next) =>
+      setSelected(next as unknown[]),
+    );
+    const radios = createInputGroup("radio", radioChoice, setRadioChoice);
+    withRuneScheduler(() => {
+      installBoundElementSpread(
+        boxA,
+        [(node) => checks.bind(node)],
+        () => ({ type: "checkbox" }),
+        firstAttrs,
+        () => ({
+          onchangecapture: () =>
+            trace.push([
+              "capture",
+              (selected() as { id: number }[]).map((x) => x.id),
+            ]),
+          onchange: () =>
+            trace.push([
+              "bubble",
+              (selected() as { id: number }[]).map((x) => x.id),
+            ]),
+        }),
+      );
+      installBoundElementSpread(
+        boxB,
+        [(node) => checks.bind(node, authoredVal)],
+        () => ({ type: "checkbox", value: authoredVal() }),
+        secondAttrs,
+      );
+      installBoundElementSpread(radioA, [(node) => radios.bind(node)], () => ({
+        type: "radio",
+        value: first,
+      }));
+      installBoundElementSpread(radioB, [(node) => radios.bind(node)], () => ({
+        type: "radio",
+        value: second,
+      }));
+    });
+    createRoot((disposeRow) => {
+      stopRow = disposeRow;
+      withRuneScheduler(() =>
+        installBoundElementSpread(
+          boxDup,
+          [(node) => checks.bind(node)],
+          () => ({ type: "checkbox", value: first }),
+        ),
+      );
+    });
+  });
+  expect([boxA.checked, boxB.checked, boxDup.checked]).toEqual([
+    true,
+    false,
+    true,
+  ]);
+  expect([radioA.checked, radioB.checked]).toEqual([true, false]);
+
+  // Spread-only value update updates DOM value/identity without invalidating group checked state.
+  setFirstAttrs({ value: third, name: "group-box" });
+  await Promise.resolve();
+  expect(boxA.checked).toBe(true);
+  // Model update reconciles against the new spread value.
+  setSelected([first]);
+  await Promise.resolve();
+  expect([boxA.checked, boxB.checked, boxDup.checked]).toEqual([
+    false,
+    false,
+    true,
+  ]);
+
+  // Authored dynamic value watched by bind refreshes checked when authored value changes.
+  setSelected([third]);
+  await Promise.resolve();
+  expect([boxA.checked, boxB.checked, boxDup.checked]).toEqual([
+    true,
+    false,
+    false,
+  ]);
+  setAuthoredVal(third);
+  await Promise.resolve();
+  expect(boxB.checked).toBe(true);
+
+  // User interaction: capture sees old model, bubble sees new deduplicated model.
+  boxA.checked = false;
+  boxA.dispatchEvent(new Event("change"));
+  expect(trace).toEqual([
+    ["capture", [3]],
+    ["bubble", []],
+  ]);
+  expect([boxA.checked, boxB.checked]).toEqual([false, false]);
+
+  // Keyed row disposal unregisters duplicate member.
+  boxDup.checked = true;
+  boxDup.dispatchEvent(new Event("change"));
+  expect(selected()).toEqual([first]);
+  stopRow();
+  boxDup.remove();
+  boxB.checked = true;
+  boxB.dispatchEvent(new Event("change"));
+  expect(selected()).toEqual([third]);
+
+  // Radio selection and form reset.
+  radioB.checked = true;
+  radioB.dispatchEvent(new Event("change"));
+  expect(radioChoice()).toBe(second);
+  expect([radioA.checked, radioB.checked]).toEqual([false, true]);
+  form.reset();
+  await Promise.resolve();
+  expect(selected()).toEqual([]);
+  expect(radioChoice()).toBeNull();
+  stop();
+  form.remove();
+});

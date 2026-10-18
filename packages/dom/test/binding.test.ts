@@ -1057,3 +1057,29 @@ test("mixed groups retain selected radio payloads when a checkbox writes members
   expect((read() as unknown[])[0]).toBe(radioValue);
   expect([box.checked, radio.checked]).toEqual([false, false]);
 });
+
+test("setInputValue can defer group checked refresh until model or watched value updates", () => {
+  const [read, write] = createSignal<unknown>(["a"]);
+  const [watched, setWatched] = createSignal("a");
+  let input!: HTMLInputElement;
+  createRoot((stop) => {
+    disposers.push(stop);
+    const group = createInputGroup("checkbox", read, write);
+    input = document.createElement("input");
+    input.type = "checkbox";
+    setInputValue(input, "a", false);
+    document.body.append(input);
+    expect(() => group.bind(input, "bad" as unknown as () => unknown)).toThrow(
+      "watch must be a function",
+    );
+    group.bind(input, watched);
+  });
+  expect(input.checked).toBe(true);
+  setInputValue(input, "b", false);
+  expect(input.value).toBe("b");
+  expect(input.checked).toBe(true);
+  setWatched("b");
+  expect(input.checked).toBe(false);
+  write(["b"]);
+  expect(input.checked).toBe(true);
+});

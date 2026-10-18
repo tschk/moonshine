@@ -38,7 +38,7 @@ export function createInputGroup(
   kind: "radio" | "checkbox" | "mixed",
   read: () => unknown,
   write: (value: unknown) => void,
-): { bind(input: HTMLInputElement): void } {
+): { bind(input: HTMLInputElement, watch?: () => unknown): void } {
   return nativeCreateInputGroup(kind, read, write, stateEquals);
 }
 

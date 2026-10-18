@@ -250,7 +250,7 @@ function installSpread(
           valueElement &&
           (key === "__value" || (key === "value" && value != null))
         ) {
-          if (input) setInputValue(input, value);
+          if (input) setInputValue(input, value, !bindings.length);
           else valueElement.value = value as string;
         } else if (input && name === "defaultchecked") {
           input.defaultChecked = value as boolean;
@@ -266,7 +266,7 @@ function installSpread(
           valueElement.removeAttribute(name);
           valueElement.defaultValue = reset;
           const next = initial ? reset : null;
-          if (input) setInputValue(input, next);
+          if (input) setInputValue(input, next, !bindings.length);
           else valueElement.value = next ?? "";
         } else if (input && name === "checked" && typeof value !== "string") {
           input.checked = value as boolean;

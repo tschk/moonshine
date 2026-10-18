@@ -81,15 +81,20 @@ in five Chromium phases and repeated SSR; an isolated Bun/Node source regression
 checks typed option identity. This does not establish full form compatibility.
 
 The local compiler also combines spreads with input/textarea `bind:value`,
-checkbox `bind:checked`, select `bind:value`, and static file-input `bind:files`.
-Authored input/checkbox/select/file
+checkbox `bind:checked`, select `bind:value`, static file-input `bind:files`,
+and static checkbox/radio `bind:group`.
+Authored input/checkbox/select/file/group
 fixtures match Svelte in Chromium and repeated SSR, including handler order and
 typed selections. File SSR preserves authored attributes without reading the
 bound model. The local compiler additionally admits spread `bind:open` on details. This
 requires Moonshine 0.4.41 or newer: existing toggle
 handlers run before the binding write; handlers removed and re-added follow
 ordinary listener registration order. Authored Chromium and six SSR renders
-cover this bounded path. Group binding combinations remain unsupported.
+cover this bounded path. Spread `bind:group` requires a static `type="checkbox"`
+or `type="radio"` attribute; spread-only `value` changes update the input value
+without re-evaluating `checked` until the group model or an authored dynamic
+`value={expr}` updates, and SSR derives `checked` at the `bind:group` position
+only when an authored `value` attribute is present.
 
 Source admission still rejects spreads on title, dynamic or namespaced/custom
 elements, and combinations with actions,
