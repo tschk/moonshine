@@ -1,10 +1,45 @@
-import { createApp, type NativeApplication } from "../src/app";
-import { h } from "@tschk/moonshine-dom/dom";
+import {
+  createApp,
+  type ComponentExports,
+  type ComponentProps,
+  type ComponentView,
+  type NativeApplication,
+  type ShallowUnwrap,
+} from "../src/app";
+import { ref, shallowRef, type Ref } from "../src/reactive";
+import { h, type DOMChild } from "@tschk/moonshine-dom/dom";
 const Component = (props: { id: string; count?: number }) =>
   h("p", {}, props.id);
 const app: NativeApplication = createApp(Component, { id: "one" });
-const mounted: void = app.mount("#app");
+const mounted: object = app.mount("#app");
 app.unmount();
+
+type BrandedExposed = ShallowUnwrap<{
+  count: Ref<number>;
+  increment: () => void;
+}>;
+const BrandedComponent = (props: {
+  id: string;
+}): ComponentView<DOMChild, BrandedExposed, { id: string }> =>
+  h("p", {}, props.id);
+const brandedApp: NativeApplication<{
+  count: number;
+  increment: () => void;
+}> = createApp(BrandedComponent, { id: "branded" });
+const brandedInstance: { count: number; increment: () => void } =
+  brandedApp.mount("#app");
+const brandedProps: ComponentProps<typeof BrandedComponent> = { id: "props" };
+const childRef = shallowRef<ComponentExports<typeof BrandedComponent> | null>(
+  null,
+);
+const inputRef = ref<HTMLInputElement | null>(null);
+const inputFocus: ((options?: FocusOptions) => void) | undefined =
+  inputRef.value?.focus;
+const unbrandedExports: [ComponentExports<typeof Component>] = [neverValue()];
+function neverValue(): never {
+  throw new Error("unreachable");
+}
+
 // @ts-expect-error required original prop remains required
 createApp(Component, {});
 // @ts-expect-error source prop types do not widen
@@ -15,9 +50,22 @@ createApp(Component);
 createApp({ setup: () => () => h("p") }, {});
 // @ts-expect-error asynchronous roots cannot produce DOM children
 createApp(async () => h("p"), {});
-// @ts-expect-error mount does not return a Vue public instance
+// @ts-expect-error unbranded mount does not invent a typed public instance
 const instance: { count: number } = app.mount(document.createElement("main"));
-void [mounted, instance];
+// @ts-expect-error branded mount preserves exact exposed property types
+const wrongBranded: { count: string } = brandedApp.mount(
+  document.createElement("main"),
+);
+void [
+  mounted,
+  brandedInstance,
+  brandedProps,
+  childRef,
+  inputFocus,
+  unbrandedExports,
+  instance,
+  wrongBranded,
+];
 
 interface InterfaceProps {
   id: string;

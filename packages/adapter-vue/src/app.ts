@@ -1,10 +1,50 @@
-import { h, render, type DOMChild } from "@tschk/moonshine-dom/dom";
+import { createComponent } from "@tschk/moonshine-dom/component";
+import { flushComponentReferences } from "@tschk/moonshine-dom/component-instance";
+import { render, type DOMChild } from "@tschk/moonshine-dom/dom";
+export type { ShallowUnwrap } from "./expose";
 
-export interface NativeApplication {
-  mount(target: string | Element | ShadowRoot): void;
+/** Erased return metadata supplied only by the native SFC compiler. */
+declare const componentMetadata: unique symbol;
+export type ComponentView<
+  View,
+  Exports extends object,
+  Props extends object = object,
+> = View & {
+  readonly [componentMetadata]?: { props: Props; exports: Exports };
+};
+type Metadata<R> = [R] extends [never]
+  ? never
+  : typeof componentMetadata extends keyof NonNullable<R>
+    ? NonNullable<NonNullable<R>[typeof componentMetadata]>
+    : never;
+export type ComponentProps<C extends (...args: never[]) => unknown> = [
+  Metadata<ReturnType<C>>,
+] extends [never]
+  ? never
+  : Metadata<ReturnType<C>> extends { props: infer P extends object }
+    ? P
+    : never;
+export type ComponentExports<C extends (...args: never[]) => unknown> = [
+  Metadata<ReturnType<C>>,
+] extends [never]
+  ? never
+  : Metadata<ReturnType<C>> extends { exports: infer E extends object }
+    ? E
+    : never;
+type ExportsOf<R> = [Metadata<R>] extends [never]
+  ? object
+  : Metadata<R> extends { exports: infer E extends object }
+    ? E
+    : object;
+
+export interface NativeApplication<out E extends object = object> {
+  mount(target: string | Element | ShadowRoot): E;
   unmount(): void;
 }
 
+const emptyInstance: object = /* @__PURE__ */ Object.freeze(
+  /* @__PURE__ */ Object.create(null),
+);
 const leases = /* @__PURE__ */ new WeakMap<
   Element | ShadowRoot,
   NativeApplication
@@ -25,10 +65,10 @@ function content(value: DOMChild): DOMChild {
 }
 
 /** Mount a native compiled/component factory; this does not execute Vue VNodes. */
-export function createApp<P extends object>(
-  component: (props: P) => DOMChild,
+export function createApp<P extends object, R extends DOMChild = DOMChild>(
+  component: (props: P) => R,
   props: P,
-): NativeApplication {
+): NativeApplication<ExportsOf<R>> {
   if (typeof component !== "function")
     throw new TypeError("Native applications require a component factory");
   if (props === null || typeof props !== "object" || Array.isArray(props))
@@ -43,7 +83,7 @@ export function createApp<P extends object>(
     stop = undefined;
     dispose?.();
   };
-  const app: NativeApplication = {
+  const app: NativeApplication<ExportsOf<R>> = {
     mount(target) {
       if (state !== "new")
         throw new Error("Native application cannot be mounted again");
@@ -63,14 +103,25 @@ export function createApp<P extends object>(
       // Clearing and disposal can synchronously reenter another app mount.
       leases.set(container, app);
       state = "mounting";
+      let instance: object | undefined;
       try {
         container.replaceChildren();
         if (stopped()) {
           release();
-          return;
+          return emptyInstance as ExportsOf<R>;
         }
         const dispose = render(
-          () => h((input: P) => content(component(input)), props),
+          () =>
+            createComponent(
+              (input: P) => content(component(input)),
+              props,
+              "dom",
+              {
+                capture: (value) => {
+                  instance = value;
+                },
+              },
+            ),
           container,
         );
         const finish = () => {
@@ -82,9 +133,11 @@ export function createApp<P extends object>(
         };
         if (stopped()) finish();
         else {
+          flushComponentReferences();
           stop = finish;
           state = "mounted";
         }
+        return (instance ?? emptyInstance) as ExportsOf<R>;
       } catch (error) {
         release();
         state = "stopped";

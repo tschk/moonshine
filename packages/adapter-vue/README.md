@@ -31,6 +31,8 @@ import { ref } from "@tschk/moonshine-vue/reactive";
 | `./props`        | compiler-facing shallow declared props and owned parent refresh                                                      |
 | `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                            |
 | `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                |
+| `./expose`       | compiler-facing `exposeRefs` shallow-unwrapping proxy for `defineExpose` and default empty component exports         |
+| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance          |
 
 `./framework` exports the same lazy `crepusRenderer` compatibility name as the
 root. Its optional `@tschk/moonshine-framework` peer is needed only when rendering.
@@ -253,13 +255,14 @@ receivers, app lifecycle, update hooks, async component/Suspense scheduling, or
 full SFC compatibility. Crepus lowers named/aliased imports of these three hooks
 in the accepted authored source slice. Permanent DOM/SSR fixtures verify nested
 registration, connected mount/before phases, disconnected child-first cleanup,
-two instances and server callback suppression. Template refs and Vue's full
-error-handler policy remain unproven. A failed native mounted hook tears down
-its owner; the reference can retain the subtree until unmount.
+two instances and server callback suppression. Intrinsic and imported component
+template refs (`ref="x"` and `:ref="'x'"` targeting top-level `const` `ref` or
+`shallowRef` setup declarations) publish before `onMounted` hooks run and clear
+to `null` on unmount. Vue's full error-handler policy remains unproven. A failed
+native mounted hook tears down its owner; the reference can retain the subtree
+until unmount.
 
-Callback failures propagate after pending peers and disposal finish. Native
-exported-instance reference cleanup remains deferred; Vue template-ref lowering
-is still pending.
+Callback failures propagate after pending peers and disposal finish.
 
 A watch started under an already disposed native owner throws. Ownerless watches
 remain manually stoppable.
@@ -399,12 +402,39 @@ error policy. Render-expression evaluation and fallback, props-job error
 attribution, and full Vue lifecycle timing remain separate work. The optional `/errors` scope handles watch phases; it does not
 turn a default factory failure into an app error handler call.
 
+### Compiler-facing expose and template refs
+
+`@tschk/moonshine-vue/expose` exports `exposeRefs(exposed)` and its
+`ShallowUnwrap<T>` type helper. `exposeRefs` returns a shallow-unwrapping proxy
+for `defineExpose(record)` where top-level native refs (`ref`, `shallowRef`,
+`computed`, `toRef`) unwrap on `get` and forward `set` to writable `.value`
+(throwing `TypeError` on readonly refs), while plain values, getters/setters and
+reactive objects retain their descriptors and prototype checks. When a `<script setup>`
+component omits `defineExpose` or calls `defineExpose()`, it exposes an empty
+null-prototype object (`exposeRefs({})`) so component template refs receive a
+non-null exposed instance rather than leaking internal setup bindings.
+
+The local Crepus compiler lowers top-level `defineExpose` and static template
+refs (`ref="x"` and `:ref="'x'"` targeting a top-level `const` `ref` or
+`shallowRef` setup binding) on intrinsic elements and imported PascalCase
+components. Intrinsic refs bind through `@tschk/moonshine-dom`'s `bindRef` and
+component refs bind through `@tschk/moonshine-dom/component-instance`'s
+`componentRef` with `cleanup: "commit"`, publishing before `onMounted` hooks run
+and clearing to `null` on unmount. In SSR, `defineExpose` runtime evaluation and
+template `ref` attributes are erased while preserving the component's
+`ComponentView<Node, Exports, Props>` return brand. Dynamic ref expressions,
+function refs, `useTemplateRef`, `v-for` ref arrays and template refs on
+`v-model` form controls remain explicit compile errors.
+
 ### Optional native application mount
 
-`@tschk/moonshine-vue/app` exports `createApp(component, props)` for native
-component factories, including Crepus-compiled Vue components. Props retain the
-factory's public type. The returned native application has only `mount(target)`
-and `unmount()`; `mount` returns `void`, not a Vue public instance.
+`@tschk/moonshine-vue/app` exports `createApp(component, props)` and the
+`ComponentExports<C>` type helper for native component factories, including
+Crepus-compiled Vue components. Props retain the factory's public type. The
+returned native application has `mount(target)` and `unmount()`; `mount` returns
+the root component's exposed value (`ComponentExports<typeof component>`, or a
+null-prototype empty object when nothing is exposed), not a full Vue public
+instance (`$el`, `$props`, `$emit`).
 
 `mount` accepts a selector, Element or ShadowRoot in the current DOM realm,
 clears its existing children and mounts one owned root. A private container lease

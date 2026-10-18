@@ -79,7 +79,7 @@ for(const[target,out]of[['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
 await Bun.write('check.ts',${JSON.stringify(check)});await import(process.cwd()+'/check.ts');
 const built=await Bun.build({entrypoints:['check.ts'],target:'node',outdir:'dist',minify:true});assert.ok(built.success,String(built.logs));
 const node=Bun.spawn(['node','dist/check.js'],{stdout:'pipe',stderr:'pipe'});const[out,err,code]=await Promise.all([new Response(node.stdout).text(),new Response(node.stderr).text(),node.exited]);assert.equal(code,0,out+err);
-for(const body of ['defineExpose({});','const props=defineProps();','await Promise.resolve();']){
+for(const body of ['defineExpose({}, {});','const props=defineProps();','await Promise.resolve();']){
  await Bun.write('source/Bad.vue','<script setup lang="ts">'+body+'</script><template><p>x</p></template>');
  for(const target of ['moonshine-dom','moonshine-ssr']){
   const entry='keep/CrepusEmit.'+target+'.ts';await Bun.write(entry,'preserve');const result=await compile('Bad.vue',target,'keep');assert.notEqual(result.code,0,result.log);assert.equal(await Bun.file(entry).text(),'preserve');

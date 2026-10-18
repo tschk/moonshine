@@ -79,7 +79,9 @@ browser unchanged for DOMString conversion and native namespace errors. Ordinary
   waves per flush; independent references in one wave are not capped.
   `ComponentReference<T, readonly [Key, Index]>`
   preserves typed tuple arguments and requires parts for nonempty tuples;
-  `ComponentReference<T>` retains the fixed-cell contract. SFC `bind:this` now has bounded scalar/member source acceptance, including empty exports; loop-dependent path extraction remains compiler work.
+  `ComponentReference<T>` retains the fixed-cell contract. `enqueueComponentReference`
+  schedules owned element/component reference callbacks into the shared flush wave.
+  SFC `bind:this` now has bounded scalar/member source acceptance, including empty exports; loop-dependent path extraction remains compiler work.
 - `/ssr-owner`: lightweight `scopeSSRChild(child)` captures a live owner for the
   complete serialization of deferred children. It is also exported by `/ssr`.
   It preserves request context, select state, SVG namespace and text escaping;

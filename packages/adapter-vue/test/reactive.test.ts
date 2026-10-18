@@ -734,3 +734,12 @@ test("deep ref replacement distinguishes signed zero and suppresses repeated NaN
     stop();
   });
 });
+
+test("Unwrap preserves DOM Node and Window types without deep ref conversion", () => {
+  const nodeRef = ref<Node | null>(null);
+  const windowRef = ref<Window | null>(null);
+  const checkNode: Node | null = nodeRef.value;
+  const checkWindow: Window | null = windowRef.value;
+  expect(checkNode).toBeNull();
+  expect(checkWindow).toBeNull();
+});

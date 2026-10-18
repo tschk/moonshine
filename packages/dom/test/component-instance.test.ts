@@ -1,6 +1,8 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import {
+  bindOwnedReference,
   componentRef,
+  enqueueComponentReference,
   exposeComponent,
   flushComponentReferences,
   type ComponentReference,
@@ -972,4 +974,33 @@ test("fresh component reference feedback is bounded while initial peer runs", ()
     while (tasks.length) tasks.shift()!();
     microtask.mockRestore();
   }
+});
+
+test("enqueueComponentReference publishes owned element references in the shared flush wave and clears on commit", () => {
+  const input = document.createElement("input");
+  let cell: HTMLInputElement | null = null;
+  let stop = () => {};
+  createRoot((disposeRoot) => {
+    stop = disposeRoot;
+    const owner = getOwner()!;
+    enqueueComponentReference(
+      bindOwnedReference(
+        owner,
+        input,
+        {
+          cleanup: "commit",
+          get: () => cell,
+          set: (next) => {
+            cell = next;
+          },
+        },
+        enqueueComponentReference,
+      ),
+    );
+  });
+  expect(cell).toBeNull();
+  flushComponentReferences();
+  expect(cell).toBe(input);
+  stop();
+  expect(cell).toBeNull();
 });

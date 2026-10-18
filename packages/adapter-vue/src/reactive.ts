@@ -59,7 +59,7 @@ export type Unwrap<T> =
       ? Set<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
       : T extends ReadonlySet<infer V>
         ? ReadonlySet<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
-        : T extends Function | Date | Map<unknown, unknown>
+        : T extends Function | Date | Map<unknown, unknown> | Node | Window
           ? T
           : T extends readonly unknown[]
             ? {

@@ -24,6 +24,7 @@
     "./events": "./src/events.ts",
     "./normalize": "./src/normalize.ts",
     "./errors": "./src/errors.ts",
+    "./expose": "./src/expose.ts",
     "./app": "./src/app.ts"
   },
   "dependencies": {

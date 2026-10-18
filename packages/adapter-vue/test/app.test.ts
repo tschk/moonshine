@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import "../../react/test/dom";
 import { createApp } from "../src/app";
+import { bindRef, exposeRefs } from "../src/expose";
+import { exposeComponent } from "@tschk/moonshine-dom/component-instance";
 import { h } from "@tschk/moonshine-dom/dom";
 import { ref, watchSyncEffect } from "../src/reactive";
 import { onMounted, onBeforeUnmount, onUnmounted } from "../src/lifecycle";
@@ -297,4 +299,44 @@ test("cancelled mounting holds the lease through its pending root stop", () => {
   next.mount(el);
   expect(el.textContent).toBe("next");
   next.unmount();
+});
+
+test("mount returns exposed instance synchronously, flushes template refs, and falls back to an empty null-proto object", () => {
+  const target = document.createElement("main");
+  const inputRef = ref<HTMLInputElement | null>(null);
+  const count = ref(3);
+  const app = createApp(() => {
+    exposeComponent(
+      exposeRefs({
+        count,
+        increment() {
+          count.value++;
+        },
+      }),
+    );
+    return h("input", {
+      ref: (el: HTMLInputElement) =>
+        bindRef(el, {
+          get: () => inputRef.value,
+          set: (next) => {
+            inputRef.value = next;
+          },
+        }),
+    });
+  }, {});
+  const vm = app.mount(target) as { count: number; increment: () => void };
+  expect(Object.getPrototypeOf(vm)).not.toBe(Object.prototype);
+  expect(vm.count).toBe(3);
+  expect(inputRef.value).toBe(target.querySelector("input"));
+  vm.increment();
+  expect(vm.count).toBe(4);
+  app.unmount();
+  expect(inputRef.value).toBeNull();
+
+  const plainTarget = document.createElement("main");
+  const plainApp = createApp(() => h("span", {}, "plain"), {});
+  const plainVm = plainApp.mount(plainTarget);
+  expect(Object.getPrototypeOf(plainVm)).toBeNull();
+  expect(Reflect.ownKeys(plainVm)).toEqual([]);
+  plainApp.unmount();
 });

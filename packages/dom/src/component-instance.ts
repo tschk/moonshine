@@ -158,7 +158,8 @@ export function exposeComponent<T extends object>(exports: T): T {
   return instance;
 }
 
-function enqueuePublication(publish: () => void): void {
+/** Schedule an owned reference publisher for the next microtask or explicit flush. */
+export function enqueueComponentReference(publish: () => void): void {
   publications.add(publish);
   if (!scheduled && !flushing) {
     scheduled = true;
@@ -280,7 +281,7 @@ export function bindOwnedReference<T extends object>(
 }
 
 function publisher(publication?: "post"): (fn: () => void) => void {
-  if (publication !== "post") return enqueuePublication;
+  if (publication !== "post") return enqueueComponentReference;
   const scheduler = getRenderScheduler();
   if (!scheduler)
     throw new Error(
