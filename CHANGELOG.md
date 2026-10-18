@@ -1,3 +1,23 @@
+# Moonshine 0.4.32
+
+- Verify static named and multiple component models through the existing native
+  props/emits protocol. Canonical identifier/kebab arguments, distinct payloads,
+  per-model listener order and class/style normalization need no new runtime or
+  dependencies. Children declare each model prop and update event explicitly.
+- Fourteen authored Chromium phases match Vue 3.5.13, including once listeners,
+  external writes, independent roots and disposal. Active setup emits match
+  repeated fresh Bun/minified Node SSR. Source and declaration consumers pass
+  both TypeScript lanes, including invalid prop and callback payload checks.
+- Full SDK run: 16,397 passing test executions, zero failures. Both typecheckers
+  pass all 25 projects; the 856-module source gate and 848 native web-library
+  tests pass. Library Clippy passes; all-target Clippy reports two existing
+  length-comparison warnings in the unchanged Astro source test.
+- Signal kernel stays 4,041 raw bytes. The named-model fixture is 10,983 gzip
+  bytes versus Vue 3.5.13's 21,335; no startup/runtime speed claim.
+- This release adds regression tests and documentation. Source compiler changes
+  remain local/unpublished; component model modifiers, defineModel and hydration
+  remain unsupported. npm publication remains manual.
+
 # Moonshine 0.4.31
 
 - Document and verify default component models compiled by local Crepuscularity
