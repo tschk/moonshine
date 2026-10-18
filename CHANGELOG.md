@@ -1,3 +1,16 @@
+# Moonshine 0.4.19
+
+- Preserve literal HTML initial-newline behavior in opt-in Astro SSR textareas.
+  Ordinary native DOM factories retain their existing property-value protection.
+- Expand the isolated Bun/Node authored-source regression with preformatted text,
+  textareas and same-line root sibling spaces.
+- Local Crepuscularity now retains whitespace in authored pre/textarea bodies,
+  nested pre elements and expression boundaries without changing legacy template
+  formatting. Compiler changes remain unpublished; branch-text punctuation,
+  slots, async rendering, hydration and full host compiler ABI remain unsupported.
+- No new dependencies. The default signal-only core remains 4,041 bytes;
+  no relative bundle-size or runtime performance improvement is claimed.
+
 # Moonshine 0.4.18
 
 - Add opt-in Astro `/ssr` factories independent of Astro, React and parser WASM.
