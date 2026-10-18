@@ -10,7 +10,11 @@ import {
   untrack,
 } from "@tschk/moonshine-dom/reactive";
 import { createMemo } from "@tschk/moonshine";
-import { createMutable } from "@tschk/moonshine-dom/store";
+import { createTrackedSet } from "./set";
+import {
+  createMutable,
+  unwrap as unwrapStore,
+} from "@tschk/moonshine-dom/store";
 
 const refs = new WeakSet<object>();
 declare const refBrand: unique symbol;
@@ -51,22 +55,46 @@ const arrayIndex = (key: PropertyKey) =>
 export type Unwrap<T> =
   T extends Readonly<Ref<infer V>>
     ? V
-    : T extends Function | Date | Map<unknown, unknown> | Set<unknown>
-      ? T
-      : T extends readonly unknown[]
-        ? {
-            [K in keyof T]: T[K] extends Readonly<Ref<any>>
-              ? T[K]
-              : Unwrap<T[K]>;
-          }
-        : T extends object
-          ? { [K in keyof T]: Unwrap<T[K]> }
-          : T;
+    : T extends Set<infer V>
+      ? Set<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
+      : T extends ReadonlySet<infer V>
+        ? ReadonlySet<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
+        : T extends Function | Date | Map<unknown, unknown>
+          ? T
+          : T extends readonly unknown[]
+            ? {
+                [K in keyof T]: T[K] extends Readonly<Ref<any>>
+                  ? T[K]
+                  : Unwrap<T[K]>;
+              }
+            : T extends object
+              ? { [K in keyof T]: Unwrap<T[K]> }
+              : T;
+function rawValue<T>(value: T): T {
+  const target =
+    value !== null && typeof value === "object"
+      ? targets.get(value)
+      : undefined;
+  return target ? (unwrapStore(target) as T) : value;
+}
+function wrapValue<T>(value: T): T {
+  return plain(value) || value instanceof Set ? (reactive(value) as T) : value;
+}
 export function reactive<T extends object>(value: T): Unwrap<T> {
-  if (!plain(value))
-    throw new TypeError("Native reactive requires a plain object or array");
   const existing = proxies.get(value);
   if (existing) return existing as Unwrap<T>;
+  if (value instanceof Set) {
+    if (!Object.isExtensible(value)) return value as Unwrap<T>;
+    const proxy = createTrackedSet(value, wrapValue, rawValue);
+    targets.set(proxy, value);
+    proxies.set(value, proxy);
+    proxies.set(proxy, proxy);
+    return proxy as Unwrap<T>;
+  }
+  if (!plain(value))
+    throw new TypeError(
+      "Native reactive requires a plain object, array or Set",
+    );
   const mutable = createMutable(value, { equals: Object.is });
   const cached = proxies.get(mutable);
   if (cached) return cached as Unwrap<T>;
@@ -75,7 +103,7 @@ export function reactive<T extends object>(value: T): Unwrap<T> {
       const next = Reflect.get(target, key, receiver);
       if (isRef(next))
         return Array.isArray(target) && arrayIndex(key) ? next : next.value;
-      return plain(next) ? reactive(next) : next;
+      return wrapValue(next);
     },
     set(target, key, next) {
       if (typeof next === "object" && next !== null)
@@ -104,7 +132,7 @@ export function ref<T>(value: Ref<T>): Ref<T>;
 export function ref<T>(value: T): Ref<Unwrap<T>>;
 export function ref<T>(value: T | Ref<T>): Ref<any> {
   if (isRef(value)) return value;
-  const convert = (next: T): T => (plain(next) ? (reactive(next) as T) : next);
+  const convert = wrapValue<T>;
   const [read, write] = createSignal(convert(value as T), {
     equals: Object.is,
   });

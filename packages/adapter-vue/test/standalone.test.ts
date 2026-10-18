@@ -43,16 +43,19 @@ test.skipIf(!sourceCompiler)(
     const page = `<script setup lang="ts">
 import {ref,computed} from 'vue';
 import Child from './Child.vue';
+import SetChild from './SetChild.vue';
+const selected=ref(new Set(['x']));
 const count=ref(2);
 const doubled=computed(()=>count.value*2);
 function increment(){count.value++;}
-</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><Child/></div></template>`;
+</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><Child/><SetChild :values="selected"/></div></template>`;
     const child = `<script setup>const label='<b>&';</script><template><p>{{label}}</p></template>`;
+    const setChild = `<script setup lang="ts">const props=defineProps<{values:Set<string>}>();</script><template><em>{{props.values.size}}</em></template>`;
     const check = `import assert from 'node:assert/strict';
 import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
 assert.equal(typeof document,'undefined');
-for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><input type="number" value="2"><p>&lt;b&gt;&amp;</p></div>');
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><input type="number" value="2"><p>&lt;b&gt;&amp;</p><em>1</em></div>');
 assert.equal(typeof document,'undefined');`;
     await standalone(`
 import assert from 'node:assert/strict';
@@ -63,6 +66,7 @@ async function compile(entry,target,out){
 }
 await Bun.write('source/Page.vue',${JSON.stringify(page)});
 await Bun.write('source/Child.vue',${JSON.stringify(child)});
+await Bun.write('source/SetChild.vue',${JSON.stringify(setChild)});
 for(const[target,out]of[['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
  const result=await compile('Page.vue',target,out);assert.equal(result.code,0,result.log);
  const built=await Bun.build({entrypoints:[out+'/CrepusEmit.'+target+'.ts'],target:target==='moonshine-dom'?'browser':'node',metafile:true,minify:true});assert.ok(built.success,String(built.logs));

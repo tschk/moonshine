@@ -49,6 +49,23 @@ Each watcher run can register multiple cleanup callbacks. Reruns and stops drain
 them in registration order, attempt all callbacks after a failure, and preserve
 the first error. A cleanup that stops its watcher prevents another callback run.
 
+### Native Set tracking
+
+`reactive(new Set())`, deep refs containing Sets and Sets nested in plain state
+use the independent native graph. Membership reads track individual keys;
+size, iteration and `forEach` track membership changes. Duplicate additions,
+missing deletions and empty clears do not notify. Object entries retain
+raw/proxy membership identity and wrap on iteration; stored native refs retain
+their identity. `shallowRef` keeps external Sets raw and tracks replacement only.
+Map/WeakMap/WeakSet reactivity, Set algebra methods and readonly collection
+runtime views remain unsupported. Mutating an original raw Set bypasses notification.
+
+The local compiler accepts unshadowed global `Set<T>` prop values. Local `Set`
+bindings, including conservative checks in nested scopes, remain rejected until
+full type-resolution metadata is available. Checkbox/radio models are still
+unsupported. The existing authored counter fixture grows by 730 gzip bytes with
+this support; the default signal kernel remains unchanged. No speed claim.
+
 ### Optional native watch errors
 
 `./errors` exports `withComponentErrorHandler(handler, setup)`, which requires a

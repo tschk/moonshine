@@ -3,6 +3,7 @@
   "include": [
     "src/**/*",
     "test/shallow-ref.types.ts",
+    "test/set.types.ts",
     "test/to-refs.types.ts",
     "test/props.types.ts",
     "test/slots.types.ts",

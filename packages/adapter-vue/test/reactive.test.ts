@@ -57,8 +57,8 @@ test("reactive caches proxies and unwraps object refs but retains array refs", (
 });
 
 test("reactive rejects unsupported roots and retains opaque nested instances", () => {
-  for (const value of [new Map(), new Set(), new Date()])
-    expect(() => reactive(value)).toThrow("plain object or array");
+  for (const value of [new Map(), new Date()])
+    expect(() => reactive(value)).toThrow("plain object, array or Set");
   const date = new Date();
   expect(reactive({ date }).date).toBe(date);
 });
