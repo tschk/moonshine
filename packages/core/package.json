@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine",
-  "version": "0.4.24",
+  "version": "0.4.25",
   "description": "Hyperminimal signal runtime \u2014 Bun-first; import /react for TSX apps",
   "license": "ISC",
   "type": "module",
@@ -25,10 +25,10 @@
     "lint": "bunx oxlint ."
   },
   "peerDependencies": {
-    "@tschk/moonshine-react": "^0.4.24",
-    "@tschk/moonshine-router": "^0.4.24",
-    "@tschk/moonshine-server": "^0.4.24",
-    "@tschk/moonshine-shaders": "^0.4.24",
+    "@tschk/moonshine-react": "^0.4.25",
+    "@tschk/moonshine-router": "^0.4.25",
+    "@tschk/moonshine-server": "^0.4.25",
+    "@tschk/moonshine-shaders": "^0.4.25",
     "react": ">=18",
     "react-dom": ">=18"
   },

@@ -1,3 +1,18 @@
+# Moonshine 0.4.25
+
+- Accept an explicit location-bound ready-data seed as the third argument to
+  `createDataRouter`. Matching pathname/query data skips the initial client load;
+  mismatches fetch normally without exposing stale data.
+- Preserve falsy and explicit undefined payloads, ownership, reload retention,
+  navigation clearing, successful-action revalidation and disposal behavior.
+- Verify real server-loader results through the existing HTML-safe serializer
+  into two isolated browser contexts: zero initial API calls, then ordinary
+  reload/navigation requests. Applications still own transport and validation.
+- The opt-in data export fixture grows by 49 raw / 38 gzip bytes. The signal
+  kernel remains 4,041 raw bytes; no new dependencies or speed claim.
+- This adds no automatic data endpoint, route cache, error transport, nested
+  loader matching or DOM hydration. Source compiler changes remain unpublished.
+
 # Moonshine 0.4.24
 
 - Add opt-in `@tschk/moonshine-router/data-react` with `useRouteData` for

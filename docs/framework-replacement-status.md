@@ -1,6 +1,6 @@
 # Framework replacement status
 
-Audited against SDK 0.4.24 on 2026-10-18, with unpublished local static Astro slot integration. This is a replacement boundary audit,
+Audited against SDK 0.4.25 on 2026-10-18, with unpublished local static Astro slot integration. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
 signal-only; React and web capabilities remain opt-in.
@@ -49,8 +49,11 @@ checker alone does not establish independence.
    cancellation, errors, invalidation and mutation revalidation. Share that web
    behavior before adding compatibility hook names. The opt-in data runtime now
    provides cancellation, invalidation and action revalidation; TanStack loader hooks and full data-router lifecycles remain open.
-   The opt-in `/data-react` entry exposes the owning native state to React;
-   it does not alias TanStack's match-scoped
+   The opt-in `/data-react` entry exposes the owning native state to React.
+   Explicit location-bound ready seeds can reuse application-loaded data without
+   an initial fetch; applications still own transport and validation. This does
+   not implement [React Router’s hydration data contract](https://reactrouter.com/api/data-routers/createBrowserRouter).
+   The React hook does not alias TanStack's match-scoped
    [`useLoaderData`](https://tanstack.com/router/latest/docs/api/router/useLoaderDataHook).
 2. Extend authored component composition through Crepuscularity, including Astro
    slots and remaining Vue/Svelte source variants. Require actual DOM/SSR and
@@ -61,7 +64,7 @@ checker alone does not establish independence.
 
 ## Performance boundary
 
-The verified 0.4.24 signal-only core bundle is 4,041 raw bytes. That is one entry,
+The verified 0.4.25 signal-only core bundle is 4,041 raw bytes. That is one entry,
 not a whole-framework comparison. The Solid README records a historical resource
 application workload where Moonshine's bundle is larger than Solid's; those
 numbers are tied to that fixture and snapshot. Refresh comparable bundle,
