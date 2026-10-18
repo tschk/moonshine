@@ -737,8 +737,10 @@ test("bound group spreads preserve spread-only value semantics, event order, dup
     false,
   ]);
   setAuthoredVal(third);
+  setSecondAttrs({ name: "group-box", "data-second": "1" });
   await Promise.resolve();
   expect(boxB.checked).toBe(true);
+  expect(boxB.getAttribute("data-second")).toBe("1");
 
   // User interaction: capture sees old model, bubble sees new deduplicated model.
   boxA.checked = false;
