@@ -1,15 +1,18 @@
 # Native Astro slot acceptance contract
 
 Investigation against SDK 0.4.21 and the local Crepuscularity compiler,
-2026-10-18. Slots are still unsupported. This document defines acceptance work;
-it does not add a public runtime API or claim compatibility.
+2026-10-18. A bounded static-name slot slice now has local source-to-runtime
+proof; compiler publication and SDK release of its helpers remain pending.
+Dynamic names, async slot utilities and full compatibility remain incomplete.
 
 ## Observed boundaries
 
-The shared Astro parser rejects `<slot>`. The authored native compiler rejects
-component content and the `slot` attribute. Its factory receives only props;
-`Astro.slots` is rejected by the global rewrite. Actual CLI probes reject both
-an outlet and a component with content before replacing an existing facade.
+The legacy template parser still rejects `<slot>`. Authored module parsing
+retains outlets and named Fragments for native lowering. Factories that read
+outlets receive a separate optional slot argument; ordinary props stay intact.
+`Astro.slots`, dynamic/empty names and misplaced markers still reject. Earlier
+CLI probes established the missing outlet/content behavior and preservation of
+existing output; the new static-name graphs now execute successfully.
 
 The independent SSR `h` snapshots ordinary props and invokes native component
 factories. Its positional children protocol replaces a `children` prop. Astro
@@ -17,7 +20,8 @@ slots must use a separate channel: authored `children` and `slots` props must
 remain ordinary props, including identity, enumeration and destructuring.
 
 The installed MIT `@astrojs/compiler` 4.0.0 emits a separate slot map of functions
-for component content. It removes named-slot markers from projected elements.
+for component content. It removes named-slot markers from projected intrinsic
+HTML, while a projected component still receives its ordinary `slot` prop.
 An empty named Fragment still supplies a slot function. Its slot-outlet output
 passes a fallback template separately from the supplied slot.
 
@@ -55,7 +59,8 @@ themselves. Do not add a second parser in Moonshine.
   expressions recorded in order. Unused slots, repeated outlets and nested
   fallback components need independent reference traces.
 - Named groups containing multiple elements, an empty named Fragment and slot
-  forwarding through two imported layouts. Marker attributes must not leak.
+  forwarding through two imported layouts. Marker attributes must not leak into
+  projected HTML; component `slot` props remain visible.
 - Defined handling of duplicate names, dynamic names, conditionally supplied
   content and special property names such as `__proto__` and `toString`.
 - Nested components retain the correct native SSR owner/context and escaping;
@@ -67,4 +72,4 @@ themselves. Do not add a second parser in Moonshine.
 Parsing/grouping/lowering belongs in Crepuscularity. Moonshine should supply only
 the smallest independent SSR runtime contract needed by those emitted modules.
 `Astro.slots.render()` has an asynchronous host contract and must not be silently
-mapped onto a synchronous helper. Slots, async SSR and hydration remain open work.
+mapped onto a synchronous helper. Dynamic slots, async SSR and hydration remain open work.

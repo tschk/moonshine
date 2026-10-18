@@ -3,6 +3,8 @@ export * from "@tschk/moonshine-dom/ssr";
 import {
   h as nativeH,
   hAttributes,
+  defer,
+  scopeSSRChild,
   type HTML,
   type SSRChild,
 } from "@tschk/moonshine-dom/ssr";
@@ -86,6 +88,57 @@ function attribute(
   return String(value);
 }
 
+export type SourceSlots = Readonly<Record<string, SSRChild>>;
+
+function captureProps<P extends object>(props: P): P {
+  return Object.fromEntries(
+    Object.keys(props).map((name) => [name, props[name as keyof P]]),
+  ) as P;
+}
+
+/** Compiler-facing component invocation; slots remain outside ordinary props. */
+export function sourceComponent<P extends object>(
+  component: (props: P, slots: SourceSlots) => SSRChild,
+  props: P,
+  slots: Readonly<Record<string, () => SSRChild>> = {},
+): SSRChild {
+  const captured = captureProps(props);
+  const supplied: SourceSlots = Object.fromEntries(
+    Object.entries(slots).map(([name, render]) => [
+      name,
+      scopeSSRChild(() => sourceChild(render())),
+    ]),
+  );
+  let result: { value: SSRChild } | { error: unknown } | undefined;
+  return scopeSSRChild(
+    defer(() => {
+      if (!result) {
+        try {
+          result = {
+            value: nativeH(
+              (actual: P) => sourceChild(component(actual, supplied)),
+              captured,
+            ),
+          };
+        } catch (error) {
+          result = { error };
+        }
+      }
+      if ("error" in result) throw result.error;
+      return result.value;
+    }),
+  );
+}
+
+/** Presence selects a slot, including an explicitly empty supplied slot. */
+export function sourceSlot(
+  slots: SourceSlots,
+  name = "default",
+  fallback?: SSRChild,
+): SSRChild {
+  return sourceChild(Object.hasOwn(slots, name) ? slots[name] : fallback);
+}
+
 export function h<P extends object>(
   component: (props: P & { children?: SSRChild }) => SSRChild,
   props: P | null,
@@ -102,12 +155,7 @@ export function h(
   ...children: SSRChild[]
 ): SSRChild {
   if (typeof tag === "function") {
-    const captured =
-      props == null
-        ? null
-        : Object.fromEntries(
-            Object.keys(props).map((name) => [name, props[name]]),
-          );
+    const captured = props == null ? null : captureProps(props);
     return nativeH(tag, captured, ...children.map(sourceChild));
   }
   const attributes = Object.fromEntries(

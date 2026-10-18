@@ -1,6 +1,6 @@
 # Framework replacement status
 
-Audited against SDK 0.4.21 on 2026-10-18. This is a replacement boundary audit,
+Audited against SDK 0.4.21 on 2026-10-18, with unpublished local static Astro slot integration. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
 signal-only; React and web capabilities remain opt-in.
@@ -15,7 +15,7 @@ signal-only; React and web capabilities remain opt-in.
 | Svelte       | Independent stores, ownership and native source runtime                                              | Complete rune/component coverage, transitions and hydration; see the source coverage ledger                     |
 | Vue          | Independent composition helpers and bounded native SFC runtime                                       | Complete SFC lowering, attrs fallthrough and host VNode/compiler ABI                                            |
 | Angular      | Native signal bridges and bounded template rendering                                                 | Component-class/decorator compilation, DI, lifecycle and compiled instructions                                  |
-| Astro        | Independent synchronous source SSR factories                                                         | Slots, islands/hydration, async rendering and complete compiler API                                             |
+| Astro        | Independent synchronous source SSR factories                                                         | Dynamic slots, islands/hydration, async rendering and complete compiler API                                     |
 | Nuxt         | Native signal bridges and lazy renderer                                                              | App composables, payload/data lifecycle, auto-imports, Nitro and Vue component contracts                        |
 
 The first four rows still use React. Removing their host framework does not

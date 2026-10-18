@@ -102,7 +102,7 @@ assert.equal(classList(['a',{active:true}]),'a active');
 
 const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
 test.skipIf(!sourceCompiler)(
-  "authored Astro evaluates attributes, branches, children and maps in source order",
+  "authored Astro captures expressions and defers component bodies and slots",
   async () => {
     await standalone(`
 import assert from 'node:assert/strict';
@@ -147,19 +147,26 @@ const items=['a','b'];
 await Bun.write('source/Template.astro',${JSON.stringify('---\nconst value="v";\n---\n<p title={`a${`b}c${value}`}d`} data-literal="{unclosed">{`a${`b}c${value}`}d`}</p>')});
 await Bun.write('source/Regex.astro',${JSON.stringify("---\nconst text=\"ab:c}\";\nlet n=6;\nconst items=['ab','zz'];\nconst absent=undefined as string[] | undefined;\n---\n<section>{(/a?b:c/.test(text) ? <br> : <input>)}<b>{n++ / 2}</b><em>{n}</em><i>{8 / /}/.source.length}</i><p title={/}/.source}>{`a${/}/.test(text) ? `b}c` : 'none'}d`}</p>{items?.map(item => /z{2}/.test(item) ? <u>{item}</u> : <s>{item}</s>)}{absent?.map(item => <q>{item}</q>)}{(()=>{if(true) /}/.test(text);return true;})() ? <input data-ok=\"yes\"> : <br>}</section>")});
 await Bun.write('source/Classes.astro',${JSON.stringify("---\nconst log:string[]=[];\nfunction mark<T>(label:string,value:T):T{log.push(label);return value;}\nconst Card=(props:{class?:string})=>props.class;\nconst Empty=(props:{class?:string})=>Object.hasOwn(props,'class')?'present:'+String(props.class):'absent';\n---\n<section><p class:list={mark('list',['active',{on:true}])} id={mark('id','x')} class={mark('class','base')}/><p class=\"a&amp;b\" class:list={['c',false,null,undefined,0,{yes:true,no:false}]}/><p class={false} class:list={[]}/><p class={['a','b']} class:list={['b']}/><Card class:list={['child']} class=\"base\"/><Empty class:list={[]}/><Empty class=\"\" class:list={false}/><Empty class=\"\"/><em>{log.join('|')}</em></section>")});
-for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out'],['Template.astro','template-out'],['Regex.astro','regex-out'],['Classes.astro','classes-out']]){
+await Bun.write('source/SourceSlots.astro',${JSON.stringify('---\nimport Middle from \'./SourceSlotMiddle.astro\';\nimport Layout from \'./SourceSlotLayout.astro\';\nimport Item from \'./SourceSlotItem.astro\';\n---\n<Middle children="ordinary child" slots="ordinary slots"><Item slot="title"/><i slot="title">named</i><p>body</p></Middle><Layout children="ordinary child" slots="ordinary slots"><Fragment slot="title"/><Fragment slot="default"/></Layout><Layout children="ordinary child" slots="ordinary slots"/>')});
+await Bun.write('source/SourceSlotLayout.astro',${JSON.stringify("---\ninterface Props {children:string;slots:string}\nconst {children,slots}=Astro.props;\nif(children!=='ordinary child'||slots!=='ordinary slots')throw Error('slot channel leaked into props');\n---\n<header><slot name=\"title\">fallback title</slot></header><main><slot>fallback body</slot></main>")});
+await Bun.write('source/SourceSlotMiddle.astro',${JSON.stringify('---\nimport Layout from \'./SourceSlotLayout.astro\';\ninterface Props {children:string;slots:string}\nconst {children,slots}=Astro.props;\n---\n<Layout children={children} slots={slots}><slot name="title" slot="title"/><slot/></Layout>')});
+await Bun.write('source/SourceSlotItem.astro',${JSON.stringify("---\ninterface Props {slot:string}\nconst {slot}=Astro.props;\n---\n<b>{slot}</b>")});
+for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out'],['Template.astro','template-out'],['Regex.astro','regex-out'],['Classes.astro','classes-out'],['SourceSlots.astro','slots-out']]){
 const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry',entry,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
 const [stdout,stderr,code]=await Promise.all([new Response(built.stdout).text(),new Response(built.stderr).text(),built.exited]);
 assert.equal(code,0,stdout+stderr);
 }
 await Bun.write('check.ts',\`import assert from 'node:assert/strict';
 import Page from './out/CrepusEmit.moonshine-ssr.ts';
+import {log as pageLog} from './out/modules/moonshine-ssr/state.ts';
 import Punctuation from './punctuation-out/CrepusEmit.moonshine-ssr.ts';
 import Template from './template-out/CrepusEmit.moonshine-ssr.ts';
 import Regex from './regex-out/CrepusEmit.moonshine-ssr.ts';
 import Classes from './classes-out/CrepusEmit.moonshine-ssr.ts';
+import SourceSlots from './slots-out/CrepusEmit.moonshine-ssr.ts';
 import{h,renderToString}from'@tschk/moonshine-astro/ssr';
 assert.equal(renderToString(()=>h(Template,{})),'<p title="ab}cvd" data-literal="{unclosed">ab}cvd</p>');
+assert.equal(renderToString(()=>h(SourceSlots,{})),'<header><b>title</b><i>named</i></header><main><p>body</p></main><header></header><main></main><header>fallback title</header><main>fallback body</main>');
 assert.equal(renderToString(()=>h(Classes,{})),'<section><p class="base active on" id="x"></p><p class="a&amp;b c yes"></p><p></p><p class="a b b"></p>base childabsentabsentpresent:<em>class|list|id</em></section>');
 assert.equal(renderToString(()=>h(Regex,{})),'<section><br><b>3</b><em>7</em><i>8</i><p title="}">ab}cd</p><s>ab</s><u>zz</u><input data-ok="yes"></section>');
 for(const enabled of [true,false]){
@@ -170,8 +177,8 @@ if(enabled)assert.ok(html.includes('title="a&gt;b?:}"'),html);
 }
 const newline=String.fromCharCode(10);
 const whitespace='<pre>'+newline+'  x'+newline+'</pre><textarea>'+newline+'  y'+newline+'</textarea><b>end</b> <i>space</i>';
-const expected='<section data-start="attribute">text<b>branch-child</b><strong data-value="prop">callback</strong><i data-row="row-attribute">row-child</i>0prefixprefix0<em>1:attribute|text|branch|branch-child|prop|probe|callback|row-attribute|row-child</em></section>'+whitespace;
-for(let request=0;request<2;request++){const html=renderToString(()=>h(Page,{}));assert.ok(html.includes(' data-callback='));assert.equal(html.replace(/ data-callback="[^"]*"/,''),expected);}\`);
+const expected='<section data-start="attribute">text<b>branch-child</b><strong data-value="prop">callback</strong><i data-row="row-attribute">row-child</i>0prefixprefix0<em>1:attribute|text|branch|branch-child|prop|row-attribute|row-child</em></section>'+whitespace;
+for(let request=0;request<2;request++){const html=renderToString(()=>h(Page,{}));assert.ok(html.includes(' data-callback='));assert.equal(html.replace(/ data-callback="[^"]*"/,''),expected);assert.deepEqual(pageLog,['attribute','text','branch','branch-child','prop','row-attribute','row-child','probe','callback']);}\`);
 await import(process.cwd()+'/check.ts');
 const bundle=await Bun.build({entrypoints:['check.ts'],target:'node',outdir:'dist',metafile:true,minify:true});
 assert.ok(bundle.success,String(bundle.logs));

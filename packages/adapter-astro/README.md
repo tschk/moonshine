@@ -44,7 +44,7 @@ imports, imported children, conditionals and simple maps. This compiler work is
 not yet published. Scriptless entry files retain the older scope-based template
 path. Parsing and lowering stay in Crepuscularity.
 
-This remains a bounded source slice: top-level await, dynamic imports, slots,
+This remains a bounded source slice: top-level await, dynamic imports,
 client directives, script/style blocks, runtime exports, async children, and
 Astro globals other than `Astro.props` are unsupported. Hydration and arbitrary
 host-compiled output are unsupported. Use the legacy compiler explicitly for
@@ -56,8 +56,9 @@ Run the authored-source regression with an explicitly supplied local compiler:
 MOONSHINE_CREPUS_COMPILER=/absolute/path/to/crepus bun test packages/adapter-astro/test/standalone.test.ts
 ```
 
-It checks source-order side effects, short-circuit values, optional maps and
-component prop identity in isolated Bun and Node consumers. Without the variable,
+It checks prop/interpolation capture, deferred component setup, short-circuit
+values, optional maps, slots and component prop identity in isolated Bun and Node
+consumers. Without the variable,
 that compiler integration case is explicitly skipped; runtime cases still run.
 
 The local authored compiler retains whitespace in `pre`/`textarea`, including
@@ -80,3 +81,22 @@ Combined `class` and `class:list` use the existing class-list helper, with the
 ordinary class evaluated first at the directive position. Empty HTML classes
 are omitted. Component factories omit an empty normalized class-list prop while
 retaining an explicitly supplied empty ordinary `class` prop.
+
+Local authored slot lowering now supports default and nonempty literal named
+slots, grouping of same-name children, named Fragments and forwarding through
+imported layouts. An explicit empty slot suppresses fallback; whitespace-only
+ordinary component content supplies no slot. Projected HTML loses the marker,
+while projected components retain their ordinary `slot` prop. Dynamic/empty
+names, misplaced markers and `Astro.slots` utilities reject explicitly.
+
+Generated calls use the compiler-facing `sourceComponent` / `sourceSlot`
+contract. Slot values stay outside ordinary props, including `children` and
+`slots`. Props and template interpolations capture when the parent constructs
+its template; component frontmatter runs during serialization, once per
+invocation. Unused slot content stays lazy, repeated outlets render it again,
+and fallback interpolations capture eagerly while fallback components defer.
+Deferred content retains its caller's native SSR owner. Construct these helpers
+inside `renderToString(() => ...)`; ordinary public `h` invocation is unchanged.
+This compiler integration is local and unpublished, and the new runtime helpers
+are not yet in a tagged SDK release. This is not Astro's compiled component ABI;
+async rendering, hydration and full slot/source coverage remain incomplete.
