@@ -146,7 +146,8 @@ const items=['a','b'];
 <section>{enabled && <p>Don't: really? a && b .map(x)</p>}{enabled ? <b title="a>b?:}">Note: it's fine?</b> : <q>No: why?</q>}<ul>{items.map(item => <li>{item}'s: ready?</li>)}</ul></section>\`);
 await Bun.write('source/Template.astro',${JSON.stringify('---\nconst value="v";\n---\n<p title={`a${`b}c${value}`}d`} data-literal="{unclosed">{`a${`b}c${value}`}d`}</p>')});
 await Bun.write('source/Regex.astro',${JSON.stringify("---\nconst text=\"ab:c}\";\nlet n=6;\nconst items=['ab','zz'];\nconst absent=undefined as string[] | undefined;\n---\n<section>{(/a?b:c/.test(text) ? <br> : <input>)}<b>{n++ / 2}</b><em>{n}</em><i>{8 / /}/.source.length}</i><p title={/}/.source}>{`a${/}/.test(text) ? `b}c` : 'none'}d`}</p>{items?.map(item => /z{2}/.test(item) ? <u>{item}</u> : <s>{item}</s>)}{absent?.map(item => <q>{item}</q>)}{(()=>{if(true) /}/.test(text);return true;})() ? <input data-ok=\"yes\"> : <br>}</section>")});
-for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out'],['Template.astro','template-out'],['Regex.astro','regex-out']]){
+await Bun.write('source/Classes.astro',${JSON.stringify("---\nconst log:string[]=[];\nfunction mark<T>(label:string,value:T):T{log.push(label);return value;}\nconst Card=(props:{class:string})=>props.class;\n---\n<section><p class:list={mark('list',['active',{on:true}])} id={mark('id','x')} class={mark('class','base')}/><p class=\"a&amp;b\" class:list={['c',false,null,undefined,0,{yes:true,no:false}]}/><p class={false} class:list={[]}/><p class={['a','b']} class:list={['b']}/><Card class:list={['child']} class=\"base\"/><em>{log.join('|')}</em></section>")});
+for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out'],['Template.astro','template-out'],['Regex.astro','regex-out'],['Classes.astro','classes-out']]){
 const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry',entry,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
 const [stdout,stderr,code]=await Promise.all([new Response(built.stdout).text(),new Response(built.stderr).text(),built.exited]);
 assert.equal(code,0,stdout+stderr);
@@ -156,8 +157,10 @@ import Page from './out/CrepusEmit.moonshine-ssr.ts';
 import Punctuation from './punctuation-out/CrepusEmit.moonshine-ssr.ts';
 import Template from './template-out/CrepusEmit.moonshine-ssr.ts';
 import Regex from './regex-out/CrepusEmit.moonshine-ssr.ts';
+import Classes from './classes-out/CrepusEmit.moonshine-ssr.ts';
 import{h,renderToString}from'@tschk/moonshine-astro/ssr';
 assert.equal(renderToString(()=>h(Template,{})),'<p title="ab}cvd" data-literal="{unclosed">ab}cvd</p>');
+assert.equal(renderToString(()=>h(Classes,{})),'<section><p class="base active on" id="x"></p><p class="a&amp;b c yes"></p><p></p><p class="a b b"></p>base child<em>class|list|id</em></section>');
 assert.equal(renderToString(()=>h(Regex,{})),'<section><br><b>3</b><em>7</em><i>8</i><p title="}">ab}cd</p><s>ab</s><u>zz</u><input data-ok="yes"></section>');
 for(const enabled of [true,false]){
 const html=renderToString(()=>h(Punctuation,{enabled}));

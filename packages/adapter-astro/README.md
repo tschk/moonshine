@@ -45,8 +45,7 @@ not yet published. Scriptless entry files retain the older scope-based template
 path. Parsing and lowering stay in Crepuscularity.
 
 This remains a bounded source slice: top-level await, dynamic imports, slots,
-client directives, script/style blocks, runtime exports, async children,
-combined `class`/`class:list` attributes and
+client directives, script/style blocks, runtime exports, async children, and
 Astro globals other than `Astro.props` are unsupported. Hydration and arbitrary
 host-compiled output are unsupported. Use the legacy compiler explicitly for
 applications requiring the full Astro compiler contract.
@@ -76,3 +75,8 @@ void tags stay in the markup frontend; no host runtime or parser enters the SDK.
 Attribute spreads, namespace/directive attributes,
 generic `Props`, and map callbacks with index/destructuring/block bodies are not
 yet supported. These parser limits remain work in Crepuscularity.
+
+Combined `class` and `class:list` use the existing class-list helper, with the
+ordinary class evaluated first at the directive position. Empty HTML classes
+are omitted. Component factories currently receive an empty string for an empty
+class list; Astro itself omits that prop.
