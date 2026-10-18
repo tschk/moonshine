@@ -136,7 +136,7 @@ password, number or range; textarea children and explicit value/defaultValue
 conflicts reject. Static checkbox/radio models also compile locally: scalar typed
 true/false values, loose array membership in click order, identity-based Sets,
 programmatic Set updates and listener cleanup use independent factories.
-Checked-model modifiers, select, file and component models remain unsupported,
+Checked-model modifiers, file and component models remain unsupported,
 as do dynamic types and readonly/unknown targets. Source lowering
 is local and unpublished; this does not implement Vue directives or hydration.
 
@@ -150,6 +150,26 @@ attribute order and equivalent checked-attribute spelling. This is mount/SSR
 support, without hydration. The existing counter bundle has no size change;
 the compared form workload is 9,957 gzip bytes native versus 21,855 for Vue.
 These are fixture sizes, without a startup or runtime speed claim.
+
+Native `./select` supports single/multiple select models with inline options and
+optgroups, typed option values, `.number`, Array/Set outputs and owner cleanup.
+Undefined models do not adopt authored defaults. Arrays use loose membership;
+Sets retain identity. Accepted writes preserve the user's duplicate option choice;
+later authored component updates reconcile selection through the existing Vue
+scheduler. Typed option updates and programmatic Set changes remain reactive.
+`./select/ssr` follows source SSR selection, including duplicate selected options,
+null models with omitted option values, and distinct Set behavior. It does not
+infer an omitted option value from its label on the server. These DOM/SSR
+policies intentionally differ, matching the compared Vue source behavior.
+
+The local Crepus compiler supplies the select/option factories and writable-target
+checks. Other select modifiers, nested selects, component-supplied options and
+non-option markup in selects reject. Hydration and component models remain
+unsupported. Eight direct Chromium cases, eleven source SSR cases, thirteen
+actual SFC browser phases, repeated fresh Bun/minified Node SSR and both source
+and declaration-consumer type lanes pass. The existing counter bundle stays
+unchanged. This select fixture is 11,722 gzip bytes versus Vue 3.5.13's 21,900;
+there is no startup/runtime speed claim. Compiler changes remain unpublished.
 
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection

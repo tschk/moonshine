@@ -17,6 +17,8 @@
     "./text": "./src/text.ts",
     "./model": "./src/model.ts",
     "./model/ssr": "./src/model-ssr.ts",
+    "./select": "./src/select.ts",
+    "./select/ssr": "./src/select-ssr.ts",
     "./props": "./src/props.ts",
     "./slots": "./src/slots.ts",
     "./events": "./src/events.ts",
