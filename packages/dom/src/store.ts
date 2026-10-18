@@ -46,6 +46,37 @@ function raw<T>(value: T): T {
       : value
   ) as T;
 }
+/** Return raw stores and unwrap embedded proxies; direct raw writes bypass tracking. */
+export function unwrap<T>(value: T): T {
+  const initial = raw(value);
+  if (initial !== value || !wrappable(value)) return initial;
+  const seen = new WeakMap<object, unknown>();
+  function visit(item: unknown): unknown {
+    const target = raw(item);
+    if (target !== item || !wrappable(item)) return target;
+    if (seen.has(item)) return seen.get(item);
+    const result: Record<PropertyKey, any> = Object.isFrozen(item)
+      ? Array.isArray(item)
+        ? item.slice()
+        : { ...item }
+      : item;
+    seen.set(item, result);
+    const replace = (key: string | number) => {
+      const previous = result[key];
+      const next = visit(previous);
+      if (next !== previous) result[key] = next;
+    };
+    if (Array.isArray(result)) {
+      for (let index = 0; index < result.length; index++) replace(index);
+    } else {
+      for (const key of Object.keys(result))
+        if (!Object.getOwnPropertyDescriptor(result, key)?.get) replace(key);
+    }
+    return result;
+  }
+  return visit(value) as T;
+}
+
 function wrappable(value: unknown): value is Record<PropertyKey, any> {
   if (value === null || typeof value !== "object") return false;
   const prototype = Object.getPrototypeOf(value);

@@ -201,6 +201,12 @@ The types check component props, children, and known HTML/SVG tag names. Intrins
 props match `h`'s unrestricted records; attribute names, attribute values, and event
 parameter types are not checked or inferred.
 
+`unwrap` on `/store` returns the original store object without subscribing.
+Ordinary object/array containers unwrap embedded proxies in place; frozen
+containers are copied. Mutable object getters are skipped; frozen copies
+evaluate their enumerable getters.
+Raw mutations bypass notifications; opaque instances remain unchanged.
+
 Optional structured state lives on `/store`, using the native reactive graph:
 
 ```ts

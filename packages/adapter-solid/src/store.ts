@@ -4,4 +4,5 @@ export {
   createMutable,
   produce,
   reconcile,
+  unwrap,
 } from "@tschk/moonshine-dom/store";
