@@ -1,3 +1,28 @@
+# Moonshine 0.4.43
+
+- Add `@tschk/moonshine-vue/expose` (`exposeRefs`, `bindRef`, `ShallowUnwrap`) and
+  extend `@tschk/moonshine-vue/app` (`createApp`, `ComponentExports`) so
+  `app.mount(target)` returns the root component's exposed instance (or a
+  null-prototype empty object when `defineExpose` is omitted or empty).
+  `enqueueComponentReference` in `@tschk/moonshine-dom/component-instance`
+  schedules owned element and component template refs into the shared reference
+  flush wave before `onMounted` hooks run and clears them to `null` on unmount.
+  `Unwrap<T>` in `@tschk/moonshine-vue/reactive` preserves `Node | Window` leaf
+  types without deep ref recursion.
+- Local unpublished Crepuscularity lowering supports top-level `defineExpose` and
+  static intrinsic/imported-component template refs (`ref="x"` and `:ref="'x'"`
+  targeting a top-level `const` `ref` or `shallowRef` setup binding), branding
+  DOM and SSR component returns as `ComponentView<Node, Exports, Props>` while
+  erasing runtime `defineExpose` and template `ref` attributes in SSR. Dynamic
+  ref expressions, function refs, `useTemplateRef`, `v-for` ref arrays and
+  `v-model` form-control template refs reject with explicit diagnostics.
+- Validation: 2,530 SDK tests pass (with all five optional compiler-gated
+  standalone tests passing when `MOONSHINE_CREPUS_COMPILER` is set); 876
+  source-gate modules (`scripts/check-native-sfc.ts`), 15 Crepuscularity Vue test
+  suites, Clippy (`-D warnings`), and both 25-project typecheck lanes (`tsc` and
+  `tsgo`) pass. The signal kernel stays at 4,041 raw bytes. Source compiler
+  changes remain local and unpublished; npm publication stays manual.
+
 # Moonshine 0.4.42
 
 - Support spread attributes combined with `bind:group` on static checkbox and
