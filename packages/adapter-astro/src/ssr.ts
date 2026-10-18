@@ -91,9 +91,7 @@ function attribute(
 export type SourceSlots = Readonly<Record<string, SSRChild>>;
 
 function captureProps<P extends object>(props: P): P {
-  return Object.fromEntries(
-    Object.keys(props).map((name) => [name, props[name as keyof P]]),
-  ) as P;
+  return { ...props };
 }
 
 /** Compiler-facing component invocation; slots remain outside ordinary props. */
@@ -103,6 +101,14 @@ export function sourceComponent<P extends object>(
   slots: Readonly<Record<string, () => SSRChild>> = {},
 ): SSRChild {
   const captured = captureProps(props);
+  const values = captured as Record<string, unknown>;
+  if (values["class:list"] !== undefined) {
+    const list = values["class:list"];
+    delete values["class:list"];
+    const normalized = classList([values.class, list]);
+    if (normalized) values.class = normalized;
+    else delete values.class;
+  }
   const supplied: SourceSlots = Object.fromEntries(
     Object.entries(slots).map(([name, render]) => [
       name,

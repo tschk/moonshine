@@ -1,6 +1,6 @@
 # Framework replacement status
 
-Audited against SDK 0.4.26 on 2026-10-18, with unpublished local Astro slot,
+Audited against SDK 0.4.26 on 2026-10-18, with unpublished local Astro slots and prop spreads,
 Svelte details-binding and native Vue text-model integration. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
@@ -63,8 +63,9 @@ checker alone does not establish independence.
    keyed-row and imported-child cases. Props-less Vue setup and text/numeric
    `v-model` now compile locally, including supported modifiers and textarea.
    Vue select/checkbox/radio/component models and attrs fallthrough remain gaps.
-   Astro component prop spreads remain a useful next addition identified by a
-   separate source audit.
+   Astro component prop spreads now compile locally with final class-list
+   normalization; intrinsic HTML spreads and synchronous slot-presence queries
+   remain useful additions to investigate.
 3. Design request/client identity transport before claiming hydration or Svelte
    `$props.id()` compatibility. Separate client/server counters do not satisfy
    matching hydrated IDs.

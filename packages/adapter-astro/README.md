@@ -73,12 +73,19 @@ work in child and attribute expressions, while quoted attribute braces stay lite
 Authored regex/division boundaries use Crepuscularity's existing JavaScript
 parser, including nested templates, attributes and JavaScript groups. Astro
 void tags stay in the markup frontend; no host runtime or parser enters the SDK.
-Attribute spreads, namespace/directive attributes,
+Intrinsic attribute spreads, namespace/directive attributes,
 generic `Props`, and map callbacks with index/destructuring/block bodies are not
 yet supported. These parser limits remain work in Crepuscularity.
 
-Combined `class` and `class:list` use the existing class-list helper, with the
-ordinary class evaluated first at the directive position. Empty HTML classes
+Local component prop spreads now preserve ordinary JavaScript override order,
+getter evaluation and own string/symbol keys. Forwarding `Astro.props` works
+through imported components; ordinary `children`/`slots` props remain separate
+from projected slots. Spread `class:list` normalizes against the final `class`
+after overrides. Nullish spreads contribute no props. Intrinsic HTML and slot
+outlet spreads remain rejected. Compiler lowering is local and unpublished.
+
+Without prop spreads, combined `class` and `class:list` use the existing helper.
+The ordinary class evaluates first at the directive position. Empty HTML classes
 are omitted. Component factories omit an empty normalized class-list prop while
 retaining an explicitly supplied empty ordinary `class` prop.
 
