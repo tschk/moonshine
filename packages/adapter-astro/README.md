@@ -61,8 +61,12 @@ It checks source-order side effects, short-circuit values, optional maps and
 component prop identity in isolated Bun and Node consumers. Without the variable,
 that compiler integration case is explicitly skipped; runtime cases still run.
 
-The current template parser also has whitespace and branch-text punctuation
-limits. Do not use it for whitespace-sensitive `pre`/`textarea` source without
-checking emitted output. Attribute spreads, namespace/directive attributes,
+The local authored compiler retains whitespace in `pre`/`textarea`, including
+nested elements and expression boundaries, and keeps same-line root sibling
+separators. These factories serialize initial newlines using literal HTML rules;
+the browser consumes the first newline after `pre`/`textarea`. Ordinary native
+DOM factories keep their existing textarea property-value behavior.
+
+Branch-text punctuation remains a parser limit. Attribute spreads, namespace/directive attributes,
 generic `Props`, and map callbacks with index/destructuring/block bodies are not
 yet supported. These parser limits remain work in Crepuscularity.

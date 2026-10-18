@@ -705,7 +705,9 @@ function intrinsic(
       ) {
         throw new TypeError("Server select value has no matching option");
       }
+      // Property factories protect values; explicit HTML keeps parser newline rules.
       if (
+        !explicitAttributes &&
         lower === "textarea" &&
         (body.startsWith("\n") || body.startsWith("\r"))
       )

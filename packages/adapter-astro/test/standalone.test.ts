@@ -133,14 +133,20 @@ const absent=missing();
 let reads=0;
 function next(){reads++;return 0;}
 ---
-<section data-start={record('attribute')} data-callback={callback}>{record('text')}{record('branch') && <b>{record('branch-child')}</b>}<Probe cb={callback} data={payload} value={record('prop')} children="ordinary prop"/>{items.map(item => <i data-row={record(item+'-attribute')}>{record(item+'-child')}</i>)}{0 && <u/>}{first || second && <u/>}{absent?.map(item => <u>{item}</u>)}{first || items.map(item => <u>{item}</u>)}{next() && <u/>}<em>{reads}:{log.join('|')}</em></section>\`);
+<section data-start={record('attribute')} data-callback={callback}>{record('text')}{record('branch') && <b>{record('branch-child')}</b>}<Probe cb={callback} data={payload} value={record('prop')} children="ordinary prop"/>{items.map(item => <i data-row={record(item+'-attribute')}>{record(item+'-child')}</i>)}{0 && <u/>}{first || second && <u/>}{absent?.map(item => <u>{item}</u>)}{first || items.map(item => <u>{item}</u>)}{next() && <u/>}<em>{reads}:{log.join('|')}</em></section><pre>
+  x
+</pre><textarea>
+  y
+</textarea><b>end</b> <i>space</i>\`);
 const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry','Page.astro','--out-dir','out'],{stdout:'pipe',stderr:'pipe'});
 const [stdout,stderr,code]=await Promise.all([new Response(built.stdout).text(),new Response(built.stderr).text(),built.exited]);
 assert.equal(code,0,stdout+stderr);
 await Bun.write('check.ts',\`import assert from 'node:assert/strict';
 import Page from './out/CrepusEmit.moonshine-ssr.ts';
 import{h,renderToString}from'@tschk/moonshine-astro/ssr';
-const expected='<section data-start="attribute">text<b>branch-child</b><strong data-value="prop">callback</strong><i data-row="row-attribute">row-child</i>0prefixprefix0<em>1:attribute|text|branch|branch-child|prop|probe|callback|row-attribute|row-child</em></section>';
+const newline=String.fromCharCode(10);
+const whitespace='<pre>'+newline+'  x'+newline+'</pre><textarea>'+newline+'  y'+newline+'</textarea><b>end</b> <i>space</i>';
+const expected='<section data-start="attribute">text<b>branch-child</b><strong data-value="prop">callback</strong><i data-row="row-attribute">row-child</i>0prefixprefix0<em>1:attribute|text|branch|branch-child|prop|probe|callback|row-attribute|row-child</em></section>'+whitespace;
 for(let request=0;request<2;request++){const html=renderToString(()=>h(Page,{}));assert.ok(html.includes(' data-callback='));assert.equal(html.replace(/ data-callback="[^"]*"/,''),expected);}\`);
 await import(process.cwd()+'/check.ts');
 const bundle=await Bun.build({entrypoints:['check.ts'],target:'node',outdir:'dist',metafile:true,minify:true});

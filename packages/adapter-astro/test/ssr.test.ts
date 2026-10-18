@@ -105,3 +105,13 @@ test("rejected async children fail synchronously without leaking an unhandled re
   ).toThrow("Async Astro children");
   await new Promise((resolve) => setTimeout(resolve, 0));
 });
+
+test("Astro pre and textarea retain literal HTML newline serialization", () => {
+  for (const tag of ["pre", "textarea"]) {
+    for (const body of ["\nx", "\n\nx", "  a\n  b\n"]) {
+      expect(renderToString(() => h(tag, null, body))).toBe(
+        `<${tag}>${body}</${tag}>`,
+      );
+    }
+  }
+});

@@ -55,3 +55,9 @@ test("explicit attribute values omit nullish values without property coercion", 
     ),
   ).toBe('<input translate="false">');
 });
+
+test("explicit HTML textarea content retains HTML initial-newline behavior", () => {
+  expect(renderToString(() => hAttributes("textarea", null, "\n\nx"))).toBe(
+    "<textarea>\n\nx</textarea>",
+  );
+});
