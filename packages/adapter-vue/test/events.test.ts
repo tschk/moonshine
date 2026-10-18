@@ -317,3 +317,131 @@ test("named model events keep distinct payloads and camelize kebab update keys",
   ]);
   stop();
 });
+
+type Loose = Emit<Record<string, unknown[]>>;
+function mount(props: Record<string, unknown>) {
+  let fire!: Loose, stop!: () => void;
+  createRoot((dispose) => {
+    stop = dispose;
+    createComponent(
+      () => {
+        fire = createEmitter<Record<string, unknown[]>>(props);
+      },
+      props,
+      "dom",
+    );
+  });
+  return { fire, stop };
+}
+
+test("trim and number map every raw argument and feed listener and once alike", () => {
+  const run = (modelModifiers: object, ...payload: unknown[]) => {
+    const seen: unknown[][] = [];
+    const { fire, stop } = mount({
+      modelModifiers,
+      "onUpdate:modelValue": (...args: unknown[]) => seen.push(args),
+      "onUpdate:modelValueOnce": (...args: unknown[]) => seen.push(args),
+    });
+    fire("update:modelValue", ...payload);
+    expect(seen[1]).toEqual(seen[0]!);
+    stop();
+    return seen[0];
+  };
+  const payload = [" a ", " 12px ", 3, null];
+  expect(run({ trim: true }, ...payload)).toEqual(["a", "12px", 3, null]);
+  expect(run({ number: true }, ...payload)).toEqual([" a ", 12, 3, null]);
+  expect(run({ trim: true, number: true }, ...payload)).toEqual([
+    " a ",
+    12,
+    3,
+    null,
+  ]);
+  expect(run({ number: true }, [1, 2], true, "", 5n)).toEqual([1, true, "", 5]);
+});
+
+test("named models read exact, camel then hyphen modifier keys; the default model reads only modelModifiers", () => {
+  const seen: unknown[] = [];
+  const props: Record<string, unknown> = {
+    "onUpdate:firstName": (value: unknown) => seen.push(["first", value]),
+    "onUpdate:title": (value: unknown) => seen.push(["title", value]),
+    "onUpdate:modelValue": (value: unknown) => seen.push(["model", value]),
+    "first-nameModifiers": { trim: true },
+    modelModifiers: { trim: false },
+    modelValueModifiers: { trim: true },
+    titleModifiers: { trim: false },
+  };
+  const { fire, stop } = mount(props);
+  fire("update:firstName", " a ");
+  fire("update:first-name", " b ");
+  fire("update:modelValue", " c ");
+  fire("update:model-value", " d ");
+  expect(seen).toEqual([
+    ["first", "a"],
+    ["first", "b"],
+    ["model", " c "],
+    ["model", " d "],
+  ]);
+  seen.length = 0;
+  delete props["first-nameModifiers"];
+  props.firstNameModifiers = { trim: true };
+  props.modelModifiers = { trim: true };
+  props.titleModifiers = { number: true };
+  fire("update:firstName", " e ");
+  fire("update:title", "7px");
+  fire("update:modelValue", " f ");
+  expect(seen).toEqual([
+    ["first", "e"],
+    ["title", 7],
+    ["model", "f"],
+  ]);
+  props["first-nameModifiers"] = false;
+  fire("update:first-name", " g ");
+  props["first-nameModifiers"] = { trim: false };
+  fire("update:first-name", " h ");
+  expect(seen.slice(-2)).toEqual([
+    ["first", "g"],
+    ["first", " h "],
+  ]);
+  stop();
+});
+
+test("modifier flags are read live on every emit and custom flags leave payloads alone", () => {
+  const seen: unknown[] = [];
+  let current: unknown;
+  const props = {
+    get modelModifiers() {
+      return current;
+    },
+    "onUpdate:modelValue": (value: unknown) => seen.push(value),
+  };
+  const { fire, stop } = mount(props);
+  fire("update:modelValue", " 1 ");
+  current = { trim: true };
+  fire("update:modelValue", " 2 ");
+  current = { number: true };
+  fire("update:modelValue", " 3 ");
+  current = { capitalize: true, trim: false, number: 0 };
+  fire("update:modelValue", " 4 ");
+  current = undefined;
+  fire("update:modelValue", " 5 ");
+  expect(seen).toEqual([" 1 ", "2", 3, " 4 ", " 5 "]);
+  stop();
+});
+
+test("number mapping throws unrouted before any listener runs and disposal still wins", () => {
+  const seen: string[] = [];
+  const { fire, stop } = mount({
+    modelModifiers: { number: true },
+    "onUpdate:modelValue": () => seen.push("listener"),
+    "onUpdate:modelValueOnce": () => seen.push("once"),
+  });
+  expect(() => fire("update:modelValue", Symbol("s") as never)).toThrow(
+    TypeError,
+  );
+  expect(seen).toEqual([]);
+  fire("update:modelValue", "1" as never);
+  expect(seen).toEqual(["listener", "once"]);
+  stop();
+  expect(() => fire("update:modelValue", Symbol("s") as never)).not.toThrow();
+  expect(seen).toHaveLength(2);
+});

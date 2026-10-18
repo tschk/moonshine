@@ -73,8 +73,10 @@ checker alone does not establish independence.
    compile locally with canonical identifier/kebab arguments, per-model listener
    order and class/style normalization; fourteen browser phases and repeated SSR
    setup emits match Vue. Compiler changes remain unpublished. Component-supplied
-   options, component model modifiers, defineModel, hydration and attrs fallthrough
-   remain gaps.
+   options, defineModel, hydration and attrs fallthrough remain gaps. Local
+   component modifiers now preserve trim/number payload rules and custom flags;
+   nineteen browser phases and repeated SSR compare against Vue. Attrs fallthrough
+   remains unsupported; modifier-object mutation across render cycles is unverified.
    Astro component prop spreads now compile locally with final class-list
    normalization; intrinsic HTML spreads and synchronous slot-presence queries
    remain useful additions to investigate.

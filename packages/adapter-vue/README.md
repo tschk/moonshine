@@ -179,23 +179,48 @@ conflicting explicit model props/listeners and missing child contracts reject.
 Static named and multiple models also compile locally: identifier/kebab arguments
 normalize to canonical child prop names, each with a matching declared update
 event. Listener order is tracked separately for each model. Model props named
-`class` and `style` use the existing component normalizers. Dynamic arguments,
-component-model modifiers and `defineModel` remain unsupported. This is source support, not Vue's compiled component ABI or hydration.
+`class` and `style` use the existing component normalizers. Dynamic arguments and
+`defineModel` remain unsupported. Component modifiers compile locally as described
+below. This is source support, not Vue's compiled component ABI or hydration.
 
 Thirteen authored parent/child browser phases compare both listener orders,
 `.once`, external parent updates, multiple instances and disposal against Vue
 3.5.13. Server setup emits are compared across repeated fresh Bun/minified Node
 renders; both source and declaration consumers pass in tsc/tsgo, including invalid
-prop and callback payload checks. The compared component fixture is 10,510 gzip
-bytes versus Vue's 21,104. No startup/runtime speed claim; compiler changes remain
+prop and callback payload checks. Before emit modifier support, this default-model
+fixture was 10,510 gzip bytes versus Vue's 21,104. No startup/runtime speed claim; compiler changes remain
 local and unpublished.
 
 The named-model fixture adds fourteen browser phases covering distinct payloads,
 kebab arguments, per-model listener order, `.once`, class/style normalization,
 multiple roots and disposal. Repeated Bun/minified Node SSR setup emits and both
-source/declaration type lanes pass. Its production browser bundle is 10,983 gzip
-bytes versus Vue 3.5.13's 21,335 for the same fixture; this is no timing claim.
+source/declaration type lanes pass. Before emit modifier support, its production
+browser bundle was 10,983 gzip bytes versus Vue 3.5.13's 21,335 for the same fixture; this is no timing claim.
 These compiler changes remain local and unpublished.
+
+Component modifiers now compile locally through the opt-in event protocol.
+`.trim` maps string arguments; `.number` converts every original emitted argument
+with `parseFloat`, retaining the original value on NaN. When both flags are set,
+number conversion uses the original arguments, including their whitespace.
+Regular and once listeners receive the same converted arguments. Custom flags
+are available to children that declare the corresponding modifier prop; they do
+not change payloads automatically. Flag order is preserved and repeated flags
+collapse. Bare models add no modifier object. Explicit `v-model:modelValue.trim`
+passes `modelValueModifiers`, unlike plain `v-model.trim`'s `modelModifiers`,
+preserving Vue's distinct behavior. Empty and `__proto__` modifiers reject.
+
+Nine authored cases pass nineteen Chromium phases and repeated fresh
+Bun/minified Node SSR comparisons against Vue 3.5.13. Source and declaration
+consumers pass both typecheckers. Undeclared modifier props still reach the raw
+emitter; Vue's extra root DOM attribute is omitted because native attrs
+fallthrough remains unsupported. Modifier objects have stable identity per native
+component instance; parity for modifier-object mutation across Vue render cycles
+is unverified. This
+fixture is 10,943 gzip bytes versus Vue's 21,493. The unchanged named-model control
+adds 158 gzip bytes for emit conversion (11,141 versus its previous 10,983);
+the signal kernel stays unchanged. No startup/runtime speed claim. Compiler
+changes remain local and unpublished; dynamic model arguments, `defineModel`
+and hydration remain unsupported.
 
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection

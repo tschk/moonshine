@@ -23,9 +23,18 @@ export type Emit<E extends EventMap<E>> = <K extends keyof E & string>(
 ) => void;
 const camel = (name: string) =>
   name.replace(/-(\w)/g, (_, letter: string) => letter.toUpperCase());
+const modifiersOf = (source: object, model: string) => {
+  const read = (name: string) =>
+    Reflect.get(source, name + "Modifiers", source);
+  return model === "modelValue" || model === "model-value"
+    ? Reflect.get(source, "modelModifiers", source)
+    : read(model) ||
+        read(camel(model)) ||
+        read(model.replace(/\B([A-Z])/g, "-$1").toLowerCase());
+};
 const key = (name: string) =>
   name ? "on" + name[0]!.toUpperCase() + name.slice(1) : "";
-/** Compiler-private declared component events; no DOM dispatch, model modifiers or Vue app error API. */
+/** Compiler-private declared component events; no DOM dispatch or Vue app error API. `update:*` emits honor live trim/number modifier flags. */
 export function createEmitter<E extends EventMap<E>>(source: object): Emit<E> {
   const frame = getComponentContext();
   const route = frame.owner.context?.get(errorHandlerKey) as
@@ -34,9 +43,26 @@ export function createEmitter<E extends EventMap<E>>(source: object): Emit<E> {
   const report = (error: unknown) => {
     if (!route?.(error)) throw error;
   };
-  return ((event: string, ...args: readonly unknown[]) => {
+  return ((event: string, ...rawArgs: readonly unknown[]) => {
     if (frame.mode === "dom" && frame.owner.disposed) return;
     return untrack(() => {
+      let args = rawArgs;
+      if (event.startsWith("update:")) {
+        const modifiers = modifiersOf(source, event.slice(7)) as
+          { trim?: unknown; number?: unknown } | undefined;
+        if (modifiers) {
+          if (modifiers.trim)
+            args = rawArgs.map((value) =>
+              typeof value === "string" ? value.trim() : value,
+            );
+          // Number conversion uses raw arguments even when trim also runs.
+          if (modifiers.number)
+            args = rawArgs.map((value) => {
+              const parsed = parseFloat(value as string);
+              return Number.isNaN(parsed) ? value : parsed;
+            });
+        }
+      }
       let name = key(event),
         listener = Reflect.get(source, name, source);
       if (!listener) {
