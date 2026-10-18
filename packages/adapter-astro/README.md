@@ -97,6 +97,6 @@ invocation. Unused slot content stays lazy, repeated outlets render it again,
 and fallback interpolations capture eagerly while fallback components defer.
 Deferred content retains its caller's native SSR owner. Construct these helpers
 inside `renderToString(() => ...)`; ordinary public `h` invocation is unchanged.
-This compiler integration is local and unpublished, and the new runtime helpers
-are not yet in a tagged SDK release. This is not Astro's compiled component ABI;
+This compiler integration is local and unpublished. The companion runtime
+helpers are available in SDK 0.4.22. This is not Astro's compiled component ABI;
 async rendering, hydration and full slot/source coverage remain incomplete.

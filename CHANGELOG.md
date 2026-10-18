@@ -1,3 +1,18 @@
+# Moonshine 0.4.22
+
+- Add compiler-facing `sourceComponent`, `sourceSlot` and `SourceSlots` on the
+  opt-in Astro `/ssr` entry, keeping slots outside ordinary component props.
+- Capture props eagerly, defer and cache component initialization, and preserve
+  caller ownership for lazy slot content. Empty supplied slots suppress fallback.
+- Cover forwarding, repeated outlets, ordinary props, special names, escaping,
+  initialization failures and explicitly rejected async content.
+- Local Crepuscularity now lowers default and static named slots, named Fragments
+  and forwarding through imported layouts. Compiler changes remain unpublished;
+  dynamic/empty names, `Astro.slots` utilities and full slot coverage remain open.
+- No new dependencies. The signal-only core remains 4,041 bytes; no relative
+  framework size or speed improvement is claimed. Async SSR, hydration and
+  arbitrary host-compiled output remain unsupported.
+
 # Moonshine 0.4.21
 
 - Add opt-in `@tschk/moonshine-router/data` for client-safe loaders, cancellation,

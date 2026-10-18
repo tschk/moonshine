@@ -1,8 +1,8 @@
 # Native Astro slot acceptance contract
 
-Investigation against SDK 0.4.21 and the local Crepuscularity compiler,
+Investigation against SDK 0.4.22 and the local Crepuscularity compiler,
 2026-10-18. A bounded static-name slot slice now has local source-to-runtime
-proof; compiler publication and SDK release of its helpers remain pending.
+proof. SDK 0.4.22 supplies the helpers; compiler publication remains pending.
 Dynamic names, async slot utilities and full compatibility remain incomplete.
 
 ## Observed boundaries
