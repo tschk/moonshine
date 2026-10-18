@@ -145,7 +145,8 @@ const items=['a','b'];
 ---
 <section>{enabled && <p>Don't: really? a && b .map(x)</p>}{enabled ? <b title="a>b?:}">Note: it's fine?</b> : <q>No: why?</q>}<ul>{items.map(item => <li>{item}'s: ready?</li>)}</ul></section>\`);
 await Bun.write('source/Template.astro',${JSON.stringify('---\nconst value="v";\n---\n<p title={`a${`b}c${value}`}d`} data-literal="{unclosed">{`a${`b}c${value}`}d`}</p>')});
-for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out'],['Template.astro','template-out']]){
+await Bun.write('source/Regex.astro',${JSON.stringify("---\nconst text=\"ab:c}\";\nlet n=6;\nconst items=['ab','zz'];\nconst absent=undefined as string[] | undefined;\n---\n<section>{(/a?b:c/.test(text) ? <br> : <input>)}<b>{n++ / 2}</b><em>{n}</em><i>{8 / /}/.source.length}</i><p title={/}/.source}>{`a${/}/.test(text) ? `b}c` : 'none'}d`}</p>{items?.map(item => /z{2}/.test(item) ? <u>{item}</u> : <s>{item}</s>)}{absent?.map(item => <q>{item}</q>)}{(()=>{if(true) /}/.test(text);return true;})() ? <input data-ok=\"yes\"> : <br>}</section>")});
+for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out'],['Template.astro','template-out'],['Regex.astro','regex-out']]){
 const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry',entry,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
 const [stdout,stderr,code]=await Promise.all([new Response(built.stdout).text(),new Response(built.stderr).text(),built.exited]);
 assert.equal(code,0,stdout+stderr);
@@ -154,8 +155,10 @@ await Bun.write('check.ts',\`import assert from 'node:assert/strict';
 import Page from './out/CrepusEmit.moonshine-ssr.ts';
 import Punctuation from './punctuation-out/CrepusEmit.moonshine-ssr.ts';
 import Template from './template-out/CrepusEmit.moonshine-ssr.ts';
+import Regex from './regex-out/CrepusEmit.moonshine-ssr.ts';
 import{h,renderToString}from'@tschk/moonshine-astro/ssr';
 assert.equal(renderToString(()=>h(Template,{})),'<p title="ab}cvd" data-literal="{unclosed">ab}cvd</p>');
+assert.equal(renderToString(()=>h(Regex,{})),'<section><br><b>3</b><em>7</em><i>8</i><p title="}">ab}cd</p><s>ab</s><u>zz</u><input data-ok="yes"></section>');
 for(const enabled of [true,false]){
 const html=renderToString(()=>h(Punctuation,{enabled}));
 assert.ok(html.includes(enabled?'<p>Don&#39;t: really? a &amp;&amp; b .map(x)</p>':'<q>No: why?</q>'),html);

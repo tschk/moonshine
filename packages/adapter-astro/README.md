@@ -70,7 +70,9 @@ DOM factories keep their existing textarea property-value behavior.
 Conditional and mapped markup retains text punctuation, including apostrophes,
 colons, question marks and operator-like text. Nested template substitutions
 work in child and attribute expressions, while quoted attribute braces stay literal.
-Regex literals still need a complete parser-backed expression contract.
+Authored regex/division boundaries use Crepuscularity's existing JavaScript
+parser, including nested templates, attributes and JavaScript groups. Astro
+void tags stay in the markup frontend; no host runtime or parser enters the SDK.
 Attribute spreads, namespace/directive attributes,
 generic `Props`, and map callbacks with index/destructuring/block bodies are not
 yet supported. These parser limits remain work in Crepuscularity.
