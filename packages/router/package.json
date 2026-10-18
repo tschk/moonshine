@@ -11,7 +11,8 @@
     "./graph": "./src/graph.ts",
     "./runtime": "./src/runtime.ts",
     "./data": "./src/data.ts",
-    "./data-react": "./src/data-react.ts"
+    "./data-react": "./src/data-react.ts",
+    "./data-http": "./src/data-http.ts"
   },
   "files": [
     "src"

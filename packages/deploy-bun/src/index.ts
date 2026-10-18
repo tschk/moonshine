@@ -85,7 +85,7 @@ export const bunAdapter: DeploymentAdapter = {
     const rendererImport = native
       ? 'import { modules, renderer } from "./dist/server.js";'
       : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
-    const entry = `import { createRequestHandler } from "@tschk/moonshine-server";
+    const entry = `import { createRequestHandler } from "@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}";
 import { createBunServer } from "@tschk/moonshine-deploy-bun";
 import { resolve } from "node:path";
 import manifest from "./manifest.json" with { type: "json" };

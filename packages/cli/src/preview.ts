@@ -150,7 +150,10 @@ export async function startPreview(options: {
     throw new Error(
       "Request context runner missing from server bundle; rebuild the project",
     );
-  const fetch = createRequestHandler({
+  const makeHandler = raw.dataRequests
+    ? (await import("@tschk/moonshine-server/data-http")).createRequestHandler
+    : createRequestHandler;
+  const fetch = makeHandler({
     manifest,
     modules,
     renderer,

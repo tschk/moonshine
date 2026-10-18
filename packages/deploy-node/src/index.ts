@@ -204,7 +204,7 @@ export const nodeAdapter: DeploymentAdapter = {
       ? 'import { modules, renderer } from "./dist/server.js";'
       : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
     const entry = `import { createServer } from "node:http";
-import { createRequestHandler } from "@tschk/moonshine-server";
+import { createRequestHandler } from "@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}";
 import { createNodeHandler } from "@tschk/moonshine-deploy-node";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -115,3 +115,43 @@ test("request context requires matching Bun or Node adapters and runtimes", () =
     expect(() => validateRuntime(adapter, manifest)).not.toThrow();
   }
 });
+
+test("data-request manifests require matching Bun or Node deployments", () => {
+  expect(defineConfig({ dataRequests: true }).dataRequests).toBe(true);
+  for (const name of ["bun", "node", "cloudflare", "vercel"] as const) {
+    const adapter: DeploymentAdapter = {
+      name,
+      runtimes: ["bun", "node", "cloudflare", "vercel-edge"],
+      capabilities: [],
+      build: async () => {},
+    };
+    const manifest: MoonshineManifest = {
+      version: 1,
+      frameworkVersion: "test",
+      dataRequests: true,
+      routes: [],
+      assets: [],
+      entries: {},
+      capabilities: [],
+    };
+    if (name === "bun" || name === "node") {
+      expect(() => validateRuntime(adapter, manifest)).not.toThrow();
+      manifest.routes = [
+        {
+          id: "page",
+          path: "/",
+          file: "page.ts",
+          mode: "ssr",
+          runtime: name === "bun" ? "node" : "bun",
+          decision: "test",
+          clientEntries: [],
+        },
+      ];
+    }
+    expect(() => validateRuntime(adapter, manifest)).toThrow(
+      "Route data requests support only matching Bun or Node",
+    );
+    manifest.dataRequests = false;
+    expect(() => validateRuntime(adapter, manifest)).not.toThrow();
+  }
+});

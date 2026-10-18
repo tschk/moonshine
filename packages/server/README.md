@@ -10,7 +10,7 @@ const fetch = createRequestHandler({
   manifest,
   modules,
   renderer: reactRenderer,
-  staticDir: "./.moonshine",
+  staticDir: "./.moonshine/public",
 });
 
 Bun.serve({ fetch });
@@ -54,3 +54,52 @@ metadata merges in route order, with explicit action metadata taking precedence;
 precedence, and throwing a data wrapper is unsupported. Ordinary objects are
 unchanged; `type: "DataWithResponseInit"` together with own `data` and an `init`
 object is reserved for this contract.
+
+## Opt-in route-data responses
+
+Add `dataRequests: true` to your existing Bun/Node `moonshine.config.ts`, or pass
+it to `createRequestHandler` from `@tschk/moonshine-server/data-http` in a
+hand-written server. The ordinary server entry rejects enabled data requests;
+its bundle omits the HTTP protocol implementation. The generated manifest carries this option into
+Bun/Node deployment and preview handlers. Other build targets currently reject
+it. For a TLS proxy, configure the expected public origin explicitly:
+
+```ts
+export default {
+  dataRequests: { origin: "https://app.example" },
+};
+```
+
+`true` checks against the request URL's origin. The object form checks against
+its validated public origin; forwarding headers do not select the trusted origin.
+Neither form rewrites the request URL. Requests with a mismatched/malformed
+`Origin`, or cross-site/same-site fetch metadata without an origin, reject before
+request scope, middleware or route callbacks run. Nonbrowser requests without
+those headers remain supported. Existing document/API/webhook requests retain
+their ordinary behavior.
+
+This checks browser request origin, not user authorization or accepted server
+hostnames. Deployments must validate their accepted Host values; use application
+authentication before returning private loader data.
+
+The opt-in request header is `x-moonshine-data: 1`:
+
+| Method                      | Protocol response                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| GET / HEAD                  | Existing parallel loaders; `{ data: context.data }`; no page renderer. HEAD has no body.                       |
+| POST / PUT / PATCH / DELETE | Leaf action only; `{ data: actionResult }`; no loaders. A client data router reloads separately after success. |
+
+Core envelopes carry the version header and `application/json`. Values use plain
+JSON semantics; an undefined action result becomes `null`. Loader/action metadata,
+cookies, after middleware and request scope retain their response behavior.
+Statuses 204/205 have no body and decode as `null` in the native client. Direct or
+thrown `Response` values, redirects and error boundaries remain native HTTP.
+Return JSON-compatible values to use the protocol. The entire loader-data map is
+client-visible when requested, so keep private server values out of its results.
+
+Enabled handlers add `Vary: x-moonshine-data` to both document and data responses,
+preserving existing tokens and wildcard values. Protocol requests bypass static
+HTML shortcuts; cache policy remains application-owned. Normal requests without
+the exact protocol header keep their existing rendering and action/loader flow.
+The optional [HTTP client](../router/README.md#optional-http-route-data) keeps
+server modules out of browser bundles.

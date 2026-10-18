@@ -1,3 +1,4 @@
+import type { RouteDataRequests } from "@tschk/moonshine-framework/data-request";
 import type {
   MoonshineManifest,
   Renderer,
@@ -44,6 +45,7 @@ export type RequestHandlerOptions = {
   graph?: RouteGraph<RouteDefinition>;
   routes?: RouteDefinition[];
   manifest?: MoonshineManifest;
+  dataRequests?: RouteDataRequests;
   modules?: Record<string, RouteModule>;
   renderer?: Renderer;
   staticDir?: string;

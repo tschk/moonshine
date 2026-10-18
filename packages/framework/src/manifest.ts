@@ -1,3 +1,4 @@
+import type { RouteDataRequests } from "./data-request";
 import type { RenderMode, RouteDefinition, RuntimeTarget } from "./routes";
 import type { RendererName } from "./renderer";
 
@@ -26,6 +27,8 @@ export type MoonshineManifest = {
   frameworkVersion: string;
   renderer?: RendererName;
   requestContext?: boolean;
+  /** Enable the opt-in JSON route-data request protocol. */
+  dataRequests?: RouteDataRequests;
   routes: RouteArtifact[];
   assets: Array<{ path: string; file: string; integrity?: string }>;
   entries: { server?: string; client?: string };

@@ -61,8 +61,11 @@ checker alone does not establish independence.
    successful superseded writes still revalidate; cancellation does not roll back
    writes. Host form APIs and navigation-state contracts remain separate work.
    Explicit location-bound ready seeds can reuse application-loaded data without
-   an initial fetch; applications still own transport and validation. This does
-   not implement [React Router’s hydration data contract](https://reactrouter.com/api/data-routers/createBrowserRouter).
+   an initial fetch. The opt-in `/data-http` client now connects native JSON
+   loader/action requests on Bun/Node, with explicit public-origin configuration
+   for proxies, independent mutation revalidation and unknown payloads for app
+   validation. Host forms, redirects-as-navigation, fetchers and RSC transport
+   remain separate. This does not implement [React Router’s hydration data contract](https://reactrouter.com/api/data-routers/createBrowserRouter).
    The React hook does not alias TanStack's match-scoped
    [`useLoaderData`](https://tanstack.com/router/latest/docs/api/router/useLoaderDataHook).
 2. Extend authored component composition through Crepuscularity, including Astro
@@ -105,5 +108,15 @@ application workload where Moonshine's bundle is larger than Solid's; those
 numbers are tied to that fixture and snapshot. Refresh comparable bundle,
 startup, SSR and interaction workloads before making release-wide performance
 claims. No evidence here establishes universal smallest or fastest behavior.
+
+The HTTP route-data transport leaves the signal kernel at 4,041 raw
+bytes and the existing reader consumer at 3,084 raw / 1,343 gzip bytes. In a
+separate plain SSR server consumer that does not enable the protocol, the inline
+implementation increased the bundle from 11,818 raw / 4,420 gzip to 14,024 raw /
+5,177 gzip bytes. Moving the protocol to the explicit server `/data-http` entry
+reduces the unused consumer to 12,155 raw / 4,574 gzip bytes: a remaining 154 gzip
+bytes over the original pipeline. These are same-consumer before/after Bun bundle measurements,
+using Bun gzip; they measure bundle cost, not startup or request throughput.
+The shared pipeline hooks still have a cost when transport is unused.
 
 Useful missing behavior remains. The investigation goal is still active.

@@ -43,8 +43,11 @@ export async function startNativeServer(
       "Request context runner missing from server bundle; rebuild the project",
     );
   const staticDir = resolve(options.projectDir, ".moonshine", PUBLIC_DIR);
+  const makeHandler = manifest.dataRequests
+    ? (await import("@tschk/moonshine-server/data-http")).createRequestHandler
+    : createRequestHandler;
   const server = createBunServer({
-    fetch: createRequestHandler({
+    fetch: makeHandler({
       manifest,
       modules: bundle.modules ?? {},
       renderer: bundle.renderer,

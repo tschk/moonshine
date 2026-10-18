@@ -190,6 +190,7 @@ async function runCoreAndAfters(
   chain: ModuleChainItem[],
   options: RequestHandlerOptions,
   route: RouteDefinition,
+  dataRequest: DataRequestPolicy | undefined,
 ): Promise<Response> {
   const method = ctx.request.method;
   const leaf = chain[chain.length - 1];
@@ -220,7 +221,9 @@ async function runCoreAndAfters(
     return value.data;
   };
   let actionResponse: Response | undefined;
-  if (method !== "GET" && method !== "HEAD") {
+  let actionData: unknown = null;
+  const writeMethod = method !== "GET" && method !== "HEAD";
+  if (writeMethod) {
     // Without an action there is nothing to serve a write method. Falling
     // through would run the loaders — reachable by any verb, so a
     // CSRF-shaped POST reaches loader side effects — and answer DELETE with
@@ -232,10 +235,13 @@ async function runCoreAndAfters(
       });
     }
 
+    ctx.signal.throwIfAborted();
     const actionResult = await callAction(leaf.module.action, ctx);
     if (isRouteData(actionResult)) actionInit = actionResult.init;
     if (actionResult instanceof Response) actionResponse = actionResult;
-    else if (actionResult !== undefined) {
+    else if (dataRequest) {
+      actionData = unpack(actionResult, false) ?? null;
+    } else if (actionResult !== undefined) {
       const result = unpack(actionResult, false);
       if (leaf.module.loader) ctx.data.__action = result;
       else ctx.data[leaf.key] = result;
@@ -243,9 +249,10 @@ async function runCoreAndAfters(
   }
 
   let loaderResponse: Response | undefined;
-  const loaderEntries = actionResponse
-    ? []
-    : chain.filter((c) => c.module.loader);
+  const loaderEntries =
+    actionResponse || (dataRequest && writeMethod)
+      ? []
+      : chain.filter((c) => c.module.loader);
   if (loaderEntries.length > 0) {
     ctx.signal.throwIfAborted();
     const resolvedResponses: Response[] = [];
@@ -288,10 +295,14 @@ async function runCoreAndAfters(
   if (!actionResponse) ctx.signal.throwIfAborted();
 
   let response: Response;
+  let envelope = false;
   if (actionResponse) {
     response = actionResponse;
   } else if (loaderResponse) {
     response = loaderResponse;
+  } else if (dataRequest) {
+    envelope = true;
+    response = dataRequest.encode(writeMethod ? actionData : ctx.data);
   } else if (route.mode === "api") {
     response = json(ctx.data);
   } else if (route.mode === "static" && options.staticDir) {
@@ -352,6 +363,8 @@ async function runCoreAndAfters(
     });
   }
 
+  if (envelope && dataRequest) response = dataRequest.finalize(response);
+
   for (let i = chain.length - 1; i >= 0; i--) {
     for (const after of chain[i].module.after ?? []) {
       const previous = response;
@@ -379,9 +392,10 @@ async function runBefores(
   chain: ModuleChainItem[],
   options: RequestHandlerOptions,
   route: RouteDefinition,
+  dataRequest: DataRequestPolicy | undefined,
 ): Promise<Response> {
   if (index >= befores.length) {
-    return runCoreAndAfters(ctx, chain, options, route);
+    return runCoreAndAfters(ctx, chain, options, route, dataRequest);
   }
 
   const mw = befores[index]!;
@@ -396,6 +410,7 @@ async function runBefores(
       chain,
       options,
       route,
+      dataRequest,
     ).then(
       (response) => {
         if (settled) discardReplacedResponse(response, retained);
@@ -427,8 +442,9 @@ async function runBefores(
   }
 }
 
-export function createRequestHandler(
+export function createPipelineHandler(
   options: RequestHandlerOptions,
+  policy?: DataRequestPolicy,
 ): (request: Request) => Promise<Response> {
   if (
     options.manifest?.requestContext &&
@@ -446,8 +462,10 @@ export function createRequestHandler(
     const url = new URL(request.url);
     const pathname = url.pathname.replace(/\/+$/, "") || "/";
     const method = request.method;
+    const dataRequest = policy?.matches(request) ? policy : undefined;
 
     if (
+      !dataRequest &&
       options.staticDir &&
       (method === "GET" || method === "HEAD") &&
       pathname !== "/"
@@ -494,7 +512,15 @@ export function createRequestHandler(
     try {
       const befores: Middleware[] = [];
       for (const c of chain) befores.push(...(c.module.before ?? []));
-      const response = await runBefores(ctx, 0, befores, chain, options, route);
+      const response = await runBefores(
+        ctx,
+        0,
+        befores,
+        chain,
+        options,
+        route,
+        dataRequest,
+      );
       return finalizeResponse(response, baseHeaders, method);
     } catch (error) {
       if (error instanceof Redirect) {
@@ -542,8 +568,8 @@ export function createRequestHandler(
     }
   };
   const requestScope = options.requestScope;
-  return requestScope
-    ? (request) => {
+  const scoped = requestScope
+    ? (request: Request) => {
         const responseHeaders = new Headers();
         return requestScope(
           request,
@@ -557,4 +583,21 @@ export function createRequestHandler(
         );
       }
     : handler;
+  return scoped;
+}
+
+/** Private extension seam: wire protocols stay outside the ordinary server entry. */
+export type DataRequestPolicy = {
+  matches(request: Request): boolean;
+  encode(data: unknown): Response;
+  finalize(response: Response): Response;
+};
+
+export function createRequestHandler(options: RequestHandlerOptions) {
+  if (options.dataRequests ?? options.manifest?.dataRequests) {
+    throw new Error(
+      "Route-data requests require @tschk/moonshine-server/data-http",
+    );
+  }
+  return createPipelineHandler(options);
 }

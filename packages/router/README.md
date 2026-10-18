@@ -212,3 +212,45 @@ consumer stays 3,084 raw / 1,343 gzip bytes; the whole form fixture is 60,836 gz
 bytes including React DOM and test controls. No host-router or timing comparison
 is claimed. Applications own form serialization, transport and validation;
 host `useSubmit`/`useNavigation` semantics and nested loader lifecycles remain open.
+
+## Optional HTTP route data
+
+`@tschk/moonshine-router/data-http` connects the data runtime to server route
+loaders/actions. Enable `dataRequests` in the server handler or your Bun/Node
+`moonshine.config.ts` first; see the [server protocol](../server/README.md#opt-in-route-data-responses).
+This entry imports no renderer, React, host router or server module.
+
+```ts
+import { createDataRouter } from "@tschk/moonshine-router/data";
+import { createRouteDataClient } from "@tschk/moonshine-router/data-http";
+import { decodePage } from "./validation"; // Your application validates unknown JSON.
+
+const client = createRouteDataClient(); // Uses the browser origin.
+const router = createDataRouter(async (context) =>
+  decodePage(await client.load(context)),
+);
+
+const result = await router.submit((context) =>
+  client.action(context, {
+    method: "POST",
+    body: new URLSearchParams({ title: "Updated" }),
+  }),
+);
+// result is unknown until your application validates it.
+```
+
+`load` returns the whole server loader-data map. `action` returns the action's
+JSON value; the existing router then performs one independent reload. A failed
+reload retains the successful action result. Bodyless protocol successes
+(204/205) return `null`. Applications own body encoding, authentication,
+authorization and payload validation. Opted-in loader/action results become
+client-visible data; return only the values intended for the client.
+
+Requests stay within the configured origin, carry the owning abort signal and
+use same-origin credentials/mode. Nonbrowser callers supply `origin` explicitly.
+Non-2xx responses are thrown as `Response` values for caller inspection; network
+and abort failures retain their errors. Redirects are rejected by fetch and are
+not converted into navigation. Explicit server `Response` values and error
+boundaries remain ordinary HTTP, not protocol envelopes. Aborting observation
+cannot roll back a server write; an uncertain outcome may need an explicit refresh.
+This does not implement host forms, fetchers, RSC or hydration.

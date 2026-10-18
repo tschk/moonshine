@@ -160,3 +160,55 @@ test("missing optional renderers explain the application dependency to install",
     await rm(root, { recursive: true, force: true });
   }
 }, 30_000);
+
+test("native and legacy previews select opt-in HTTP data transport", async () => {
+  const root = await mkdtemp(join(tmpdir(), "moonshine-preview-data-http-"));
+  try {
+    for (const renderer of ["native", "react"]) {
+      const project = join(root, renderer);
+      await app(project, renderer);
+      const manifestPath = join(project, ".moonshine/manifest.json");
+      const manifest = await Bun.file(manifestPath).json();
+      manifest.dataRequests = true;
+      await writeFile(manifestPath, JSON.stringify(manifest));
+      await writeFile(
+        join(project, ".moonshine/dist/server.js"),
+        `let value=0;
+export const modules={index:{loader:()=>value,action:async({request})=>{value=Number(await request.text());return {saved:value}}}};
+export const renderer={name:"native",render:async()=>new Response("native fixture"),prerender:async()=>""};`,
+      );
+      if (renderer === "react")
+        await fakeRenderer(project, "moonshine-react", "reactRenderer");
+      const preview = await startPreview({ projectDir: project });
+      try {
+        const headers = { "x-moonshine-data": "1" };
+        const load = () => fetch(preview.url, { headers });
+        expect(await (await load()).json()).toEqual({ data: { index: 0 } });
+        const saved = await fetch(preview.url, {
+          method: "POST",
+          headers,
+          body: "7",
+        });
+        expect(saved.headers.get("x-moonshine-data")).toBe("1");
+        expect(await saved.json()).toEqual({ data: { saved: 7 } });
+        expect(await (await load()).json()).toEqual({ data: { index: 7 } });
+        const denied = await fetch(preview.url, {
+          method: "POST",
+          body: "99",
+          headers: { ...headers, origin: "http://evil.test" },
+        });
+        expect(denied.status).toBe(403);
+        expect(await (await load()).json()).toEqual({ data: { index: 7 } });
+        const document = await fetch(preview.url);
+        expect(document.headers.get("vary")).toContain("x-moonshine-data");
+        expect(await document.text()).toBe(
+          renderer === "native" ? "native fixture" : "moonshine-react",
+        );
+      } finally {
+        await preview.stop();
+      }
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 30_000);

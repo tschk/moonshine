@@ -1,3 +1,5 @@
+import { normalizeRouteDataRequests } from "@tschk/moonshine-framework/data-request";
+import type { RouteDataRequests } from "@tschk/moonshine-framework/data-request";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   basename,
@@ -33,6 +35,8 @@ export type BuildOptions = {
   convention?: RouteConvention;
   renderer?: RendererName;
   requestContext?: boolean;
+  /** Enable the opt-in JSON route-data request protocol. */
+  dataRequests?: RouteDataRequests;
   mode?: RenderMode;
 };
 
@@ -154,9 +158,16 @@ export async function buildProject(
   );
   const outDir = resolve(options.outDir ?? join(projectDir, ".moonshine"));
   const runtime = options.runtime ?? "bun";
+  const dataRequests = normalizeRouteDataRequests(options.dataRequests);
   if (options.requestContext && !["bun", "node"].includes(runtime)) {
     throw new Error(
       "Request context currently supports only Bun and Node runtimes",
+    );
+  }
+
+  if (dataRequests && !["bun", "node"].includes(runtime)) {
+    throw new Error(
+      "Route data requests currently support only Bun and Node runtimes",
     );
   }
 
@@ -194,6 +205,11 @@ export async function buildProject(
     if (options.requestContext && (route.runtime ?? runtime) !== runtime) {
       throw new Error(
         "Request-context routes must match the configured server runtime",
+      );
+    }
+    if (dataRequests && (route.runtime ?? runtime) !== runtime) {
+      throw new Error(
+        "Data-request routes must match the configured server runtime",
       );
     }
     const facts = analyzeModule(route.file, undefined, rawRouteTexts[i]);
@@ -286,6 +302,7 @@ export async function buildProject(
     frameworkVersion: await resolveFrameworkVersion(),
     ...(options.renderer && { renderer: options.renderer }),
     ...(options.requestContext && { requestContext: true }),
+    ...(dataRequests && { dataRequests }),
     routes: buildRoutes.map((route) => ({
       ...route,
       file: toProjectRelative(projectDir, route.file),

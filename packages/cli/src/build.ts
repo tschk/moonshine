@@ -77,11 +77,18 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
     );
   }
 
+  if (config.dataRequests && unsupportedServerTarget) {
+    throw new Error(
+      "Route data requests support only matching Bun or Node deployment adapters/runtimes",
+    );
+  }
+
   const manifest = await buildProject({
     projectDir: resolvedDir,
     runtime,
     renderer: config.renderer,
     requestContext: config.requestContext,
+    dataRequests: config.dataRequests,
     mode: config.mode,
     programmatic: config.routes,
     ...(config.routesDir && {

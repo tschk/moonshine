@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./request": "./src/request.ts"
+    "./request": "./src/request.ts",
+    "./data-request": "./src/data-request.ts"
   },
   "files": [
     "src"

@@ -1,3 +1,4 @@
+import { normalizeRouteDataRequests } from "./data-request";
 import { copyFile, mkdir, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { DeploymentAdapter } from "./adapter";
@@ -109,6 +110,15 @@ export function validateRuntime(
   ) {
     throw new Error(
       "Request context supports only matching Bun or Node deployment adapters/runtimes",
+    );
+  }
+  if (
+    normalizeRouteDataRequests(manifest.dataRequests) &&
+    (!["bun", "node"].includes(adapter.name) ||
+      manifest.routes.some((route) => route.runtime !== adapter.name))
+  ) {
+    throw new Error(
+      "Route data requests support only matching Bun or Node deployment adapters/runtimes",
     );
   }
   const errors: string[] = [];
