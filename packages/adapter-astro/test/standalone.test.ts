@@ -138,12 +138,27 @@ function next(){reads++;return 0;}
 </pre><textarea>
   y
 </textarea><b>end</b> <i>space</i>\`);
-const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry','Page.astro','--out-dir','out'],{stdout:'pipe',stderr:'pipe'});
+await Bun.write('source/Punctuation.astro',\`---
+interface Props {enabled:boolean}
+const {enabled}=Astro.props;
+const items=['a','b'];
+---
+<section>{enabled && <p>Don't: really? a && b .map(x)</p>}{enabled ? <b title="a>b?:}">Note: it's fine?</b> : <q>No: why?</q>}<ul>{items.map(item => <li>{item}'s: ready?</li>)}</ul></section>\`);
+for(const [entry,out] of [['Page.astro','out'],['Punctuation.astro','punctuation-out']]){
+const built=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry',entry,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
 const [stdout,stderr,code]=await Promise.all([new Response(built.stdout).text(),new Response(built.stderr).text(),built.exited]);
 assert.equal(code,0,stdout+stderr);
+}
 await Bun.write('check.ts',\`import assert from 'node:assert/strict';
 import Page from './out/CrepusEmit.moonshine-ssr.ts';
+import Punctuation from './punctuation-out/CrepusEmit.moonshine-ssr.ts';
 import{h,renderToString}from'@tschk/moonshine-astro/ssr';
+for(const enabled of [true,false]){
+const html=renderToString(()=>h(Punctuation,{enabled}));
+assert.ok(html.includes(enabled?'<p>Don&#39;t: really? a &amp;&amp; b .map(x)</p>':'<q>No: why?</q>'),html);
+assert.ok(html.includes('<li>a&#39;s: ready?</li><li>b&#39;s: ready?</li>'),html);
+if(enabled)assert.ok(html.includes('title="a&gt;b?:}"'),html);
+}
 const newline=String.fromCharCode(10);
 const whitespace='<pre>'+newline+'  x'+newline+'</pre><textarea>'+newline+'  y'+newline+'</textarea><b>end</b> <i>space</i>';
 const expected='<section data-start="attribute">text<b>branch-child</b><strong data-value="prop">callback</strong><i data-row="row-attribute">row-child</i>0prefixprefix0<em>1:attribute|text|branch|branch-child|prop|probe|callback|row-attribute|row-child</em></section>'+whitespace;

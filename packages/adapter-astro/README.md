@@ -67,6 +67,7 @@ separators. These factories serialize initial newlines using literal HTML rules;
 the browser consumes the first newline after `pre`/`textarea`. Ordinary native
 DOM factories keep their existing textarea property-value behavior.
 
-Branch-text punctuation remains a parser limit. Attribute spreads, namespace/directive attributes,
+Conditional and mapped markup retains text punctuation, including apostrophes,
+colons, question marks and operator-like text. Attribute spreads, namespace/directive attributes,
 generic `Props`, and map callbacks with index/destructuring/block bodies are not
 yet supported. These parser limits remain work in Crepuscularity.
