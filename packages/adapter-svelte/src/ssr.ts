@@ -2,6 +2,7 @@
 export { createServerProp } from "./server-prop";
 export { afterRender, settle } from "@tschk/moonshine-dom/ssr";
 export { spreadServerProps } from "./spread-props";
+export { spreadServerEntries } from "./spread-element-server";
 export {
   setStoreValue,
   mutateServerStore,

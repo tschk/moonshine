@@ -71,6 +71,11 @@ checker alone does not establish independence.
 2. Extend authored component composition through Crepuscularity, including Astro
    slots and remaining Vue/Svelte source variants. Require actual DOM/SSR and
    public-type consumers; primitives alone do not prove source compatibility.
+   Local Svelte intrinsic forwarding now connects live component rest props to
+   ordinary static HTML elements, with ordered getter snapshots and owned event
+   updates. Five authored browser phases and repeated SSR match Svelte 5.57.1;
+   forms, namespace/dynamic elements, scoped CSS and directive combinations remain
+   gaps. The source compiler remains unpublished.
    Local `bind:open` now reaches the independent details helper, including store,
    keyed-row and imported-child cases. Props-less Vue setup and text/numeric
    `v-model` now compile locally, including supported modifiers and textarea.

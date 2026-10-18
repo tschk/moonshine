@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/dom.ts",
     "./dom": "./src/dom.ts",
+    "./attributes": "./src/attributes.ts",
     "./reactive": "./src/reactive.ts",
     "./component": "./src/component.ts",
     "./platform": "./src/platform.js",

@@ -324,3 +324,41 @@ await Bun.write('store-reference.ts',\`import{createStoreReference}from'@tschk/m
 const built=await Bun.build({entrypoints:['./store-reference.ts'],target:'browser',minify:true});assert.ok(built.success,String(built.logs));assert.ok(!(await built.outputs[0].text()).includes('Server children must be text or factory HTML'));
 `);
 });
+
+test.skipIf(!sourceCompiler)(
+  "authored intrinsic spreads preserve SSR getter order in isolated Bun and Node",
+  async () => {
+    const page = `<script lang="ts">
+import Slot from './Slot.svelte';
+let {attrs}=$props<{attrs:Record<string,unknown>}>();
+const trace=(globalThis as unknown as {spreadTrace:string[]}).spreadTrace;
+function read(label:string,value:string){trace.push(label);return value;}
+function layer(){trace.push('spread');return attrs;}
+</script><Slot><button data-before={read('before','b')} {...layer()} data-callback={()=>{throw Error('function data must not run')}} data-after={read('after','a')} onclick={()=>{throw Error('event must not run during render')}}>text</button></Slot>`;
+    const check = `import assert from 'node:assert/strict';
+import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
+import {h,renderToString} from '@tschk/moonshine-dom/ssr';
+assert.equal(typeof document,'undefined');
+for(let request=0;request<3;request++){
+ globalThis.spreadTrace=[];
+ const attrs={get title(){globalThis.spreadTrace.push('getter');return 'value'},class:['a',{b:true}],hidden:false,ref:'data',children:'attr'};
+ assert.equal(renderToString(()=>h(Page,{attrs})),'<aside><button data-before="b" title="value" class="a b" ref="data" children="attr" data-after="a">text</button></aside>');
+ assert.deepEqual(globalThis.spreadTrace,['before','spread','getter','after']);
+}`;
+    await standalone(`import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Page.svelte',${JSON.stringify(page)});
+await Bun.write('source/Slot.svelte','<script>let {children}=$props();</script><aside>{@render children?.()}</aside>');
+for(const [target,out]of[['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
+ const child=Bun.spawn([compiler,'web','build','--site','source','--entry','Page.svelte','--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
+ const [stdout,stderr,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);assert.equal(code,0,stdout+stderr);
+ const built=await Bun.build({entrypoints:[out+'/CrepusEmit.'+target+'.ts'],target:target==='moonshine-dom'?'browser':'node',minify:true,metafile:true});assert.ok(built.success,String(built.logs));
+ assert.ok(!Object.keys(built.metafile.inputs).some(path=>['svelte','solid-js','react','react-dom'].some(name=>path.includes('node_modules/'+name+'/'))||path.endsWith('.wasm')));
+}
+await Bun.write('check.ts',${JSON.stringify(check)});await import(process.cwd()+'/check.ts');
+const built=await Bun.build({entrypoints:['check.ts'],target:'node',minify:true,outdir:'dist'});assert.ok(built.success,String(built.logs));
+const child=Bun.spawn(['node','dist/check.js'],{stdout:'pipe',stderr:'pipe'});
+const [out,err,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);assert.equal(code,0,out+err);
+`);
+  },
+);

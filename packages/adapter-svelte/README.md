@@ -45,8 +45,40 @@ descriptors once per render pass. Getters remain lazy and read from the merged
 object; symbols and inherited properties are omitted. DOM and SSR spread helpers
 intentionally have different contracts. The native SFC gate verifies bounded component spread lowering, including
 call-expression caching, live rest props, explicit children and component
-references. Implicit body/legacy slots, element spreads and hydration remain
-unverified.
+references. Intrinsic forwarding has the separate bounded contract below.
+Implicit body/legacy slots and hydration remain unverified.
+
+### Native intrinsic attribute forwarding
+
+The local unpublished Crepuscularity compiler now lowers spreads on ordinary
+static HTML elements through independent Moonshine helpers. This includes a
+wrapper's live `$props()` rest object, multiple interspersed layers, removed keys,
+and named attributes that override or fall back when spread keys disappear.
+`installElementSpread` on `/runes` owns DOM updates and direct event listeners;
+`spreadServerEntries` on `/ssr` supplies explicit server attribute entries.
+Component prop spreads keep their existing contract.
+
+Each layer expression and enumerable getter runs once per update/render in
+source order, including overridden values. Function data is not invoked.
+Class values use the source class normalizer; spread style values use string
+coercion, not the native DOM factory's object-style API. Event handler replacement
+retains a stable listener; removal and owner disposal release it. Listeners are
+direct rather than Svelte's delegated events. Mixed-case event-like attribute
+strings are filtered consistently with native SSR, which is stricter than Svelte.
+DOM content-replacement keys reject before mutation. String-valued `ref` and
+`children` remain attributes and do not replace template children.
+
+Source admission still rejects spreads on input/select/option/textarea,
+dynamic or namespaced/custom elements, and combinations with bindings, actions,
+attachments, class/style directives or scoped CSS. Attachment symbols and
+autofocus behavior are not implemented by this helper. Hydration and arbitrary
+precompiled Svelte instructions remain unsupported.
+
+The authored wrapper matches Svelte 5.57.1 through five Chromium update phases,
+including two independent instances, attribute fallback, clicks, node/focus
+retention and disposal. Repeated SSR and isolated Bun/Node source tests verify
+getter order and attribute output without installing a host runtime. These checks do
+not establish complete source compatibility or a speed comparison.
 
 Lifecycle helpers require a live native owner. `onMount` runs untracked in a
 microtask after synchronous DOM insertion; a synchronous returned function is

@@ -1,6 +1,6 @@
 // https://html.spec.whatwg.org/multipage/indices.html#attributes-3
-const BOOLEAN = new Set(
-  "allowfullscreen alpha async autofocus autoplay checked controls default defer disabled formnovalidate headingreset inert ismap itemscope loop multiple muted nomodule novalidate open playsinline readonly required reversed selected shadowrootclonable shadowrootcustomelementregistry shadowrootdelegatesfocus shadowrootserializable".split(
+const BOOLEAN = /* @__PURE__ */ new Set(
+  /* @__PURE__ */ "allowfullscreen alpha async autofocus autoplay checked controls default defer disabled formnovalidate headingreset inert ismap itemscope loop multiple muted nomodule novalidate open playsinline readonly required reversed selected shadowrootclonable shadowrootcustomelementregistry shadowrootdelegatesfocus shadowrootserializable".split(
     " ",
   ),
 );
