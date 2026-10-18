@@ -108,7 +108,12 @@ export function createNodeHandler(
       closed = true;
       controller.abort();
     };
-    req.once("close", onClose);
+    // IncomingMessage also closes after a normal body read; only an
+    // incomplete message means the request was interrupted.
+    const onRequestClose = () => {
+      if (!req.complete) onClose();
+    };
+    req.once("close", onRequestClose);
     res.once("close", onClose);
 
     const headers = new Headers();
@@ -146,7 +151,7 @@ export function createNodeHandler(
       res.end(String(error));
       return;
     } finally {
-      req.off("close", onClose);
+      req.off("close", onRequestClose);
       res.off("close", onClose);
     }
 
