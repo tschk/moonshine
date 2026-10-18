@@ -283,3 +283,37 @@ test("component model events publish the value before observers and retain once 
   fire("update:modelValue", "disposed");
   expect(read()).toBe("again");
 });
+
+test("named model events keep distinct payloads and camelize kebab update keys", () => {
+  let fire!: Emit<{
+    "update:title": [string];
+    "update:count": [number];
+    "update:first-name": [string];
+  }>;
+  let stop!: () => void;
+  const seen: unknown[] = [];
+  createRoot((dispose) => {
+    stop = dispose;
+    const props = {
+      "onUpdate:title": (value: string) => seen.push(["title", value]),
+      "onUpdate:count": (value: number) => seen.push(["count", value]),
+      "onUpdate:firstName": (value: string) => seen.push(["name", value]),
+    };
+    createComponent(
+      () => {
+        fire = createEmitter(props);
+      },
+      props,
+      "dom",
+    );
+  });
+  fire("update:title", "next");
+  fire("update:count", 2);
+  fire("update:first-name", "n");
+  expect(seen).toEqual([
+    ["title", "next"],
+    ["count", 2],
+    ["name", "n"],
+  ]);
+  stop();
+});

@@ -24,3 +24,19 @@ const modelEmit = createEmitter<ModelEvents>(modelListeners);
 modelEmit("update:modelValue", "next");
 // @ts-expect-error model event payload types remain checked.
 modelEmit("update:modelValue", 1);
+
+type NamedModels = {
+  "update:title": [value: string];
+  "update:count": [value: number];
+  "update:first-name": [value: string];
+};
+const namedListeners: EventListeners<NamedModels> = {
+  "onUpdate:title": (value) => value.toUpperCase(),
+  "onUpdate:countOnce": (value) => value.toFixed(),
+  "onUpdate:firstName": (value) => value.toLowerCase(),
+};
+const namedEmit = createEmitter<NamedModels>(namedListeners);
+namedEmit("update:title", "next");
+namedEmit("update:count", 2);
+// @ts-expect-error named model payloads stay distinct.
+namedEmit("update:count", "wrong");

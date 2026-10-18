@@ -47,17 +47,18 @@ import SetChild from './SetChild.vue';
 import ModelChild from './ModelChild.vue';
 const selected=ref(new Set(['x']));
 const count=ref(2);
+const label=ref('label');
 const doubled=computed(()=>count.value*2);
 function increment(){count.value++;}
-</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected"/><ModelChild v-model="count"/><output>{{count}}</output></div></template>`;
+</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected"/><ModelChild v-model="count" v-model:label="label"/><output>{{count}}/{{label}}</output></div></template>`;
     const child = `<script setup>const label='<b>&';</script><template><p>{{label}}</p></template>`;
     const setChild = `<script setup lang="ts">const props=defineProps<{values:Set<string>}>();</script><template><em>{{props.values.size}}</em></template>`;
-    const modelChild = `<script setup lang="ts">const props=defineProps<{modelValue:number}>();const emit=defineEmits<{'update:modelValue':[number]}>();if(typeof document==='undefined')emit('update:modelValue',props.modelValue+1);</script><template><strong>{{props.modelValue}}</strong></template>`;
+    const modelChild = `<script setup lang="ts">const props=defineProps<{modelValue:number;label:string}>();const emit=defineEmits<{'update:modelValue':[number];'update:label':[string]}>();if(typeof document==='undefined'){emit('update:modelValue',props.modelValue+1);emit('update:label',props.label+'-ssr');}</script><template><strong>{{props.modelValue}}/{{props.label}}</strong></template>`;
     const check = `import assert from 'node:assert/strict';
 import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
 assert.equal(typeof document,'undefined');
-for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p>&lt;b&gt;&amp;</p><em>1</em><strong>2</strong><output>3</output></div>');
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p>&lt;b&gt;&amp;</p><em>1</em><strong>2/label</strong><output>3/label-ssr</output></div>');
 assert.equal(typeof document,'undefined');`;
     await standalone(`
 import assert from 'node:assert/strict';

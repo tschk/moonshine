@@ -69,8 +69,12 @@ checker alone does not establish independence.
    values and Array/Set behavior; thirteen SFC browser phases and repeated SSR
    compare against Vue 3.5.13. Default component models now lower through declared
    modelValue/update:modelValue props/events with source listener order; thirteen SFC browser phases and SSR
-   setup emits compare against Vue. Component-supplied options, named/multiple
-   models, model modifiers, defineModel, hydration and attrs fallthrough remain gaps.
+   setup emits compare against Vue. Static named/multiple component models now
+   compile locally with canonical identifier/kebab arguments, per-model listener
+   order and class/style normalization; fourteen browser phases and repeated SSR
+   setup emits match Vue. Compiler changes remain unpublished. Component-supplied
+   options, component model modifiers, defineModel, hydration and attrs fallthrough
+   remain gaps.
    Astro component prop spreads now compile locally with final class-list
    normalization; intrinsic HTML spreads and synchronous slot-presence queries
    remain useful additions to investigate.

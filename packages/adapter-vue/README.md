@@ -176,8 +176,11 @@ existing live props and event protocol, with no added runtime or dependencies.
 Explicit update listeners retain template attribute order relative to the setter;
 `.once` listeners preserve the distinct DOM/server policies. Readonly targets,
 conflicting explicit model props/listeners and missing child contracts reject.
-Named/multiple models, component-model modifiers and `defineModel` are still
-unsupported. This is source support, not Vue's compiled component ABI or hydration.
+Static named and multiple models also compile locally: identifier/kebab arguments
+normalize to canonical child prop names, each with a matching declared update
+event. Listener order is tracked separately for each model. Model props named
+`class` and `style` use the existing component normalizers. Dynamic arguments,
+component-model modifiers and `defineModel` remain unsupported. This is source support, not Vue's compiled component ABI or hydration.
 
 Thirteen authored parent/child browser phases compare both listener orders,
 `.once`, external parent updates, multiple instances and disposal against Vue
@@ -186,6 +189,13 @@ renders; both source and declaration consumers pass in tsc/tsgo, including inval
 prop and callback payload checks. The compared component fixture is 10,510 gzip
 bytes versus Vue's 21,104. No startup/runtime speed claim; compiler changes remain
 local and unpublished.
+
+The named-model fixture adds fourteen browser phases covering distinct payloads,
+kebab arguments, per-model listener order, `.once`, class/style normalization,
+multiple roots and disposal. Repeated Bun/minified Node SSR setup emits and both
+source/declaration type lanes pass. Its production browser bundle is 10,983 gzip
+bytes versus Vue 3.5.13's 21,335 for the same fixture; this is no timing claim.
+These compiler changes remain local and unpublished.
 
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection
