@@ -56,7 +56,8 @@ wrapper's live `$props()` rest object, multiple interspersed layers, removed key
 and named attributes that override or fall back when spread keys disappear.
 `installElementSpread` on `/runes` owns DOM updates and direct event listeners;
 `installBoundElementSpread` installs compiler-owned binding callbacks once between
-capture and ordinary listeners, without filtering spread-provided live values;
+capture and ordinary input/change listeners, without filtering spread-provided
+live values. Details toggle handlers precede their binding write;
 `spreadServerEntries` on `/ssr` supplies explicit server attribute entries.
 The local form-spread work adds `spreadServerElement` for input defaults and
 typed select/option identity; these form helpers require Moonshine 0.4.40 or newer.
@@ -84,7 +85,11 @@ checkbox `bind:checked`, select `bind:value`, and static file-input `bind:files`
 Authored input/checkbox/select/file
 fixtures match Svelte in Chromium and repeated SSR, including handler order and
 typed selections. File SSR preserves authored attributes without reading the
-bound model. Open/group binding combinations remain unsupported.
+bound model. The local compiler additionally admits spread `bind:open` on details. This
+requires the unreleased runtime ordering change after 0.4.40: existing toggle
+handlers run before the binding write; handlers removed and re-added follow
+ordinary listener registration order. Authored Chromium and six SSR renders
+cover this bounded path. Group binding combinations remain unsupported.
 
 Source admission still rejects spreads on title, dynamic or namespaced/custom
 elements, and combinations with actions,

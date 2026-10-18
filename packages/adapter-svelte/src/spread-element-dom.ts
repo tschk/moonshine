@@ -104,7 +104,7 @@ export function installElementSpread(
   installSpread(element, [], layers);
 }
 
-/** Compiler-owned bindings install once between capture and ordinary spread listeners. */
+/** Compiler-owned bindings install once; details toggle handlers precede binding writes. */
 export function installBoundElementSpread<T extends Element>(
   element: T,
   bindings: readonly ((element: T) => void)[],
@@ -124,6 +124,13 @@ function installSpread(
 ): void {
   install(() => {
     const scope = getOwner()!;
+    const bindAfterEvents = element.tagName === "DETAILS";
+    const bindAll = () =>
+      runWithOwner(scope, () =>
+        untrack(() => {
+          for (const bind of bindings) bind();
+        }),
+      );
     const applied = new Map<string, unknown>();
     const listeners = new Map<string, Listener>();
     let known: Set<string> | undefined;
@@ -298,12 +305,8 @@ function installSpread(
       for (const key of listeners.keys())
         if (typeof events.get(key) !== "function") release(key);
       for (const capturePhase of [true, false]) {
-        if (!capturePhase && initial && bindings.length)
-          runWithOwner(scope, () =>
-            untrack(() => {
-              for (const bind of bindings) bind();
-            }),
-          );
+        if (!capturePhase && initial && bindings.length && !bindAfterEvents)
+          bindAll();
         for (const [key, value] of events) {
           if (typeof value !== "function") continue;
           const eventType = key.slice(2);
@@ -333,6 +336,7 @@ function installSpread(
           element.addEventListener(type, listener.wrapper, { capture });
         }
       }
+      if (initial && bindings.length && bindAfterEvents) bindAll();
       initial = false;
     });
   });

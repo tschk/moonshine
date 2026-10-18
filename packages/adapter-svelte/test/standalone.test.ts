@@ -334,10 +334,11 @@ let {attrs}=$props<{attrs:Record<string,unknown>}>();
 const trace=(globalThis as unknown as {spreadTrace:string[]}).spreadTrace;
 const selected={id:1};
 let bound=$state('bound');
+let opened=$state(true);
 const holder={get files():FileList|null{throw Error('SSR file model read');},set files(value:FileList|null){void value;}};
 function read(label:string,value:string){trace.push(label);return value;}
 function layer(){trace.push('spread');return attrs;}
-</script><Slot><button data-before={read('before','b')} {...layer()} data-callback={()=>{throw Error('function data must not run')}} data-after={read('after','a')} onclick={()=>{throw Error('event must not run during render')}}>text</button><input {...{defaultValue:'seed',value:'live'}}/><input {...{value:'spread'}} bind:value={bound}/><input type="file" bind:files={holder.files} {...{files:'authored'}}/><select {...{value:selected}}><option {...{value:{id:1}}}>Different</option><option {...{value:selected}}>Same</option></select></Slot>`;
+</script><Slot><button data-before={read('before','b')} {...layer()} data-callback={()=>{throw Error('function data must not run')}} data-after={read('after','a')} onclick={()=>{throw Error('event must not run during render')}}>text</button><input {...{defaultValue:'seed',value:'live'}}/><input {...{value:'spread'}} bind:value={bound}/><input type="file" bind:files={holder.files} {...{files:'authored'}}/><select {...{value:selected}}><option {...{value:{id:1}}}>Different</option><option {...{value:selected}}>Same</option></select><details {...{open:false}} bind:open={opened}><summary>Title</summary>Body</details></Slot>`;
     const check = `import assert from 'node:assert/strict';
 import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
@@ -345,7 +346,7 @@ assert.equal(typeof document,'undefined');
 for(let request=0;request<3;request++){
  globalThis.spreadTrace=[];
  const attrs={get title(){globalThis.spreadTrace.push('getter');return 'value'},class:['a',{b:true}],hidden:false,ref:'data',children:'attr'};
- assert.equal(renderToString(()=>h(Page,{attrs})),'<aside><button data-before="b" title="value" class="a b" ref="data" children="attr" data-after="a">text</button><input value="live"><input value="bound"><input type="file" files="authored"><select><option value="[object Object]">Different</option><option value="[object Object]" selected="">Same</option></select></aside>');
+ assert.equal(renderToString(()=>h(Page,{attrs})),'<aside><button data-before="b" title="value" class="a b" ref="data" children="attr" data-after="a">text</button><input value="live"><input value="bound"><input type="file" files="authored"><select><option value="[object Object]">Different</option><option value="[object Object]" selected="">Same</option></select><details open=""><summary>Title</summary>Body</details></aside>');
  assert.deepEqual(globalThis.spreadTrace,['before','spread','getter','after']);
 }`;
     await standalone(`import assert from 'node:assert/strict';

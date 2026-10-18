@@ -604,3 +604,27 @@ test("select default applies to a matching option inserted after mounting", asyn
   expect(select.value).toBe("later");
   stop();
 });
+
+test("details spread toggle handlers precede the bound open write", async () => {
+  const { installBoundElementSpread } =
+    await import("../src/spread-element-dom");
+  const { bindOpen } = await import("../src/binding");
+  const details = document.createElement("details");
+  const [read, write] = createSignal<boolean | null>(false);
+  const seen: unknown[] = [];
+  let stop!: () => void;
+  createRoot((dispose) => {
+    stop = dispose;
+    withRuneScheduler(() =>
+      installBoundElementSpread(
+        details,
+        [(node) => bindOpen(node, read, write)],
+        { ontoggle: () => seen.push(read()) },
+      ),
+    );
+  });
+  details.open = true;
+  expect(seen).toEqual([false]);
+  expect(read()).toBe(true);
+  stop();
+});
