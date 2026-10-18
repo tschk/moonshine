@@ -1,3 +1,22 @@
+# Moonshine 0.4.31
+
+- Document and verify default component models compiled by local Crepuscularity
+  through Moonshine's existing typed props/emits. No runtime code or dependencies
+  were added. Children declare modelValue and update:modelValue explicitly.
+- Thirteen authored parent/child Chromium phases match Vue 3.5.13, including both
+  listener orders, once listeners, external writes and independent roots. Active
+  setup emits match repeated fresh Bun/minified Node SSR; declaration consumers
+  retain required prop and callback payload checks in both TypeScript lanes.
+- Core parser tests, 848 native library tests, focused compiler checks, Clippy,
+  full typechecks and the 856-module source gate pass. The local full SDK run has
+  16,395 passes and one unchanged kernel bundling timeout; that test passes alone
+  in 1.47 seconds under the same five-second deadline.
+- Signal kernel stays 4,041 raw bytes. This component fixture is 10,510 gzip bytes
+  versus Vue's 21,104; no startup/runtime speed claim.
+- Compiler changes and source-order metadata remain local/unpublished. Named and
+  multiple models, model modifiers, defineModel and hydration remain unsupported.
+  npm publication remains manual.
+
 # Moonshine 0.4.30
 
 - Add independent opt-in Vue single/multiple select models and typed option
