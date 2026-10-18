@@ -412,6 +412,15 @@ export function hAttributes(
   return intrinsic(tag, attributes, children, undefined, undefined, true);
 }
 
+/** Compiler-facing ordered explicit attributes; repeated names retain source order. */
+export function hAttributeEntries(
+  tag: string,
+  entries: ReadonlyArray<readonly [string, unknown]>,
+  ...children: SSRChild[]
+): HTML {
+  return intrinsic(tag, null, children, undefined, entries, true);
+}
+
 function intrinsic(
   tag: string,
   props: Record<string, unknown> | null,

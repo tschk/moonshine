@@ -189,3 +189,20 @@ assert.equal(nodeCode,0,nodeOut+nodeErr);
 `);
   },
 );
+
+test.skipIf(!sourceCompiler)(
+  "authored intrinsic spreads preserve ordered attributes and coercion in Bun and Node",
+  async () => {
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Page.astro',${JSON.stringify("---\nconst trace:string[]=[];\nconst spread=Object.create({inherited:'no'});\nObject.defineProperty(spread,'title',{enumerable:true,get(){trace.push('get-title');return {toString(){trace.push('coerce-title');return 'spread<&';}};}});\nObject.defineProperty(spread,'data-get',{enumerable:true,get(){trace.push('get-data');return 'once';}});\nObject.defineProperty(spread,Symbol('ignored'),{enumerable:true,get(){throw Error('symbol getter');}});\nfunction end(){trace.push('end');return 'end';}\nfunction child(){trace.push('child');return 'text';}\nfunction datum(){throw Error('function invoked');}\nObject.defineProperty(datum,'toString',{value:()=> 'function-data'});\nconst rows=[{title:'row-1'},{title:'row-2'}];\n---\n<main>\n<div data-case=\"ordered\" title=\"first\" {...spread} title-last={end()}>{child()}</div>\n<input data-case=\"form\" disabled=\"false\" {...{checked:false,required:'false',value:'<&'}} />\n<custom-input data-case=\"custom\" {...{disabled:false,popover:false,hidden:true}} />\n<div data-case=\"classes\" class=\"authored\" {...{class:'spread','class:list':['list'],style:{backgroundColor:'red','--accent':1}}} class:list={['end']} />\n<div data-case=\"function\" {...{title:datum,onClick:datum}} />\n{rows.map(row => <p data-case=\"row\" {...row}>{row.title}</p>)}\n<div data-case=\"nullish\" {...null} {...undefined} {...{title:Astro.props.title}} />\n<form data-case=\"reset\"><input data-case=\"editable\" {...{value:'seed',name:'draft'}} /><button type=\"reset\">Reset</button></form>\n<output data-case=\"trace\">{trace.join('|')}</output>\n</main>\n")});
+const child=Bun.spawn([compiler,'web','build','--emit','moonshine-ssr','--site','source','--entry','Page.astro','--out-dir','out'],{stdout:'pipe',stderr:'pipe'});
+const [output,error,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);assert.equal(code,0,output+error);
+await Bun.write('check.ts',${JSON.stringify("import assert from 'node:assert/strict';import Page from './out/CrepusEmit.moonshine-ssr.ts';import {h,renderToString} from '@tschk/moonshine-astro/ssr';for(const host of ['astro','react','react-dom','@tschk/crepuscularity-wasm'])assert.throws(()=>import.meta.resolve(host));for(let i=0;i<3;i++){const html=renderToString(()=>h(Page,{title:'request'}));assert.ok(html.includes('title=\"first\" title=\"spread&lt;&amp;\"'));assert.ok(html.includes('disabled=\"false\" required=\"\" value=\"&lt;&amp;\"'));assert.ok(html.includes('class=\"spread\" class=\"list\" style=\"background-color:red;--accent:1\" class=\"authored end\"'));assert.ok(html.includes('title=\"function-data\"'));assert.ok(html.includes('get-title|coerce-title|get-data|end|child'));assert.ok(!html.includes('onclick='));assert.ok(!html.includes('inherited='));assert.ok(html.includes('data-case=\"nullish\" title=\"request\"'));}assert.equal(typeof document,'undefined');")});
+for(const command of [['bun','--no-install','check.ts'],['bun','build','check.ts','--target=node','--minify','--outfile=check.mjs'],['node','check.mjs']]){
+ const proc=Bun.spawn(command,{stdout:'pipe',stderr:'pipe'});const [out,err,status]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);assert.equal(status,0,out+err);
+}
+`);
+  },
+);

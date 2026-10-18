@@ -73,16 +73,38 @@ work in child and attribute expressions, while quoted attribute braces stay lite
 Authored regex/division boundaries use Crepuscularity's existing JavaScript
 parser, including nested templates, attributes and JavaScript groups. Astro
 void tags stay in the markup frontend; no host runtime or parser enters the SDK.
-Intrinsic attribute spreads, namespace/directive attributes,
-generic `Props`, and map callbacks with index/destructuring/block bodies are not
-yet supported. These parser limits remain work in Crepuscularity.
+Namespace/directive attributes, generic `Props`, and map callbacks with
+index/destructuring/block bodies are not yet supported. These parser limits remain work in Crepuscularity.
 
 Local component prop spreads now preserve ordinary JavaScript override order,
 getter evaluation and own string/symbol keys. Forwarding `Astro.props` works
 through imported components; ordinary `children`/`slots` props remain separate
 from projected slots. Spread `class:list` normalizes against the final `class`
-after overrides. Nullish spreads contribute no props. Intrinsic HTML and slot
-outlet spreads remain rejected. Compiler lowering is local and unpublished.
+after overrides. Nullish spreads contribute no props. Slot outlet spreads remain
+rejected. Compiler lowering is local and unpublished.
+
+Local intrinsic spreads use ordered attribute segments rather than merged props.
+Own enumerable string getters run once, in order, with coercion before the next
+getter/expression; inherited and symbol keys are ignored. Function values stringify
+without invocation. Literal and dynamic boolean values retain their separate
+rules. Repeated attributes (including spread classes) remain separate; HTML parsing
+keeps the first. Authored `class` plus `class:list` combines at the directive position.
+The opt-in `/ssr` compiler helpers are `sourceAttribute`, `sourceSpread` and
+`sourceElement`; ordinary no-spread factories retain their existing path.
+
+Moonshine retains its server constraints: event attributes are filtered, invalid
+names throw, script/style elements and spread directives/namespaces reject.
+These differ from Astro's more permissive spread handling. Nullish spreads are
+empty; string/array index keys fail attribute-name validation. Raw-content-looking
+names remain escaped ordinary attributes, not HTML injection instructions.
+
+An authored fixture passes three fresh SSR requests in Bun and minified Node,
+plus Chromium parsing, input editing and form reset with no client script. Six
+parsed cases match actual Astro 7.4.0 attribute helpers, with event filtering
+recorded separately. The reference uses compiler 4.0.0 segment output and runtime
+helpers separately, not a complete host compilation/rendering comparison. The
+fixture is 5,860 gzip bytes; an ordinary no-spread control stays 12,844 raw bytes
+and changes from 4,902 to 4,903 gzip bytes. No host bundle or speed claim.
 
 Without prop spreads, combined `class` and `class:list` use the existing helper.
 The ordinary class evaluates first at the directive position. Empty HTML classes

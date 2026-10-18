@@ -89,8 +89,10 @@ checker alone does not establish independence.
    Astro component prop spreads now compile locally with final class-list
    normalization. Local synchronous Astro.slots.has calls now support dynamic
    names and native own-slot presence without evaluating content. Intrinsic HTML
-   spreads remain useful work; async slots, the slot bag and host Slots instance
-   quirks stay outside the native contract.
+   spreads now lower locally through ordered segments, retaining duplicate names,
+   once-only getters and static/dynamic value provenance. Native event filtering
+   and stricter name/directive validation differ from Astro. Async slots, the slot
+   bag and host Slots instance quirks stay outside the native contract.
 3. Design request/client identity transport before claiming hydration or Svelte
    `$props.id()` compatibility. Separate client/server counters do not satisfy
    matching hydrated IDs.

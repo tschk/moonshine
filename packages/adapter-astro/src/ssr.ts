@@ -3,6 +3,7 @@ export * from "@tschk/moonshine-dom/ssr";
 import {
   h as nativeH,
   hAttributes,
+  hAttributeEntries,
   defer,
   scopeSSRChild,
   type HTML,
@@ -68,7 +69,7 @@ function attribute(
   name: string,
   value: unknown,
   dynamic: boolean,
-): unknown {
+): string | undefined {
   if (value == null) return undefined;
   if (!dynamic && typeof value === "string") return value;
   const lower = name.toLowerCase();
@@ -180,4 +181,53 @@ export function h(
     ]),
   );
   return hAttributes(tag, attributes, ...children.map(sourceChild));
+}
+
+/** Encoded compiler-facing attribute; repeated names remain separate entries. */
+export type SourceAttribute = readonly [
+  name: string,
+  value: string | undefined,
+];
+
+/** Coerce at the authored position, before subsequent expressions or getters. */
+export function sourceAttribute(
+  tag: string,
+  name: string,
+  supplied: unknown,
+  dynamic = false,
+): SourceAttribute {
+  if (!/^[a-zA-Z_:][a-zA-Z0-9:_.-]*$/.test(name)) {
+    throw new TypeError("Invalid server attribute name");
+  }
+  if (name.includes(":") && name !== "class:list") {
+    throw new TypeError(
+      `Unsupported Astro spread directive or namespace: ${name}`,
+    );
+  }
+  const outputName =
+    name === "class:list" || name === "className" ? "class" : name;
+  const value = /^on/i.test(name)
+    ? undefined
+    : name === "class:list"
+      ? classList(supplied) || undefined
+      : attribute(tag, name, supplied, dynamic);
+  return [outputName, value];
+}
+
+/** Read and coerce own string keys in order, without invoking function data. */
+export function sourceSpread(tag: string, value: unknown): SourceAttribute[] {
+  if (value == null) return [];
+  const object = Object(value) as Record<string, unknown>;
+  return Object.keys(object).map((name) =>
+    sourceAttribute(tag, name, object[name], true),
+  );
+}
+
+/** Compiler-facing intrinsic with ordered, already captured source attributes. */
+export function sourceElement(
+  tag: string,
+  entries: ReadonlyArray<SourceAttribute>,
+  ...children: SSRChild[]
+): HTML {
+  return hAttributeEntries(tag, entries, ...children.map(sourceChild));
 }
