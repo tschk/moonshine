@@ -112,8 +112,32 @@ Pass this runtime to `MoonshineRouter` for React consumers. TanStack's
 `useRouter().invalidate()` delegates to it. Navigation-only runtimes reject that
 call rather than silently succeeding. TanStack loading state follows this runtime; loader failures stay in its data
 state when invalidating through the adapter. TanStack loader hooks, route
-registries, matches, SSR data seeding and hydration remain unsupported. This
+registries, matches, automatic SSR data transport and hydration remain unsupported. This
 entry adds no automatic data endpoint, server serialization or route cache.
+
+### Initial ready data
+
+Pass an explicit location-bound seed as the third argument to reuse data already
+loaded by the application, including server loader results:
+
+```ts
+const seed = { location: "/posts?sort=new", data: { title: "Latest posts" } };
+const router = createDataRouter(loadClientData, seed.location, seed);
+// The state is immediately ready; loadClientData has not run.
+await router.invalidate(); // Explicit reloads still run the client loader.
+```
+
+The seed location must exactly equal the runtime's canonical pathname plus
+query. A mismatched path or query discards the seed and starts the normal initial
+load; fragments are absent from that key. Falsy values and an explicitly typed
+`undefined` payload are valid ready data. Later navigation, invalidation,
+submission and disposal keep their ordinary behavior. Seeds are per runtime,
+with no global cache, expiry policy or automatic refresh.
+
+Applications choose the payload and own its transport and validation. When
+embedding it in HTML, use the existing server `serializeData` helper for HTML-safe
+JSON. This constructor does not read document scripts, serialize errors, infer
+nested loader matches or hydrate existing DOM.
 
 React applications can read the complete owning runtime state through the
 separate `@tschk/moonshine-router/data-react` entry:
@@ -137,6 +161,6 @@ navigation-only runtime rejects this hook. The hook returns the complete stable
 state snapshot, including retained data during same-location reloads and loader
 errors as values. Data is `unknown` and applications must narrow it before use.
 Subscriptions follow the owning runtime and stop when the component unmounts.
-SSR reads only that runtime's current snapshot; this does not seed or serialize
+SSR reads only that runtime's current snapshot; this does not extract or serialize
 server data, suspend rendering, select nested route matches, or add hydration.
 The renderer-neutral `/data` entry remains React-free.

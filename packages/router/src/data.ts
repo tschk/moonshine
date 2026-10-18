@@ -2,6 +2,7 @@ import { createSignal, type Signal } from "@tschk/moonshine";
 import { createMoonshineRouter, type MoonshineRouterInstance } from "./runtime";
 
 export type RouteDataContext = { location: string; signal: AbortSignal };
+export type RouteDataSeed<T> = { location: string; data: T };
 export type RouteDataState<T> = {
   location: string;
   status: "pending" | "ready" | "errored";
@@ -23,12 +24,15 @@ export type DataRouter<T> = Omit<
 export function createDataRouter<T>(
   load: (context: RouteDataContext) => T | Promise<T>,
   initialPath?: string,
+  initialData?: RouteDataSeed<T>,
 ): DataRouter<T> {
   const runtime = createMoonshineRouter(initialPath);
+  const location = runtime.location.peek();
+  const seed = initialData?.location === location ? initialData : undefined;
   const data = createSignal<RouteDataState<T>>({
-    location: runtime.location.peek(),
-    status: "pending",
-    data: undefined,
+    location,
+    status: seed ? "ready" : "pending",
+    data: seed?.data,
     error: undefined,
   });
   const submitting = createSignal(false);
@@ -113,7 +117,7 @@ export function createDataRouter<T>(
     cancelAction();
     void invalidate().catch(() => {});
   });
-  void invalidate().catch(() => {});
+  if (!seed) void invalidate().catch(() => {});
   return {
     ...runtime,
     data,
