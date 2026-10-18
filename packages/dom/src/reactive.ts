@@ -498,7 +498,8 @@ function computation<T>(
     const tracked = moonshineMemo(() =>
       invokeCallback(() => {
         if (scope.disposed) return;
-        untrack(() => clean(scope));
+        if (scope.children.size || scope.cleanups.length)
+          untrack(() => clean(scope));
         try {
           previous = runWithOwner(scope, () => fn(previous));
         } catch (error) {
@@ -590,7 +591,8 @@ export function createMemo<T>(
   const tracked = moonshineMemo(() =>
     invokeCallback(() => {
       if (!active() || scope.disposed) return current;
-      untrack(() => clean(scope));
+      if (scope.children.size || scope.cleanups.length)
+        untrack(() => clean(scope));
       let next: T;
       try {
         next = runWithOwner(scope, () => fn(current.value));

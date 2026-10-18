@@ -1073,3 +1073,34 @@ test("before-disposal may add after finalizers without reviving owners or skippi
     );
   expect(() => onAfterDispose(() => {})).toThrow("live native owner");
 });
+
+test("initially empty effects and memos still clean later work without tracking cleanup reads", () => {
+  for (const kind of ["effect", "memo"] as const) {
+    const [read, write] = createSignal(0);
+    const [other, setOther] = createSignal(0);
+    const values: number[] = [];
+    const cleaned: number[] = [];
+    const stop = createRoot((dispose) => {
+      const body = () => {
+        const value = read();
+        values.push(value);
+        if (value > 0)
+          onCleanup(() => {
+            other();
+            cleaned.push(value);
+          });
+        return value;
+      };
+      if (kind === "effect") createEffect(body);
+      else createMemo(body);
+      return dispose;
+    });
+    write(1);
+    write(2);
+    setOther(1);
+    expect(values).toEqual([0, 1, 2]);
+    expect(cleaned).toEqual([1]);
+    stop();
+    expect(cleaned).toEqual([1, 2]);
+  }
+});
