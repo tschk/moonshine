@@ -1,3 +1,23 @@
+# Moonshine 0.4.37
+
+- Add opt-in Astro SSR helpers for ordered intrinsic attribute spreads. Local
+  unpublished Crepuscularity lowering preserves literal/dynamic values, duplicate
+  attributes, once-only string-key getters, coercion order and helper hygiene.
+  Function data stringify without executing their bodies; symbols are ignored.
+- Keep server event filtering and strict name/directive validation. These differ
+  from Astro's permissive spread behavior. Slot-outlet spreads, async slots and
+  broader source syntax remain unsupported. No host runtime or dependency added.
+- Full SDK: 16,914 passing test executions, zero failures. Both typecheckers,
+  declaration consumers, 56 compiler tests, 848 native library tests, scoped
+  Clippy and the 856-module source gate pass. Broader Clippy still reports two
+  pre-existing warnings in an untouched Astro source test.
+- Repeated fresh Bun/Node SSR and Chromium parsing/edit/reset pass. Six parsed
+  cases match real Astro 7.4.0 attribute helpers; compiler 4.0.0 segment probes
+  are separate evidence, not a complete host compiler/render comparison.
+- The source fixture is 5,860 gzip bytes; no-spread control stays 12,844 raw bytes
+  and changes from 4,902 to 4,903 gzip bytes. Signal kernel stays 4,041 raw bytes.
+  No host bundle or speed claim. npm publication stays manual.
+
 # Moonshine 0.4.36
 
 - Add opt-in React `useRouteSubmit` and `useRouteSubmitting` hooks over the
