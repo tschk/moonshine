@@ -1,3 +1,19 @@
+# Moonshine 0.4.36
+
+- Add opt-in React `useRouteSubmit` and `useRouteSubmitting` hooks over the
+  independent data runtime. Action result types, pending state and provider
+  replacement follow the owning runtime without a host router dependency.
+- Preserve existing cancellation behavior: successful superseded writes
+  revalidate current data; failed reloads expose a data error while retaining
+  the successful action result. Applications own transport and serialization.
+- Focused tests, both typecheckers, public Bun/Node consumers and ten real HTTP
+  browser phases pass. The full local run recorded 16,834 passes, seven existing
+  timeouts and two follow-on child-process errors; all seven timeout checks
+  passed separately under their original deadlines.
+- The reader-only bundle stays 3,084 raw / 1,343 gzip bytes. No host-router size
+  or speed comparison is claimed. Host form/navigation contracts remain open.
+  npm publication remains manual.
+
 # Moonshine 0.4.35
 
 - Add native own-slot presence through the opt-in Astro sourceHasSlot helper.
