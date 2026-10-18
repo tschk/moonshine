@@ -1,3 +1,18 @@
+# Moonshine 0.4.26
+
+- Add opt-in Vue `./model` and `./model/ssr` factories with independent text
+  and numeric model behavior, IME composition, lazy/trim/number modifiers,
+  live attributes, listener ordering and owner cleanup. No new dependencies.
+- Local Crepus source lowering supports writable setup refs and reactive/ref
+  members on supported static input types and textarea. The compiler patch is
+  unpublished; this release does not add compiler distribution or hydration.
+- Verify 15 browser phases against Vue 3.5.13 and exact repeated SSR in fresh
+  Bun and minified Node. For this authored form fixture only, production gzip
+  is 9,006 bytes native versus 21,526 bytes Vue with Options API disabled.
+- Keep select, checkbox, radio, file and component models, dynamic types and
+  readonly/unknown targets unsupported. The signal kernel remains 4,041 raw
+  bytes. No speed claim; npm publication remains a separate manual operation.
+
 # Moonshine 0.4.25
 
 - Accept an explicit location-bound ready-data seed as the third argument to
