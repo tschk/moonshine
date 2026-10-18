@@ -1,3 +1,19 @@
+# Moonshine 0.4.41
+
+- Preserve details toggle-handler ordering in opt-in bound element spreads.
+  Existing handlers run before the open binding writes; removed/re-added handlers
+  follow ordinary listener registration order. Input/change ordering is unchanged.
+- Local unpublished Crepuscularity lowering now combines intrinsic spreads with
+  `bind:open`. Five authored Chromium phases and six fresh SSR renders match
+  Svelte 5.57.1; isolated Bun/minified Node source checks also pass. Group spread
+  bindings, actions/attachments with spreads, scoped CSS and hydration remain open.
+- Validation: 2,515 SDK tests pass with five optional skips; 868 source-gate modules,
+  930 native compiler regressions, both project typecheck lanes and scoped Clippy
+  pass. Feature CI passes on Linux/macOS and Dart. The signal kernel stays at
+  4,041 raw bytes; the state-only Svelte consumer stays at 6,569 raw bytes.
+  No new runtime dependencies or general performance claim. Source compiler
+  changes remain unpublished; npm publication stays manual.
+
 # Moonshine 0.4.40
 
 - Add opt-in native input/textarea/select/option spread forwarding, preserving

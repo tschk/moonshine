@@ -86,7 +86,7 @@ Authored input/checkbox/select/file
 fixtures match Svelte in Chromium and repeated SSR, including handler order and
 typed selections. File SSR preserves authored attributes without reading the
 bound model. The local compiler additionally admits spread `bind:open` on details. This
-requires the unreleased runtime ordering change after 0.4.40: existing toggle
+requires Moonshine 0.4.41 or newer: existing toggle
 handlers run before the binding write; handlers removed and re-added follow
 ordinary listener registration order. Authored Chromium and six SSR renders
 cover this bounded path. Group binding combinations remain unsupported.
