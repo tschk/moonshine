@@ -1,3 +1,24 @@
+# Moonshine 0.4.39
+
+- Add opt-in independent Svelte intrinsic spread helpers on `/runes` and `/ssr`.
+  Support ordered layers/getters, live rest forwarding, attribute removal and
+  stable owned event listeners without adding a host runtime dependency.
+- Local unpublished Crepuscularity lowering connects ordinary static HTML source
+  spreads to these helpers, including nested component bodies. Source checks
+  match Svelte 5.57.1 across wrapper updates, SSR getter ordering and entity
+  behavior. Forms, dynamic/namespaced elements, directive combinations, scoped
+  CSS, autofocus and hydration remain outside this forwarding contract.
+- Compiler checks: 848 native library tests, 73 authored source regressions,
+  four new spread tests and scoped Clippy pass. Two authored Chromium fixtures,
+  isolated Bun/Node consumers, public types and 425 pinned-Bun Svelte tests pass.
+  The final local SDK run has one Solid bridge timeout reproduced on the
+  committed baseline; other 2,504 tests pass.
+  Feature CI passes on Linux and macOS.
+- Keep the signal kernel at 4,041 raw bytes. The state-only Svelte control changes
+  from 6,566 raw / 2,729 gzip to 6,569 raw / 2,731 gzip bytes; unused spread
+  implementation is omitted. No runtime speed or host-size comparison claimed.
+  Compiler changes remain unpublished; npm publication stays manual.
+
 # Moonshine 0.4.38
 
 - Add opt-in native HTTP route loading/actions through router `/data-http` and
