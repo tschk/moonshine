@@ -1,3 +1,26 @@
+# Moonshine 0.4.35
+
+- Add native own-slot presence through the opt-in Astro sourceHasSlot helper.
+  Local unpublished Crepuscularity lowers ordinary Astro.slots.has calls with
+  dynamic names, nested props, hygienic helpers and arguments evaluated once.
+  Presence works without outlets and never initializes unused slot content.
+- Empty supplied slots count; missing/inherited names do not. Native own-slot
+  semantics differ from Astro Slots instance prototype/reserved-name quirks.
+  Async slot rendering, the slot bag, method extraction, computed/optional forms
+  and intrinsic spreads remain unsupported.
+- Full SDK run: 16,832 passing test executions, zero failures. Both typecheckers
+  pass 25 projects. Nine direct slot tests, four isolated consumer tests, source
+  and declaration consumers, 45 compiler tests, 848 native library tests,
+  owned-target Clippy and the 856-module source gate pass.
+- Six source cases pass repeated fresh Bun/minified Node SSR without host/parser
+  imports. The real Astro 7.4.0 Slots class and compiler 4.0.0 were checked
+  separately for presence values and emitted slot shapes. This is not a full
+  host-renderer comparison.
+- The native six-case fixture is 5,592 gzip bytes. A no-slot control bundle is
+  byte-identical before/after the helper; the signal kernel stays 4,041 raw bytes.
+  No host bundle or speed claim. Source compiler changes remain local/unpublished;
+  npm publication stays manual.
+
 # Moonshine 0.4.34
 
 - Add independent synchronous server resources on DOM `/resource/ssr` and Solid
