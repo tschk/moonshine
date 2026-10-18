@@ -1,3 +1,25 @@
+# Moonshine 0.4.40
+
+- Add opt-in native input/textarea/select/option spread forwarding, preserving
+  live values, reset defaults, typed selections and owned event listeners.
+  Bound spread callbacks install once between capture and ordinary handlers.
+  Form SSR uses the existing independent renderer and reads spread getters once.
+- Local unpublished Crepuscularity lowering supports these form spreads with
+  value, checked, select and file bindings. Authored Chromium and repeated SSR
+  fixtures match Svelte 5.57.1, including file-model non-reading on the server.
+  Open/group spread bindings, autofocus, scoped directives and hydration remain
+  unsupported. This is not a compiled Svelte ABI replacement.
+- Validation: 2,514 SDK tests pass (five optional skips), 868 source-gate modules,
+  929 native compiler regressions, strict generated types and isolated Bun/Node
+  source consumers pass. Both project typecheck lanes and scoped Clippy pass.
+  Feature CI passes on Linux and macOS.
+- Keep the signal kernel at 4,041 raw bytes and the state-only Svelte consumer at
+  6,569 raw bytes. No runtime dependencies are added. The reproducible
+  `scripts/benchmark-svelte-form-ssr.ts` comparison produces a smaller native
+  form SSR bundle but slower rendering than Svelte in the measured workload;
+  no general speed/size ranking is claimed. Source compiler changes remain
+  unpublished; npm publication stays manual.
+
 # Moonshine 0.4.39
 
 - Add opt-in independent Svelte intrinsic spread helpers on `/runes` and `/ssr`.
