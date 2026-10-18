@@ -1,3 +1,18 @@
+# Moonshine 0.4.21
+
+- Add opt-in `@tschk/moonshine-router/data` for client-safe loaders, cancellation,
+  latest-load invalidation, action revalidation and disposal, without React.
+- Connect TanStack invalidation and loading state to the owning data runtime.
+  Navigation-only invalidation now rejects instead of silently doing nothing.
+- Keep successful action results when follow-up loading fails. Successful writes
+  still refresh current data after navigation or submission supersession.
+- Verify real browser mutation/reload, cancellation, stale responses and disposal,
+  plus mounted loading consumers and isolated Bun/Node/type consumers.
+- No new dependencies. The signal core remains 4,041 bytes and the navigation-only
+  bundle is unchanged. No relative framework performance improvement is claimed.
+- Automatic server data endpoints, loader hooks, route caches, SSR data seeding,
+  hydration and full host compatibility remain unsupported.
+
 # Moonshine 0.4.20
 
 - Expose independent synchronous `createComputed` from the opt-in Solid entry.
