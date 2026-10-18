@@ -62,8 +62,7 @@ runtime views remain unsupported. Mutating an original raw Set bypasses notifica
 
 The local compiler accepts unshadowed global `Set<T>` prop values. Local `Set`
 bindings, including conservative checks in nested scopes, remain rejected until
-full type-resolution metadata is available. Checkbox/radio models are still
-unsupported. The existing authored counter fixture grows by 730 gzip bytes with
+full type-resolution metadata is available. The existing authored counter fixture grows by 730 gzip bytes with
 this support; the default signal kernel remains unchanged. No speed claim.
 
 ### Optional native watch errors
@@ -134,9 +133,23 @@ focused trimming, empty numeric strings and owner cleanup. Writable setup
 `ref`/`shallowRef` targets and member targets rooted in setup refs or `reactive`
 objects are supported. Input types must be static text, search, tel, url, email,
 password, number or range; textarea children and explicit value/defaultValue
-conflicts reject. Select, checkbox, radio, file and component models remain
-unsupported, as do dynamic types and readonly/unknown targets. Source lowering
+conflicts reject. Static checkbox/radio models also compile locally: scalar typed
+true/false values, loose array membership in click order, identity-based Sets,
+programmatic Set updates and listener cleanup use independent factories.
+Checked-model modifiers, select, file and component models remain unsupported,
+as do dynamic types and readonly/unknown targets. Source lowering
 is local and unpublished; this does not implement Vue directives or hydration.
+
+Checked models match eleven direct browser cases and thirteen authored SFC phases
+against Vue 3.5.13. Source SSR follows Vue's distinct root/nested policy: empty
+Sets are truthy on the server, while DOM Set membership is identity-based;
+nested scalar models use `true-value`, while root fallthrough SSR uses scalar
+truthiness. Explicit checked attributes remain meaningful. Repeated Bun and
+minified Node SSR compare all structure, attributes and text, ignoring only
+attribute order and equivalent checked-attribute spelling. This is mount/SSR
+support, without hydration. The existing counter bundle has no size change;
+the compared form workload is 9,957 gzip bytes native versus 21,855 for Vue.
+These are fixture sizes, without a startup or runtime speed claim.
 
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection

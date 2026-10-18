@@ -1,5 +1,6 @@
-/** Opt-in text model policy; independent of Vue directives and compiler ABI. */
+/** Opt-in form model policy; independent of Vue directives and compiler ABI. */
 import { h } from "@tschk/moonshine-dom/dom";
+import { equalModelValue } from "./model-equality";
 import {
   createRenderEffect,
   getOwner,
@@ -120,4 +121,89 @@ export function createTextModel(
   for (const key of Object.keys(props))
     if (key.startsWith("on")) attributes[key] = props[key];
   return h(tag, attributes) as HTMLInputElement | HTMLTextAreaElement;
+}
+
+/** Install after attributes; logical values retain their JavaScript types. */
+export function bindCheckedModel(
+  element: HTMLInputElement,
+  read: () => unknown,
+  write: (value: unknown) => void,
+  props: Record<string, unknown> = {},
+): void {
+  const owner = getOwner();
+  if (!owner || owner.disposed)
+    throw new Error("Checked models require a live native owner");
+  if (
+    !(element instanceof HTMLInputElement) ||
+    (element.type !== "checkbox" && element.type !== "radio")
+  )
+    throw new TypeError("Checked models require a checkbox or radio input");
+  if (typeof read !== "function" || typeof write !== "function")
+    throw new TypeError("Checked models require getter/setter functions");
+  const radio = element.type === "radio";
+  const checkedValue = (checked: boolean) => {
+    const key = checked ? "true-value" : "false-value";
+    return key in props ? props[key] : checked;
+  };
+  const change = () =>
+    untrack(() => {
+      const value = "value" in props ? props.value : element.value;
+      if (radio) {
+        write(value);
+        return;
+      }
+      const model = read();
+      const checked = element.checked;
+      if (Array.isArray(model)) {
+        const index = model.findIndex((entry) => equalModelValue(entry, value));
+        if (checked && index < 0) write([...model, value]);
+        else if (!checked && index >= 0) {
+          const next = model.slice();
+          next.splice(index, 1);
+          write(next);
+        }
+      } else if (model instanceof Set) {
+        const next = new Set(model);
+        if (checked) next.add(value);
+        else next.delete(value);
+        write(next);
+      } else write(checkedValue(checked));
+    });
+  element.addEventListener("change", change);
+  onCleanup(() => element.removeEventListener("change", change));
+  let previous: unknown;
+  createRenderEffect(() => {
+    const model = read();
+    const value = props.value;
+    const oldValue = previous;
+    previous = model;
+    if (radio) element.checked = equalModelValue(model, value);
+    else if (Array.isArray(model))
+      element.checked = model.some((entry) => equalModelValue(entry, value));
+    else if (model instanceof Set) element.checked = model.has(value);
+    else if (model !== oldValue)
+      element.checked = equalModelValue(model, checkedValue(true));
+  });
+}
+
+/** Compiler-facing checked input factory, with model handlers before user handlers. */
+export function createCheckedModel(
+  type: "checkbox" | "radio",
+  props: Record<string, unknown>,
+  read: () => unknown,
+  write: (value: unknown) => void,
+): HTMLInputElement {
+  const attributes: Record<string, unknown> = Object.create(null);
+  for (const key of Object.keys(props))
+    if (!key.startsWith("on") && key !== "checked" && key !== "value")
+      attributes[key] = () => props[key];
+  if (props.value != null) attributes.value = () => props.value;
+  attributes.type = type;
+  attributes.ref = (element: HTMLInputElement) => {
+    if ("checked" in props) element.checked = Boolean(props.checked);
+    bindCheckedModel(element, read, write, props);
+  };
+  for (const key of Object.keys(props))
+    if (key.startsWith("on")) attributes[key] = props[key];
+  return h("input", attributes) as HTMLInputElement;
 }

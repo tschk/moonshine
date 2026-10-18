@@ -1,7 +1,7 @@
 # Framework replacement status
 
 Audited against SDK 0.4.28 on 2026-10-18, with unpublished local Astro slots and prop spreads,
-Svelte details-binding, native Vue text models and Set-prop integration. This is a replacement boundary audit,
+Svelte details-binding, native Vue text/checked models and Set-prop integration. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
 signal-only; React and web capabilities remain opt-in.
@@ -62,9 +62,10 @@ checker alone does not establish independence.
    Local `bind:open` now reaches the independent details helper, including store,
    keyed-row and imported-child cases. Props-less Vue setup and text/numeric
    `v-model` now compile locally, including supported modifiers and textarea.
-   Vue select/checkbox/radio/component models and attrs fallthrough remain gaps.
-   Native Set tracking now covers the collection prerequisite for checkbox
-   models; the bindings themselves remain unimplemented.
+   Static checkbox/radio models now compile locally with array/Set/scalar behavior;
+   eleven direct and thirteen authored SFC browser phases match Vue 3.5.13.
+   Source SSR preserves the distinct root/nested checked policy.
+   Vue select/component models, checked modifiers and attrs fallthrough remain gaps.
    Astro component prop spreads now compile locally with final class-list
    normalization; intrinsic HTML spreads and synchronous slot-presence queries
    remain useful additions to investigate.
