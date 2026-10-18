@@ -1,3 +1,24 @@
+# Moonshine 0.4.42
+
+- Support spread attributes combined with `bind:group` on static checkbox and
+  radio inputs. Direct `setInputValue(input, value, notify = true)` and unbound
+  `installElementSpread` retain eager group-member reconciliation; bound spreads
+  (`installBoundElementSpread`) update input values with `notify = false` so
+  spread-only value updates do not invalidate the group member effect until the
+  group model or an authored dynamic `value={expr}` watched via
+  `createInputGroup.bind(input, watch)` updates.
+- Local unpublished Crepuscularity lowering admits `bind:group` with intrinsic
+  spreads on static `type="checkbox"` and `type="radio"` inputs, keeps change
+  handlers in the ordered spread layer dictionary, suppresses trailing synthetic
+  `defaultValue`/`defaultChecked` layers on spread inputs, and emits positioned
+  SSR `checked` spread layers only when an authored `value` attribute is present.
+- Validation: 2,517 SDK tests pass (with all five optional compiler-gated
+  standalone tests also passing when `MOONSHINE_CREPUS_COMPILER` is set); 868
+  source-gate modules, 10 authored Chromium differential phases, 3 multi-input
+  SSR comparisons, and both project typecheck lanes (`tsc` and `tsgo`) pass
+  against Svelte 5.57.1. The signal kernel stays at 4,041 raw bytes. Source
+  compiler changes remain local and unpublished; npm publication stays manual.
+
 # Moonshine 0.4.41
 
 - Preserve details toggle-handler ordering in opt-in bound element spreads.
