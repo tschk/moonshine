@@ -1,3 +1,19 @@
+# Moonshine 0.4.27
+
+- Preserve own enumerable string and symbol props in native Astro component
+  snapshots, and normalize final `class:list` values after prop overrides.
+  Caller props stay unchanged and projected slots retain their separate channel.
+- Local Crepus lowering now accepts ordered component prop spreads, including
+  `Astro.props`, nullish values, imported children and existing conditional/map
+  markup. The compiler patch remains local and unpublished.
+- Verify exact repeated Bun/minified Node SSR against Astro 7.4.0, including
+  getter/class-list timing, escaping, special keys, ordinary children/slots
+  props and request isolation. Both declaration consumer lanes pass.
+- Verify 2,311 SDK tests and the 856-module source gate. Intrinsic HTML and slot
+  outlet spreads, async rendering, islands and host compiler APIs remain
+  unsupported. No new dependencies; signal kernel remains 4,041 raw bytes.
+  No performance claim; npm publication remains manual.
+
 # Moonshine 0.4.26
 
 - Add opt-in Vue `./model` and `./model/ssr` factories with independent text

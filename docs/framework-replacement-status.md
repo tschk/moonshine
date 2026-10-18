@@ -1,6 +1,6 @@
 # Framework replacement status
 
-Audited against SDK 0.4.26 on 2026-10-18, with unpublished local Astro slots and prop spreads,
+Audited against SDK 0.4.27 on 2026-10-18, with unpublished local Astro slots and prop spreads,
 Svelte details-binding and native Vue text-model integration. This is a replacement boundary audit,
 not a claim of full framework compatibility. Source compiler improvements remain
 local and unpublished in Crepuscularity. The default Moonshine entry stays
