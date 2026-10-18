@@ -136,7 +136,7 @@ password, number or range; textarea children and explicit value/defaultValue
 conflicts reject. Static checkbox/radio models also compile locally: scalar typed
 true/false values, loose array membership in click order, identity-based Sets,
 programmatic Set updates and listener cleanup use independent factories.
-Checked-model modifiers, file and component models remain unsupported,
+Checked-model modifiers and file models remain unsupported,
 as do dynamic types and readonly/unknown targets. Source lowering
 is local and unpublished; this does not implement Vue directives or hydration.
 
@@ -164,12 +164,28 @@ policies intentionally differ, matching the compared Vue source behavior.
 
 The local Crepus compiler supplies the select/option factories and writable-target
 checks. Other select modifiers, nested selects, component-supplied options and
-non-option markup in selects reject. Hydration and component models remain
-unsupported. Eight direct Chromium cases, eleven source SSR cases, thirteen
-actual SFC browser phases, repeated fresh Bun/minified Node SSR and both source
+non-option markup in selects reject. Hydration remains unsupported. Eight direct
+Chromium cases, eleven source SSR cases, thirteen actual SFC browser phases, repeated fresh Bun/minified Node SSR and both source
 and declaration-consumer type lanes pass. The existing counter bundle stays
 unchanged. This select fixture is 11,722 gzip bytes versus Vue 3.5.13's 21,900;
 there is no startup/runtime speed claim. Compiler changes remain unpublished.
+
+Plain component `v-model` compiles locally when the imported Vue SFC child declares
+`modelValue` in typed props and `update:modelValue` in typed emits. It uses the
+existing live props and event protocol, with no added runtime or dependencies.
+Explicit update listeners retain template attribute order relative to the setter;
+`.once` listeners preserve the distinct DOM/server policies. Readonly targets,
+conflicting explicit model props/listeners and missing child contracts reject.
+Named/multiple models, component-model modifiers and `defineModel` are still
+unsupported. This is source support, not Vue's compiled component ABI or hydration.
+
+Thirteen authored parent/child browser phases compare both listener orders,
+`.once`, external parent updates, multiple instances and disposal against Vue
+3.5.13. Server setup emits are compared across repeated fresh Bun/minified Node
+renders; both source and declaration consumers pass in tsc/tsgo, including invalid
+prop and callback payload checks. The compared component fixture is 10,510 gzip
+bytes versus Vue's 21,104. No startup/runtime speed claim; compiler changes remain
+local and unpublished.
 
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection

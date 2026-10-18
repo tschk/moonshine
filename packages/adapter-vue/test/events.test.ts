@@ -247,3 +247,39 @@ test("listener getters keep their receiver and once lookup follows regular deliv
   expect(seen).toEqual(["get regular", "regular", "get once", "new"]);
   stop();
 });
+
+test("component model events publish the value before observers and retain once semantics", () => {
+  let fire!: Emit<{ "update:modelValue": [string] }>;
+  let stop!: () => void;
+  const [read, set] = createSignal("initial");
+  const seen: string[] = [];
+  createRoot((dispose) => {
+    stop = dispose;
+    const props: EventListeners<{ "update:modelValue": [string] }> = {
+      "onUpdate:modelValue": [
+        (value) => {
+          set(value);
+        },
+        () => {
+          seen.push(read());
+        },
+      ],
+      "onUpdate:modelValueOnce": () => {
+        seen.push("once:" + read());
+      },
+    };
+    createComponent(
+      () => {
+        fire = createEmitter(props);
+      },
+      props,
+      "dom",
+    );
+  });
+  fire("update:modelValue", "next");
+  fire("update:modelValue", "again");
+  expect(seen).toEqual(["next", "once:next", "again"]);
+  stop();
+  fire("update:modelValue", "disposed");
+  expect(read()).toBe("again");
+});

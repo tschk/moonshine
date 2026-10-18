@@ -67,8 +67,10 @@ checker alone does not establish independence.
    Source SSR preserves the distinct root/nested checked policy.
    Native select models now compile locally with inline options/optgroups, typed
    values and Array/Set behavior; thirteen SFC browser phases and repeated SSR
-   compare against Vue 3.5.13. Component-supplied options, component models,
-   checked modifiers, hydration and attrs fallthrough remain gaps.
+   compare against Vue 3.5.13. Default component models now lower through declared
+   modelValue/update:modelValue props/events with source listener order; thirteen SFC browser phases and SSR
+   setup emits compare against Vue. Component-supplied options, named/multiple
+   models, model modifiers, defineModel, hydration and attrs fallthrough remain gaps.
    Astro component prop spreads now compile locally with final class-list
    normalization; intrinsic HTML spreads and synchronous slot-presence queries
    remain useful additions to investigate.

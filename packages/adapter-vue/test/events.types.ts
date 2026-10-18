@@ -14,3 +14,13 @@ const listeners: EventListeners<Events> = {
   onItemChangeOnce: (amount) => amount.toFixed(),
 };
 void listeners;
+
+type ModelEvents = { "update:modelValue": [value: string] };
+const modelListeners: EventListeners<ModelEvents> = {
+  "onUpdate:modelValue": (value) => value.toUpperCase(),
+  "onUpdate:modelValueOnce": (value) => value.toLowerCase(),
+};
+const modelEmit = createEmitter<ModelEvents>(modelListeners);
+modelEmit("update:modelValue", "next");
+// @ts-expect-error model event payload types remain checked.
+modelEmit("update:modelValue", 1);
