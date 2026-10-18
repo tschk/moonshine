@@ -1,3 +1,15 @@
+# Moonshine 0.4.20
+
+- Expose independent synchronous `createComputed` from the opt-in Solid entry.
+  It reuses the native graph with previous-value, batching and cleanup behavior.
+- Extend the host-free consumer regression to exercise that public export.
+- Local Crepuscularity admits explicit Solid-source computed imports and improves
+  Astro regex/division, nested templates and combined class-list lowering.
+  These compiler changes remain unpublished; full SFC support, hydration,
+  async SSR and arbitrary host-compiled output remain unsupported.
+- No new dependencies. The default signal-only core remains 4,041 bytes;
+  no relative size or performance improvement is claimed.
+
 # Moonshine 0.4.19
 
 - Preserve literal HTML initial-newline behavior in opt-in Astro SSR textareas.
