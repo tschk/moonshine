@@ -166,7 +166,7 @@ export async function compileTemplates(
         entry.irVersion = ir.version;
       }
       if (entry.route === undefined) entry.generated = entry.component;
-    } catch (error) {
+    } catch (error: unknown) {
       if (
         entry.route !== undefined &&
         entry.generated &&
@@ -237,7 +237,7 @@ export default function Route({ params, data }: { params: Record<string, string>
       let existing: string | undefined;
       try {
         existing = await readFile(join(scan.projectDir, file), "utf8");
-      } catch (error) {
+      } catch (error: unknown) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
       const alreadyApplied = existing === contents;
