@@ -44,12 +44,13 @@ import {
 } from "@tschk/moonshine-angular";
 ```
 
-| Entry       | Provides                                                                                                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.`         | Native Angular signals, signal queries, DI (`inject`, `EnvironmentInjector`), async `resource`, RxJS-compatible `toObservable`/`toSignal`, signal bridges, and lazy native renderer  |
-| `./signals` | Host-free Angular signal primitives, signal inputs/models/outputs/queries, DI (`InjectionToken`, `Injector`, `EnvironmentInjector`, `inject`), `resource`, `toObservable`/`toSignal` |
-| `./core`    | Legacy Angular core re-exports                                                                                                                                                       |
-| `./common`  | Legacy Angular common re-exports                                                                                                                                                     |
+| Entry       | Provides                                                                                                                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`         | Native Angular signals, signal queries, DI (`inject`, `EnvironmentInjector`), async `resource`/`rxResource`/`httpResource`, `HttpClient`, `toObservable`/`toSignal`, bridges, and lazy SSR renderer        |
+| `./signals` | Host-free Angular signal primitives, signal inputs/models/outputs/queries, DI (`InjectionToken`, `Injector`, `EnvironmentInjector`, `inject`), `resource`/`rxResource`, `toObservable`/`toSignal`          |
+| `./http`    | Host-free `HttpClient`, `httpResource` (`.text`, `.blob`, `.arrayBuffer`), `HttpHeaders`, `HttpParams`, `HttpContext`, `HttpRequest`, `HttpResponse`, `provideHttpClient`, `withInterceptors`, `withFetch` |
+| `./core`    | Legacy Angular core re-exports                                                                                                                                                                             |
+| `./common`  | Legacy Angular common re-exports                                                                                                                                                                           |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install

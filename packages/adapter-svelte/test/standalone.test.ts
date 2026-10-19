@@ -222,6 +222,15 @@ const tw=new Tween(2,{duration:0});await tw.set(8);assert.equal(tw.current,8);
 const twStore=tweened(3,{duration:0});await twStore.set(9);assert.equal(get(twStore),9);
 const spStore=spring(4,{stiffness:1,damping:1});await spStore.set(12,{hard:true});assert.equal(get(spStore),12);
 assert.equal(typeof prefersReducedMotion.current,'boolean');
+const {createAttachmentKey,fromAction,isAttachmentKey}=await import('@tschk/moonshine-svelte/attachments');
+const {fade,fly,scale}=await import('@tschk/moonshine-svelte/transition');
+const {flip}=await import('@tschk/moonshine-svelte/animate');
+const attachKey=createAttachmentKey();assert.equal(isAttachmentKey(attachKey),true);
+let actionDestroyed=false;const stopAttach=fromAction(()=>({destroy(){actionDestroyed=true}}))({});stopAttach?.();assert.equal(actionDestroyed,true);
+assert.equal(fade({style:{opacity:'1'}},{duration:100}).css(0.5,0.5),'opacity: 0.5');
+assert.ok(fly({style:{opacity:'1',transform:'none'}},{x:20}).css(0.5,0.5).includes('translate(10px, 0px)'));
+assert.ok(scale({style:{opacity:'1',transform:'none'}},{start:0.5}).css(0.5,0.5).includes('scale(0.75)'));
+assert.ok(flip({style:{transform:'none'}},{from:{left:0,top:0,width:50,height:50},to:{left:10,top:20,width:50,height:50}}).css(0.5,0.5).includes('translate(-5px, -10px)'));
 `);
 });
 

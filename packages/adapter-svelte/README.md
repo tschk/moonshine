@@ -16,6 +16,9 @@ This requirement does not apply to the signal-only `@tschk/moonshine` core entry
 | `./svelte`            | lifecycle, `tick`, `settled`, `flushSync`, `untrack`, `getAbortSignal`, context, typed `createContext`, events                                               |
 | `./reactivity`        | independent `SvelteMap`, `SvelteSet`, `SvelteDate`, `SvelteURL`, `SvelteURLSearchParams`, `MediaQuery`, `ReactiveValue`, `createSubscriber`                  |
 | `./reactivity/window` | independent reactive `innerWidth`, `innerHeight`, `outerWidth`, `outerHeight`, `screenLeft`, `screenTop`, `scrollX`, `scrollY`, `online`, `devicePixelRatio` |
+| `./attachments`       | independent `createAttachmentKey`, `isAttachmentKey`, `fromAction`, and `Attachment`                                                                         |
+| `./transition`        | independent `fade`, `blur`, `fly`, `slide`, `scale`, `draw`, and `crossfade`                                                                                 |
+| `./animate`           | independent `flip` FLIP animation helper                                                                                                                     |
 | `./class`             | opt-in `classValue` and `classDirectives` for source classes                                                                                                 |
 | `./store`             | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore`                                                                 |
 

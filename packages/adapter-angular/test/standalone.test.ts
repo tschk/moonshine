@@ -129,6 +129,20 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     assert.deepEqual(renderPhases,['w:4','r:5']);
     areRef.destroy();
     root.assertNotInReactiveContext(function setupCheck(){});
+    const httpMod=await import('@tschk/moonshine-angular/http');
+    const hdrs=new httpMod.HttpHeaders({'X-Test':'ok'}).append('x-test','more');
+    assert.deepEqual(hdrs.getAll('X-TEST'),['ok','more']);
+    const prms=new httpMod.HttpParams({fromObject:{a:1,b:['x','y']}});
+    assert.equal(prms.toString(),'a=1&b=x&b=y');
+    const httpEnv=root.createEnvironmentInjector([
+      httpMod.provideHttpClient(
+        httpMod.withFetch(async(u)=>new Response(JSON.stringify({u:String(u)}),{status:200,headers:{'x-ok':'1'}})),
+        httpMod.withInterceptors([(req,next)=>next(req.clone({setParams:{i:'1'}}))])
+      )
+    ]);
+    const data=await httpEnv.get(httpMod.HttpClient).get('/ping');
+    assert.deepEqual(data,{u:'/ping?i=1'});
+    httpEnv.destroy();
     env.destroy();
     assert.equal(env.destroyed,true);
   `);

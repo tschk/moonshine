@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-svelte",
-  "version": "0.4.61",
+  "version": "0.4.62",
   "description": "Independent Svelte store and native lifecycle APIs with Moonshine signal bridges",
   "license": "ISC",
   "type": "module",
@@ -25,11 +25,14 @@
     "./mount": "./src/mount.ts",
     "./server-mount": "./src/server-mount.ts",
     "./const": "./src/const-derived.ts",
+    "./animate": "./src/animate.ts",
+    "./attachments": "./src/attachments.ts",
     "./easing": "./src/easing.ts",
     "./events": "./src/events.ts",
     "./motion": "./src/motion.ts",
     "./reactivity": "./src/reactivity.ts",
-    "./reactivity/window": "./src/reactivity-window.ts"
+    "./reactivity/window": "./src/reactivity-window.ts",
+    "./transition": "./src/transition.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "^0.4.48",

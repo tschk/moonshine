@@ -2698,7 +2698,7 @@ function ensureNuxtApp(store: NuxtScopeStore): NuxtApp {
       payload,
       versions: {
         nuxt: "3.15.0",
-        moonshine: "0.4.61",
+        moonshine: "0.4.62",
       },
       hooks,
       hook: hooks.hook,

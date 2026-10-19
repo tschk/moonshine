@@ -2389,6 +2389,10 @@ class NativeEnvironmentInjector extends EnvironmentInjector {
     provider: Exclude<Provider, Provider[] | EnvironmentProviders>,
   ): () => any {
     if (typeof provider === "function") {
+      const def = getInjectableDef(provider);
+      if (def) {
+        return () => runInInjectionContext(this, def.factory);
+      }
       return () =>
         runInInjectionContext(this, () => new (provider as Type<any>)());
     }
