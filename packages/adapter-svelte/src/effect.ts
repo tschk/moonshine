@@ -19,6 +19,11 @@ import { flushComponentReferences } from "@tschk/moonshine-dom/component-instanc
 import { holdHistory, releaseHistory, withHistoryCleanup } from "./history";
 import { notifyTrackableUnsubscribe } from "./store-demand";
 import { queueTickWork, removeTickWork } from "./tick-queue";
+import {
+  createAbortContext,
+  withAbortContext,
+  withoutAbortContext,
+} from "./abort-signal";
 
 const pending = new Set<() => void>();
 let scheduled = false,
@@ -146,15 +151,23 @@ export function createRuneEffect(fn: () => void | (() => void)): void {
     runWithOwner(owner, () =>
       createRoot((stop) => {
         const scope = getOwner();
-        stopRun = () => runWithOwner(scope, () => withHistoryCleanup(stop));
+        const abortCtx = createAbortContext();
+        onCleanup(() => abortCtx.abort());
+        stopRun = () => {
+          abortCtx.abort();
+          runWithOwner(scope, () => withHistoryCleanup(stop));
+        };
         dependencies = collectDeps(
           () => {
             try {
-              const cleanup = fn();
+              const cleanup = withAbortContext(abortCtx, fn);
               if (typeof cleanup === "function") {
                 if (getOwner()?.disposed)
-                  withHistoryCleanup(() => untrack(cleanup));
-                else onCleanup(cleanup);
+                  withHistoryCleanup(() =>
+                    untrack(() => withoutAbortContext(cleanup as () => void)),
+                  );
+                else
+                  onCleanup(() => withoutAbortContext(cleanup as () => void));
               }
             } catch (error) {
               failed = true;

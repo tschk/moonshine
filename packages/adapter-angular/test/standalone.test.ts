@@ -50,7 +50,7 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     import * as root from '@tschk/moonshine-angular';
     for(const name of ['@angular/core','@angular/common','astro','nuxt','vue','react','react-dom','@tschk/crepuscularity-wasm','@tschk/crepus-moonshine','@tschk/moonshine-framework'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
     const entry=process.cwd()+'/bridge.ts';
-    await Bun.write(entry,"export {createBridgedSignal, signal, computed, linkedSignal, effect, untracked, isSignal, isWritableSignal} from '@tschk/moonshine-angular';");
+    await Bun.write(entry,"export {createBridgedSignal, signal, computed, linkedSignal, effect, untracked, isSignal, isWritableSignal, toObservable, toSignal, resource} from '@tschk/moonshine-angular';");
     for(const target of ['browser','bun','node']){
       const built=await Bun.build({entrypoints:[entry],target,minify:true});
       assert.equal(built.success,true,String(built.logs));
@@ -72,6 +72,12 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     assert.equal(linked(),99);
     count.set(4);
     assert.equal(linked(),9);
+    const obs=root.toObservable(count);
+    const fromObs=root.toSignal(obs,{requireSync:true});
+    assert.equal(fromObs(),4);
+    const res=root.resource({request:()=>count(),defaultValue:0,loader:async({request})=>request*10});
+    assert.equal(res.status(),'loading');
+    res.destroy();
   `);
 });
 

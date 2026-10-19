@@ -98,8 +98,33 @@ export function createSubscriber(
           }
         }
       });
+      notifyTrackableUnsubscribe();
     }
   };
+}
+
+export class ReactiveValue<T> {
+  readonly #fn: () => T;
+  readonly #subscribe: () => void;
+
+  constructor(
+    fn: () => T,
+    onsubscribe: (update: () => void) => void | (() => void),
+  ) {
+    if (typeof fn !== "function") {
+      throw new TypeError("ReactiveValue requires a getter function");
+    }
+    if (typeof onsubscribe !== "function") {
+      throw new TypeError("ReactiveValue requires an onsubscribe function");
+    }
+    this.#fn = fn;
+    this.#subscribe = createSubscriber(onsubscribe);
+  }
+
+  get current(): T {
+    this.#subscribe();
+    return this.#fn();
+  }
 }
 
 const parenthesisRegex = /\(.+\)/;
@@ -113,21 +138,19 @@ const nonParenthesizedKeywords = new Set([
   "only",
 ]);
 
-export class MediaQuery {
-  readonly #fallback: boolean;
-  readonly #mql: MediaQueryList | null;
-  readonly #subscribe: () => void;
-
+export class MediaQuery extends ReactiveValue<boolean> {
   constructor(query: string, fallback?: boolean) {
-    this.#fallback = Boolean(fallback);
+    const fallbackValue = Boolean(fallback);
     if (
       isSSRRendering() ||
       peekComponentContext()?.mode === "ssr" ||
       typeof window === "undefined" ||
       typeof window.matchMedia !== "function"
     ) {
-      this.#mql = null;
-      this.#subscribe = () => {};
+      super(
+        () => fallbackValue,
+        () => {},
+      );
       return;
     }
     const finalQuery =
@@ -138,25 +161,18 @@ export class MediaQuery {
         ? query
         : `(${query})`;
     const mql = window.matchMedia(finalQuery);
-    this.#mql = mql;
-    this.#subscribe = createSubscriber((update) => {
-      mql.addEventListener("change", update);
-      return () => {
-        mql.removeEventListener("change", update);
-      };
-    });
-  }
-
-  get current(): boolean {
-    if (
-      !this.#mql ||
-      isSSRRendering() ||
-      peekComponentContext()?.mode === "ssr"
-    ) {
-      return this.#fallback;
-    }
-    this.#subscribe();
-    return this.#mql.matches;
+    super(
+      () =>
+        isSSRRendering() || peekComponentContext()?.mode === "ssr"
+          ? fallbackValue
+          : mql.matches,
+      (update) => {
+        mql.addEventListener("change", update);
+        return () => {
+          mql.removeEventListener("change", update);
+        };
+      },
+    );
   }
 }
 

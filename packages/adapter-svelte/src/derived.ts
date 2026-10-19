@@ -25,6 +25,11 @@ import {
   withHistoryMutation,
   type HistoryRead,
 } from "./history";
+import {
+  createAbortContext,
+  withAbortContext,
+  type AbortContext,
+} from "./abort-signal";
 
 export function createDerived<T>(fn: () => T): {
   get value(): T;
@@ -55,8 +60,10 @@ export function createDerived<T>(fn: () => T): {
   let overrideVersions = new Map<Trackable, number>();
   let override!: T, last!: T;
   let subscriptions = new Map<Trackable, () => void>();
+  let abortCtx: AbortContext | undefined;
   function invalidate(): void {
     if (disposed) return;
+    abortCtx?.abort();
     // Invalidating a committed override restores the previous computed inputs.
     // A same-flush assignment already recorded its earlier value, which wins.
     if (overridden) recordHistory(token, "override", undefined, undefined);
@@ -70,11 +77,16 @@ export function createDerived<T>(fn: () => T): {
     let next!: T,
       failed = false,
       failure: unknown;
+    abortCtx?.abort();
+    const runAbortCtx = createAbortContext();
+    abortCtx = runAbortCtx;
     const versions = new Map<Trackable, number>();
     const dependencies = collectDeps(
       () => {
         try {
-          const collected = collectHistoryReads(() => runWithOwner(owner, fn));
+          const collected = collectHistoryReads(() =>
+            runWithOwner(owner, () => withAbortContext(runAbortCtx, fn)),
+          );
           next = collected.value;
           reads = collected.reads;
         } catch (error) {
@@ -110,13 +122,18 @@ export function createDerived<T>(fn: () => T): {
       failed = true;
     }
     subscriptions = nextSubscriptions;
-    if (failed) throw failure;
+    if (failed) {
+      runAbortCtx.abort();
+      throw failure;
+    }
     if (
       dependencies.some(
         (dependency) => dependency.version !== versions.get(dependency),
       )
-    )
+    ) {
+      runAbortCtx.abort();
       throw new Error("Derived computations must not write their dependencies");
+    }
     // Pull validation can run before this dependency's queued notification.
     // Reset here too so optimistic siblings cannot expose a stale override.
     if (initialized) {
@@ -159,6 +176,7 @@ export function createDerived<T>(fn: () => T): {
   if (owner)
     onCleanup(() => {
       disposed = true;
+      abortCtx?.abort();
       for (const unsubscribe of subscriptions.values()) untrack(unsubscribe);
       subscriptions.clear();
     });
@@ -179,7 +197,14 @@ export function createDerived<T>(fn: () => T): {
             if (previous) return previous.value;
             if (initialized && !hasHistory(reads))
               return !recorded && overridden ? override : baseValue;
-            return runWithOwner(owner, () => withHistoryCleanup(fn));
+            const tempAbort = createAbortContext();
+            try {
+              return runWithOwner(owner, () =>
+                withHistoryCleanup(() => withAbortContext(tempAbort, fn)),
+              );
+            } finally {
+              tempAbort.abort();
+            }
           }),
         );
       if (disposed) {
@@ -194,11 +219,14 @@ export function createDerived<T>(fn: () => T): {
         );
         const versions = new Map<Trackable, number>();
         let next!: T;
+        const tempAbort = createAbortContext();
         try {
           const dependencies = untrack(() =>
             collectDeps(
               () => {
-                next = runWithOwner(owner, fn);
+                next = runWithOwner(owner, () =>
+                  withAbortContext(tempAbort, fn),
+                );
               },
               (dependency) => versions.set(dependency, dependency.version),
             ),
@@ -219,6 +247,8 @@ export function createDerived<T>(fn: () => T): {
           frozenFailure = true;
           frozenError = error;
           throw error;
+        } finally {
+          tempAbort.abort();
         }
       }
       if (

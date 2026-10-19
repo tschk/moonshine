@@ -25,7 +25,8 @@
     "./mount": "./src/mount.ts",
     "./server-mount": "./src/server-mount.ts",
     "./const": "./src/const-derived.ts",
-    "./reactivity": "./src/reactivity.ts"
+    "./reactivity": "./src/reactivity.ts",
+    "./reactivity/window": "./src/reactivity-window.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "^0.4.48",

@@ -509,3 +509,482 @@ export function createBridgedSignal<T>(
   }
   return fromMoonshineSignal(msCreateSignal(initial));
 }
+
+const ObservableSymbol: symbol =
+  (Symbol as { observable?: symbol }).observable ?? Symbol.for("observable");
+
+export interface Unsubscribable {
+  unsubscribe(): void;
+}
+
+export type SubscriptionCleanup = (() => void) | Unsubscribable | void;
+
+export interface Observer<T> {
+  next?: (value: T) => void;
+  error?: (err: unknown) => void;
+  complete?: () => void;
+}
+
+export interface Subscribable<T> {
+  subscribe(
+    observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
+    error?: (err: unknown) => void,
+    complete?: () => void,
+  ): SubscriptionCleanup;
+}
+
+export interface InteropObservable<T> extends Subscribable<T> {
+  subscribe(
+    observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
+    error?: (err: unknown) => void,
+    complete?: () => void,
+  ): Unsubscribable;
+}
+
+export interface ToSignalOptions<T> {
+  initialValue?: T;
+  requireSync?: boolean;
+  manualCleanup?: boolean;
+  rejectErrors?: boolean;
+  equal?: ValueEqualityFn<T>;
+}
+
+function resolveSubscribable<T>(
+  source: Subscribable<T> | InteropObservable<T>,
+): Subscribable<T> {
+  if (source !== null && typeof source === "object") {
+    if (typeof (source as Subscribable<T>).subscribe === "function") {
+      return source as Subscribable<T>;
+    }
+    const record = source as unknown as Record<
+      PropertyKey,
+      (() => Subscribable<T>) | undefined
+    >;
+    const symbolFactory = record[ObservableSymbol];
+    if (typeof symbolFactory === "function") {
+      const target = symbolFactory.call(source);
+      if (target && typeof target.subscribe === "function") {
+        return target;
+      }
+    }
+    const stringFactory = record["@@observable"];
+    if (typeof stringFactory === "function") {
+      const target = stringFactory.call(source);
+      if (target && typeof target.subscribe === "function") {
+        return target;
+      }
+    }
+  }
+  throw new TypeError("toSignal requires a Subscribable or Observable source");
+}
+
+/**
+ * Exposes an Angular `Signal<T>` as an RxJS-compatible `InteropObservable<T>`.
+ */
+export function toObservable<T>(source: Signal<T>): InteropObservable<T> {
+  if (typeof source !== "function") {
+    throw new TypeError("toObservable requires a signal function");
+  }
+  const observable: InteropObservable<T> & Record<PropertyKey, unknown> = {
+    subscribe(
+      observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
+      error?: (err: unknown) => void,
+      complete?: () => void,
+    ): Unsubscribable {
+      const observer: Observer<T> =
+        typeof observerOrNext === "function"
+          ? { next: observerOrNext, error, complete }
+          : {
+              next: observerOrNext?.next?.bind(observerOrNext),
+              error: (observerOrNext?.error ?? error)?.bind(observerOrNext),
+              complete: (observerOrNext?.complete ?? complete)?.bind(
+                observerOrNext,
+              ),
+            };
+      let closed = false;
+      const ref = effect(
+        () => {
+          if (closed) return;
+          let value: T;
+          try {
+            value = source();
+          } catch (err) {
+            closed = true;
+            untrack(() => observer.error?.(err));
+            ref?.destroy();
+            return;
+          }
+          untrack(() => observer.next?.(value));
+        },
+        { manualCleanup: true },
+      );
+      if (closed) {
+        ref.destroy();
+      }
+      return {
+        unsubscribe() {
+          if (closed) return;
+          closed = true;
+          ref.destroy();
+        },
+      };
+    },
+  };
+  observable[ObservableSymbol] = () => observable;
+  observable["@@observable"] = () => observable;
+  return observable;
+}
+
+/**
+ * Tracks an Observable or `Subscribable<T>` as a read-only Angular `Signal<T>`.
+ */
+export function toSignal<T>(
+  source: Subscribable<T> | InteropObservable<T>,
+  options: ToSignalOptions<T> & { requireSync: true },
+): Signal<T>;
+export function toSignal<T, U = undefined>(
+  source: Subscribable<T> | InteropObservable<T>,
+  options: ToSignalOptions<T | U> & { initialValue: U; requireSync?: false },
+): Signal<T | U>;
+export function toSignal<T>(
+  source: Subscribable<T> | InteropObservable<T>,
+  options?: ToSignalOptions<T | undefined> & {
+    initialValue?: undefined;
+    requireSync?: false;
+  },
+): Signal<T | undefined>;
+export function toSignal<T, U = undefined>(
+  source: Subscribable<T> | InteropObservable<T>,
+  options?: ToSignalOptions<T | U>,
+): Signal<T | U | undefined> {
+  const subscribable = resolveSubscribable(source);
+  const equal = options?.equal ?? Object.is;
+  type State =
+    | { kind: "value"; value: T | U | undefined }
+    | { kind: "error"; error: unknown };
+
+  const [readState, writeState] = createDomSignal<State>(
+    { kind: "value", value: options?.initialValue },
+    {
+      equals: (a, b) =>
+        a.kind === "value" &&
+        b.kind === "value" &&
+        equal(a.value as T | U, b.value as T | U),
+    },
+  );
+
+  let emittedSync = false;
+  const sub = subscribable.subscribe({
+    next(value) {
+      emittedSync = true;
+      writeState(() => ({ kind: "value", value }));
+    },
+    error(error) {
+      if (options?.rejectErrors) {
+        throw error;
+      }
+      emittedSync = true;
+      writeState(() => ({ kind: "error", error }));
+    },
+  });
+
+  const cleanup = () => {
+    if (typeof sub === "function") {
+      sub();
+    } else if (sub && typeof sub.unsubscribe === "function") {
+      sub.unsubscribe();
+    }
+  };
+
+  if (options?.requireSync && !emittedSync) {
+    cleanup();
+    throw new Error(
+      "toSignal() called with requireSync: true, but the observable did not emit synchronously",
+    );
+  }
+
+  if (!options?.manualCleanup && getOwner()) {
+    domOnCleanup(cleanup);
+  }
+
+  const read = (() => {
+    const state = readState();
+    if (state.kind === "error") {
+      throw state.error;
+    }
+    return state.value;
+  }) as Signal<T | U | undefined>;
+  signals.add(read);
+  return read;
+}
+
+export type ResourceStatus =
+  "idle" | "error" | "loading" | "reloading" | "resolved" | "local";
+
+export type AngularResourceStatus = ResourceStatus;
+
+export interface ResourceLoaderParams<R> {
+  request: Exclude<R, undefined>;
+  abortSignal: AbortSignal;
+  previous: {
+    status: ResourceStatus;
+  };
+}
+
+export type ResourceLoader<T, R> = (
+  params: ResourceLoaderParams<R>,
+) => PromiseLike<T>;
+
+export interface ResourceOptions<T, R = unknown> {
+  request?: () => R;
+  loader: ResourceLoader<T, R>;
+  defaultValue?: T;
+  equal?: ValueEqualityFn<T>;
+}
+
+export interface Resource<T> {
+  readonly value: Signal<T>;
+  readonly status: Signal<ResourceStatus>;
+  readonly error: Signal<unknown>;
+  readonly isLoading: Signal<boolean>;
+  hasValue(): this is Resource<Exclude<T, undefined>>;
+}
+
+export type AngularResource<T> = Resource<T>;
+
+export interface WritableResource<T> extends Resource<T> {
+  set(value: T): void;
+  update(updater: (value: T) => T): void;
+  asReadonly(): Resource<T>;
+  reload(): boolean;
+}
+
+export interface ResourceRef<T> extends WritableResource<T> {
+  destroy(): void;
+}
+
+/**
+ * Reactive async resource primitive compatible with Angular 19's `resource()` API.
+ */
+export function resource<T, R = unknown>(
+  options: ResourceOptions<T, R> & { defaultValue: NoInfer<T> },
+): ResourceRef<T>;
+export function resource<T, R = unknown>(
+  options: ResourceOptions<T, R>,
+): ResourceRef<T | undefined>;
+export function resource<T, R = unknown>(
+  options: ResourceOptions<T, R>,
+): ResourceRef<T | undefined> {
+  if (
+    typeof options !== "object" ||
+    options === null ||
+    typeof options.loader !== "function"
+  ) {
+    throw new TypeError("resource requires an options object with a loader");
+  }
+
+  const defaultValue = options.defaultValue;
+  const equal = options.equal ?? Object.is;
+  const valueSig = signal<T | undefined>(defaultValue, {
+    equal: (a, b) =>
+      a === undefined || b === undefined ? Object.is(a, b) : equal(a, b),
+  });
+  const statusSig = signal<ResourceStatus>("idle");
+  const errorSig = signal<unknown>(undefined);
+  const isLoadingSig = computed(() => {
+    const s = statusSig();
+    return s === "loading" || s === "reloading";
+  });
+
+  const requestFn: () => R = options.request ?? (() => true as unknown as R);
+
+  let currentAbort: AbortController | undefined;
+  let activeLoadId = 0;
+  let destroyed = false;
+
+  const abortPending = () => {
+    if (currentAbort) {
+      const controller = currentAbort;
+      currentAbort = undefined;
+      controller.abort();
+    }
+  };
+
+  const startLoad = (
+    req: Exclude<R, undefined>,
+    nextStatus: "loading" | "reloading",
+    previousStatus: ResourceStatus,
+  ) => {
+    abortPending();
+    const loadId = ++activeLoadId;
+    const controller = new AbortController();
+    currentAbort = controller;
+
+    untrack(() => {
+      batch(() => {
+        if (nextStatus === "loading") {
+          valueSig.set(defaultValue);
+        }
+        errorSig.set(undefined);
+        statusSig.set(nextStatus);
+      });
+    });
+
+    let promise: PromiseLike<T>;
+    try {
+      promise = untrack(() =>
+        options.loader({
+          request: req,
+          abortSignal: controller.signal,
+          previous: { status: previousStatus },
+        }),
+      );
+    } catch (err) {
+      if (!destroyed && loadId === activeLoadId && !controller.signal.aborted) {
+        currentAbort = undefined;
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(err);
+            statusSig.set("error");
+          });
+        });
+      }
+      return;
+    }
+
+    Promise.resolve(promise).then(
+      (resolved) => {
+        if (destroyed || loadId !== activeLoadId || controller.signal.aborted) {
+          return;
+        }
+        currentAbort = undefined;
+        batch(() => {
+          valueSig.set(resolved);
+          errorSig.set(undefined);
+          statusSig.set("resolved");
+        });
+      },
+      (err) => {
+        if (destroyed || loadId !== activeLoadId || controller.signal.aborted) {
+          return;
+        }
+        currentAbort = undefined;
+        batch(() => {
+          valueSig.set(defaultValue);
+          errorSig.set(err);
+          statusSig.set("error");
+        });
+      },
+    );
+  };
+
+  let lastRequest: R | undefined;
+  const watcher = effect(
+    () => {
+      if (destroyed) return;
+      const req = requestFn();
+      lastRequest = req;
+      const prevStatus = untracked(statusSig);
+      if (req === undefined) {
+        activeLoadId++;
+        abortPending();
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(undefined);
+            statusSig.set("idle");
+          });
+        });
+        return;
+      }
+      startLoad(req as Exclude<R, undefined>, "loading", prevStatus);
+    },
+    { manualCleanup: true },
+  );
+
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    activeLoadId++;
+    abortPending();
+    watcher.destroy();
+  };
+
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+
+  const hasValueMemo = computed(() => {
+    const s = statusSig();
+    const v = valueSig();
+    if (s === "error") return false;
+    if (s === "resolved" || s === "local" || s === "reloading") {
+      return v !== undefined;
+    }
+    return defaultValue !== undefined && v !== undefined;
+  });
+
+  const readonlyView: Resource<T | undefined> = {
+    value: valueSig.asReadonly(),
+    status: statusSig.asReadonly(),
+    error: errorSig.asReadonly(),
+    isLoading: isLoadingSig,
+    hasValue(): this is Resource<Exclude<T | undefined, undefined>> {
+      return hasValueMemo();
+    },
+  };
+
+  const ref: ResourceRef<T | undefined> = {
+    value: valueSig,
+    status: statusSig.asReadonly(),
+    error: errorSig.asReadonly(),
+    isLoading: isLoadingSig,
+    hasValue(): this is Resource<Exclude<T | undefined, undefined>> {
+      return hasValueMemo();
+    },
+    set(newValue: T | undefined) {
+      assertWritesAllowed();
+      activeLoadId++;
+      abortPending();
+      batch(() => {
+        valueSig.set(newValue);
+        errorSig.set(undefined);
+        statusSig.set("local");
+      });
+    },
+    update(updater: (value: T | undefined) => T | undefined) {
+      assertWritesAllowed();
+      const current = untracked(valueSig);
+      const next = untracked(() => updater(current));
+      ref.set(next);
+    },
+    asReadonly() {
+      return readonlyView;
+    },
+    reload(): boolean {
+      if (destroyed) return false;
+      const currentStatus = untracked(statusSig);
+      if (
+        currentStatus === "idle" ||
+        currentStatus === "loading" ||
+        currentStatus === "reloading"
+      ) {
+        return false;
+      }
+      const req = lastRequest ?? untracked(requestFn);
+      if (req === undefined) {
+        return false;
+      }
+      const nextStatus =
+        currentStatus === "resolved" || currentStatus === "local"
+          ? "reloading"
+          : "loading";
+      startLoad(req as Exclude<R, undefined>, nextStatus, currentStatus);
+      return true;
+    },
+    destroy,
+  };
+
+  return ref;
+}

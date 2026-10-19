@@ -31,6 +31,11 @@ import { flushComponentReferences } from "@tschk/moonshine-dom/component-instanc
 import { holdHistory, releaseHistory, withHistoryCleanup } from "./history";
 import { notifyTrackableUnsubscribe } from "./store-demand";
 import { queueTickWork, removeTickWork } from "./tick-queue";
+import {
+  createAbortContext,
+  withAbortContext,
+  withoutAbortContext,
+} from "./abort-signal";
 const runeConsumerKey = /* @__PURE__ */ Symbol("moonshine.svelte.consumer");
 const runeNodeKey = /* @__PURE__ */ Symbol("moonshine.svelte.node");
 type Node = {
@@ -341,7 +346,7 @@ function setupGroup<T>(
   const previous = current;
   current = group;
   try {
-    return fn();
+    return withoutAbortContext(fn);
   } finally {
     current = previous;
   }
@@ -446,7 +451,14 @@ function ownedJob(
     runWithOwner(owner, () =>
       createRoot((stop) => {
         const scope = getOwner()!;
-        stopRun = () => runWithOwner(scope, () => withHistoryCleanup(stop));
+        const abortCtx = phase === "pre" ? createAbortContext() : undefined;
+        if (abortCtx) {
+          onCleanup(() => abortCtx.abort());
+        }
+        stopRun = () => {
+          abortCtx?.abort();
+          runWithOwner(scope, () => withHistoryCleanup(stop));
+        };
         scope.context = new Map(scope.context);
         scope.context.set(renderSchedulerKey, carrier(job));
         const previous = current;
@@ -456,9 +468,11 @@ function ownedJob(
             found = collectDeps(
               () => {
                 try {
-                  const cleanup = fn();
+                  const cleanup = abortCtx
+                    ? withAbortContext(abortCtx, fn)
+                    : fn();
                   if (phase === "pre" && typeof cleanup === "function")
-                    onCleanup(cleanup as () => void);
+                    onCleanup(() => withoutAbortContext(cleanup as () => void));
                 } catch (e) {
                   failed = true;
                   failure = e;

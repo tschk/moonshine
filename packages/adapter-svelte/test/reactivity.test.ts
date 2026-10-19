@@ -6,6 +6,7 @@ import { createRoot } from "@tschk/moonshine-dom/reactive";
 import { withSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import {
   MediaQuery,
+  ReactiveValue,
   SvelteDate,
   SvelteMap,
   SvelteSet,
@@ -13,8 +14,14 @@ import {
   SvelteURLSearchParams,
   createSubscriber,
 } from "../src/reactivity";
-import { createDerived, createRuneEffect } from "../src/runes";
-import { tick } from "../src/svelte";
+import { createRunePreEffect, withRuneScheduler } from "../src/pre";
+import * as reactiveWindow from "../src/reactivity-window";
+import { createDerived, createRuneEffect, createState } from "../src/runes";
+import {
+  createServerDerived,
+  getAbortSignal as getServerAbortSignal,
+} from "../src/ssr";
+import { getAbortSignal, tick } from "../src/svelte";
 
 describe("@tschk/moonshine-svelte/reactivity", () => {
   test("createSubscriber starts on first tracked consumer, shares active subscription, and cleans up after disposal", async () => {
@@ -274,9 +281,260 @@ describe("@tschk/moonshine-svelte/reactivity", () => {
     expect(serialized.value).toBe("a=1&b=2");
   });
 
+  test("ReactiveValue wraps external state with createSubscriber lifecycle", async () => {
+    let current = "idle";
+    let notify: (() => void) | undefined;
+    let starts = 0;
+    let stops = 0;
+
+    const status = new ReactiveValue(
+      () => current,
+      (update) => {
+        starts++;
+        notify = update;
+        return () => {
+          stops++;
+        };
+      },
+    );
+
+    expect(status.current).toBe("idle");
+    expect(starts).toBe(0);
+
+    const seen: string[] = [];
+    let stop!: () => void;
+    createRoot((dispose) => {
+      stop = dispose;
+      const derived = createDerived(() => `status:${status.current}`);
+      createRuneEffect(() => {
+        seen.push(derived.value);
+      });
+    });
+    await tick();
+    expect(starts).toBe(1);
+    expect(seen).toEqual(["status:idle"]);
+
+    current = "active";
+    notify?.();
+    await tick();
+    expect(seen).toEqual(["status:idle", "status:active"]);
+
+    stop();
+    await Promise.resolve();
+    expect(stops).toBe(1);
+  });
+
+  test("svelte/reactivity/window tracks browser metrics and returns undefined on SSR", async () => {
+    const prevWindow = (globalThis as Record<string, unknown>).window;
+    const prevNavigator = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "navigator",
+    );
+    const listeners = new Map<string, Set<() => void>>();
+    const mediaListeners = new Set<() => void>();
+    let rafCallback: FrameRequestCallback | undefined;
+
+    const mockWindow = {
+      innerWidth: 1024,
+      innerHeight: 768,
+      outerWidth: 1100,
+      outerHeight: 820,
+      screenLeft: 10,
+      screenTop: 20,
+      scrollX: 0,
+      scrollY: 40,
+      devicePixelRatio: 1,
+      addEventListener(type: string, fn: () => void) {
+        let set = listeners.get(type);
+        if (!set) {
+          set = new Set();
+          listeners.set(type, set);
+        }
+        set.add(fn);
+      },
+      removeEventListener(type: string, fn: () => void) {
+        listeners.get(type)?.delete(fn);
+      },
+      requestAnimationFrame(cb: FrameRequestCallback) {
+        rafCallback = cb;
+        return 1;
+      },
+      cancelAnimationFrame() {
+        rafCallback = undefined;
+      },
+      matchMedia() {
+        return {
+          matches: true,
+          addEventListener(_type: string, fn: () => void) {
+            mediaListeners.add(fn);
+          },
+          removeEventListener(_type: string, fn: () => void) {
+            mediaListeners.delete(fn);
+          },
+        };
+      },
+    };
+
+    (globalThis as Record<string, unknown>).window = mockWindow;
+    Object.defineProperty(globalThis, "navigator", {
+      value: { onLine: true },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      withSSRRendering(() => {
+        expect(reactiveWindow.innerWidth.current).toBeUndefined();
+        expect(reactiveWindow.innerHeight.current).toBeUndefined();
+        expect(reactiveWindow.outerWidth.current).toBeUndefined();
+        expect(reactiveWindow.outerHeight.current).toBeUndefined();
+        expect(reactiveWindow.screenLeft.current).toBeUndefined();
+        expect(reactiveWindow.screenTop.current).toBeUndefined();
+        expect(reactiveWindow.scrollX.current).toBeUndefined();
+        expect(reactiveWindow.scrollY.current).toBeUndefined();
+        expect(reactiveWindow.online.current).toBeUndefined();
+        expect(reactiveWindow.devicePixelRatio.current).toBeUndefined();
+      });
+
+      const snapshots: string[] = [];
+      let stop!: () => void;
+      createRoot((dispose) => {
+        stop = dispose;
+        createRuneEffect(() => {
+          snapshots.push(
+            `${reactiveWindow.innerWidth.current}x${reactiveWindow.innerHeight.current}@${reactiveWindow.devicePixelRatio.current}|${reactiveWindow.scrollX.current},${reactiveWindow.scrollY.current}|${reactiveWindow.online.current}|${reactiveWindow.screenLeft.current},${reactiveWindow.screenTop.current}`,
+          );
+        });
+      });
+
+      await tick();
+      expect(snapshots.at(-1)).toBe("1024x768@1|0,40|true|10,20");
+
+      mockWindow.innerWidth = 1440;
+      mockWindow.innerHeight = 900;
+      for (const fn of Array.from(listeners.get("resize") ?? [])) fn();
+      await tick();
+      expect(snapshots.at(-1)).toBe("1440x900@1|0,40|true|10,20");
+
+      mockWindow.devicePixelRatio = 2;
+      for (const fn of Array.from(mediaListeners)) fn();
+      await tick();
+      expect(snapshots.at(-1)).toBe("1440x900@2|0,40|true|10,20");
+
+      mockWindow.scrollX = 12;
+      mockWindow.scrollY = 120;
+      for (const fn of Array.from(listeners.get("scroll") ?? [])) fn();
+      await tick();
+      expect(snapshots.at(-1)).toBe("1440x900@2|12,120|true|10,20");
+
+      Object.defineProperty(globalThis, "navigator", {
+        value: { onLine: false },
+        configurable: true,
+        writable: true,
+      });
+      for (const fn of Array.from(listeners.get("offline") ?? [])) fn();
+      await tick();
+      expect(snapshots.at(-1)).toBe("1440x900@2|12,120|false|10,20");
+
+      mockWindow.screenLeft = 50;
+      mockWindow.screenTop = 60;
+      rafCallback?.(16);
+      await tick();
+      expect(snapshots.at(-1)).toBe("1440x900@2|12,120|false|50,60");
+
+      stop();
+      await Promise.resolve();
+      expect(listeners.get("resize")?.size ?? 0).toBe(0);
+      expect(listeners.get("scroll")?.size ?? 0).toBe(0);
+    } finally {
+      if (prevWindow === undefined) {
+        delete (globalThis as Record<string, unknown>).window;
+      } else {
+        (globalThis as Record<string, unknown>).window = prevWindow;
+      }
+      if (prevNavigator) {
+        Object.defineProperty(globalThis, "navigator", prevNavigator);
+      }
+    }
+  });
+
+  test("getAbortSignal aborts on effect rerun/disposal and derived recomputation, and throws outside reactions", async () => {
+    expect(() => getAbortSignal()).toThrow(
+      /getAbortSignal\(\) can only be called inside an effect or derived/,
+    );
+
+    const step = createState(1);
+    const effectSignals: AbortSignal[] = [];
+    const preSignals: AbortSignal[] = [];
+
+    let stop!: () => void;
+    createRoot((dispose) => {
+      stop = dispose;
+      withRuneScheduler(() => {
+        createRunePreEffect(() => {
+          void step.value;
+          const sig = getAbortSignal();
+          expect(sig.aborted).toBe(false);
+          preSignals.push(sig);
+        });
+        createRuneEffect(() => {
+          void step.value;
+          const sig = getAbortSignal();
+          expect(sig.aborted).toBe(false);
+          effectSignals.push(sig);
+          return () => {
+            expect(sig.aborted).toBe(true);
+            expect(() => getAbortSignal()).toThrow();
+          };
+        });
+      });
+    });
+
+    await tick();
+    expect(preSignals.length).toBe(1);
+    expect(effectSignals.length).toBe(1);
+    expect(preSignals[0]!.aborted).toBe(false);
+    expect(effectSignals[0]!.aborted).toBe(false);
+
+    step.value = 2;
+    await tick();
+    expect(preSignals.length).toBe(2);
+    expect(effectSignals.length).toBe(2);
+    expect(preSignals[0]!.aborted).toBe(true);
+    expect(effectSignals[0]!.aborted).toBe(true);
+    expect(preSignals[1]!.aborted).toBe(false);
+    expect(effectSignals[1]!.aborted).toBe(false);
+
+    stop();
+    expect(preSignals[1]!.aborted).toBe(true);
+    expect(effectSignals[1]!.aborted).toBe(true);
+
+    const derivedSignals: AbortSignal[] = [];
+    const query = createState("a");
+    const derived = createDerived(() => {
+      const q = query.value;
+      const sig = getAbortSignal();
+      derivedSignals.push(sig);
+      return `${q}:${sig.aborted}`;
+    });
+    expect(derived.value).toBe("a:false");
+    expect(derivedSignals[0]!.aborted).toBe(false);
+
+    query.value = "b";
+    expect(derived.value).toBe("b:false");
+    expect(derivedSignals[0]!.aborted).toBe(true);
+    expect(derivedSignals[1]!.aborted).toBe(false);
+
+    const ssrDerived = createServerDerived(() => {
+      const sig = getServerAbortSignal();
+      return sig.aborted;
+    });
+    expect(ssrDerived.value).toBe(false);
+  });
+
   const compiler = process.env.MOONSHINE_CREPUS_COMPILER;
   test.skipIf(!compiler)(
-    "compiles and renders SFCs importing from svelte/reactivity",
+    "compiles and renders SFCs importing from svelte/reactivity, svelte/reactivity/window, and getAbortSignal",
     async () => {
       const root = join(import.meta.dir, "..");
       const dir = await mkdtemp(
@@ -296,13 +554,17 @@ describe("@tschk/moonshine-svelte/reactivity", () => {
         }
 
         const sfc = `<script lang="ts">
-import { SvelteMap, SvelteSet, SvelteURL, MediaQuery } from 'svelte/reactivity';
+import { getAbortSignal } from 'svelte';
+import { SvelteMap, SvelteSet, SvelteURL, MediaQuery, ReactiveValue } from 'svelte/reactivity';
+import { innerWidth } from 'svelte/reactivity/window';
 const map = new SvelteMap<string, number>([['count', 2]]);
 const set = new SvelteSet<string>(['ok']);
 const url = new SvelteURL('https://example.com/?tab=home');
 const mq = new MediaQuery('min-width: 768px', true);
+const custom = new ReactiveValue(() => 'rv', () => {});
+const aborted = $derived(getAbortSignal().aborted);
 </script>
-<p>{map.get('count')}:{set.has('ok')}:{url.searchParams.get('tab')}:{mq.current}</p>`;
+<p>{map.get('count')}:{set.has('ok')}:{url.searchParams.get('tab')}:{mq.current}:{custom.current}:{String(innerWidth.current)}:{aborted}</p>`;
 
         await Bun.write(join(dir, "source/App.svelte"), sfc);
 
@@ -338,7 +600,7 @@ const mq = new MediaQuery('min-width: 768px', true);
 import assert from 'node:assert/strict';
 import AppSSR from './ssr/CrepusEmit.moonshine-ssr.ts';
 import { h, renderToString } from '@tschk/moonshine-dom/ssr';
-assert.equal(renderToString(() => h(AppSSR, {})), '<p>2:true:home:true</p>');
+assert.equal(renderToString(() => h(AppSSR, {})), '<p>2:true:home:true:rv:undefined:false</p>');
 `;
         const child = Bun.spawn(
           [Bun.which("bun")!, "--no-install", "-e", verifyScript],

@@ -10,8 +10,12 @@ import {
   isSignal,
   isWritableSignal,
   linkedSignal,
+  resource,
   signal,
+  toObservable,
+  toSignal,
   untracked,
+  type Subscribable,
 } from "../src/signals";
 
 describe("@tschk/moonshine-angular signals", () => {
@@ -289,5 +293,144 @@ describe("@tschk/moonshine-angular signals", () => {
       ssrRef.destroy();
     });
     expect(ssrRuns).toBe(0);
+  });
+
+  test("toObservable and toSignal interoperate with synchronous and async streams, error propagation, and owner cleanup", () => {
+    const count = signal(5);
+    const obs = toObservable(count);
+    const values: number[] = [];
+
+    const sub = obs.subscribe((v) => values.push(v));
+    expect(values).toEqual([5]);
+
+    count.set(10);
+    expect(values).toEqual([5, 10]);
+
+    // Round-trip back via toSignal with requireSync: true
+    const mirrored = toSignal(obs, { requireSync: true });
+    expect(isSignal(mirrored)).toBe(true);
+    expect(isWritableSignal(mirrored)).toBe(false);
+    expect(mirrored()).toBe(10);
+
+    count.set(15);
+    expect(values).toEqual([5, 10, 15]);
+    expect(mirrored()).toBe(15);
+
+    sub.unsubscribe();
+    count.set(20);
+    expect(values).toEqual([5, 10, 15]);
+    expect(mirrored()).toBe(20);
+
+    // Async stream with initialValue, requireSync error, and owner disposal cleanup
+    let emitNext: ((v: string) => void) | undefined;
+    let emitError: ((e: unknown) => void) | undefined;
+    let unsubscribed = 0;
+    const asyncStream: Subscribable<string> = {
+      subscribe(observerOrNext) {
+        const obsObj =
+          typeof observerOrNext === "function"
+            ? { next: observerOrNext }
+            : (observerOrNext ?? {});
+        emitNext = (v) => obsObj.next?.(v);
+        emitError = (e) => obsObj.error?.(e);
+        return () => {
+          unsubscribed++;
+        };
+      },
+    };
+
+    expect(() => toSignal(asyncStream, { requireSync: true })).toThrow(
+      /requireSync: true/,
+    );
+    expect(unsubscribed).toBe(1);
+
+    let sig!: ReturnType<typeof toSignal<string, string>>;
+    createRoot((dispose) => {
+      sig = toSignal(asyncStream, { initialValue: "pending" });
+      expect(sig()).toBe("pending");
+      emitNext?.("ready");
+      expect(sig()).toBe("ready");
+      emitError?.(new Error("stream boom"));
+      expect(() => sig()).toThrow("stream boom");
+      dispose();
+    });
+    expect(unsubscribed).toBe(2);
+  });
+
+  test("resource manages idle, loading, resolved, reloading, local, error, and abortSignal lifecycle", async () => {
+    const userId = signal<number | undefined>(undefined);
+    const abortedRequests: number[] = [];
+    let resolvers = new Map<
+      number,
+      { resolve: (v: string) => void; reject: (e: unknown) => void }
+    >();
+
+    const userResource = resource({
+      request: () => userId(),
+      defaultValue: "anonymous",
+      loader: ({ request, abortSignal }) => {
+        abortSignal.addEventListener("abort", () => {
+          abortedRequests.push(request);
+        });
+        return new Promise<string>((resolve, reject) => {
+          resolvers.set(request, { resolve, reject });
+        });
+      },
+    });
+
+    // Starts idle because request() is undefined
+    expect(userResource.status()).toBe("idle");
+    expect(userResource.isLoading()).toBe(false);
+    expect(userResource.value()).toBe("anonymous");
+    expect(userResource.hasValue()).toBe(true);
+    expect(userResource.reload()).toBe(false);
+
+    // Transition to loading when request becomes 1
+    userId.set(1);
+    expect(userResource.status()).toBe("loading");
+    expect(userResource.isLoading()).toBe(true);
+    expect(userResource.value()).toBe("anonymous");
+
+    // Supersede request 1 with request 2 -> aborts request 1
+    userId.set(2);
+    expect(abortedRequests).toEqual([1]);
+    expect(userResource.status()).toBe("loading");
+
+    // Resolve request 2
+    resolvers.get(2)!.resolve("User #2");
+    await Promise.resolve();
+    expect(userResource.status()).toBe("resolved");
+    expect(userResource.isLoading()).toBe(false);
+    expect(userResource.value()).toBe("User #2");
+    expect(userResource.hasValue()).toBe(true);
+
+    // reload() transitions to "reloading" while preserving previous resolved value
+    expect(userResource.reload()).toBe(true);
+    expect(userResource.status()).toBe("reloading");
+    expect(userResource.isLoading()).toBe(true);
+    expect(userResource.value()).toBe("User #2");
+
+    resolvers.get(2)!.resolve("User #2 (reloaded)");
+    await Promise.resolve();
+    expect(userResource.status()).toBe("resolved");
+    expect(userResource.value()).toBe("User #2 (reloaded)");
+
+    // Local override via set / update transitions status to "local"
+    userResource.set("Local Override");
+    expect(userResource.status()).toBe("local");
+    expect(userResource.value()).toBe("Local Override");
+    userResource.update((v) => `${v}!`);
+    expect(userResource.value()).toBe("Local Override!");
+
+    // Error handling
+    userId.set(3);
+    resolvers.get(3)!.reject(new Error("network failure"));
+    await Promise.resolve();
+    expect(userResource.status()).toBe("error");
+    expect((userResource.error() as Error).message).toBe("network failure");
+    expect(userResource.hasValue()).toBe(false);
+    expect(userResource.value()).toBe("anonymous");
+
+    userResource.destroy();
   });
 });

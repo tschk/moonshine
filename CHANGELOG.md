@@ -1,3 +1,26 @@
+# Moonshine 0.4.54
+
+- Add native Svelte 5 `getAbortSignal()` in `@tschk/moonshine-svelte/svelte` and
+  `@tschk/moonshine-svelte/ssr`, `ReactiveValue<T>` in
+  `@tschk/moonshine-svelte/reactivity`, and reactive browser metrics
+  (`innerWidth`, `innerHeight`, `outerWidth`, `outerHeight`, `screenLeft`,
+  `screenTop`, `scrollX`, `scrollY`, `online`, and `devicePixelRatio`) in
+  `@tschk/moonshine-svelte/reactivity/window`, paired with local unpublished
+  Crepuscularity `'svelte'`, `'svelte/reactivity'`, and
+  `'svelte/reactivity/window'` import and re-export routing.
+- `getAbortSignal()` returns an `AbortSignal` that aborts when the enclosing
+  `$effect`, `$effect.pre`, `onMount`, `{@attach}`, or `$derived` reaction
+  re-runs or is disposed, and throws outside active reactions;
+  `svelte/reactivity/window` values track browser resize, scroll, online/offline,
+  `matchMedia` resolution, and `requestAnimationFrame` updates via
+  `ReactiveValue<T>` and evaluate to `undefined` on SSR.
+- Add native host-free Angular 19 `resource(options)` (`ResourceRef`,
+  `WritableResource`, `Resource`, `ResourceStatus`, `ResourceOptions`,
+  `ResourceLoader`, and `ResourceLoaderParams`) and RxJS-compatible
+  `toObservable(source)` / `toSignal(source, options?)` (`Subscribable`,
+  `InteropObservable`, `Observer`, `Unsubscribable`, and `ToSignalOptions`) in
+  `@tschk/moonshine-angular/signals` and `@tschk/moonshine-angular`.
+
 # Moonshine 0.4.53
 
 - Add native Svelte 5 `svelte/reactivity` classes and helpers (`createSubscriber`,

@@ -10,13 +10,14 @@ exports `crepusRenderer` with the framework's `Renderer` contract. The framework
 remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
 This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
 
-| Subpath        | Provides                                                                                                                   |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `.`            | signal bridges and lazy native SSR compatibility renderer                                                                  |
-| `./svelte`     | lifecycle, `tick`, `settled`, `flushSync`, `untrack`, context, typed `createContext`, events                               |
-| `./reactivity` | independent `SvelteMap`, `SvelteSet`, `SvelteDate`, `SvelteURL`, `SvelteURLSearchParams`, `MediaQuery`, `createSubscriber` |
-| `./class`      | opt-in `classValue` and `classDirectives` for source classes                                                               |
-| `./store`      | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore`                               |
+| Subpath               | Provides                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.`                   | signal bridges and lazy native SSR compatibility renderer                                                                                                    |
+| `./svelte`            | lifecycle, `tick`, `settled`, `flushSync`, `untrack`, `getAbortSignal`, context, typed `createContext`, events                                               |
+| `./reactivity`        | independent `SvelteMap`, `SvelteSet`, `SvelteDate`, `SvelteURL`, `SvelteURLSearchParams`, `MediaQuery`, `ReactiveValue`, `createSubscriber`                  |
+| `./reactivity/window` | independent reactive `innerWidth`, `innerHeight`, `outerWidth`, `outerHeight`, `screenLeft`, `screenTop`, `scrollX`, `scrollY`, `online`, `devicePixelRatio` |
+| `./class`             | opt-in `classValue` and `classDirectives` for source classes                                                                                                 |
+| `./store`             | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore`                                                                 |
 
 `classValue` flattens nested class arrays and includes truthy object keys. Empty
 results return `undefined`, omitting the DOM/SSR attribute. Top-level primitive
@@ -606,9 +607,20 @@ trees produce identical IDs without cross-request or cross-root counter drift,
 and throws when called outside active component/root initialization or during
 cleanup computations.
 
-`/svelte` and `/ssr` also export `settled()`, `flushSync(fn?)`, and `untrack(fn)`
-(with `settled` routed alongside `tick` from `'svelte'` in the local Crepus
-compiler). `flushSync(fn?)` executes an optional callback and synchronously drains
-all queued native rune work (`drainTickWork()`), while `settled()` awaits queued
-rune flushes in a loop until all chained rune effects settle (`hasPendingTickWork()`
-is false).
+`/svelte` and `/ssr` also export `settled()`, `flushSync(fn?)`, `untrack(fn)`, and
+`getAbortSignal()` (with `settled` and `getAbortSignal` routed alongside `tick`
+from `'svelte'` in the local Crepus compiler). `flushSync(fn?)` executes an
+optional callback and synchronously drains all queued native rune work
+(`drainTickWork()`), while `settled()` awaits queued rune flushes in a loop until
+all chained rune effects settle (`hasPendingTickWork()` is false).
+`getAbortSignal()` returns an `AbortSignal` that aborts when the enclosing
+`$effect`, `$effect.pre`, `onMount`, `{@attach}`, or `$derived` reaction re-runs
+or is disposed, and throws when called outside an active effect or derived
+computation.
+
+`/reactivity` exports `ReactiveValue<T>` alongside `createSubscriber`,
+`MediaQuery`, `SvelteDate`, `SvelteMap`, `SvelteSet`, `SvelteURL`, and
+`SvelteURLSearchParams`, while `/reactivity/window` exports reactive browser
+metrics (`innerWidth`, `innerHeight`, `outerWidth`, `outerHeight`, `screenLeft`,
+`screenTop`, `scrollX`, `scrollY`, `online`, and `devicePixelRatio`) backed by
+`ReactiveValue` and returning `undefined` on SSR.

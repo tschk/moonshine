@@ -1,6 +1,7 @@
 /** Compiler-facing server bindings; use explicit native SSR factories. */
 export { createServerProp } from "./server-prop";
 export { propsId } from "./prop-id";
+export { getAbortSignal } from "./abort-signal";
 export { afterRender, settle, untrack } from "@tschk/moonshine-dom/ssr";
 export { spreadServerProps } from "./spread-props";
 export {
@@ -15,6 +16,11 @@ export {
 
 import { isSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import { peekComponentContext } from "@tschk/moonshine-dom/component";
+import {
+  createAbortContext,
+  withAbortContext,
+  type AbortContext,
+} from "./abort-signal";
 
 /** Server tick resolves without flushing another renderer's pending work. */
 export async function tick(): Promise<void> {}
@@ -42,17 +48,30 @@ export function createServerDerived<T>(
 ): { value: T } {
   let ready = false;
   let cached!: T, updated: T | undefined;
+  let abortCtx: AbortContext | undefined;
+  const evaluate = (): T => {
+    abortCtx?.abort();
+    const runAbortCtx = createAbortContext();
+    abortCtx = runAbortCtx;
+    try {
+      return withAbortContext(runAbortCtx, compute);
+    } catch (error) {
+      runAbortCtx.abort();
+      throw error;
+    }
+  };
   return {
     get value() {
       if (updated != null) return updated;
-      if (!cache) return compute();
+      if (!cache) return evaluate();
       if (!ready) {
-        cached = compute();
+        cached = evaluate();
         ready = true;
       }
       return cached;
     },
     set value(value: T) {
+      abortCtx?.abort();
       updated = value;
     },
   };

@@ -30,6 +30,7 @@ import {
   untrack,
 } from "@tschk/moonshine-dom/reactive";
 export { untrack };
+export { getAbortSignal } from "./abort-signal";
 
 function componentOwner(hook: string) {
   assertNotCleanupComputation();
