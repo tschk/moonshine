@@ -94,8 +94,8 @@ export function island<P>(
         {
           type: "application/json",
           "data-moonshine-island-props": id,
+          dangerouslySetInnerHTML: { __html: serializeIslandProps(props) },
         },
-        serializeIslandProps(props),
       ),
     );
   };
