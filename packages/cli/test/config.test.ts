@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig, findConfig, defineConfig } from "../src/config";
 
-const tmp = mkdtempSync(join(tmpdir(), "moonshine-config-"));
+const tmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-config-")));
 const validConfigPath = join(tmp, "moonshine.config.ts");
 const stringConfigPath = join(tmp, "string-config.ts");
 const nullConfigPath = join(tmp, "null-config.ts");
@@ -43,8 +43,32 @@ describe("findConfig", () => {
     expect(findConfig(tmp)).toBe(validConfigPath);
   });
 
+  test("finds js config if ts config does not exist", () => {
+    const jsTmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-js-config-")));
+    const jsConfigPath = join(jsTmp, "moonshine.config.js");
+    writeFileSync(jsConfigPath, `export default { adapter: "node" };\n`);
+    try {
+      expect(findConfig(jsTmp)).toBe(jsConfigPath);
+    } finally {
+      if (existsSync(jsTmp)) rmSync(jsTmp, { recursive: true, force: true });
+    }
+  });
+
+  test("returns ts config over js config if both exist", () => {
+    const bothTmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-both-config-")));
+    const tsConfigPath = join(bothTmp, "moonshine.config.ts");
+    const jsConfigPath = join(bothTmp, "moonshine.config.js");
+    writeFileSync(tsConfigPath, `export default { adapter: "bun" };\n`);
+    writeFileSync(jsConfigPath, `export default { adapter: "node" };\n`);
+    try {
+      expect(findConfig(bothTmp)).toBe(tsConfigPath);
+    } finally {
+      if (existsSync(bothTmp)) rmSync(bothTmp, { recursive: true, force: true });
+    }
+  });
+
   test("returns undefined if no config exists", () => {
-    const emptyTmp = mkdtempSync(join(tmpdir(), "moonshine-empty-"));
+    const emptyTmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-empty-")));
     try {
       expect(findConfig(emptyTmp)).toBeUndefined();
     } finally {
