@@ -114,6 +114,36 @@ for(const source of ['<script>let open=$state(false);</script><div bind:open/>',
   },
 );
 
+test.skipIf(!sourceCompiler)(
+  "authored SvelteKit $app/state, $app/stores, $app/navigation, $app/paths and @sveltejs/kit compile and render in SSR",
+  async () => {
+    const kitPage = `<script lang="ts">
+import { page as pageState } from '$app/state';
+import { page as pageStore } from '$app/stores';
+import { goto } from '$app/navigation';
+import { resolveRoute } from '$app/paths';
+import { VERSION } from '@sveltejs/kit';
+const href = resolveRoute('/posts/[slug]', { slug: 'intro' });
+</script><a {href} onclick={() => goto(href)}>{pageState.url.pathname}|{$pageStore.params.slug ?? 'none'}|{VERSION}</a>`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/KitPage.svelte',${JSON.stringify(kitPage)});
+for(const [target,out] of [['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
+ const proc=Bun.spawn([compiler,'web','build','--site','source','--entry','KitPage.svelte','--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
+ const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+ assert.equal(code,0,stdout+stderr);
+}
+const {setKitPage,version}=await import('@tschk/moonshine-svelte/navigation');
+const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
+const {default:KitPage}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+setKitPage({url:'http://localhost/posts/intro',params:{slug:'intro'}});
+const html=renderToString(()=>h(KitPage,{}));
+assert.equal(html,'<a href="/posts/intro">/posts/intro|intro|'+version+'</a>');
+`);
+  },
+);
+
 test("stores, bridges and owner lifecycle work without host or optional packages", async () => {
   const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
   expect(Object.keys(pkg.dependencies)).toEqual([
@@ -237,6 +267,17 @@ const srvOut=serverRender(p=>h('div',{id:serverPropsId()},p.text),{props:{text:'
 assert.equal(srvOut.body,'<div id="p-s-0">ok</div>');assert.equal(srvOut.html,srvOut.body);assert.equal(srvOut.head,'');
 let onceCount=0;const fnOnce=once(preventDefault(()=>{onceCount++}));let prevented=false;fnOnce({preventDefault(){prevented=true}});fnOnce({preventDefault(){}});assert.equal(onceCount,1);assert.equal(prevented,true);
 let hSum=0;handlers(n=>{hSum+=n},null,n=>{hSum+=n*2})(3);assert.equal(hSum,9);
+const {page,goto,setKitPage,resolveRoute}=await import('@tschk/moonshine-svelte/navigation');
+const {error:kitError,isHttpError,fail,isActionFailure,json:kitJson}=await import('@tschk/moonshine-svelte/kit');
+setKitPage({url:'http://localhost/items/5',params:{id:'5'}});
+assert.equal(page.url.pathname,'/items/5');
+assert.equal(resolveRoute('/items/[id]',{id:'5'}),'/items/5');
+await goto('/items/6');
+assert.equal(page.url.pathname,'/items/6');
+assert.equal(isActionFailure(fail(400,{bad:true})),true);
+let httpErr;try{kitError(403,'Forbidden')}catch(e){httpErr=e}
+assert.equal(isHttpError(httpErr,403),true);
+assert.equal((await kitJson({ok:1}).json()).ok,1);
 `);
 });
 

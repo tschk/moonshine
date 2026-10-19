@@ -158,6 +158,15 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     assert.equal(act.paramsSignal().id,'42');
     assert.equal(act.queryParamsSignal().sort,'asc');
     assert.equal(act.titleSignal(),'Item 42');
+    const platformMod=await import('@tschk/moonshine-angular/platform');
+    const titleSvc=routerEnv.get(platformMod.Title);
+    titleSvc.setTitle('Standalone Angular');
+    assert.equal(titleSvc.getTitle(),'Standalone Angular');
+    const ts=routerEnv.get(platformMod.TransferState);
+    const key=platformMod.makeStateKey<number>('count');
+    ts.set(key,99);
+    assert.equal(ts.get(key,0),99);
+    assert.equal(new platformMod.TitleCasePipe().transform('hello world'),'Hello World');
     routerEnv.destroy();
     httpEnv.destroy();
     env.destroy();

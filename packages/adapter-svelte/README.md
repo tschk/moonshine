@@ -21,6 +21,8 @@ This requirement does not apply to the signal-only `@tschk/moonshine` core entry
 | `./animate`           | independent `flip` FLIP animation helper                                                                                                                                                              |
 | `./server`            | independent `render(component, options)` (`{ body, head, html }`) for `svelte/server`                                                                                                                 |
 | `./legacy`            | independent `run`, event modifiers (`handlers`, `once`, `preventDefault`, `stopPropagation`, `self`, `trusted`, `passive`, `nonpassive`), `createBubbler`, `createClassComponent`, `asClassComponent` |
+| `./navigation`        | independent SvelteKit `$app/state`, `$app/stores`, `$app/navigation`, `$app/paths`, `$app/environment`, and `$app/forms` runtime (`page`, `navigating`, `updated`, `goto`, `invalidate`, `enhance`)   |
+| `./kit`               | independent `@sveltejs/kit` helpers (`error`, `isHttpError`, `redirect`, `isRedirect`, `fail`, `isActionFailure`, `json`, `text`, `resolvePath`, `normalizeUrl`, `sequence`, `createKitCookies`)      |
 | `./class`             | opt-in `classValue` and `classDirectives` for source classes                                                                                                                                          |
 | `./store`             | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore`                                                                                                          |
 
