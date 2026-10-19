@@ -376,3 +376,32 @@ export async function navigate(
 
   document.dispatchEvent(new Event(TRANSITION_PAGE_LOAD));
 }
+
+import { h, type SSRChild } from "./ssr";
+
+export type Fallback = "none" | "animate" | "swap";
+
+export interface ClientRouterProps {
+  fallback?: Fallback;
+  handleForms?: boolean;
+}
+
+export function ClientRouter(props: ClientRouterProps = {}): SSRChild {
+  const fallback: Fallback = props.fallback ?? "animate";
+  const children: SSRChild[] = [
+    h("meta", { name: "astro-view-transitions-enabled", content: "true" }),
+    h("meta", { name: "astro-view-transitions-fallback", content: fallback }),
+  ];
+  if (props.handleForms !== undefined) {
+    children.push(
+      h("meta", {
+        name: "astro-view-transitions-forms",
+        content: String(Boolean(props.handleForms)),
+      }),
+    );
+  }
+  return children;
+}
+
+/** Legacy alias for `<ClientRouter />` from `astro:transitions`. */
+export const ViewTransitions: typeof ClientRouter = ClientRouter;

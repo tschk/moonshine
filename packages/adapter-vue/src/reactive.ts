@@ -2304,4 +2304,308 @@ export function defineAsyncComponent<
   return wrapper;
 }
 
+import {
+  createInsertionRange,
+  h as hDOM,
+  insertionRangeEnd,
+  prepareInsertionRange,
+} from "@tschk/moonshine-dom";
+import { h as hSSR } from "@tschk/moonshine-dom/ssr";
+import { isSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
+import { getDefaultSlotFactory } from "./slots";
+
+function resolveBuiltinSlot(
+  props: Record<string, any> | null | undefined,
+  slotName = "default",
+): any {
+  if (!props || typeof props !== "object") return null;
+  if (slotName === "default") {
+    const frame = peekComponentContext();
+    const defaultFactory = getDefaultSlotFactory(props, frame);
+    if (defaultFactory) return defaultFactory();
+  }
+  const explicitSlots =
+    (props.$slots && typeof props.$slots === "object"
+      ? (props.$slots as Record<string, (...args: any[]) => any>)
+      : undefined) ??
+    (props.slots && typeof props.slots === "object"
+      ? (props.slots as Record<string, (...args: any[]) => any>)
+      : undefined);
+  if (explicitSlots && typeof explicitSlots[slotName] === "function") {
+    return explicitSlots[slotName]!();
+  }
+  if (slotName === "default") {
+    if (typeof props.children === "function") return props.children();
+    if (props.children !== undefined) return props.children;
+  } else if (slotName === "fallback" && props.fallback !== undefined) {
+    return typeof props.fallback === "function"
+      ? props.fallback()
+      : props.fallback;
+  }
+  return null;
+}
+
+export interface TeleportProps {
+  to?: string | Element | ShadowRoot | null;
+  disabled?: boolean;
+  defer?: boolean;
+  children?: any;
+  [key: string]: any;
+}
+
+export function Teleport(props: TeleportProps = {}): any {
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering()) {
+    return resolveBuiltinSlot(props);
+  }
+  const renderTeleport = () => {
+    const content = resolveBuiltinSlot(props);
+    if (props.disabled || typeof document === "undefined" || !props.to) {
+      return content;
+    }
+    const target =
+      typeof props.to === "string"
+        ? document.querySelector(props.to)
+        : props.to;
+    if (
+      target &&
+      typeof Element !== "undefined" &&
+      (target instanceof Element ||
+        (typeof ShadowRoot !== "undefined" && target instanceof ShadowRoot))
+    ) {
+      const owner = getOwner();
+      if (owner && !owner.disposed) {
+        const start = createInsertionRange(content);
+        const end = insertionRangeEnd(start);
+        target.appendChild(start);
+        target.appendChild(end);
+        prepareInsertionRange(start);
+        return null;
+      }
+      if (typeof Node !== "undefined" && content instanceof Node) {
+        target.appendChild(content);
+        return null;
+      }
+    }
+    return content;
+  };
+  if (getOwner()) {
+    return () => renderTeleport();
+  }
+  return renderTeleport();
+}
+
+export type MatchPattern = string | RegExp | (string | RegExp)[];
+
+export interface KeepAliveProps {
+  include?: MatchPattern;
+  exclude?: MatchPattern;
+  max?: number | string;
+  is?: ((props?: any) => any) | (() => (props?: any) => any) | null;
+  componentProps?: Record<string, any>;
+  children?: any;
+  [key: string]: any;
+}
+
+function matchesPattern(pattern: MatchPattern, name: string): boolean {
+  if (Array.isArray(pattern)) {
+    return pattern.some((p) => matchesPattern(p, name));
+  }
+  if (typeof pattern === "string") {
+    return pattern
+      .split(",")
+      .map((s) => s.trim())
+      .includes(name);
+  }
+  if (pattern instanceof RegExp) {
+    pattern.lastIndex = 0;
+    return pattern.test(name);
+  }
+  return false;
+}
+
+export function KeepAlive(props: KeepAliveProps = {}): any {
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering()) {
+    const raw = props.is !== undefined ? props.is : resolveBuiltinSlot(props);
+    if (typeof raw === "function") {
+      return hSSR(raw as any, props.componentProps ?? {});
+    }
+    return raw;
+  }
+
+  const keepAliveOwner = getOwner();
+  const cache = new Map<unknown, { view: any; dispose: () => void }>();
+  if (keepAliveOwner) {
+    onCleanup(() => {
+      for (const entry of cache.values()) {
+        entry.dispose();
+      }
+      cache.clear();
+    });
+  }
+
+  const resolveKeepAlive = () => {
+    const candidate =
+      props.is !== undefined ? props.is : resolveBuiltinSlot(props);
+    if (typeof candidate === "function") {
+      const compName = candidate.name || "";
+      const shouldCache =
+        (!props.include ||
+          (Boolean(compName) && matchesPattern(props.include, compName))) &&
+        (!props.exclude ||
+          !compName ||
+          !matchesPattern(props.exclude, compName));
+
+      if (!shouldCache) {
+        return untrack(() =>
+          hDOM(candidate as any, props.componentProps ?? {}),
+        );
+      }
+
+      if (cache.has(candidate)) {
+        const cached = cache.get(candidate)!;
+        cache.delete(candidate);
+        cache.set(candidate, cached);
+        return cached.view;
+      }
+
+      let disposeEntry = () => {};
+      const rendered = createRoot((dispose) => {
+        disposeEntry = dispose;
+        return untrack(() =>
+          hDOM(candidate as any, props.componentProps ?? {}),
+        );
+      });
+      cache.set(candidate, { view: rendered, dispose: disposeEntry });
+      const maxNum =
+        props.max !== undefined ? Number(props.max) : Number.POSITIVE_INFINITY;
+      if (Number.isFinite(maxNum) && maxNum > 0 && cache.size > maxNum) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey !== undefined) {
+          const evicted = cache.get(oldestKey);
+          cache.delete(oldestKey);
+          evicted?.dispose();
+        }
+      }
+      return rendered;
+    }
+    return candidate;
+  };
+
+  if (keepAliveOwner) {
+    return () => resolveKeepAlive();
+  }
+  return resolveKeepAlive();
+}
+
+export interface TransitionProps {
+  name?: string;
+  type?: "transition" | "animation";
+  css?: boolean;
+  duration?: number | { enter: number; leave: number };
+  enterFromClass?: string;
+  enterActiveClass?: string;
+  enterToClass?: string;
+  appearFromClass?: string;
+  appearActiveClass?: string;
+  appearToClass?: string;
+  leaveFromClass?: string;
+  leaveActiveClass?: string;
+  leaveToClass?: string;
+  mode?: "in-out" | "out-in" | "default";
+  appear?: boolean;
+  persisted?: boolean;
+  children?: any;
+  [key: string]: any;
+}
+
+export function Transition(props: TransitionProps = {}): any {
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering() || !getOwner()) {
+    return resolveBuiltinSlot(props);
+  }
+  return () => resolveBuiltinSlot(props);
+}
+
+export interface TransitionGroupProps extends Omit<TransitionProps, "mode"> {
+  tag?: string;
+  moveClass?: string;
+}
+
+const TRANSITION_GROUP_KEYS = /* @__PURE__ */ new Set([
+  "tag",
+  "moveClass",
+  "name",
+  "type",
+  "css",
+  "duration",
+  "enterFromClass",
+  "enterActiveClass",
+  "enterToClass",
+  "appearFromClass",
+  "appearActiveClass",
+  "appearToClass",
+  "leaveFromClass",
+  "leaveActiveClass",
+  "leaveToClass",
+  "appear",
+  "persisted",
+  "children",
+  "slots",
+  "$slots",
+]);
+
+export function TransitionGroup(props: TransitionGroupProps = {}): any {
+  const frame = peekComponentContext();
+  const isSSR = frame?.mode === "ssr" || isSSRRendering();
+  if (!props.tag) {
+    return isSSR || !getOwner()
+      ? resolveBuiltinSlot(props)
+      : () => resolveBuiltinSlot(props);
+  }
+  const attrs: Record<string, any> = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (TRANSITION_GROUP_KEYS.has(key) || value === undefined) continue;
+    attrs[key] = value;
+  }
+  if (isSSR) {
+    return hSSR(props.tag, attrs, resolveBuiltinSlot(props));
+  }
+  return hDOM(
+    props.tag as any,
+    attrs,
+    getOwner() ? () => resolveBuiltinSlot(props) : resolveBuiltinSlot(props),
+  );
+}
+
+export interface SuspenseProps {
+  timeout?: string | number;
+  suspensible?: boolean;
+  onPending?: () => void;
+  onResolve?: () => void;
+  onFallback?: () => void;
+  fallback?: any;
+  children?: any;
+  [key: string]: any;
+}
+
+export function Suspense(props: SuspenseProps = {}): any {
+  if (typeof props.onResolve === "function") {
+    props.onResolve();
+  }
+  const resolveSuspense = () => {
+    const defaultContent = resolveBuiltinSlot(props, "default");
+    if (defaultContent !== null && defaultContent !== undefined) {
+      return defaultContent;
+    }
+    return resolveBuiltinSlot(props, "fallback");
+  };
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering() || !getOwner()) {
+    return resolveSuspense();
+  }
+  return () => resolveSuspense();
+}
+
 export const version = "3.5.13";

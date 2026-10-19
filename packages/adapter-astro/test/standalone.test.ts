@@ -306,3 +306,53 @@ const renderedStr = await container.renderToString((props) => ssrH('div', { 'dat
 assert.equal(renderedStr, '<div data-env="test">Hello Container</div>');
 `);
 });
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro virtual modules (astro:assets, astro:transitions) and Astro.* request context compile and render via AstroContainer",
+  async () => {
+    const pageSource = `---
+import { Image, Picture } from "astro:assets";
+import { ClientRouter } from "astro:transitions";
+interface Props {
+  altText: string;
+}
+const { altText } = Astro.props;
+const path = Astro.url.pathname;
+const slug = Astro.params.slug;
+const session = Astro.cookies.get("session")?.value ?? "guest";
+const role = Astro.locals.role;
+const locale = Astro.currentLocale ?? "en";
+const hero = { src: "/hero.jpg", width: 800, height: 400, format: "jpg" as const };
+---
+<head><ClientRouter fallback="swap" /></head>
+<main data-path={path} data-slug={slug} data-session={session} data-role={role} data-locale={locale}>
+  <Image src={hero} width={400} alt={altText} priority />
+  <Picture src={hero} width={400} formats={["avif", "webp"]} alt={altText} />
+</main>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Page.astro', ${JSON.stringify(pageSource)});
+const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', 'Page.astro', '--out-dir', 'out'], { stdout: 'pipe', stderr: 'pipe' });
+const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+assert.equal(code, 0, out + err);
+const { default: Page } = await import(process.cwd() + '/out/CrepusEmit.moonshine-ssr.ts');
+const { AstroContainer } = await import('@tschk/moonshine-astro/container');
+const container = await AstroContainer.create({ locals: { role: 'editor' } });
+const html = await container.renderToString(Page, {
+  request: new Request('https://example.com/blog/hello', { headers: { cookie: 'session=abc123' } }),
+  params: { slug: 'hello' },
+  props: { altText: 'Banner' },
+});
+assert.ok(html.includes('name="astro-view-transitions-fallback" content="swap"'), html);
+assert.ok(html.includes('data-path="/blog/hello"'), html);
+assert.ok(html.includes('data-slug="hello"'), html);
+assert.ok(html.includes('data-session="abc123"'), html);
+assert.ok(html.includes('data-role="editor"'), html);
+assert.ok(html.includes('alt="Banner"'), html);
+assert.ok(html.includes('type="image/avif"'), html);
+assert.ok(html.includes('fetchpriority="high"'), html);
+`);
+  },
+);

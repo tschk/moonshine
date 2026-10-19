@@ -113,7 +113,7 @@ export type Slots = Readonly<
   Record<string, ((...args: any[]) => unknown) | undefined>
 >;
 
-export function useSlots(): Slots {
+export function useSlots<T extends Record<string, any> = Slots>(): T {
   const frame = getComponentContext();
   const raw =
     frame.props !== null &&
@@ -138,5 +138,5 @@ export function useSlots(): Slots {
   } else if (typeof raw.children === "function" && !out.default) {
     out.default = raw.children as (...args: any[]) => unknown;
   }
-  return Object.freeze(out);
+  return Object.freeze(out) as unknown as T;
 }

@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import "../../react/test/dom";
 import { createComponent } from "@tschk/moonshine-dom/component";
+import { h as hDOM } from "@tschk/moonshine-dom/dom";
 import { createRoot } from "@tschk/moonshine-dom/reactive";
 import { h, renderToString } from "@tschk/moonshine-dom/ssr";
 import {
   defineAsyncComponent,
   defineComponent,
+  KeepAlive,
   mergeProps,
   nextTick,
   onActivated,
@@ -13,6 +16,10 @@ import {
   onServerPrefetch,
   onUpdated,
   ref,
+  Suspense,
+  Teleport,
+  Transition,
+  TransitionGroup,
   useAttrs,
   useSlots,
   version,
@@ -201,5 +208,84 @@ describe("@tschk/moonshine-vue watchEffect, watchPostEffect, nextTick, mergeProp
     expect(view()).toBe("Loaded:OK");
     expect(attempts).toBe(2);
     stop();
+  });
+
+  test("Teleport, KeepAlive, Transition, TransitionGroup, and Suspense render in SSR and DOM", () => {
+    const ssrHtml = renderToString(() =>
+      h("div", null, [
+        h(Transition, { name: "fade" }, () =>
+          h(TransitionGroup, { name: "list", tag: "ul" }, () =>
+            h("li", null, "Item 1"),
+          ),
+        ),
+        h(Suspense, {}, () =>
+          h(Teleport, { to: "#modal", disabled: true }, () =>
+            h("span", null, "Modal Body"),
+          ),
+        ),
+      ]),
+    );
+    expect(ssrHtml).toBe(
+      "<div><ul><li>Item 1</li></ul><span>Modal Body</span></div>",
+    );
+
+    const portalHost = document.createElement("div");
+    portalHost.id = "portal-target";
+    document.body.appendChild(portalHost);
+
+    try {
+      let disposePortal!: () => void;
+      const inlineNode = createRoot((dispose) => {
+        disposePortal = dispose;
+        return hDOM("div", { class: "host" }, [
+          hDOM(Teleport, {
+            to: portalHost,
+            disabled: false,
+            children: () => hDOM("p", { class: "teleported" }, "In Portal"),
+          }),
+        ]);
+      }) as HTMLElement;
+
+      expect(inlineNode.textContent).toBe("");
+      expect(portalHost.querySelector(".teleported")?.textContent).toBe(
+        "In Portal",
+      );
+      disposePortal();
+      expect(portalHost.querySelector(".teleported")).toBeNull();
+    } finally {
+      portalHost.remove();
+    }
+
+    const activeView = ref<"a" | "b">("a");
+    let countA = 0;
+    let countB = 0;
+    const ViewA = () => {
+      countA++;
+      return hDOM("span", null, `A:${countA}`);
+    };
+    const ViewB = () => {
+      countB++;
+      return hDOM("span", null, `B:${countB}`);
+    };
+
+    let disposeKeepAlive!: () => void;
+    const kaContainer = createRoot((dispose) => {
+      disposeKeepAlive = dispose;
+      return hDOM("div", null, [
+        hDOM(KeepAlive, {
+          max: 2,
+          children: () => (activeView.value === "a" ? ViewA : ViewB),
+        }),
+      ]);
+    }) as HTMLElement;
+
+    expect(kaContainer.textContent).toBe("A:1");
+    activeView.value = "b";
+    expect(kaContainer.textContent).toBe("B:1");
+    activeView.value = "a";
+    expect(kaContainer.textContent).toBe("A:1");
+    expect(countA).toBe(1);
+    expect(countB).toBe(1);
+    disposeKeepAlive();
   });
 });

@@ -17,7 +17,9 @@ import {
   useAstro,
   withAstroContext,
 } from "../src/context";
+import { h, renderToString } from "../src/ssr";
 import {
+  ClientRouter,
   createAnimationScope,
   fade,
   isTransitionEnabled,
@@ -32,6 +34,7 @@ import {
   TRANSITION_BEFORE_PREPARATION,
   TRANSITION_BEFORE_SWAP,
   TRANSITION_PAGE_LOAD,
+  ViewTransitions,
 } from "../src/transitions";
 
 describe("@tschk/moonshine-astro/context", () => {
@@ -364,5 +367,17 @@ describe("@tschk/moonshine-astro/transitions", () => {
       document.head.replaceChildren();
       document.documentElement.removeAttribute("lang");
     }
+
+    expect(ViewTransitions).toBe(ClientRouter);
+    const defaultRouter = renderToString(() => h(ClientRouter, {}));
+    expect(defaultRouter).toBe(
+      '<meta name="astro-view-transitions-enabled" content="true"><meta name="astro-view-transitions-fallback" content="animate">',
+    );
+    const customRouter = renderToString(() =>
+      h(ViewTransitions, { fallback: "swap", handleForms: false }),
+    );
+    expect(customRouter).toBe(
+      '<meta name="astro-view-transitions-enabled" content="true"><meta name="astro-view-transitions-fallback" content="swap"><meta name="astro-view-transitions-forms" content="false">',
+    );
   });
 });

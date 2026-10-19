@@ -3,15 +3,19 @@ import {
   configureAssets,
   createPaginate,
   getImage,
+  getImageSync,
+  Image,
   inferImageDimensions,
   inferRemoteSize,
   paginate,
+  Picture,
   resetAssetsConfig,
   type APIRoute,
   type GetStaticPaths,
   type InferGetStaticParamsType,
   type InferGetStaticPropsType,
 } from "../src/index";
+import { h, renderToString } from "../src/ssr";
 
 afterEach(() => {
   resetAssetsConfig();
@@ -250,4 +254,62 @@ test("paginate and createPaginate build Astro static path pages, params, props, 
   expect(sampleParams.category).toBe("docs");
   expect(sampleProps.title).toBe("Docs");
   expect(typeof getEndpoint).toBe("function");
+});
+
+test("getImageSync, Image, and Picture components render responsive HTML markup", () => {
+  const banner = {
+    src: "/assets/banner.jpg",
+    width: 1600,
+    height: 800,
+    format: "jpg",
+  };
+
+  const syncImg = getImageSync({
+    src: banner,
+    width: 800,
+    alt: "Sync Banner",
+    priority: true,
+  });
+  expect(syncImg.attributes.width).toBe(800);
+  expect(syncImg.attributes.height).toBe(400);
+  expect(syncImg.attributes.loading).toBe("eager");
+  expect(syncImg.attributes.decoding).toBe("sync");
+  expect(syncImg.attributes.fetchpriority).toBe("high");
+
+  const imgHtml = renderToString(() =>
+    h(Image, {
+      src: banner,
+      width: 800,
+      densities: [1, 2],
+      alt: "Responsive Hero",
+      class: "hero-img",
+      "class:list": ["shadow", { active: true }],
+      priority: true,
+    }),
+  );
+  expect(imgHtml).toContain('alt="Responsive Hero"');
+  expect(imgHtml).toContain('class="hero-img shadow active"');
+  expect(imgHtml).toContain('loading="eager"');
+  expect(imgHtml).toContain('fetchpriority="high"');
+  expect(imgHtml).toContain("1x");
+  expect(imgHtml).toContain("2x");
+
+  const picHtml = renderToString(() =>
+    h(Picture, {
+      src: banner,
+      width: 800,
+      widths: [400, 800],
+      formats: ["avif", "webp"],
+      fallbackFormat: "jpg",
+      alt: "Multi-format Picture",
+      pictureAttributes: { class: "pic-wrapper", "data-pic": "yes" },
+      class: "inner-img",
+    }),
+  );
+  expect(picHtml).toContain('<picture class="pic-wrapper" data-pic="yes">');
+  expect(picHtml).toContain('type="image/avif"');
+  expect(picHtml).toContain('type="image/webp"');
+  expect(picHtml).toContain('alt="Multi-format Picture"');
+  expect(picHtml).toContain('class="inner-img"');
+  expect(picHtml).toContain("f=jpg");
 });

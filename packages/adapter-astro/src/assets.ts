@@ -1,5 +1,6 @@
 /** Independent host-free Astro assets & image optimization helpers (`astro:assets`). */
 import type { ImageMetadata } from "./content";
+import { classList, h, type SSRChild } from "./ssr";
 
 export type ImageInputFormat =
   "jpeg" | "jpg" | "png" | "tiff" | "webp" | "gif" | "svg" | "avif";
@@ -30,7 +31,19 @@ export interface UnresolvedImageTransform {
   alt?: string;
   loading?: "lazy" | "eager" | null;
   decoding?: "async" | "sync" | "auto" | null;
+  priority?: boolean;
   [key: string]: any;
+}
+
+export interface ImageProps extends Omit<UnresolvedImageTransform, "src"> {
+  src: string | ImageMetadata | { default: ImageMetadata };
+  alt: string;
+}
+
+export interface PictureProps extends ImageProps {
+  formats?: ImageOutputFormat[];
+  fallbackFormat?: ImageOutputFormat;
+  pictureAttributes?: Record<string, any>;
 }
 
 export interface ResolvedImageTransform extends Omit<
@@ -178,6 +191,36 @@ function buildTransformUrl(transform: ResolvedImageTransform): string {
   return defaultTransformUrl(transform);
 }
 
+function unwrapMetadata(
+  resolved: string | ImageMetadata | { default: ImageMetadata },
+): string | ImageMetadata {
+  if (typeof resolved === "string") return resolved;
+  if (
+    resolved &&
+    typeof resolved === "object" &&
+    "default" in resolved &&
+    resolved.default
+  ) {
+    return resolved.default;
+  }
+  return resolved as ImageMetadata;
+}
+
+function resolveSrcSync(
+  src: UnresolvedImageTransform["src"] | { default: ImageMetadata },
+): string | ImageMetadata {
+  if (!src) {
+    throw new Error("getImage() requires a non-empty `src` option.");
+  }
+  if (typeof src === "string") return src;
+  if (typeof (src as Promise<any>).then === "function") {
+    throw new Error(
+      "Synchronous image rendering does not accept a Promise `src`; pass resolved ImageMetadata or a URL string.",
+    );
+  }
+  return unwrapMetadata(src as ImageMetadata | { default: ImageMetadata });
+}
+
 async function resolveSrc(
   src: UnresolvedImageTransform["src"],
 ): Promise<string | ImageMetadata> {
@@ -189,20 +232,12 @@ async function resolveSrc(
     const resolved = await (src as Promise<
       ImageMetadata | { default: ImageMetadata }
     >);
-    if (
-      resolved &&
-      typeof resolved === "object" &&
-      "default" in resolved &&
-      resolved.default
-    ) {
-      return resolved.default;
-    }
-    return resolved as ImageMetadata;
+    return unwrapMetadata(resolved);
   }
-  return src as ImageMetadata;
+  return unwrapMetadata(src as ImageMetadata | { default: ImageMetadata });
 }
 
-const TRANSFORM_ONLY_KEYS = new Set([
+const TRANSFORM_ONLY_KEYS = /* @__PURE__ */ new Set([
   "src",
   "width",
   "height",
@@ -212,21 +247,16 @@ const TRANSFORM_ONLY_KEYS = new Set([
   "quality",
   "fit",
   "position",
+  "priority",
+  "formats",
+  "fallbackFormat",
+  "pictureAttributes",
 ]);
 
-export async function getImage(
+function computeImageResult(
   options: UnresolvedImageTransform,
-): Promise<GetImageResult> {
-  if (!options || typeof options !== "object") {
-    throw new Error("getImage() requires an options object.");
-  }
-  if (options.widths && options.densities) {
-    throw new Error(
-      "getImage() cannot use both `widths` and `densities` at the same time.",
-    );
-  }
-
-  const resolvedSrc = await resolveSrc(options.src);
+  resolvedSrc: string | ImageMetadata,
+): GetImageResult {
   let width = normalizeDimension(options.width, "width");
   let height = normalizeDimension(options.height, "height");
 
@@ -348,13 +378,32 @@ export async function getImage(
     }
     attributes[key] = value;
   }
+  if (attributes["class:list"] !== undefined) {
+    const list = attributes["class:list"];
+    delete attributes["class:list"];
+    const normalized = classList([attributes.class, list]);
+    if (normalized) attributes.class = normalized;
+    else delete attributes.class;
+  }
   if (width !== undefined) attributes.width = width;
   if (height !== undefined) attributes.height = height;
-  if (options.decoding !== null) {
-    attributes.decoding = options.decoding ?? "async";
-  }
-  if (options.loading !== null) {
-    attributes.loading = options.loading ?? "lazy";
+  if (options.priority) {
+    if (options.loading !== null) {
+      attributes.loading = options.loading ?? "eager";
+    }
+    if (options.decoding !== null) {
+      attributes.decoding = options.decoding ?? "sync";
+    }
+    if (options.fetchpriority !== null) {
+      attributes.fetchpriority = options.fetchpriority ?? "high";
+    }
+  } else {
+    if (options.decoding !== null) {
+      attributes.decoding = options.decoding ?? "async";
+    }
+    if (options.loading !== null) {
+      attributes.loading = options.loading ?? "lazy";
+    }
   }
 
   return {
@@ -367,6 +416,110 @@ export async function getImage(
     },
     attributes,
   };
+}
+
+export function getImageSync(
+  options: UnresolvedImageTransform,
+): GetImageResult {
+  if (!options || typeof options !== "object") {
+    throw new Error("getImage() requires an options object.");
+  }
+  if (options.widths && options.densities) {
+    throw new Error(
+      "getImage() cannot use both `widths` and `densities` at the same time.",
+    );
+  }
+  const resolvedSrc = resolveSrcSync(options.src);
+  return computeImageResult(options, resolvedSrc);
+}
+
+export async function getImage(
+  options: UnresolvedImageTransform,
+): Promise<GetImageResult> {
+  if (!options || typeof options !== "object") {
+    throw new Error("getImage() requires an options object.");
+  }
+  if (options.widths && options.densities) {
+    throw new Error(
+      "getImage() cannot use both `widths` and `densities` at the same time.",
+    );
+  }
+  const resolvedSrc = await resolveSrc(options.src);
+  return computeImageResult(options, resolvedSrc);
+}
+
+export function Image(props: ImageProps): SSRChild {
+  if (!props || typeof props !== "object") {
+    throw new Error("<Image> requires props.");
+  }
+  if (props.alt === undefined || props.alt === null) {
+    throw new Error("<Image> requires an `alt` attribute.");
+  }
+  const resolved = getImageSync(props as UnresolvedImageTransform);
+  const imgAttrs: Record<string, any> = {
+    src: resolved.src,
+    ...(resolved.srcSet.attribute ? { srcset: resolved.srcSet.attribute } : {}),
+    ...resolved.attributes,
+    alt: props.alt,
+  };
+  return h("img", imgAttrs);
+}
+
+export function Picture(props: PictureProps): SSRChild {
+  if (!props || typeof props !== "object") {
+    throw new Error("<Picture> requires props.");
+  }
+  if (props.alt === undefined || props.alt === null) {
+    throw new Error("<Picture> requires an `alt` attribute.");
+  }
+  const {
+    formats = ["webp"],
+    fallbackFormat,
+    pictureAttributes = {},
+    ...imageProps
+  } = props;
+  const resolvedSrc = resolveSrcSync(imageProps.src);
+  const defaultFallback: ImageOutputFormat =
+    fallbackFormat ??
+    imageProps.format ??
+    (typeof resolvedSrc === "object"
+      ? resolvedSrc.format === "jpg"
+        ? "jpg"
+        : resolvedSrc.format === "svg"
+          ? "svg"
+          : "png"
+      : "png");
+
+  const sources: SSRChild[] = formats.map((fmt) => {
+    const sourceImage = computeImageResult(
+      { ...imageProps, src: resolvedSrc, format: fmt },
+      resolvedSrc,
+    );
+    const srcset = sourceImage.srcSet.attribute || sourceImage.src;
+    const mime = `image/${fmt === "jpg" ? "jpeg" : fmt === "svg" ? "svg+xml" : fmt}`;
+    return h("source", {
+      srcset,
+      type: mime,
+      ...(sourceImage.attributes.sizes
+        ? { sizes: sourceImage.attributes.sizes }
+        : {}),
+    });
+  });
+
+  const fallbackImage = computeImageResult(
+    { ...imageProps, src: resolvedSrc, format: defaultFallback },
+    resolvedSrc,
+  );
+  const imgAttrs: Record<string, any> = {
+    src: fallbackImage.src,
+    ...(fallbackImage.srcSet.attribute
+      ? { srcset: fallbackImage.srcSet.attribute }
+      : {}),
+    ...fallbackImage.attributes,
+    alt: props.alt,
+  };
+
+  return h("picture", pictureAttributes, ...sources, h("img", imgAttrs));
 }
 
 function readUint16BE(bytes: Uint8Array, offset: number): number {

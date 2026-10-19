@@ -10,8 +10,8 @@ import {
   type SSRChild,
 } from "@tschk/moonshine-dom/ssr";
 
-const booleanAttributes = new Set(
-  "allowfullscreen async autofocus autoplay checked controls default defer disabled disablepictureinpicture disableremoteplayback formnovalidate inert loop muted nomodule novalidate open playsinline readonly required reversed scoped seamless selected itemscope".split(
+const booleanAttributes = /* @__PURE__ */ new Set(
+  /* @__PURE__ */ "allowfullscreen async autofocus autoplay checked controls default defer disabled disablepictureinpicture disableremoteplayback formnovalidate inert loop muted nomodule novalidate open playsinline readonly required reversed scoped seamless selected itemscope".split(
     " ",
   ),
 );
@@ -231,3 +231,14 @@ export function sourceElement(
 ): HTML {
   return hAttributeEntries(tag, entries, ...children.map(sourceChild));
 }
+
+export {
+  useAstro,
+  withAstroContext,
+  createAstroGlobal,
+  AstroCookies,
+  AstroCookie,
+  type AstroGlobal,
+  type AstroContextInit,
+  type AstroSlots,
+} from "./context";

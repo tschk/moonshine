@@ -197,7 +197,7 @@ assert.equal(router.currentRoute.value.path,'/');
 });
 
 test.skipIf(!sourceCompiler)(
-  "vue-router and pinia imports in .vue SFCs lower and render without host packages",
+  "vue-router, pinia, built-in components, defineOptions, and defineSlots in .vue SFCs lower and render without host packages",
   async () => {
     const storeFile = `import { ref, computed } from '@tschk/moonshine-vue/reactive';
 import { defineStore } from '@tschk/moonshine-vue/store';
@@ -211,10 +211,12 @@ export const useCounterStore = defineStore('counter', () => {
 import { useRoute, RouterLink } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useCounterStore } from './store';
+defineOptions({ name: 'CounterPage', inheritAttrs: false });
+const slots = defineSlots<{ default?: () => any }>();
 const route = useRoute();
 const store = useCounterStore();
 const { count, double } = storeToRefs(store);
-</script><template><section><h1>{{ route.path }}</h1><p>{{ count }}/{{ double }}</p><RouterLink to="/next">Next</RouterLink></section></template>`;
+</script><template><section><h1>{{ route.path }}</h1><Transition name="fade"><TransitionGroup tag="div" name="list"><KeepAlive><Suspense><Teleport to="#modal" :disabled="true"><p>{{ count }}/{{ double }}/{{ Boolean(slots.default) }}</p></Teleport></Suspense></KeepAlive></TransitionGroup></Transition><RouterLink to="/items" active-class="is-active" class="nav-link">Items</RouterLink></section></template>`;
     await standalone(`
 import assert from 'node:assert/strict';
 const compiler=${JSON.stringify(sourceCompiler)};
@@ -229,11 +231,13 @@ const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
 const {createPinia,setActivePinia}=await import('@tschk/moonshine-vue/store');
 const {createRouter,createMemoryHistory}=await import('@tschk/moonshine-vue/router');
 const {default:Page}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+assert.equal(Page.name,'CounterPage');
+assert.equal(Page.inheritAttrs,false);
 setActivePinia(createPinia());
 const router=createRouter({history:createMemoryHistory(),routes:[{path:'/items',component:Page},{path:'/next',component:Page}]});
 await router.push('/items');
 const html=renderToString(()=>h(()=>{router.install();return h(Page,{});},null));
-assert.equal(html,'<section><h1>/items</h1><p>4/8</p><a href="/next">Next</a></section>');
+assert.equal(html,'<section><h1>/items</h1><div><p>4/8/false</p></div><a href="/items" class="nav-link is-active router-link-exact-active" aria-current="page">Items</a></section>');
 `);
   },
 );
