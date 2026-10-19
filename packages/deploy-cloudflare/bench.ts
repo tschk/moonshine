@@ -45,6 +45,13 @@ async function copyAssetsParallel(
   );
 }
 
+const logger = {
+  info: (msg: string) => console.log(`[INFO] ${msg}`),
+  bench: (msg: string) => console.log(`[BENCH] ${msg}`),
+  result: (msg: string) => console.log(`[RESULT] ${msg}`),
+  error: (err: unknown) => console.error(`[ERROR]`, err)
+};
+
 async function runBenchmark() {
   const NUM_FILES = 1000;
 
@@ -58,7 +65,7 @@ async function runBenchmark() {
   await mkdir(outDirSeq, { recursive: true });
   await mkdir(outDirPar, { recursive: true });
 
-  console.log(`Setting up ${NUM_FILES} files for benchmark...`);
+  logger.info(`Setting up ${NUM_FILES} files for benchmark...`);
   const assetsSeq = [];
   const assetsPar = [];
 
@@ -73,35 +80,35 @@ async function runBenchmark() {
   }
 
   // Benchmark Sequential
-  console.log("Running Sequential Asset Copying...");
+  logger.bench("Running Sequential Asset Copying...");
   const startSeq = performance.now();
   await copyAssetsSequential(assetsSeq, outDirSeq);
   const endSeq = performance.now();
   const timeSeq = endSeq - startSeq;
-  console.log(`Sequential copy took: ${timeSeq.toFixed(2)}ms`);
+  logger.bench(`Sequential copy took: ${timeSeq.toFixed(2)}ms`);
 
   // Benchmark Parallel
-  console.log("Running Parallel Asset Copying...");
+  logger.bench("Running Parallel Asset Copying...");
   const startPar = performance.now();
   await copyAssetsParallel(assetsPar, outDirPar);
   const endPar = performance.now();
   const timePar = endPar - startPar;
-  console.log(`Parallel copy took: ${timePar.toFixed(2)}ms`);
+  logger.bench(`Parallel copy took: ${timePar.toFixed(2)}ms`);
 
   // Calculate improvement
   const improvement = timeSeq / timePar;
   const percentFaster = ((timeSeq - timePar) / timeSeq) * 100;
 
-  console.log(`\n--- Benchmark Results ---`);
-  console.log(`Baseline (Sequential): ${timeSeq.toFixed(2)}ms`);
-  console.log(`Optimized (Parallel): ${timePar.toFixed(2)}ms`);
-  console.log(
+  logger.result(`\n--- Benchmark Results ---`);
+  logger.result(`Baseline (Sequential): ${timeSeq.toFixed(2)}ms`);
+  logger.result(`Optimized (Parallel): ${timePar.toFixed(2)}ms`);
+  logger.result(
     `Improvement: ${improvement.toFixed(2)}x faster (${percentFaster.toFixed(2)}% reduction in time)`,
   );
 
   // Cleanup
-  console.log("Cleaning up...");
+  logger.info("Cleaning up...");
   await rm(tempDir, { recursive: true, force: true });
 }
 
-runBenchmark().catch(console.error);
+runBenchmark().catch(logger.error);
