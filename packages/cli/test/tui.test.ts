@@ -45,6 +45,25 @@ describe("truncate", () => {
     expect(truncate("hello", 0)).toBe("");
     expect(truncate("hello", -5)).toBe("");
   });
+
+  test("handles empty strings", () => {
+    expect(truncate("", 0)).toBe("");
+    expect(truncate("", 5)).toBe("");
+    expect(truncate("", -1)).toBe("");
+  });
+
+  test("handles exact width matches", () => {
+    expect(truncate("exact", 5)).toBe("exact");
+  });
+
+  test("handles strings with multi-byte characters", () => {
+    // string indexing counts surrogate pairs as 2, so "🍕" is length 2.
+    // "🍕🍕🍕" is length 6.
+    // width=4 means `slice(0, 3)` (which is 1.5 pizzas) + "…".
+    // 🍕 is \ud83c \udf55. slice(0,3) is "🍕\ud83c".
+    expect(truncate("🍕🍕🍕", 4)).toBe("🍕\ud83c…");
+    expect(truncate("🍕🍕🍕", 3)).toBe("🍕…");
+  });
 });
 
 describe("warningBar", () => {
