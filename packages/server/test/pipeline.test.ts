@@ -205,6 +205,44 @@ describe("createRequestHandler", () => {
     expect(await res.text()).toBe("Invalid redirect");
   });
 
+  test("thrown response is finalized and returned directly", async () => {
+    const routes = graph([{ id: "throw-res", path: "/", file: "route.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        "throw-res": {
+          loader: () => {
+            throw new Response("Thrown response body", { status: 418 });
+          },
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/"));
+    expect(res.status).toBe(418);
+    expect(await res.text()).toBe("Thrown response body");
+  });
+
+  test("uncaught errors fallback to default error response", async () => {
+    const routes = graph([{ id: "throw-err", path: "/", file: "route.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      mode: "development",
+      modules: {
+        "throw-err": {
+          loader: () => {
+            throw new Error("Unhandled pipeline error");
+          },
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/"));
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe("Unhandled pipeline error");
+  });
+
   test("nearest error boundary catches loader errors", async () => {
     const routes = graph([
       { id: "root", path: "/", file: "root.tsx" },
