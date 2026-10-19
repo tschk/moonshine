@@ -1,5 +1,10 @@
 /** Static View IR mapping parameterized by independent DOM or SSR factories. */
-import type { PickerOption, TabItem, ViewIr, ViewNode } from "@tschk/crepuscularity-wasm";
+import type {
+  PickerOption,
+  TabItem,
+  ViewIr,
+  ViewNode,
+} from "@tschk/crepuscularity-wasm";
 
 export type CrepusNode = ViewNode;
 export type CrepusIr = ViewIr;
