@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-waku",
-  "version": "0.4.55",
-  "description": "Waku client router API reimplemented on moonshine \u2014 drop waku, keep the imports",
+  "version": "0.4.56",
+  "description": "Waku client router API reimplemented on moonshine — drop waku, keep the imports",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",

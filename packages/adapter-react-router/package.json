@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-react-router",
-  "version": "0.4.55",
-  "description": "react-router / Remix client API reimplemented on moonshine \u2014 drop react-router, keep the imports",
+  "version": "0.4.56",
+  "description": "react-router / Remix client API reimplemented on moonshine — drop react-router, keep the imports",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
