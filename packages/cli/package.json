@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-cli",
-  "version": "0.4.52",
+  "version": "0.4.53",
   "description": "Bun CLI for moonshine \u2014 new, dev, build, preview, inspect, compile",
   "license": "ISC",
   "type": "module",
