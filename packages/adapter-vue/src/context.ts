@@ -5,11 +5,12 @@ import {
   setContext,
   type ComponentContext,
 } from "@tschk/moonshine-dom/component";
-import { untrack } from "@tschk/moonshine-dom/reactive";
+import { untrack, type Owner } from "@tschk/moonshine-dom/reactive";
 
 declare const injectionType: unique symbol;
 export type InjectionKey<T> = symbol & { readonly [injectionType]?: T };
 const providesKey = Symbol("moonshine.vue.provides");
+const idCounters = /* @__PURE__ */ new WeakMap<Owner, { next: number }>();
 type Provides = {
   frame: ComponentContext;
   parent?: Provides;
@@ -56,4 +57,15 @@ export function inject<T>(
 export function hasInjectionContext(): boolean {
   const frame = peekComponentContext();
   return !!frame?.active && !frame.owner.disposed;
+}
+export function useId(): string {
+  const frame = getComponentContext();
+  let root: Owner = frame.owner;
+  while (root.parent) root = root.parent;
+  let state = idCounters.get(root);
+  if (!state) {
+    state = { next: 0 };
+    idCounters.set(root, state);
+  }
+  return `v-${state.next++}`;
 }

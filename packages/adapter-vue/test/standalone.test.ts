@@ -41,7 +41,7 @@ test.skipIf(!sourceCompiler)(
   "props-less setup components compile and render independently",
   async () => {
     const page = `<script setup lang="ts">
-import {ref,computed} from 'vue';
+import {ref,computed,useId,onBeforeMount,onErrorCaptured} from 'vue';
 import Child from './Child.vue';
 import SetChild from './SetChild.vue';
 import ModelChild from './ModelChild.vue';
@@ -49,10 +49,13 @@ import DefineModelChild from './DefineModelChild.vue';
 const selected=ref(new Set(['x']));
 const count=ref(2);
 const label=ref('label');
+const id=useId();
 const doubled=computed(()=>count.value*2);
+onBeforeMount(()=>{count.value+=10;});
+onErrorCaptured(()=>false);
 function increment(){count.value++;}
-</script><template><div><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected"/><ModelChild v-model="count" v-model:label.trim="label"/><DefineModelChild v-model.trim="label" active/><output>{{count}}/{{label}}</output></div></template>`;
-    const child = `<script setup>const label='<b>&';</script><template><p>{{label}}</p></template>`;
+</script><template><div :id="id"><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected"/><ModelChild v-model="count" v-model:label.trim="label"/><DefineModelChild v-model.trim="label" active/><output>{{count}}/{{label}}</output></div></template>`;
+    const child = `<script setup>import {useId} from 'vue';const id=useId();const label='<b>&';</script><template><p :id="id">{{label}}</p></template>`;
     const setChild = `<script setup lang="ts">const props=defineProps<{values:Set<string>}>();</script><template><em>{{props.values.size}}</em></template>`;
     const modelChild = `<script setup lang="ts">const props=defineProps<{modelValue:number;label:string}>();const emit=defineEmits<{'update:modelValue':[number];'update:label':[string]}>();if(typeof document==='undefined'){emit('update:modelValue',props.modelValue+1);emit('update:label',' '+props.label+'-ssr ');}</script><template><strong>{{props.modelValue}}/{{props.label}}</strong></template>`;
     const defineModelChild = `<script setup lang="ts">const [model,mods]=defineModel<string,'trim'>({default:'fallback',get:(v)=>mods.trim?v.trim():v});const active=defineModel<boolean>('active',{default:false});if(typeof document==='undefined'){model.value=' '+model.value+'-dm ';}</script><template><kbd>{{model}}/{{active}}</kbd></template>`;
@@ -60,7 +63,7 @@ function increment(){count.value++;}
 import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
 assert.equal(typeof document,'undefined');
-for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p>&lt;b&gt;&amp;</p><em>1</em><strong>2/label</strong><kbd>label-ssr-dm/true</kbd><output>3/label-ssr-dm</output></div>');
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div id="v-0"><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p id="v-1">&lt;b&gt;&amp;</p><em>1</em><strong>2/label</strong><kbd>label-ssr-dm/true</kbd><output>3/label-ssr-dm</output></div>');
 assert.equal(typeof document,'undefined');`;
     await standalone(`
 import assert from 'node:assert/strict';
@@ -116,14 +119,14 @@ import assert from 'node:assert/strict';
 import {existsSync} from 'node:fs';
 import * as root from '@tschk/moonshine-vue';
 import {crepusRenderer} from '@tschk/moonshine-vue/framework';
-import {ref,shallowRef,reactive,toRefs,computed,watch,watchSyncEffect} from '@tschk/moonshine-vue/reactive';
+import {ref,shallowRef,reactive,toRefs,computed,watch,watchSyncEffect,useId as reactiveUseId} from '@tschk/moonshine-vue/reactive';
 import {toDisplayString,toDisplayStringSSR} from '@tschk/moonshine-vue/text';
 import {bindTextModel,createTextModel} from '@tschk/moonshine-vue/model';
 import {createServerTextModel} from '@tschk/moonshine-vue/model/ssr';
 import {withComponentErrorHandler} from '@tschk/moonshine-vue/errors';
 import {createDefaultProps,createServerDefaultProps,withVueScheduler} from '@tschk/moonshine-vue/props';
-import {provide,inject,hasInjectionContext} from '@tschk/moonshine-vue/context';
-import {onMounted,onBeforeUnmount,onUnmounted} from '@tschk/moonshine-vue/lifecycle';
+import {provide,inject,hasInjectionContext,useId} from '@tschk/moonshine-vue/context';
+import {onBeforeMount,onMounted,onBeforeUnmount,onUnmounted,onErrorCaptured} from '@tschk/moonshine-vue/lifecycle';
 import {createRoot} from '@tschk/moonshine-dom/reactive';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
 for(const name of ['vue','react','react-dom','@tschk/crepuscularity-wasm','@tschk/crepus-moonshine','@tschk/moonshine-framework']) {
@@ -170,9 +173,12 @@ assert.equal(defaultCalls,1);
 for(let request=0;request<2;request++)assert.equal(renderToString(()=>h(()=>withVueScheduler(()=>{const props=createServerDefaultProps({},['label'],[],[['label',()=>{defaultCalls++;return '<server>'},true]]);return h('p',null,props.label)}),null)),'<p>&lt;server&gt;</p>');
 assert.equal(defaultCalls,3);
 assert.equal(hasInjectionContext(),false);
+assert.equal(reactiveUseId,useId);
 let lifecycleCalls=0;
-assert.equal(renderToString(()=>h(()=>{onMounted(()=>lifecycleCalls++);onBeforeUnmount(()=>lifecycleCalls++);onUnmounted(()=>lifecycleCalls++);return h('p',null,'server')},null)),'<p>server</p>');
+const capturedErrors=[];
+assert.equal(renderToString(()=>h(()=>{onBeforeMount(()=>lifecycleCalls++);onMounted(()=>lifecycleCalls++);onBeforeUnmount(()=>lifecycleCalls++);onUnmounted(()=>lifecycleCalls++);onErrorCaptured((err,_inst,info)=>{capturedErrors.push([err.message,info]);return false;});return h(()=>{watchSyncEffect(()=>{throw new Error('ssr-boom');});return h('p',{id:useId()},'server');},null)},null)),'<p id="v-0">server</p>');
 assert.equal(lifecycleCalls,0);
+assert.deepEqual(capturedErrors,[['ssr-boom','watch effect']]);
 assert.equal(renderToString(()=>h(()=>{provide('value','<context>');return h(()=>h('p',null,inject('value')),null)},null)),'<p>&lt;context&gt;</p>');
 `);
 });

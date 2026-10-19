@@ -26,6 +26,7 @@ import {
   type ComponentContext,
 } from "@tschk/moonshine-dom/component";
 import { createEmitter } from "./events";
+export { useId } from "./context";
 import {
   createMutable,
   unwrap as unwrapStore,
@@ -1190,12 +1191,11 @@ export function watchSyncEffect(
           true,
         ) as Array<Parameters<typeof trackDependency>[0]>;
       } catch (error) {
-        if (!reportError)
-          try {
-            untrack(clean);
-          } catch {
-            /* Preserve the effect failure. */
-          }
+        try {
+          untrack(clean);
+        } catch {
+          /* Preserve the effect failure. */
+        }
         throw error;
       } finally {
         running = false;

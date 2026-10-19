@@ -33,3 +33,26 @@ void phases;
 // @ts-expect-error lifecycle/app errors are not supported watch phases
 const unsupported: WatchErrorPhase = "mounted";
 void unsupported;
+
+import {
+  onBeforeMount,
+  onErrorCaptured,
+  type ErrorCapturedHook,
+} from "@tschk/moonshine-vue/lifecycle";
+import { useId } from "@tschk/moonshine-vue/context";
+
+const typedHook: ErrorCapturedHook<Error> = (err, instance, info) => {
+  const msg: string = err.message;
+  const frame: ComponentContext | undefined = instance;
+  const phase: WatchErrorPhase = info;
+  void [msg, frame, phase];
+  return false;
+};
+if (false as boolean) {
+  onBeforeMount(() => {});
+  onErrorCaptured(typedHook);
+  const generatedId: string = useId();
+  void generatedId;
+  // @ts-expect-error onErrorCaptured return must be boolean | void
+  onErrorCaptured(() => "invalid");
+}

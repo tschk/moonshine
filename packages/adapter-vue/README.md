@@ -20,19 +20,20 @@ import { fromMoonshineSignal } from "@tschk/moonshine-vue";
 import { ref } from "@tschk/moonshine-vue/reactive";
 ```
 
-| Subpath          | Provides                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                                                                                                                                                                                                                                                                                                                |
-| `./vue`          | `vue` runtime re-exports                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `./reactive`     | native `ref`/`shallowRef`/`customRef`/`triggerRef`/`useTemplateRef`/`useModel`/`createModel` (`ModelRef`, `DefineModelOptions`), `toRef`/`toRefs`/`unref`/`toValue`/`isRef`, `reactive`/`shallowReactive`/`readonly`/`shallowReadonly`, `isReactive`/`isReadonly`/`isShallow`/`isProxy`/`toRaw`/`markRaw`, `computed`, `watch`/`watchSyncEffect`/`onWatcherCleanup` (`WatchHandle`), `effectScope`/`getCurrentScope`/`onScopeDispose` |
-| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                                                                                                                                                                                                                                                                                                                           |
-| `./text`         | native DOM and SSR interpolation conversion                                                                                                                                                                                                                                                                                                                                                                                           |
-| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                                                                                                                                                                                                                                                                                                                       |
-| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                                                                                                                                                                                                                                                                                                                             |
-| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                                                                                                                                                                                                                                                                                                                 |
-| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                                                                                                                                                                                                                                                                                                                |
-| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                                                                                                                                                                                                                                                                                                                           |
+| Subpath          | Provides                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                                                                                                                                                                                                                                                                                                                        |
+| `./vue`          | `vue` runtime re-exports                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `./reactive`     | native `ref`/`shallowRef`/`customRef`/`triggerRef`/`useTemplateRef`/`useModel`/`createModel`/`useId` (`ModelRef`, `DefineModelOptions`), `toRef`/`toRefs`/`unref`/`toValue`/`isRef`, `reactive`/`shallowReactive`/`readonly`/`shallowReadonly`, `isReactive`/`isReadonly`/`isShallow`/`isProxy`/`toRaw`/`markRaw`, `computed`, `watch`/`watchSyncEffect`/`onWatcherCleanup` (`WatchHandle`), `effectScope`/`getCurrentScope`/`onScopeDispose` |
+| `./context`      | native component `provide`, `inject`, `hasInjectionContext`, `useId`                                                                                                                                                                                                                                                                                                                                                                          |
+| `./lifecycle`    | native component `onBeforeMount`, `onMounted`, `onBeforeUnmount`, `onUnmounted`, `onErrorCaptured` (`ErrorCapturedHook`)                                                                                                                                                                                                                                                                                                                      |
+| `./text`         | native DOM and SSR interpolation conversion                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                                                                                                                                                                                                                                                                                                                               |
+| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                                                                                                                                                                                                                                                                                                                                     |
+| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                                                                                                                                                                                                                                                                                                                         |
+| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                                                                                                                                                                                                                                                                                                                        |
+| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                                                                                                                                                                                                                                                                                                                                   |
 
 `./framework` exports the same lazy `crepusRenderer` compatibility name as the
 root. Its optional `@tschk/moonshine-framework` peer is needed only when rendering.
@@ -272,34 +273,41 @@ the signal kernel stays unchanged. No startup/runtime speed claim. Compiler
 changes remain local and unpublished; dynamic model arguments and hydration
 remain unsupported.
 
-Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
-`InjectionKey` symbols during synchronous native component initialization. Injection
+Native `./context` provides `provide`, `inject`, `hasInjectionContext`, `useId`, and typed
+`InjectionKey` symbols during synchronous native component initialization (`./reactive` also re-exports `useId`). Injection
 searches ancestors, never the same component's own providers. Nearest ancestors
 shadow outer values, including explicitly provided `undefined`; refs stay refs.
 Defaults are values unless the third argument is `true`, which invokes a missing
 value's factory untracked. Factories have no Vue public-instance `this` receiver.
-Outside initialization, `provide`/`inject` throw; `hasInjectionContext` returns false.
+`useId()` generates deterministic tree-scoped IDs (`v-0`, `v-1`, ...) scoped to the
+root owner of the component/render/SSR tree so DOM and SSR produce identical IDs
+without cross-request or cross-instance counter state.
+Outside initialization, `provide`/`inject`/`useId` throw; `hasInjectionContext` returns false.
 This supports DOM and SSR component scopes, not Vue app-level injection or
 `app.runWithContext`, and does not establish full SFC compiler compatibility.
 
 ### Optional native lifecycle
 
-`@tschk/moonshine-vue/lifecycle` exports `onMounted`, `onBeforeUnmount`, and
-`onUnmounted`. Register synchronously during native component initialization, or
+`@tschk/moonshine-vue/lifecycle` exports `onBeforeMount`, `onMounted`, `onBeforeUnmount`,
+`onUnmounted`, `onErrorCaptured`, and `ErrorCapturedHook`. Register synchronously during native component initialization,
+register `onMounted`/`onBeforeUnmount`/`onUnmounted` inside an `onBeforeMount` callback, or
 register `onUnmounted` inside an `onMounted` or `onBeforeUnmount` callback.
-SSR skips all three. Mounted hooks run after synchronous children and DOM commits,
+SSR skips `onBeforeMount`, `onMounted`, `onBeforeUnmount`, and `onUnmounted` (`onErrorCaptured` remains active in both DOM and SSR for setup/watch error propagation).
+`onBeforeMount` hooks run synchronously as each component's setup finishes before its template nodes are attached to the parent DOM container and before `onMounted` hooks flush.
+Mounted hooks run after synchronous children and DOM commits,
 with pending component references published first. Disposed components skip queued
 mounts. Before-unmount hooks run parent first with DOM and watchers still active;
 unmounted hooks run child first after DOM removal and reactive teardown. Callbacks
 are untracked; returned cleanup functions are ignored. Mounted callbacks flush
 pending references first, recheck that the owner is live, then invoke the hook
-with its component context. Mounted and before-unmount callbacks restore the previous
+with its component context. Before-mount, mounted, and before-unmount callbacks restore the previous
 context even when they throw. Registration from an already disposed owner,
 including an unmounted callback, is rejected.
+`onErrorCaptured(hook)` intercepts descendant component errors (synchronous or asynchronous `watch` getter/callback/effect/cleanup errors and descendant lifecycle hook errors) bottom-up across the native component hierarchy (`hook(err, instance, info)` runs untracked in the capturing ancestor's injection context; returning `false` stops further propagation and prevents unhandled rethrow).
 
 This optional entry has no Vue dependency. It does not provide Vue public-instance
 receivers, app lifecycle, update hooks, async component/Suspense scheduling, or
-full SFC compatibility. Crepus lowers named/aliased imports of these three hooks
+full SFC compatibility. Crepus lowers named/aliased imports of these five hooks
 in the accepted authored source slice. Permanent DOM/SSR fixtures verify nested
 registration, connected mount/before phases, disconnected child-first cleanup,
 two instances and server callback suppression. Intrinsic and imported component

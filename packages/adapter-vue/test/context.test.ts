@@ -8,11 +8,12 @@ import {
 } from "@tschk/moonshine-dom/reactive";
 import { h, render } from "@tschk/moonshine-dom/dom";
 import { h as serverH, renderToString } from "@tschk/moonshine-dom/ssr";
-import { ref } from "../src/reactive";
+import { ref, useId as reactiveUseId } from "../src/reactive";
 import {
   provide,
   inject,
   hasInjectionContext,
+  useId,
   type InjectionKey,
 } from "../src/context";
 import "../../react/test/dom";
@@ -137,6 +138,7 @@ test("initialization guards reject later access and defaults do not track setup 
   expect(hasInjectionContext()).toBe(false);
   expect(() => provide("key", 1)).toThrow("initialization");
   expect(() => inject("key")).toThrow("initialization");
+  expect(() => useId()).toThrow("initialization");
   const [value, setValue] = createSignal(0);
   let calls = 0,
     later!: () => void;
@@ -150,6 +152,7 @@ test("initialization guards reject later access and defaults do not track setup 
           later = () => {
             expect(hasInjectionContext()).toBe(false);
             expect(() => provide("key", 2)).toThrow("initialization");
+            expect(() => useId()).toThrow("initialization");
           };
         },
         {},
@@ -161,4 +164,54 @@ test("initialization guards reject later access and defaults do not track setup 
     later();
     stop();
   });
+});
+
+test("useId generates deterministic tree-scoped IDs across DOM and SSR without leaking across renders", () => {
+  expect(reactiveUseId).toBe(useId);
+  function FieldDOM({ label }: { label: string }) {
+    const id = useId();
+    return h("div", null, h("label", { for: id }, label), h("input", { id }));
+  }
+  function FormDOM() {
+    const formId = useId();
+    const extraId = useId();
+    return h(
+      "form",
+      { id: formId, "data-extra": extraId },
+      h(FieldDOM, { label: "First" }),
+      h(FieldDOM, { label: "Second" }),
+    );
+  }
+  function FieldSSR({ label }: { label: string }) {
+    const id = useId();
+    return serverH(
+      "div",
+      null,
+      serverH("label", { for: id }, label),
+      serverH("input", { id }),
+    );
+  }
+  function FormSSR() {
+    const formId = useId();
+    const extraId = useId();
+    return serverH(
+      "form",
+      { id: formId, "data-extra": extraId },
+      serverH(FieldSSR, { label: "First" }),
+      serverH(FieldSSR, { label: "Second" }),
+    );
+  }
+
+  const hostA = document.createElement("div");
+  const hostB = document.createElement("div");
+  const stopA = render(() => h(FormDOM, null), hostA);
+  const stopB = render(() => h(FormDOM, null), hostB);
+  const expected =
+    '<form id="v-0" data-extra="v-1"><div><label for="v-2">First</label><input id="v-2"></div><div><label for="v-3">Second</label><input id="v-3"></div></form>';
+  expect(hostA.innerHTML.replaceAll("<!---->", "")).toBe(expected);
+  expect(hostB.innerHTML.replaceAll("<!---->", "")).toBe(expected);
+  expect(renderToString(() => serverH(FormSSR, null))).toBe(expected);
+  expect(renderToString(() => serverH(FormSSR, null))).toBe(expected);
+  stopA();
+  stopB();
 });

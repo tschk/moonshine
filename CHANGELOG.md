@@ -1,3 +1,26 @@
+# Moonshine 0.4.49
+
+- Add deterministic tree-scoped `useId()` in `@tschk/moonshine-vue/context`
+  (re-exported from `@tschk/moonshine-vue/reactive`) and `onBeforeMount` /
+  `onErrorCaptured` (`ErrorCapturedHook`) in `@tschk/moonshine-vue/lifecycle`,
+  plus local unpublished Crepuscularity `'vue'` import routing and lifecycle
+  argument validation.
+- `useId()` generates deterministic sequential IDs (`v-0`, `v-1`, ...) scoped to
+  each root component/render/SSR tree via `WeakMap<Owner, { next: number }>` so
+  DOM and SSR markup match without leaking state across requests or mounted
+  instances.
+- `onBeforeMount(fn)` runs synchronously on component setup completion before
+  DOM insertion and before `onMounted`, with untracked execution, preserved
+  component consumer context (`inject()`), and support for dynamic `onMounted`
+  registration.
+- `onErrorCaptured(hook)` intercepts descendant watcher errors (`"watch getter"`,
+  `"watch callback"`, `"watch effect"`, `"watch cleanup"`) bottom-up across
+  ancestor components within each capturing ancestor's component context;
+  returning `false` stops propagation before outer `onErrorCaptured` hooks and
+  `withComponentErrorHandler`, while secondary throws replace the propagating
+  error and unhandled synchronous `watchSyncEffect` errors drain registered
+  cleanups.
+
 # Moonshine 0.4.48
 
 - Add Vue 3.5 `useModel`, compiler-facing `createModel`, `ModelRef<T, M, G, S>`,
