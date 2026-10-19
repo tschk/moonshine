@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-vue",
-  "version": "0.4.53",
+  "version": "0.4.54",
   "description": "Native composition helpers and signal bridges with optional legacy Vue runtime/compiler entries",
   "license": "ISC",
   "type": "module",
