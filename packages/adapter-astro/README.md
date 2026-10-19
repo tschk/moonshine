@@ -14,20 +14,22 @@ This requirement does not apply to the signal-only `@tschk/moonshine` core entry
 import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-astro";
 ```
 
-| Entry           | Provides                                                                                                                                             |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`             | Native signal bridges, lazy native renderer, and host-free runtime helpers                                                                           |
-| `./actions`     | Independent Astro Actions (`defineAction`, `ActionError`, `ActionInputError`, `z`)                                                                   |
-| `./assets`      | Independent Astro Assets (`getImage`, `inferImageDimensions`, `inferRemoteSize`, `configureAssets`)                                                  |
-| `./compiler`    | Legacy Astro compiler re-exports                                                                                                                     |
-| `./content`     | Independent Content Collections & Live Content Layer (`defineCollection`, `getCollection`, `getEntry`, `getEntries`, `reference`, `render`, `z`)     |
-| `./context`     | Independent `AstroCookies`, `createAstroGlobal`, `withAstroContext`, `useAstro`                                                                      |
-| `./env`         | Independent `astro:env` schema validation (`envField`, `validateEnv`, `getSecret`, `setEnvSource`)                                                   |
-| `./i18n`        | Independent `astro:i18n` locale routing (`getRelativeLocaleUrl`, `getAbsoluteLocaleUrl`, `redirectToDefaultLocale`, `i18nMiddleware`)                |
-| `./middleware`  | Independent `astro:middleware` (`defineMiddleware`, `sequence`, `createContext`, `trySerializeLocals`)                                               |
-| `./routing`     | Independent static path pagination & endpoint types (`paginate`, `createPaginate`, `Page`, `GetStaticPaths`, `InferGetStaticParamsType`, `APIRoute`) |
-| `./ssr`         | Independent synchronous Astro source factories                                                                                                       |
-| `./transitions` | Independent View Transitions (`fade`, `slide`, `none`, `navigate`, `swapFunctions`)                                                                  |
+| Entry           | Provides                                                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.`             | Native signal bridges, lazy native renderer, and host-free runtime helpers                                                                                         |
+| `./actions`     | Independent Astro Actions (`defineAction`, `ActionError`, `ActionInputError`, `z`)                                                                                 |
+| `./assets`      | Independent Astro Assets (`getImage`, `inferImageDimensions`, `inferRemoteSize`, `configureAssets`)                                                                |
+| `./compiler`    | Legacy Astro compiler re-exports                                                                                                                                   |
+| `./container`   | Independent Astro Container API (`AstroContainer`, `experimental_AstroContainer`, `renderToString`, `renderToResponse`, `insertPageRoute`)                         |
+| `./content`     | Independent Content Collections & Live Content Layer (`defineCollection`, `getCollection`, `getEntry`, `getEntries`, `glob`, `file`, `reference`, `render`, `z`)   |
+| `./context`     | Independent `AstroCookies`, `AstroSlots`, `createAstroGlobal`, `withAstroContext`, `useAstro`                                                                      |
+| `./env`         | Independent `astro:env` schema validation (`envField`, `validateEnv`, `getSecret`, `setEnvSource`)                                                                 |
+| `./i18n`        | Independent `astro:i18n` locale routing (`getRelativeLocaleUrl`, `getAbsoluteLocaleUrl`, `redirectToDefaultLocale`, `i18nMiddleware`)                              |
+| `./loaders`     | Independent `astro/loaders` Content Layer loaders (`glob`, `file`, `parseFrontmatter`, `parseSimpleYaml`, `parseSimpleToml`, `parseSimpleCsv`, `matchGlobPattern`) |
+| `./middleware`  | Independent `astro:middleware` (`defineMiddleware`, `sequence`, `createContext`, `trySerializeLocals`)                                                             |
+| `./routing`     | Independent static path pagination & endpoint types (`paginate`, `createPaginate`, `Page`, `GetStaticPaths`, `InferGetStaticParamsType`, `APIRoute`)               |
+| `./ssr`         | Independent synchronous Astro source factories                                                                                                                     |
+| `./transitions` | Independent View Transitions (`fade`, `slide`, `none`, `navigate`, `swapFunctions`)                                                                                |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install

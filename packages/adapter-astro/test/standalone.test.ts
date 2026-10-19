@@ -278,5 +278,31 @@ assert.deepEqual(svgDims, { width: 64, height: 32, format: 'svg' });
 const paginated = paginate(['a', 'b', 'c'], { pageSize: 2 });
 assert.equal(paginated.length, 2);
 assert.equal(paginated[0].props.page.url.next, '/2');
+const { glob, file } = await import('@tschk/moonshine-astro/loaders');
+const { AstroContainer, experimental_AstroContainer } = await import('@tschk/moonshine-astro/container');
+const { h: ssrH } = await import('@tschk/moonshine-astro/ssr');
+assert.equal(experimental_AstroContainer, AstroContainer);
+await Bun.write('content-dir/post.md', '---\\ntitle: From Glob\\n---\\n# Glob Heading\\n\\nBody.');
+await Bun.write('data.json', JSON.stringify([{ id: 'one', label: 'First' }]));
+registerCollections({
+  blog: defineCollection({
+    loader: glob({ pattern: '**/*.md', base: 'content-dir' }),
+    schema: z.object({ title: z.string() }),
+  }),
+  items: defineCollection({
+    loader: file('data.json'),
+    schema: z.object({ id: z.string(), label: z.string() }),
+  }),
+});
+const blogEntries = await getCollection('blog');
+assert.equal(blogEntries.length, 1);
+assert.equal(blogEntries[0].data.title, 'From Glob');
+const itemOne = await getEntry('items', 'one');
+assert.equal(itemOne?.data.label, 'First');
+const container = await AstroContainer.create({ locals: { env: 'test' } });
+const renderedStr = await container.renderToString((props) => ssrH('div', { 'data-env': useAstro().locals.env }, props.greeting), {
+  props: { greeting: 'Hello Container' },
+});
+assert.equal(renderedStr, '<div data-env="test">Hello Container</div>');
 `);
 });

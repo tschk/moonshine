@@ -20,6 +20,11 @@ export type { ErrorCapturedHook } from "./error-context";
 type FrameMountQueue = {
   before: Array<() => void>;
   mounted: Array<() => void>;
+  beforeUpdate: Array<() => void>;
+  updated: Array<() => void>;
+  activated: Array<() => void>;
+  deactivated: Array<() => void>;
+  serverPrefetch: Array<() => Promise<unknown>>;
 };
 const frameQueues = /* @__PURE__ */ new WeakMap<
   ComponentContext,
@@ -35,7 +40,15 @@ function component(fn: (...args: any[]) => unknown) {
 function ensureMountQueue(frame: ComponentContext): FrameMountQueue {
   let queue = frameQueues.get(frame);
   if (!queue) {
-    queue = { before: [], mounted: [] };
+    queue = {
+      before: [],
+      mounted: [],
+      beforeUpdate: [],
+      updated: [],
+      activated: [],
+      deactivated: [],
+      serverPrefetch: [],
+    };
     frameQueues.set(frame, queue);
     const post = getRenderScheduler()?.post ?? queuePostCommit;
     onComponentReady(() => {
@@ -83,6 +96,40 @@ export function onMounted(fn: () => void): void {
   const frame = component(fn);
   if (frame.mode === "ssr") return;
   ensureMountQueue(frame).mounted.push(fn);
+}
+export function onBeforeUpdate(fn: () => void): void {
+  const frame = component(fn);
+  if (frame.mode === "ssr") return;
+  ensureMountQueue(frame).beforeUpdate.push(fn);
+}
+export function onUpdated(fn: () => void): void {
+  const frame = component(fn);
+  if (frame.mode === "ssr") return;
+  ensureMountQueue(frame).updated.push(fn);
+}
+export function onActivated(fn: () => void): void {
+  const frame = component(fn);
+  if (frame.mode === "ssr") return;
+  const queue = ensureMountQueue(frame);
+  queue.activated.push(fn);
+  queue.mounted.push(fn);
+}
+export function onDeactivated(fn: () => void): void {
+  const frame = component(fn);
+  if (frame.mode === "ssr") return;
+  ensureMountQueue(frame).deactivated.push(fn);
+  onBeforeUnmount(fn);
+}
+export function onServerPrefetch(fn: () => Promise<any>): void {
+  const frame = component(fn);
+  if (frame.mode !== "ssr") return;
+  if (!frame.owner.disposed) {
+    void Promise.resolve(
+      runWithOwner(frame.owner, () =>
+        untrack(() => withComponentConsumer(frame, fn)),
+      ),
+    ).catch(() => {});
+  }
 }
 export function onBeforeUnmount(fn: () => void): void {
   const frame = component(fn);

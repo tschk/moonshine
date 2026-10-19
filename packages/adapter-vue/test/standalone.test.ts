@@ -182,6 +182,10 @@ assert.equal(renderToString(()=>h(()=>{onBeforeMount(()=>lifecycleCalls++);onMou
 assert.equal(lifecycleCalls,0);
 assert.deepEqual(capturedErrors,[['ssr-boom','watch effect']]);
 assert.equal(renderToString(()=>h(()=>{provide('value','<context>');return h(()=>h('p',null,inject('value')),null)},null)),'<p>&lt;context&gt;</p>');
+const reactiveMod=await import('@tschk/moonshine-vue/reactive');
+assert.equal(reactiveMod.version,'3.5.13');
+assert.equal(reactiveMod.mergeProps({class:'a'},{class:'b'}).class,'a b');
+assert.equal(await reactiveMod.nextTick(()=>42),42);
 `);
 });
 

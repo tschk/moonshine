@@ -58,6 +58,8 @@ export function hasInjectionContext(): boolean {
   const frame = peekComponentContext();
   return !!frame?.active && !frame.owner.disposed;
 }
+import { getDefaultSlotFactory } from "./slots";
+
 export function useId(): string {
   const frame = getComponentContext();
   let root: Owner = frame.owner;
@@ -68,4 +70,73 @@ export function useId(): string {
     idCounters.set(root, state);
   }
   return `v-${state.next++}`;
+}
+
+export function useAttrs(): Record<string, unknown> {
+  const frame = getComponentContext();
+  const raw =
+    frame.props !== null &&
+    typeof frame.props === "object" &&
+    !Array.isArray(frame.props)
+      ? (frame.props as Record<string, unknown>)
+      : {};
+  return new Proxy(raw, {
+    get(target, prop, receiver) {
+      if (typeof prop === "symbol") return undefined;
+      if (prop === "$slots" || prop === "slots") return undefined;
+      return Reflect.get(target, prop, receiver);
+    },
+    has(target, prop) {
+      if (typeof prop === "symbol" || prop === "$slots" || prop === "slots") {
+        return false;
+      }
+      return prop in target;
+    },
+    ownKeys(target) {
+      return Reflect.ownKeys(target).filter(
+        (key): key is string =>
+          typeof key === "string" && key !== "$slots" && key !== "slots",
+      );
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (typeof prop === "symbol" || prop === "$slots" || prop === "slots") {
+        return undefined;
+      }
+      const desc = Reflect.getOwnPropertyDescriptor(target, prop);
+      if (desc) return { ...desc, configurable: true };
+      return undefined;
+    },
+  });
+}
+
+export type Slots = Readonly<
+  Record<string, ((...args: any[]) => unknown) | undefined>
+>;
+
+export function useSlots(): Slots {
+  const frame = getComponentContext();
+  const raw =
+    frame.props !== null &&
+    typeof frame.props === "object" &&
+    !Array.isArray(frame.props)
+      ? (frame.props as Record<string, unknown>)
+      : {};
+  const defaultSlot = getDefaultSlotFactory(raw, frame);
+  const explicitSlots =
+    (raw.$slots && typeof raw.$slots === "object"
+      ? (raw.$slots as Record<string, (...args: any[]) => unknown>)
+      : undefined) ??
+    (raw.slots && typeof raw.slots === "object"
+      ? (raw.slots as Record<string, (...args: any[]) => unknown>)
+      : undefined);
+
+  const out: Record<string, ((...args: any[]) => unknown) | undefined> = {
+    ...explicitSlots,
+  };
+  if (defaultSlot && !out.default) {
+    out.default = defaultSlot;
+  } else if (typeof raw.children === "function" && !out.default) {
+    out.default = raw.children as (...args: any[]) => unknown;
+  }
+  return Object.freeze(out);
 }

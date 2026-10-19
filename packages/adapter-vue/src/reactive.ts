@@ -6,6 +6,7 @@ import {
   createRoot,
   createSignal,
   getOwner,
+  getRenderScheduler,
   onCleanup,
   runWithOwner,
   untrack,
@@ -27,7 +28,30 @@ import {
   type ComponentContext,
 } from "@tschk/moonshine-dom/component";
 import { createEmitter } from "./events";
-export { useId } from "./context";
+export {
+  hasInjectionContext,
+  inject,
+  provide,
+  useAttrs,
+  useId,
+  useSlots,
+  type InjectionKey,
+  type Slots,
+} from "./context";
+export {
+  onActivated,
+  onBeforeMount,
+  onBeforeUnmount,
+  onBeforeUpdate,
+  onDeactivated,
+  onErrorCaptured,
+  onMounted,
+  onServerPrefetch,
+  onUnmounted,
+  onUpdated,
+  type ErrorCapturedHook,
+} from "./lifecycle";
+import { normalizeClass, normalizeStyle } from "./normalize";
 import {
   createMutable,
   unwrap as unwrapStore,
@@ -1891,3 +1915,392 @@ export function useModel<
 ): ModelRef<T[K], M, G, S> {
   return createModel<T[K], M, G, S>(props, name, options);
 }
+
+export type WatchEffect = (onCleanup: (fn: () => void) => void) => void;
+
+export interface WatchEffectOptions {
+  flush?: "pre" | "post" | "sync";
+  onTrack?: (event: unknown) => void;
+  onTrigger?: (event: unknown) => void;
+}
+
+const pendingPostJobs: Array<() => void> = [];
+let postFlushScheduled = false;
+
+function queueVuePostJob(fn: () => void): void {
+  const scheduler = getRenderScheduler();
+  if (scheduler) {
+    scheduler.post(fn);
+    return;
+  }
+  pendingPostJobs.push(fn);
+  if (!postFlushScheduled) {
+    postFlushScheduled = true;
+    queueMicrotask(() => {
+      postFlushScheduled = false;
+      let failed = false;
+      let failure: unknown;
+      while (pendingPostJobs.length > 0) {
+        const batchJobs = pendingPostJobs.splice(0);
+        for (const job of batchJobs) {
+          try {
+            job();
+          } catch (error) {
+            if (!failed) failure = error;
+            failed = true;
+          }
+        }
+      }
+      if (failed) throw failure;
+    });
+  }
+}
+
+export function watchEffect(
+  effect: WatchEffect,
+  options?: WatchEffectOptions,
+): WatchHandle {
+  if (typeof effect !== "function") {
+    throw new TypeError("Watcher effect must be a function");
+  }
+  if (!options || options.flush !== "post") {
+    return watchSyncEffect(effect);
+  }
+  const outer = getOwner();
+  if (outer?.disposed) {
+    throw new Error("Cannot watch from a disposed native owner");
+  }
+  const reportError = captureWatchErrorHandler();
+  let stop!: () => void;
+  let pause!: () => void;
+  let resume!: () => void;
+
+  createRoot((dispose) => {
+    stop = dispose;
+    let active = true;
+    let running = false;
+    let paused = false;
+    let dirtyWhilePaused = false;
+    let scheduled = false;
+    let lastDeps: Array<Parameters<typeof trackDependency>[0]> = [];
+    const [readTrigger, writeTrigger] = createSignal(0, { equals: false });
+    const cleanups: Array<() => void> = [];
+
+    const clean = () => {
+      let failed = false;
+      let failure: unknown;
+      const prevCleanup = activeWatcherCleanup;
+      activeWatcherCleanup = undefined;
+      try {
+        for (const fn of cleanups.splice(0)) {
+          try {
+            untrack(() =>
+              reportError
+                ? invokeWatch(reportError, "watch cleanup", fn)
+                : fn(),
+            );
+          } catch (error) {
+            if (!failed) failure = error;
+            failed = true;
+          }
+        }
+      } finally {
+        activeWatcherCleanup = prevCleanup;
+      }
+      if (failed) throw failure;
+    };
+
+    const executeEffect = () => {
+      scheduled = false;
+      if (running || !active || paused) return;
+      running = true;
+      try {
+        untrack(clean);
+        if (!active) return;
+        const registerCleanup = (fn: () => void) => {
+          if (typeof fn !== "function") {
+            throw new TypeError("Watcher cleanup must be a function");
+          }
+          if (active) cleanups.push(fn);
+        };
+        const invoke = () => {
+          const previousCleanup = activeWatcherCleanup;
+          activeWatcherCleanup = registerCleanup;
+          try {
+            return effect(registerCleanup);
+          } finally {
+            activeWatcherCleanup = previousCleanup;
+          }
+        };
+        lastDeps = collectDeps(
+          () => {
+            if (reportError) invokeWatch(reportError, "watch effect", invoke);
+            else invoke();
+          },
+          undefined,
+          true,
+        ) as Array<Parameters<typeof trackDependency>[0]>;
+        writeTrigger((v) => v + 1);
+      } catch (error) {
+        try {
+          untrack(clean);
+        } catch {
+          /* Preserve effect failure. */
+        }
+        throw error;
+      } finally {
+        running = false;
+      }
+    };
+
+    pause = () => {
+      if (active) paused = true;
+    };
+    resume = () => {
+      if (!active || !paused) return;
+      paused = false;
+      if (dirtyWhilePaused) {
+        dirtyWhilePaused = false;
+        if (!scheduled) {
+          scheduled = true;
+          queueVuePostJob(executeEffect);
+        }
+      }
+    };
+
+    onCleanup(() => {
+      active = false;
+      paused = false;
+      dirtyWhilePaused = false;
+      scheduled = false;
+      clean();
+    });
+
+    let initialSubscriptionPass = true;
+    createComputed(() => {
+      readTrigger();
+      for (const dep of lastDeps) {
+        dep.validate?.();
+        trackDependency(dep);
+      }
+      if (initialSubscriptionPass) {
+        initialSubscriptionPass = false;
+        scheduled = true;
+        queueVuePostJob(executeEffect);
+        return;
+      }
+      if (!active || running) return;
+      if (paused) {
+        dirtyWhilePaused = true;
+        return;
+      }
+      if (!scheduled) {
+        scheduled = true;
+        queueVuePostJob(executeEffect);
+      }
+    });
+  });
+
+  if (outer) onCleanup(stop);
+  return createWatchHandle(stop, pause, resume);
+}
+
+export function watchPostEffect(
+  effect: WatchEffect,
+  options?: Omit<WatchEffectOptions, "flush">,
+): WatchHandle {
+  return watchEffect(effect, { ...options, flush: "post" });
+}
+
+export function nextTick<R = void>(fn?: () => R): Promise<Awaited<R>> {
+  return new Promise<Awaited<R>>((resolve, reject) => {
+    queueVuePostJob(() => {
+      try {
+        const result = fn ? fn() : undefined;
+        resolve(result as Awaited<R>);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+function isOnEventKey(key: string): boolean {
+  return (
+    key.length > 2 &&
+    key.charCodeAt(0) === 111 &&
+    key.charCodeAt(1) === 110 &&
+    key.charCodeAt(2) <= 96
+  );
+}
+
+export function mergeProps(
+  ...args: Array<Record<string, any> | null | undefined>
+): Record<string, any> {
+  const ret: Record<string, any> = {};
+  for (const toMerge of args) {
+    if (!toMerge || typeof toMerge !== "object") continue;
+    for (const key of Object.keys(toMerge)) {
+      const incoming = toMerge[key];
+      if (key === "class") {
+        if (ret.class !== incoming) {
+          ret.class = normalizeClass([ret.class, incoming]);
+        }
+      } else if (key === "style") {
+        ret.style = normalizeStyle([ret.style, incoming]);
+      } else if (isOnEventKey(key)) {
+        const existing = ret[key];
+        if (
+          incoming &&
+          existing !== incoming &&
+          !(Array.isArray(existing) && existing.includes(incoming))
+        ) {
+          ret[key] = existing
+            ? [].concat(existing as any, incoming as any)
+            : incoming;
+        }
+      } else if (key !== "") {
+        ret[key] = incoming;
+      }
+    }
+  }
+  return ret;
+}
+
+export function defineComponent<T>(options: T): T {
+  return options;
+}
+
+export interface AsyncComponentOptions<T = any> {
+  loader: () => Promise<T | { default: T }>;
+  loadingComponent?: (...args: any[]) => any;
+  errorComponent?: (...args: any[]) => any;
+  delay?: number;
+  timeout?: number;
+  onError?: (
+    error: Error,
+    retry: () => void,
+    fail: () => void,
+    attempts: number,
+  ) => any;
+}
+
+export function defineAsyncComponent<
+  T extends (...args: any[]) => any = (...args: any[]) => any,
+>(source: (() => Promise<T | { default: T }>) | AsyncComponentOptions<T>): T {
+  const options: AsyncComponentOptions<T> =
+    typeof source === "function" ? { loader: source } : source;
+  let resolvedComp: T | undefined;
+  let pendingPromise: Promise<T> | undefined;
+
+  const wrapper = ((props: Record<string, any>) => {
+    if (resolvedComp) {
+      return resolvedComp(props);
+    }
+    const [loaded, setLoaded] = createSignal<T | undefined>(resolvedComp);
+    const [error, setError] = createSignal<Error | undefined>(undefined);
+    const [showLoading, setShowLoading] = createSignal(
+      (options.delay ?? 200) <= 0,
+    );
+
+    let disposed = false;
+    if (getOwner()) {
+      onCleanup(() => {
+        disposed = true;
+      });
+    }
+
+    const delayMs = options.delay ?? 200;
+    const delayTimer =
+      delayMs > 0
+        ? setTimeout(() => {
+            if (!disposed && !resolvedComp) setShowLoading(true);
+          }, delayMs)
+        : undefined;
+
+    const timeoutTimer =
+      options.timeout !== undefined && options.timeout > 0
+        ? setTimeout(() => {
+            if (!disposed && !resolvedComp) {
+              setError(
+                new Error(
+                  `Async component timed out after ${options.timeout}ms.`,
+                ),
+              );
+            }
+          }, options.timeout)
+        : undefined;
+
+    let attempts = 0;
+    const loadAttempt = (): Promise<T> => {
+      attempts++;
+      return options
+        .loader()
+        .then((mod) => {
+          const comp =
+            mod && typeof mod === "object" && "default" in mod
+              ? mod.default
+              : (mod as T);
+          resolvedComp = comp;
+          if (!disposed) {
+            setLoaded(() => comp);
+          }
+          return comp;
+        })
+        .catch((err) => {
+          const normalized =
+            err instanceof Error ? err : new Error(String(err));
+          if (options.onError) {
+            return new Promise<T>((resolve, reject) => {
+              options.onError!(
+                normalized,
+                () => resolve(loadAttempt()),
+                () => reject(normalized),
+                attempts,
+              );
+            });
+          }
+          throw normalized;
+        });
+    };
+
+    if (!pendingPromise) {
+      pendingPromise = loadAttempt();
+    }
+    pendingPromise
+      .then((comp) => {
+        if (!disposed) setLoaded(() => comp);
+      })
+      .catch((err) => {
+        pendingPromise = undefined;
+        if (!disposed) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      })
+      .finally(() => {
+        if (delayTimer !== undefined) clearTimeout(delayTimer);
+        if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
+      });
+
+    return () => {
+      const err = error();
+      if (err) {
+        return options.errorComponent
+          ? options.errorComponent({ error: err })
+          : null;
+      }
+      const comp = loaded();
+      if (comp) {
+        return comp(props);
+      }
+      if (showLoading() && options.loadingComponent) {
+        return options.loadingComponent(props);
+      }
+      return null;
+    };
+  }) as unknown as T;
+
+  return wrapper;
+}
+
+export const version = "3.5.13";

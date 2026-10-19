@@ -204,6 +204,14 @@ export interface AstroResponseInit {
   headers: Headers;
 }
 
+export type AstroSlotValue =
+  string | number | boolean | null | undefined | ((...args: any[]) => unknown);
+
+export interface AstroSlots {
+  has(name: string): boolean;
+  render(name: string, args?: unknown[]): Promise<string>;
+}
+
 export interface AstroGlobal<
   Props extends Record<string, any> = Record<string, any>,
   Params extends Record<string, string | undefined> = Record<
@@ -218,6 +226,7 @@ export interface AstroGlobal<
   params: Params;
   locals: Locals;
   cookies: AstroCookies;
+  slots: AstroSlots;
   site: URL | undefined;
   generator: string;
   clientAddress: string;
@@ -245,6 +254,7 @@ export interface AstroContextInit<
   params?: Params;
   locals?: Locals;
   cookies?: AstroCookies;
+  slots?: Record<string, AstroSlotValue>;
   site?: URL | string;
   generator?: string;
   clientAddress?: string;
@@ -258,6 +268,31 @@ export interface AstroContextInit<
     target: URL,
     request: Request,
   ) => Response | Promise<Response>;
+}
+
+function createAstroSlots(
+  rawSlots: Record<string, AstroSlotValue> = {},
+): AstroSlots {
+  return {
+    has(name: string): boolean {
+      return (
+        Object.hasOwn(rawSlots, name) &&
+        rawSlots[name] !== undefined &&
+        rawSlots[name] !== null &&
+        rawSlots[name] !== false
+      );
+    },
+    async render(name: string, args: unknown[] = []): Promise<string> {
+      if (!Object.hasOwn(rawSlots, name)) return "";
+      const slot = rawSlots[name];
+      const resolved =
+        typeof slot === "function" ? await slot(...args) : await slot;
+      if (resolved === undefined || resolved === null || resolved === false) {
+        return "";
+      }
+      return String(resolved);
+    },
+  };
 }
 
 export function createAstroGlobal<
@@ -280,6 +315,7 @@ export function createAstroGlobal<
           : new URL("http://localhost/");
   const request = init.request ?? new Request(resolvedUrl.href);
   const cookies = init.cookies ?? new AstroCookies(request);
+  const slots = createAstroSlots(init.slots);
   const site =
     init.site instanceof URL
       ? init.site
@@ -303,6 +339,7 @@ export function createAstroGlobal<
     params: (init.params ?? {}) as Params,
     locals: (init.locals ?? {}) as Locals,
     cookies,
+    slots,
     site,
     generator: init.generator ?? "Moonshine Astro",
     clientAddress:

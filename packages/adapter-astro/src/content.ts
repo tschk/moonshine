@@ -1462,7 +1462,7 @@ export function extractMarkdownHeadings(markdown: string): MarkdownHeading[] {
   return headings;
 }
 
-function renderSimpleMarkdownToHtml(markdown: string): string {
+export function renderSimpleMarkdownToHtml(markdown: string): string {
   const blocks = markdown.trim().split(/\n{2,}/);
   const htmlParts: string[] = [];
   for (const block of blocks) {
@@ -1507,3 +1507,17 @@ export async function render(
     remarkPluginFrontmatter,
   };
 }
+
+export {
+  file,
+  glob,
+  matchGlobPattern,
+  parseFrontmatter,
+  parseSimpleCsv,
+  parseSimpleToml,
+  parseSimpleYaml,
+  type FileLoaderOptions,
+  type FrontmatterParseResult,
+  type GenerateIdOptions,
+  type GlobLoaderOptions,
+} from "./loaders";
