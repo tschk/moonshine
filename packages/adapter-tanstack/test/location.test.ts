@@ -37,6 +37,16 @@ describe("stringifySearch", () => {
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
   });
+
+  test("stringifies non-string values correctly", () => {
+    expect(stringifySearch({
+      str: "hello",
+      num: 42,
+      bool: true,
+      obj: { key: "value" },
+      arr: [1, 2, 3]
+    })).toBe('?str=hello&num=42&bool=true&obj=%7B%22key%22%3A%22value%22%7D&arr=%5B1%2C2%2C3%5D');
+  });
 });
 
 describe("interpolatePath", () => {
