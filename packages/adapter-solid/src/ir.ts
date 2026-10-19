@@ -32,10 +32,12 @@ export function createIrRenderer<Child>(
     return children.map((child) => renderCrepusNodeSolid(child));
   }
 
-  const RENDERERS: Record<
-    string,
-    (node: any, cls: string | undefined) => Child
-  > = {
+  const RENDERERS: {
+    [K in ViewNode["kind"]]?: (
+      node: Extract<ViewNode, { kind: K }>,
+      cls: string | undefined,
+    ) => Child;
+  } = {
     text: (node, cls) => el("span", { class: cls }, node.content),
     link: (node, cls) =>
       el(
@@ -122,7 +124,7 @@ export function createIrRenderer<Child>(
       el(
         "select",
         { class: cls, name: node.bind },
-        ...node.options.map((option: any) =>
+        ...node.options.map((option) =>
           el("option", { value: option.value }, option.label),
         ),
       ),
@@ -186,7 +188,8 @@ export function createIrRenderer<Child>(
     }
     const cls = classOf(node);
     const renderer = RENDERERS[node.kind];
-    return renderer(node, cls);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (renderer as any)(node, cls);
   }
 
   /**
