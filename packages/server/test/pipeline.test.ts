@@ -238,6 +238,26 @@ describe("createRequestHandler", () => {
     expect(await res.text()).toBe("child:child fail");
   });
 
+  test("thrown Response skips error boundary processing", async () => {
+    const routes = graph([{ id: "err", path: "/err", file: "err.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        err: {
+          before: [
+            () => {
+              throw new Response("custom error", { status: 418 });
+            },
+          ],
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/err"));
+    expect(res.status).toBe(418);
+    expect(await res.text()).toBe("custom error");
+  });
+
   test("production error response omits message and stack", async () => {
     const routes = graph([{ id: "err", path: "/err", file: "err.tsx" }]);
     const handler = createRequestHandler({
