@@ -6,6 +6,7 @@ describe("errors module", () => {
     test("creates a Redirect error with default status", () => {
       const err = new Redirect("/login");
       expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(Redirect);
       expect(err.name).toBe("Redirect");
       expect(err.location).toBe("/login");
       expect(err.status).toBe(302);
@@ -14,7 +15,28 @@ describe("errors module", () => {
 
     test("creates a Redirect error with custom status", () => {
       const err = new Redirect("/login", 301);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(Redirect);
+      expect(err.name).toBe("Redirect");
+      expect(err.location).toBe("/login");
       expect(err.status).toBe(301);
+      expect(err.message).toBe("Redirect to /login");
+    });
+
+    test("creates a Redirect error with empty location", () => {
+      const err = new Redirect("");
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(Redirect);
+      expect(err.name).toBe("Redirect");
+      expect(err.location).toBe("");
+      expect(err.status).toBe(302);
+      expect(err.message).toBe("Redirect to ");
+    });
+
+    test("defaults to 302 if status is undefined", () => {
+      const err = new Redirect("/login", undefined);
+      expect(err).toBeInstanceOf(Redirect);
+      expect(err.status).toBe(302);
     });
   });
 
