@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./composables": "./src/composables.ts",
     "./app": "./src/app.ts",
     "./vue": "./src/vue.ts"
   },

@@ -1,28 +1,32 @@
-/** Native signal bridges and a lazy native renderer; host APIs remain on legacy subpaths. */
+/** Native signal bridges, Nuxt composables, and a lazy native renderer; host APIs remain on legacy subpaths. */
 import {
   createSignal as msCreateSignal,
   type Signal as MsSignal,
 } from "@tschk/moonshine";
 
-export type VueRef<T> = {
-  get value(): T;
-  set value(next: T);
-};
-
-export function fromMoonshineSignal<T>(signal: MsSignal<T>): VueRef<T> {
-  return {
-    get value() {
-      return signal();
-    },
-    set value(next: T) {
-      signal.set(() => next);
-    },
-  };
-}
-
-export function createBridgedRef<T>(initial: T): VueRef<T> {
-  return fromMoonshineSignal(msCreateSignal(initial));
-}
+export {
+  clearNuxtData,
+  clearNuxtState,
+  createBridgedRef,
+  defineNuxtPlugin,
+  defineNuxtRouteMiddleware,
+  definePageMeta,
+  fromMoonshineSignal,
+  isNuxtRef,
+  refreshNuxtData,
+  useAsyncData,
+  useLazyAsyncData,
+  useNuxtData,
+  useState,
+} from "./composables";
+export type {
+  AsyncData,
+  AsyncDataExecuteOptions,
+  AsyncDataObject,
+  AsyncDataOptions,
+  AsyncDataRequestStatus,
+  VueRef,
+} from "./composables";
 
 export { msCreateSignal as createMoonshineSignal };
 export type { MsSignal as MoonshineSignal };

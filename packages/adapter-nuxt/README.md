@@ -1,24 +1,36 @@
 # `@tschk/moonshine-nuxt`
 
-The root provides native Moonshine signal bridges and a lazy native renderer.
-At runtime, root imports need neither Nuxt, React, parser WASM nor the optional
+The root and `./composables` entries provide native Moonshine signal bridges,
+owner/SSR-scoped Nuxt state and async data composables (`useState`,
+`clearNuxtState`, `useAsyncData`, `useLazyAsyncData`, `useNuxtData`,
+`refreshNuxtData`, `clearNuxtData`, `definePageMeta`, `defineNuxtPlugin`,
+`defineNuxtRouteMiddleware`), and a lazy native renderer. At runtime, root and
+`./composables` imports need neither Nuxt, React, parser WASM nor the optional
 framework peer. Legacy host APIs remain explicit on their existing subpaths.
 
 Strict TypeScript checking of the root entry requires installing
 `@tschk/moonshine-framework`, even when importing only a bridge: the root also
 exports `crepusRenderer` with the framework's `Renderer` contract. The framework
 remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
-This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
+This requirement does not apply to `./composables` or the signal-only
+`@tschk/moonshine` core entry.
 
 ```ts
-import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-nuxt";
+import {
+  useState,
+  useAsyncData,
+  useNuxtData,
+  fromMoonshineSignal,
+  crepusRenderer,
+} from "@tschk/moonshine-nuxt";
 ```
 
-| Entry   | Provides                                       |
-| ------- | ---------------------------------------------- |
-| `.`     | Native signal bridges and lazy native renderer |
-| `./app` | Legacy Nuxt app composables                    |
-| `./vue` | Legacy Vue runtime re-exports                  |
+| Entry           | Provides                                                          |
+| --------------- | ----------------------------------------------------------------- |
+| `.`             | Native signal bridges, Nuxt composables, and lazy native renderer |
+| `./composables` | Host-free Nuxt state, async data, and macro composables           |
+| `./app`         | Legacy Nuxt app composables                                       |
+| `./vue`         | Legacy Vue runtime re-exports                                     |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install

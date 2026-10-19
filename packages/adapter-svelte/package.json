@@ -24,7 +24,8 @@
     "./each": "./src/each.ts",
     "./mount": "./src/mount.ts",
     "./server-mount": "./src/server-mount.ts",
-    "./const": "./src/const-derived.ts"
+    "./const": "./src/const-derived.ts",
+    "./reactivity": "./src/reactivity.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "^0.4.48",

@@ -50,7 +50,7 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     import * as root from '@tschk/moonshine-nuxt';
     for(const name of ['@angular/core','@angular/common','astro','nuxt','vue','react','react-dom','@tschk/crepuscularity-wasm','@tschk/crepus-moonshine','@tschk/moonshine-framework'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
     const entry=process.cwd()+'/bridge.ts';
-    await Bun.write(entry,"export {createBridgedRef} from '@tschk/moonshine-nuxt';");
+    await Bun.write(entry,"export {createBridgedRef, useState, useAsyncData, useNuxtData, clearNuxtState, definePageMeta} from '@tschk/moonshine-nuxt';");
     for(const target of ['browser','bun','node']){
       const built=await Bun.build({entrypoints:[entry],target,minify:true});
       assert.equal(built.success,true,String(built.logs));
@@ -60,6 +60,14 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     assert.equal(root.crepusRenderer.name,'crepus');
     assert.equal(typeof root.crepusRenderer.render,'function');
     const value=root.createBridgedRef(1);value.value=2;assert.equal(value.value,2);
+    const shared=root.useState('shared',()=>10);
+    assert.equal(root.useState('shared').value,10);
+    shared.value=20;
+    assert.equal(root.useState('shared').value,20);
+    root.clearNuxtState('shared');
+    const asyncRes=await root.useAsyncData('greeting',async()=>'hello');
+    assert.equal(asyncRes.data.value,'hello');
+    assert.equal(root.useNuxtData('greeting').data.value,'hello');
   `);
 });
 

@@ -10,12 +10,13 @@ exports `crepusRenderer` with the framework's `Renderer` contract. The framework
 remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
 This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
 
-| Subpath    | Provides                                                                                     |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| `.`        | signal bridges and lazy native SSR compatibility renderer                                    |
-| `./svelte` | lifecycle, `tick`, `settled`, `flushSync`, `untrack`, context, typed `createContext`, events |
-| `./class`  | opt-in `classValue` and `classDirectives` for source classes                                 |
-| `./store`  | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore` |
+| Subpath        | Provides                                                                                                                   |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `.`            | signal bridges and lazy native SSR compatibility renderer                                                                  |
+| `./svelte`     | lifecycle, `tick`, `settled`, `flushSync`, `untrack`, context, typed `createContext`, events                               |
+| `./reactivity` | independent `SvelteMap`, `SvelteSet`, `SvelteDate`, `SvelteURL`, `SvelteURLSearchParams`, `MediaQuery`, `createSubscriber` |
+| `./class`      | opt-in `classValue` and `classDirectives` for source classes                                                               |
+| `./store`      | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore`                               |
 
 `classValue` flattens nested class arrays and includes truthy object keys. Empty
 results return `undefined`, omitting the DOM/SSR attribute. Top-level primitive

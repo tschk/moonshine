@@ -1,3 +1,24 @@
+# Moonshine 0.4.53
+
+- Add native Svelte 5 `svelte/reactivity` classes and helpers (`createSubscriber`,
+  `MediaQuery`, `SvelteDate`, `SvelteSet`, `SvelteMap`, `SvelteURL`, and
+  `SvelteURLSearchParams`) in `@tschk/moonshine-svelte/reactivity`, paired with
+  local unpublished Crepuscularity `'svelte/reactivity'` import and re-export
+  routing.
+- `createSubscriber(start)` activates only during tracked non-SSR reads, shares a
+  single subscription across concurrent reactive consumers, and tears down on a
+  microtask when value demand drops to zero; `SvelteMap` separates structural
+  key-set tracking (`size`, `keys()`) from per-key and value-level updates
+  (`get(k)`, `values()`, `entries()`), while `SvelteURL` and
+  `SvelteURLSearchParams` synchronize mutations bidirectionally.
+- Add native host-free Nuxt 3/4 state, async data, and macro composables
+  (`useState`, `clearNuxtState`, `useAsyncData`, `useLazyAsyncData`,
+  `useNuxtData`, `refreshNuxtData`, `clearNuxtData`, `definePageMeta`,
+  `defineNuxtPlugin`, `defineNuxtRouteMiddleware`, and `isNuxtRef`) in
+  `@tschk/moonshine-nuxt/composables` and `@tschk/moonshine-nuxt`, scoped by root
+  `Owner` or SSR render pass so concurrent SSR requests and independent trees
+  never leak state.
+
 # Moonshine 0.4.52
 
 - Add native host-free Angular 17–19 signal primitives (`signal`, `computed`,
