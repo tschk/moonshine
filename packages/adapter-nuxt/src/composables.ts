@@ -116,6 +116,8 @@ type NuxtScopeStore = {
   beforeGuards: Set<NavigationGuard>;
   updateGuards: Set<NavigationGuard>;
   leaveGuards: Set<NavigationGuard>;
+  globalMiddlewares: Set<NavigationGuard>;
+  namedMiddlewares: Map<string, NavigationGuard>;
   afterHooks: Set<AfterNavigationHook>;
   errorHandlers: Set<(error: unknown) => void>;
   headEntries: HeadEntryRecord[];
@@ -128,6 +130,8 @@ type NuxtScopeStore = {
   routeAnnouncer?: RouteAnnouncer;
   prehydrateCallbacks: Map<string, string>;
   reloadHistory: ReloadNuxtAppOptions[];
+  payloadReducers: Map<string, (data: any) => any>;
+  payloadRevivers: Map<string, (data: any) => any>;
   event?: NuxtRequestEvent;
 };
 
@@ -167,6 +171,8 @@ function createScopeStore(
     beforeGuards: new Set(),
     updateGuards: new Set(),
     leaveGuards: new Set(),
+    globalMiddlewares: new Set(),
+    namedMiddlewares: new Map(),
     afterHooks: new Set(),
     errorHandlers: new Set(),
     headEntries: [],
@@ -176,6 +182,8 @@ function createScopeStore(
     preloadedRoutes: new Set(),
     prehydrateCallbacks: new Map(),
     reloadHistory: [],
+    payloadReducers: new Map(),
+    payloadRevivers: new Map(),
     event,
   };
 }
@@ -571,6 +579,10 @@ export function definePageMeta<T extends Record<string, any>>(meta: T): T {
   return meta;
 }
 
+export function defineAppConfig<T extends Record<string, any>>(config: T): T {
+  return config;
+}
+
 export function defineNuxtPlugin<T extends (...args: any[]) => any>(
   plugin: T,
 ): T {
@@ -583,7 +595,45 @@ export function defineNuxtRouteMiddleware<T extends (...args: any[]) => any>(
   return middleware;
 }
 
-function isNuxtRequestEvent(value: unknown): value is NuxtRequestEvent {
+export interface AddRouteMiddlewareOptions {
+  global?: boolean;
+}
+
+export function addRouteMiddleware(
+  name: string,
+  middleware: NavigationGuard,
+  options?: AddRouteMiddlewareOptions,
+): void;
+export function addRouteMiddleware(
+  middleware: NavigationGuard,
+  options?: AddRouteMiddlewareOptions,
+): void;
+export function addRouteMiddleware(
+  nameOrMiddleware: string | NavigationGuard,
+  middlewareOrOptions?: NavigationGuard | AddRouteMiddlewareOptions,
+  maybeOptions?: AddRouteMiddlewareOptions,
+): void {
+  const store = resolveScopeStore();
+  if (typeof nameOrMiddleware === "string") {
+    if (typeof middlewareOrOptions !== "function") {
+      throw new TypeError("addRouteMiddleware requires a middleware function");
+    }
+    store.namedMiddlewares.set(nameOrMiddleware, middlewareOrOptions);
+    if (maybeOptions?.global) {
+      store.globalMiddlewares.add(middlewareOrOptions);
+    }
+    return;
+  }
+  if (typeof nameOrMiddleware === "function") {
+    store.globalMiddlewares.add(nameOrMiddleware);
+    return;
+  }
+  throw new TypeError(
+    "addRouteMiddleware requires a name or middleware function",
+  );
+}
+
+export function isNuxtRequestEvent(value: unknown): value is NuxtRequestEvent {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -756,7 +806,7 @@ function defaultEncodeCookie<T>(value: T): string {
   return encodeURIComponent(JSON.stringify(value));
 }
 
-function parseRawCookies(cookieString: string): Map<string, string> {
+export function parseRawCookies(cookieString: string): Map<string, string> {
   const map = new Map<string, string>();
   if (!cookieString) return map;
   for (const part of cookieString.split(";")) {
@@ -775,7 +825,7 @@ function parseRawCookies(cookieString: string): Map<string, string> {
   return map;
 }
 
-function formatSetCookieHeader<T>(
+export function formatSetCookieHeader<T>(
   name: string,
   value: T | null | undefined,
   options: CookieOptions<T> = {},
@@ -1770,9 +1820,29 @@ async function performRouterNavigation(
     to.redirectedFrom = redirectedFrom;
   }
 
+  const routeMetaMiddlewareRaw = to.meta?.middleware;
+  const routeMetaList = Array.isArray(routeMetaMiddlewareRaw)
+    ? routeMetaMiddlewareRaw
+    : routeMetaMiddlewareRaw !== undefined && routeMetaMiddlewareRaw !== null
+      ? [routeMetaMiddlewareRaw]
+      : [];
+  const resolvedRouteMiddlewares: NavigationGuard[] = [];
+  for (const item of routeMetaList) {
+    if (typeof item === "function") {
+      resolvedRouteMiddlewares.push(item as NavigationGuard);
+    } else if (typeof item === "string") {
+      const named = store.namedMiddlewares.get(item);
+      if (named) {
+        resolvedRouteMiddlewares.push(named);
+      }
+    }
+  }
+
   const guards: NavigationGuard[] = [
     ...(from.path !== to.path ? Array.from(store.leaveGuards) : []),
     ...Array.from(store.beforeGuards),
+    ...Array.from(store.globalMiddlewares),
+    ...resolvedRouteMiddlewares,
     ...(from.path === to.path ? Array.from(store.updateGuards) : []),
   ];
 
@@ -2698,7 +2768,7 @@ function ensureNuxtApp(store: NuxtScopeStore): NuxtApp {
       payload,
       versions: {
         nuxt: "3.15.0",
-        moonshine: "0.4.62",
+        moonshine: "0.4.63",
       },
       hooks,
       hook: hooks.hook,
@@ -3020,5 +3090,242 @@ export function reloadNuxtApp(options: ReloadNuxtAppOptions = {}): void {
     } else if (typeof window.location.reload === "function") {
       window.location.reload();
     }
+  }
+}
+
+export function definePayloadReducer(
+  name: string,
+  reduce: (data: any) => any,
+): void {
+  const store = resolveScopeStore();
+  store.payloadReducers.set(name, reduce);
+}
+
+export function definePayloadReviver(
+  name: string,
+  revive: (data: any) => any | undefined,
+): void {
+  const store = resolveScopeStore();
+  store.payloadRevivers.set(name, revive);
+}
+
+function reducePayloadValue(value: any, store: NuxtScopeStore): any {
+  for (const [name, reducer] of store.payloadReducers.entries()) {
+    const reduced = reducer(value);
+    if (reduced !== undefined && reduced !== false) {
+      return {
+        __nuxt_type: name,
+        value: reducePayloadValue(reduced, store),
+      };
+    }
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => reducePayloadValue(item, store));
+  }
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = reducePayloadValue(v, store);
+    }
+    return out;
+  }
+  return value;
+}
+
+function revivePayloadValue(value: any, store: NuxtScopeStore): any {
+  if (Array.isArray(value)) {
+    return value.map((item) => revivePayloadValue(item, store));
+  }
+  if (value !== null && typeof value === "object") {
+    if (
+      typeof (value as { __nuxt_type?: unknown }).__nuxt_type === "string" &&
+      "value" in value
+    ) {
+      const typeName = (value as { __nuxt_type: string }).__nuxt_type;
+      const inner = revivePayloadValue((value as { value: any }).value, store);
+      const reviver = store.payloadRevivers.get(typeName);
+      return reviver ? reviver(inner) : inner;
+    }
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = revivePayloadValue(v, store);
+    }
+    return out;
+  }
+  return value;
+}
+
+export function serializeNuxtPayload(
+  payload?: NuxtPayload | Record<string, any>,
+): string {
+  const store = resolveScopeStore();
+  const target = payload ?? ensureNuxtApp(store).payload;
+  const plain: Record<string, any> = {};
+  for (const key of Reflect.ownKeys(target)) {
+    if (typeof key !== "string") continue;
+    const rawVal = (target as Record<string, any>)[key];
+    if (
+      rawVal !== null &&
+      typeof rawVal === "object" &&
+      !Array.isArray(rawVal)
+    ) {
+      const snapshot: Record<string, any> = {};
+      for (const subKey of Reflect.ownKeys(rawVal)) {
+        if (typeof subKey === "string") {
+          snapshot[subKey] = rawVal[subKey];
+        }
+      }
+      plain[key] = reducePayloadValue(snapshot, store);
+    } else {
+      plain[key] = reducePayloadValue(rawVal, store);
+    }
+  }
+  return JSON.stringify(plain);
+}
+
+export function reviveNuxtPayload<T = NuxtPayload>(
+  serialized: string | Record<string, any>,
+): T {
+  const store = resolveScopeStore();
+  const parsed =
+    typeof serialized === "string" ? JSON.parse(serialized) : serialized;
+  const revived = revivePayloadValue(parsed, store);
+  if (revived && typeof revived === "object") {
+    const app = ensureNuxtApp(store);
+    if (revived.state && typeof revived.state === "object") {
+      for (const [k, v] of Object.entries(revived.state)) {
+        app.payload.state[k] = v;
+      }
+    }
+    if (revived.data && typeof revived.data === "object") {
+      for (const [k, v] of Object.entries(revived.data)) {
+        app.payload.data[k] = v;
+      }
+    }
+  }
+  return revived as T;
+}
+
+export interface UsePreviewModeOptions<
+  T extends Record<string, any> = Record<string, any>,
+> {
+  shouldEnable?: () => boolean;
+  getState?: (currentState: T) => T;
+  onEnable?: () => void;
+  onDisable?: () => void;
+}
+
+export function usePreviewMode<
+  T extends Record<string, any> = Record<string, any>,
+>(
+  options: UsePreviewModeOptions<T> = {},
+): {
+  enabled: VueRef<boolean>;
+  state: T;
+} {
+  const route = useRoute();
+  const rawEnabled = useState<boolean>("_preview_enabled", () => {
+    if (options.shouldEnable) {
+      return Boolean(options.shouldEnable());
+    }
+    const q = route.query.preview;
+    return q === "true" || q === "1";
+  });
+  const stateRef = useState<T>("_preview_state", () => {
+    const initial = {} as T;
+    if (rawEnabled.value && options.getState) {
+      return options.getState(initial);
+    }
+    return initial;
+  });
+
+  if (rawEnabled.value && options.onEnable) {
+    options.onEnable();
+  }
+
+  const enabled: VueRef<boolean> = {
+    get value() {
+      return rawEnabled.value;
+    },
+    set value(next: boolean) {
+      const prev = rawEnabled.value;
+      rawEnabled.value = next;
+      if (!prev && next) {
+        if (options.getState) {
+          stateRef.value = options.getState(stateRef.value);
+        }
+        options.onEnable?.();
+      } else if (prev && !next) {
+        options.onDisable?.();
+      }
+    },
+  };
+
+  return {
+    enabled,
+    state: stateRef.value,
+  };
+}
+
+export function useResponseHeader(
+  name: string,
+): VueRef<string | number | string[] | undefined> {
+  const store = resolveScopeStore();
+  const initial = store.event?.responseHeaders.get(name) ?? undefined;
+  const sig = msCreateSignal<string | number | string[] | undefined>(initial);
+
+  const syncHeader = (next: string | number | string[] | undefined) => {
+    const ev = store.event;
+    if (!ev) return;
+    if (next === undefined || next === null || (next as unknown) === false) {
+      ev.responseHeaders.delete(name);
+      return;
+    }
+    if (Array.isArray(next)) {
+      ev.responseHeaders.delete(name);
+      for (const item of next) {
+        ev.responseHeaders.append(name, String(item));
+      }
+      return;
+    }
+    ev.responseHeaders.set(name, String(next));
+  };
+
+  const ref: VueRef<string | number | string[] | undefined> = {
+    get value() {
+      return sig();
+    },
+    set value(next: string | number | string[] | undefined) {
+      sig.set(() => next);
+      syncHeader(next);
+    },
+  };
+  refSignals.set(ref, sig);
+  return ref;
+}
+
+export function useHydration<K extends string = string, T = any>(
+  key: K,
+  get: () => T,
+  set: (value: T) => void,
+): void {
+  const store = resolveScopeStore();
+  const app = ensureNuxtApp(store);
+  if (store.event || isSSRRendering()) {
+    const syncToPayload = () => {
+      (app.payload as Record<string, any>)[key] = get();
+    };
+    syncToPayload();
+    app.hooks.hook("app:rendered", syncToPayload);
+    return;
+  }
+  if (key in app.payload) {
+    set((app.payload as Record<string, any>)[key] as T);
+  } else if (key in app.payload.data) {
+    set(app.payload.data[key] as T);
   }
 }

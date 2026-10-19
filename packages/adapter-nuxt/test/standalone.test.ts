@@ -95,7 +95,14 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
       announcer.polite('Navigated');
       assert.equal(announcer.message.value,'Navigated');
       assert.equal(root.onPrehydrate(()=>{},'ph1'),'ph1');
+      const hdr=root.useResponseHeader('X-Powered');
+      hdr.value='Moonshine';
+      assert.equal(ev.responseHeaders.get('X-Powered'),'Moonshine');
     });
+    const srv=await import('@tschk/moonshine-nuxt/server');
+    const handler=srv.defineEventHandler((ev)=>({q:srv.getQuery(ev).hello,id:srv.getRouterParam(ev,'id')}));
+    const srvRes=await handler({url:'https://example.com/api?hello=world',context:{params:{id:'7'}}});
+    assert.deepEqual(srvRes,{q:'world',id:'7'});
   `);
 });
 

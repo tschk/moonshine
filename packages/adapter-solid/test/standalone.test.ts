@@ -118,7 +118,9 @@ solid.createRoot(dispose=>{
  const mirrored=solid.from(solid.observable(rxVal));assert.equal(mirrored(),30);setRxVal(40);assert.equal(mirrored(),40);
 });
 stop();
-assert.equal(ssr.renderToString(()=>ssr.h('div',{id:ssr.createUniqueId()},String(ssr.createSelector(()=>2)(2)))),'<div id="cl-0">true</div>');
+const web=await import('@tschk/moonshine-solid/web');
+assert.equal(web.isServer,false);assert.equal(web.isDev,false);assert.equal(web.NoHydration({children:'ok'}),'ok');
+assert.equal(ssr.renderToString(()=>ssr.h('div',{id:ssr.createUniqueId()},[String(ssr.createSelector(()=>2)(2)),ssr.Show({when:'!',keyed:true,children:v=>v}),ssr.Suspense({fallback:'?',children:'ok'})])),'<div id="cl-0">true!ok</div>');
 assert.equal(ssr.renderToString(()=>ssr.renderCrepusIrSolid({version:1,root:[{kind:'text',content:'<native>&'}]})),'<div data-crepus-root="true" data-crepus-target="solid" data-crepus-ir-version="1"><span>&lt;native&gt;&amp;</span></div>');
 `);
 });

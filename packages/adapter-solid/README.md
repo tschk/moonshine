@@ -12,9 +12,10 @@ the native graph; unsupported APIs reject. Moonshine rejects generated native
 modules retaining a Solid runtime import.
 
 - `/solid`: native signals, memos, effects, synchronous `createComputed` and `createRenderEffect`, `createUniqueId`,
-  `createSelector`, `createReaction`, `observable`/`from`, roots, lifecycle, batching, `on`,
+  `createSelector`, `createReaction`, `observable`/`from`, `enableExternalSource`, `resetErrorBoundaries`, `DEV`, roots, lifecycle, batching, `on`,
   context providers, memoized `children`, `mergeProps`/`splitProps`, client resources, `catchError`, DOM
-  `ErrorBoundary`, and getter-based `For`, `Index`, `Show`, `Match`, `Switch`.
+  `ErrorBoundary`, `Suspense`, `SuspenseList`, and getter-based `For`, `Index`, `Show`, `Match`, `Switch`.
+- `/web`: native `solid-js/web` runtime surface (`isServer`, `isDev`, `DEV`, `render`, `renderToString`, `Portal`, `Dynamic`, `createDynamic`, `Show`, `For`, `Index`, `Switch`, `Match`, `ErrorBoundary`, `Suspense`, `SuspenseList`, `mergeProps`, `splitProps`, `setAttribute`, `setAttributeNS`, `classList`, `style`, `addEventListener`, `assign`, `spread`, `insert`, `delegateEvents`, `clearDelegatedEvents`, `generateHydrationScript`, `HydrationScript`, `NoHydration`, `Assets`).
 - `/store`: independent `createStore`, `produce`, `reconcile` on the same graph.
 - `/h`: the native browser `h` factory, exported as default. Use explicit tag
   names and props; Solid hyperscript selector shorthand is unsupported.
@@ -22,6 +23,7 @@ modules retaining a Solid runtime import.
 - `/reactive`, `/control`, `/dom`: direct native APIs. `/control` takes explicit
   accessors, while `/solid` adapts Solid-style prop getters.
 - `/ssr`: escaped server factories, suppressed effects/mount callbacks, server-safe
+  `Show`/`Switch`/`Match`/`ErrorBoundary`/`Suspense`/`SuspenseList`, context/props/children helpers,
   `createUniqueId`/`createSelector`/`createReaction`/`observable`/`from`, and
   explicit server IR rendering. Author server modules against this entry.
 - `/framework-native`: the bundled native framework renderer, requiring the

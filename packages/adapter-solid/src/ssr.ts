@@ -84,20 +84,43 @@ export function createRenderEffect<T>(
 ): void {}
 
 export {
+  DEV,
+  Suspense,
+  SuspenseList,
   createUniqueId,
   createSelector,
   createServerReaction as createReaction,
   createServerDeferred as createDeferred,
+  enableExternalSource,
+  getExternalSourceFactories,
+  resetErrorBoundaries,
   startTransition,
   useTransition,
   observable,
   from,
   type DeferredOptions,
+  type ExternalSource,
+  type ExternalSourceFactory,
+  type SuspenseListProps,
+  type SuspenseProps,
   type Transition,
   type EqualityCheckerFunction,
   type Observable,
   type ObservableObserver,
 } from "./primitives";
+export {
+  Show,
+  Switch,
+  Match,
+  ErrorBoundary,
+  type ConditionalProps,
+  type SwitchChild,
+} from "./flow";
+export { createContext, useContext, type Context } from "./context";
+export { children, type ResolvedChildren, type ChildValue } from "./children";
+export { mergeProps, splitProps } from "./props";
+export { catchError } from "@tschk/moonshine-dom/reactive";
+export { mapArray, indexArray } from "@tschk/moonshine-dom/control";
 
 /** Synchronous resource snapshots never invoke the fetcher. */
 export { createResource } from "@tschk/moonshine-dom/resource/ssr";

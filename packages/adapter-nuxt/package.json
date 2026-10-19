@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-nuxt",
-  "version": "0.4.62",
+  "version": "0.4.63",
   "description": "Native signal bridges and rendering with optional legacy nuxt entries",
   "license": "ISC",
   "type": "module",
@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./composables": "./src/composables.ts",
+    "./server": "./src/server.ts",
     "./app": "./src/app.ts",
     "./vue": "./src/vue.ts"
   },

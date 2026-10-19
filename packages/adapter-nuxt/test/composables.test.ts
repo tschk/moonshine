@@ -424,7 +424,7 @@ describe("@tschk/moonshine-nuxt composables", () => {
     );
 
     // Client-style router with guards and dynamic routes
-    window.history?.replaceState?.({}, "", "/");
+    globalThis.window?.history?.replaceState?.({}, "", "/");
     await createRoot(async (dispose) => {
       try {
         const router = useRouter();
@@ -492,7 +492,7 @@ describe("@tschk/moonshine-nuxt composables", () => {
           "after:/users/grace",
         ]);
       } finally {
-        window.history?.replaceState?.({}, "", "/");
+        globalThis.window?.history?.replaceState?.({}, "", "/");
         dispose();
       }
     });

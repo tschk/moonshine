@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-svelte",
-  "version": "0.4.62",
+  "version": "0.4.63",
   "description": "Independent Svelte store and native lifecycle APIs with Moonshine signal bridges",
   "license": "ISC",
   "type": "module",

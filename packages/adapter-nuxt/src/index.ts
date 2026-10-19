@@ -7,6 +7,7 @@ import {
 export {
   NuxtError,
   abortNavigation,
+  addRouteMiddleware,
   callOnce,
   clearError,
   clearNuxtData,
@@ -14,13 +15,17 @@ export {
   createBridgedRef,
   createError,
   createNuxtRequestEvent,
+  defineAppConfig,
   defineNuxtComponent,
   defineNuxtPlugin,
   defineNuxtRouteMiddleware,
   definePageMeta,
+  definePayloadReducer,
+  definePayloadReviver,
   fromMoonshineSignal,
   isNuxtError,
   isNuxtRef,
+  isNuxtRequestEvent,
   navigateTo,
   onBeforeRouteLeave,
   onBeforeRouteUpdate,
@@ -33,6 +38,8 @@ export {
   refreshNuxtData,
   reloadNuxtApp,
   resolveHeadTags,
+  reviveNuxtPayload,
+  serializeNuxtPayload,
   setPageLayout,
   setResponseStatus,
   showError,
@@ -45,15 +52,18 @@ export {
   useFetch,
   useHead,
   useHeadSafe,
+  useHydration,
   useLazyAsyncData,
   useLazyFetch,
   useLoadingIndicator,
   useNuxtApp,
   useNuxtData,
+  usePreviewMode,
   useRequestEvent,
   useRequestFetch,
   useRequestHeaders,
   useRequestURL,
+  useResponseHeader,
   useRoute,
   useRouteAnnouncer,
   useRouter,
@@ -65,6 +75,7 @@ export {
 } from "./composables";
 export type {
   ActiveHeadEntry,
+  AddRouteMiddlewareOptions,
   AfterNavigationHook,
   AsyncData,
   AsyncDataExecuteOptions,
@@ -102,8 +113,10 @@ export type {
   RouteAnnouncerPoliteness,
   SeoMetaInput,
   UseFetchOptions,
+  UsePreviewModeOptions,
   VueRef,
 } from "./composables";
+export * from "./server";
 
 export { msCreateSignal as createMoonshineSignal };
 export type { MsSignal as MoonshineSignal };
