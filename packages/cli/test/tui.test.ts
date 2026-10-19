@@ -32,18 +32,22 @@ describe("truncate", () => {
   test("returns the original text if length is within width", () => {
     expect(truncate("hello", 5)).toBe("hello");
     expect(truncate("hello", 10)).toBe("hello");
+    expect(truncate("", 5)).toBe("");
+    expect(truncate("a", 1)).toBe("a");
   });
 
   test("truncates with an ellipsis if width is greater than 1", () => {
     expect(truncate("hello world", 5)).toBe("hell…");
     expect(truncate("hello", 4)).toBe("hel…");
     expect(truncate("hello", 2)).toBe("h…");
+    expect(truncate("this is a very long string that needs truncation", 10)).toBe("this is a…");
   });
 
   test("truncates without an ellipsis if width is 1 or less", () => {
     expect(truncate("hello", 1)).toBe("h");
     expect(truncate("hello", 0)).toBe("");
     expect(truncate("hello", -5)).toBe("");
+    expect(truncate("hello", -100)).toBe("");
   });
 });
 
