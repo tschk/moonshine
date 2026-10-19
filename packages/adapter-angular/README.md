@@ -1,24 +1,37 @@
 # `@tschk/moonshine-angular`
 
-The root provides native Moonshine signal bridges and a lazy native renderer.
-At runtime, root imports need neither Angular, React, parser WASM nor the optional
+The root and `./signals` entries provide native Moonshine signal primitives
+(`signal`, `computed`, `linkedSignal`, `effect`, `untracked`, `isSignal`,
+`isWritableSignal`), signal bridges (`fromMoonshineSignal`,
+`createBridgedSignal`), and a lazy native renderer. At runtime, root and
+`./signals` imports need neither Angular, React, parser WASM nor the optional
 framework peer. Legacy host APIs remain explicit on their existing subpaths.
 
 Strict TypeScript checking of the root entry requires installing
 `@tschk/moonshine-framework`, even when importing only a bridge: the root also
 exports `crepusRenderer` with the framework's `Renderer` contract. The framework
 remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
-This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
+This requirement does not apply to `./signals` or the signal-only
+`@tschk/moonshine` core entry.
 
 ```ts
-import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-angular";
+import {
+  signal,
+  computed,
+  linkedSignal,
+  effect,
+  untracked,
+  fromMoonshineSignal,
+  crepusRenderer,
+} from "@tschk/moonshine-angular";
 ```
 
-| Entry      | Provides                                       |
-| ---------- | ---------------------------------------------- |
-| `.`        | Native signal bridges and lazy native renderer |
-| `./core`   | Legacy Angular core re-exports                 |
-| `./common` | Legacy Angular common re-exports               |
+| Entry       | Provides                                                                                                                                      |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`         | Native Angular signals, signal bridges, and lazy native renderer                                                                              |
+| `./signals` | Host-free Angular signal primitives (`signal`, `computed`, `linkedSignal`, `effect`, `untracked`, `isSignal`, `isWritableSignal`) and bridges |
+| `./core`    | Legacy Angular core re-exports                                                                                                                |
+| `./common`  | Legacy Angular common re-exports                                                                                                              |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install

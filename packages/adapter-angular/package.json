@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./signals": "./src/signals.ts",
     "./core": "./src/core.ts",
     "./common": "./src/common.ts"
   },

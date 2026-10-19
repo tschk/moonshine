@@ -50,7 +50,7 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     import * as root from '@tschk/moonshine-angular';
     for(const name of ['@angular/core','@angular/common','astro','nuxt','vue','react','react-dom','@tschk/crepuscularity-wasm','@tschk/crepus-moonshine','@tschk/moonshine-framework'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
     const entry=process.cwd()+'/bridge.ts';
-    await Bun.write(entry,"export {createBridgedSignal} from '@tschk/moonshine-angular';");
+    await Bun.write(entry,"export {createBridgedSignal, signal, computed, linkedSignal, effect, untracked, isSignal, isWritableSignal} from '@tschk/moonshine-angular';");
     for(const target of ['browser','bun','node']){
       const built=await Bun.build({entrypoints:[entry],target,minify:true});
       assert.equal(built.success,true,String(built.logs));
@@ -60,6 +60,18 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     assert.equal(root.crepusRenderer.name,'crepus');
     assert.equal(typeof root.crepusRenderer.render,'function');
     const value=root.createBridgedSignal(1);value.set(2);value.update(n=>n+1);assert.equal(value(),3);
+    const count=root.signal(2);
+    const doubled=root.computed(()=>count()*2);
+    const linked=root.linkedSignal(()=>doubled()+1);
+    assert.equal(root.isSignal(count),true);
+    assert.equal(root.isWritableSignal(count),true);
+    assert.equal(root.isSignal(doubled),true);
+    assert.equal(root.isWritableSignal(doubled),false);
+    assert.equal(linked(),5);
+    linked.set(99);
+    assert.equal(linked(),99);
+    count.set(4);
+    assert.equal(linked(),9);
   `);
 });
 

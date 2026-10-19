@@ -4,27 +4,30 @@ import {
   type Signal as MsSignal,
 } from "@tschk/moonshine";
 
-export type AngularSignal<T> = {
-  (): T;
-  set: (value: T) => void;
-  update: (fn: (value: T) => T) => void;
-};
-
-export function fromMoonshineSignal<T>(signal: MsSignal<T>): AngularSignal<T> {
-  const read = (() => signal()) as AngularSignal<T>;
-  read.set = (value) => {
-    signal.set(() => value);
-  };
-  read.update = (fn) => {
-    const next = fn(signal.peek());
-    signal.set(() => next);
-  };
-  return read;
-}
-
-export function createBridgedSignal<T>(initial: T): AngularSignal<T> {
-  return fromMoonshineSignal(msCreateSignal(initial));
-}
+export {
+  computed,
+  createBridgedSignal,
+  effect,
+  fromMoonshineSignal,
+  isSignal,
+  isWritableSignal,
+  linkedSignal,
+  signal,
+  untracked,
+} from "./signals";
+export type {
+  AngularSignal,
+  CreateComputedOptions,
+  CreateEffectOptions,
+  CreateSignalOptions,
+  EffectCleanupFn,
+  EffectCleanupRegisterFn,
+  EffectRef,
+  LinkedSignalOptions,
+  Signal,
+  ValueEqualityFn,
+  WritableSignal,
+} from "./signals";
 
 export { msCreateSignal as createMoonshineSignal };
 export type { MsSignal as MoonshineSignal };

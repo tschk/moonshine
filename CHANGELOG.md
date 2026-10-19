@@ -1,3 +1,23 @@
+# Moonshine 0.4.52
+
+- Add native host-free Angular 17–19 signal primitives (`signal`, `computed`,
+  `linkedSignal`, `effect`, `untracked`, `isSignal`, and `isWritableSignal`,
+  plus `Signal`, `WritableSignal`, `ValueEqualityFn`, `CreateSignalOptions`,
+  `CreateComputedOptions`, `LinkedSignalOptions`, `EffectRef`,
+  `EffectCleanupFn`, `EffectCleanupRegisterFn`, and `CreateEffectOptions` types)
+  in `@tschk/moonshine-angular/signals` and re-export them from
+  `@tschk/moonshine-angular`.
+- `signal()` and `computed()` use `Object.is` equality by default with optional
+  custom `equal` comparators, cached `.asReadonly()` views, lazy pull-based
+  memoization, and reactive write protection inside `computed()` and
+  `linkedSignal()` computations.
+- `linkedSignal()` supports both the shorthand `linkedSignal(computation, options?)`
+  overload and `linkedSignal({ source, computation, equal? })` with
+  `previous?: { source, value }` tracking (preserving manual `.set()` and
+  `.update()` overrides until upstream dependencies change), while `effect()`
+  supports `onCleanup` registration, owner-scoped or `manualCleanup` lifetime,
+  SSR suppression, and `allowSignalWrites` control.
+
 # Moonshine 0.4.51
 
 - Add Svelte 5 `$props.id()` runtime helper (`propsId()` in
