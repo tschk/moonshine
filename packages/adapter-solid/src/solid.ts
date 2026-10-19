@@ -30,12 +30,18 @@ export {
   untrack,
 } from "@tschk/moonshine-dom/reactive";
 export type { Accessor, Setter } from "@tschk/moonshine-dom/reactive";
+export { nativeMapArray as mapArray, nativeIndexArray as indexArray };
 export {
   createUniqueId,
   createSelector,
   createReaction,
+  createDeferred,
+  startTransition,
+  useTransition,
   observable,
   from,
+  type DeferredOptions,
+  type Transition,
   type EqualityCheckerFunction,
   type Observable,
   type ObservableObserver,

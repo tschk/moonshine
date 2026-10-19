@@ -1,3 +1,24 @@
+# Moonshine 0.4.55
+
+- Add native host-free Astro Actions (`defineAction`, `ActionError`,
+  `ActionInputError`, `isActionError`, `isInputError`, `ACTION_ERROR_CODES`,
+  `getActionQueryString`, and `actionPathToString` in
+  `@tschk/moonshine-astro/actions`), request context and RFC 6265 cookies
+  (`AstroCookies`, `AstroCookie`, `createAstroGlobal`, `withAstroContext`, and
+  `useAstro` in `@tschk/moonshine-astro/context`), and View Transitions (`fade`,
+  `slide`, `none`, `createAnimationScope`, `transition`,
+  `supportsViewTransitions`, `isTransitionEnabled`, `swapFunctions`, and
+  `navigate` in `@tschk/moonshine-astro/transitions`), also re-exported from
+  `@tschk/moonshine-astro`.
+- Add native Solid `createDeferred`, `startTransition`, and `useTransition`
+  (`DeferredOptions`, `Transition`, plus `mapArray` and `indexArray` re-exports)
+  in `@tschk/moonshine-solid/solid` and `@tschk/moonshine-solid/ssr`, paired with
+  local unpublished Crepuscularity `solid-js` import and re-export routing under
+  `/** @jsxImportSource solid-js */`.
+- Add `modifyMutable(state, modifier)` (and export `SetStoreFunction`) in
+  `@tschk/moonshine-dom/store` and `@tschk/moonshine-solid/store` to batch
+  `produce` and `reconcile` updates on `createMutable` stores.
+
 # Moonshine 0.4.54
 
 - Add native Svelte 5 `getAbortSignal()` in `@tschk/moonshine-svelte/svelte` and

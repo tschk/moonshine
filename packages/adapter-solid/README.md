@@ -408,10 +408,11 @@ owner-swap contract; only the adapter uses the untracked callback boundary.
 ### Secondary reactive primitives
 
 `/solid` and `/ssr` export `createUniqueId`, `createSelector`, `createReaction`,
-`createRenderEffect`, `observable`, and `from` (`EqualityCheckerFunction`,
-`Observable`, `ObservableObserver`), and the local unpublished Crepus compiler
-routes them from `solid-js` when a module has a leading
-`/** @jsxImportSource solid-js */` directive:
+`createRenderEffect`, `createDeferred`, `startTransition`, `useTransition`,
+`observable`, and `from` (`DeferredOptions`, `Transition`,
+`EqualityCheckerFunction`, `Observable`, `ObservableObserver`), and the local
+unpublished Crepus compiler routes them from `solid-js` when a module has a
+leading `/** @jsxImportSource solid-js */` directive:
 
 - `createUniqueId()` generates deterministic `cl-0`, `cl-1`, ... IDs scoped to the
   root `Owner` so client and SSR trees produce identical IDs without cross-request
@@ -422,7 +423,16 @@ routes them from `solid-js` when a module has a leading
 - `createReaction(onInvalidate)` separates one-shot dependency tracking from
   untracked invalidation callbacks; on `/ssr`, the returned tracker executes the
   tracking function untracked once.
+- `createDeferred(source, options?)` reads the initial source value synchronously,
+  coalesces subsequent reactive updates onto a microtask or `timeoutMs` timer,
+  and cancels pending updates when its owner disposes; on `/ssr`, it evaluates
+  synchronously via `createMemo`.
+- `startTransition(fn)` and `useTransition()` batch synchronous signal writes and
+  expose `[pending, start]` tracking for asynchronous transition promises.
 - `observable(accessor)` exposes a `Symbol.observable` / `"@@observable"` stream
   compatible with RxJS and TC39 observables, and `from(producer, initialValue?)`
   converts a subscribe function or observable into a Solid accessor that unsubscribes
   when its owning scope disposes.
+- `/store` exports `modifyMutable(state, modifier)` (alongside `createStore`,
+  `createMutable`, `produce`, `reconcile`, `unwrap`, and `SetStoreFunction`) to
+  batch `produce` and `reconcile` mutations on mutable stores.

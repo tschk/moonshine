@@ -206,3 +206,32 @@ for(const command of [['bun','--no-install','check.ts'],['bun','build','check.ts
 `);
   },
 );
+
+test("native Astro actions, context, and transitions run and bundle without Astro host or framework", async () => {
+  await standalone(`
+import assert from 'node:assert/strict';
+import { defineAction, ActionError, isActionError } from '@tschk/moonshine-astro/actions';
+import { AstroCookies, withAstroContext, useAstro } from '@tschk/moonshine-astro/context';
+import { fade, slide, createAnimationScope, transition } from '@tschk/moonshine-astro/transitions';
+for (const name of ['astro', 'react', 'react-dom', '@tschk/crepuscularity-wasm', '@tschk/moonshine-framework']) {
+  assert.throws(() => Bun.resolveSync(name, process.cwd()));
+}
+const action = defineAction({
+  name: 'ping',
+  handler: async (input: { msg: string }, ctx) => {
+    if (input.msg === 'fail') throw new ActionError({ code: 'BAD_REQUEST', message: 'bad' });
+    return { echo: input.msg, url: ctx.url.pathname };
+  },
+});
+const ok = await withAstroContext({ url: 'https://example.com/api' }, () => action({ msg: 'hi' }));
+assert.deepEqual(ok, { data: { echo: 'hi', url: '/api' }, error: undefined });
+const fail = await action({ msg: 'fail' });
+assert.equal(isActionError(fail.error), true);
+assert.equal(fail.error?.status, 400);
+const cookies = new AstroCookies('sid=xyz');
+assert.equal(cookies.get('sid')?.value, 'xyz');
+const scope = createAnimationScope('card', fade({ duration: 120 }), 'astro-card-1');
+assert.equal(scope.attributes['data-astro-transition-scope'], 'astro-card-1');
+assert.ok(transition({ name: 'nav', animate: slide() })['data-astro-transition-scope'].startsWith('astro-nav-'));
+`);
+});

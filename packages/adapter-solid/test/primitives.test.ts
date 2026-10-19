@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import "../../react/test/dom";
 import {
   createComputed,
+  createDeferred,
   createEffect,
   createMemo,
   createReaction,
@@ -14,12 +15,16 @@ import {
   from,
   observable,
   onCleanup,
+  startTransition,
+  useTransition,
   type EqualityCheckerFunction,
   type Observable,
   type ObservableObserver,
 } from "../src/solid";
+import { createMutable, modifyMutable, produce, reconcile } from "../src/store";
 import { h, render } from "../src/dom";
 import {
+  createDeferred as serverCreateDeferred,
   createReaction as serverCreateReaction,
   createRenderEffect as serverCreateRenderEffect,
   createSelector as serverCreateSelector,
@@ -28,6 +33,8 @@ import {
   h as serverH,
   observable as serverObservable,
   renderToString,
+  startTransition as serverStartTransition,
+  useTransition as serverUseTransition,
 } from "../src/ssr";
 
 test("createUniqueId generates deterministic tree-scoped IDs across DOM and SSR without leaking across roots", () => {
@@ -342,4 +349,167 @@ test("createRenderEffect, observable, and from interoperate across DOM and SSR",
   });
   expect(ssrRenderEffectCalls).toBe(0);
   expect(ssrOut).toBe("<p>ssr-obs</p>");
+});
+
+test("createDeferred returns initial value synchronously, coalesces updates asynchronously, and cancels on disposal", async () => {
+  const [input, setInput] = createSignal("init");
+  const seen: string[] = [];
+  let deferred!: () => string;
+
+  const stop = createRoot((dispose) => {
+    deferred = createDeferred(input);
+    createComputed(() => {
+      seen.push(deferred());
+    });
+    return dispose;
+  });
+
+  // Initial value is available immediately
+  expect(deferred()).toBe("init");
+  expect(seen).toEqual(["init"]);
+
+  // Rapid synchronous updates coalesce into a single microtask notification
+  setInput("v1");
+  setInput("v2");
+  setInput("v3");
+  expect(deferred()).toBe("init");
+  expect(seen).toEqual(["init"]);
+
+  await Promise.resolve();
+  expect(deferred()).toBe("v3");
+  expect(seen).toEqual(["init", "v3"]);
+
+  // Disposing before flush cancels pending update
+  setInput("v4");
+  stop();
+  await Promise.resolve();
+  expect(seen).toEqual(["init", "v3"]);
+
+  // timeoutMs option schedules via timer
+  const [timedInput, setTimedInput] = createSignal(1);
+  let timedDeferred!: () => number;
+  const stopTimed = createRoot((dispose) => {
+    timedDeferred = createDeferred(timedInput, { timeoutMs: 15 });
+    return dispose;
+  });
+  expect(timedDeferred()).toBe(1);
+  setTimedInput(2);
+  expect(timedDeferred()).toBe(1);
+  await new Promise((r) => setTimeout(r, 25));
+  expect(timedDeferred()).toBe(2);
+  stopTimed();
+
+  // SSR createDeferred evaluates synchronously
+  expect(
+    renderToString(() => {
+      const [s] = createSignal("ssr-deferred");
+      const d = serverCreateDeferred(s);
+      return serverH("span", null, d);
+    }),
+  ).toBe("<span>ssr-deferred</span>");
+});
+
+test("startTransition and useTransition batch synchronous updates and track async pending state", async () => {
+  const [a, setA] = createSignal(1);
+  const [b, setB] = createSignal(2);
+  const sums: number[] = [];
+  const pendingStates: boolean[] = [];
+
+  const stop = createRoot((dispose) => {
+    const [isPending] = useTransition();
+    createComputed(() => {
+      sums.push(a() + b());
+    });
+    createComputed(() => {
+      pendingStates.push(isPending());
+    });
+    return dispose;
+  });
+
+  expect(sums).toEqual([3]);
+  expect(pendingStates).toEqual([false]);
+
+  // Synchronous transition batches writes into a single update without toggling pending
+  const [, start] = useTransition();
+  await start(() => {
+    setA(10);
+    setB(20);
+  });
+  expect(sums).toEqual([3, 30]);
+  expect(pendingStates).toEqual([false]);
+
+  // Async transition toggles pending to true while in flight and false when settled
+  let resolveAsync!: () => void;
+  const asyncPromise = startTransition(
+    () =>
+      new Promise<void>((resolve) => {
+        setA(100);
+        setB(200);
+        resolveAsync = resolve;
+      }),
+  );
+  const [isPendingNow] = useTransition();
+  expect(isPendingNow()).toBe(true);
+  expect(sums).toEqual([3, 30, 300]);
+  expect(pendingStates).toEqual([false, true]);
+
+  resolveAsync();
+  await asyncPromise;
+  expect(isPendingNow()).toBe(false);
+  expect(pendingStates).toEqual([false, true, false]);
+  stop();
+
+  // SSR useTransition / startTransition
+  const ssrHtml = renderToString(() => {
+    const [pending] = serverUseTransition();
+    void serverStartTransition(() => {});
+    return serverH("b", null, () => (pending() ? "pending" : "idle"));
+  });
+  expect(ssrHtml).toBe("<b>idle</b>");
+});
+
+test("modifyMutable batches produce and reconcile mutations on createMutable stores", () => {
+  const state = createMutable({
+    user: { name: "Ada", role: "engineer" },
+    items: [1, 2],
+  });
+  const snapshots: string[] = [];
+
+  const stop = createRoot((dispose) => {
+    createComputed(() => {
+      snapshots.push(
+        `${state.user.name}:${state.user.role}:${state.items.join(",")}`,
+      );
+    });
+    return dispose;
+  });
+
+  expect(snapshots).toEqual(["Ada:engineer:1,2"]);
+
+  // modifyMutable with produce batches multiple nested mutations into a single notification
+  modifyMutable(
+    state,
+    produce((draft) => {
+      draft.user.name = "Grace";
+      draft.user.role = "architect";
+      draft.items.push(3);
+    }),
+  );
+  expect(snapshots).toEqual(["Ada:engineer:1,2", "Grace:architect:1,2,3"]);
+
+  // modifyMutable with reconcile diffs and replaces state in a single notification
+  modifyMutable(
+    state,
+    reconcile({
+      user: { name: "Lin", role: "maintainer" },
+      items: [10, 20],
+    }),
+  );
+  expect(snapshots).toEqual([
+    "Ada:engineer:1,2",
+    "Grace:architect:1,2,3",
+    "Lin:maintainer:10,20",
+  ]);
+
+  stop();
 });

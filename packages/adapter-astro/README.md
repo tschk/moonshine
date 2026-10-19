@@ -14,11 +14,14 @@ This requirement does not apply to the signal-only `@tschk/moonshine` core entry
 import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-astro";
 ```
 
-| Entry        | Provides                                       |
-| ------------ | ---------------------------------------------- |
-| `.`          | Native signal bridges and lazy native renderer |
-| `./compiler` | Legacy Astro compiler re-exports               |
-| `./ssr`      | Independent synchronous Astro source factories |
+| Entry           | Provides                                                                            |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `.`             | Native signal bridges, lazy native renderer, and host-free runtime helpers          |
+| `./actions`     | Independent Astro Actions (`defineAction`, `ActionError`, `ActionInputError`)       |
+| `./compiler`    | Legacy Astro compiler re-exports                                                    |
+| `./context`     | Independent `AstroCookies`, `createAstroGlobal`, `withAstroContext`, `useAstro`     |
+| `./ssr`         | Independent synchronous Astro source factories                                      |
+| `./transitions` | Independent View Transitions (`fade`, `slide`, `none`, `navigate`, `swapFunctions`) |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install

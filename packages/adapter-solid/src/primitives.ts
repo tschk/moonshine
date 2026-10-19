@@ -1,7 +1,9 @@
 /** Independent Solid secondary reactive primitives on the native Moonshine graph. */
 import { isTracking } from "@tschk/moonshine/tracking";
 import {
+  batch,
   createComputed,
+  createMemo,
   createRoot,
   createSignal,
   getOwner,
@@ -199,4 +201,116 @@ export function from<T>(
     onCleanup(clean);
   }
   return s;
+}
+
+export interface DeferredOptions<T> {
+  equals?: false | ((prev: T, next: T) => boolean);
+  name?: string;
+  timeoutMs?: number;
+}
+
+export function createDeferred<T>(
+  source: Accessor<T>,
+  options?: DeferredOptions<T>,
+): Accessor<T> {
+  let initial!: T;
+  let initialized = false;
+  let latest!: T;
+  let version = 0;
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
+  let setDeferred!: Setter<T>;
+
+  if (getOwner()) {
+    onCleanup(() => {
+      disposed = true;
+      version++;
+      if (timerId !== undefined) {
+        clearTimeout(timerId);
+        timerId = undefined;
+      }
+    });
+  }
+
+  createComputed(() => {
+    const next = source();
+    latest = next;
+    if (!initialized) {
+      initialized = true;
+      initial = next;
+      return;
+    }
+    const token = ++version;
+    if (timerId !== undefined) {
+      clearTimeout(timerId);
+      timerId = undefined;
+    }
+    const timeoutMs = options?.timeoutMs;
+    if (timeoutMs !== undefined && timeoutMs > 0) {
+      timerId = setTimeout(() => {
+        timerId = undefined;
+        if (!disposed && token === version) {
+          setDeferred(() => latest);
+        }
+      }, timeoutMs);
+    } else {
+      queueMicrotask(() => {
+        if (!disposed && token === version) {
+          setDeferred(() => latest);
+        }
+      });
+    }
+  });
+
+  const [deferred, write] = createSignal<T>(initial, {
+    equals: options?.equals,
+  });
+  setDeferred = write;
+  return deferred;
+}
+
+export function createServerDeferred<T>(
+  source: Accessor<T>,
+  options?: DeferredOptions<T>,
+): Accessor<T> {
+  return createMemo(source, undefined, { equals: options?.equals });
+}
+
+const [transitionPending, setTransitionPending] =
+  /* @__PURE__ */ createSignal(false);
+let activeTransitionCount = 0;
+
+export type Transition = [
+  Accessor<boolean>,
+  (fn: () => unknown) => Promise<void>,
+];
+
+export function startTransition(fn: () => unknown): Promise<void> {
+  const result = batch(() => fn());
+  if (
+    result !== null &&
+    typeof result === "object" &&
+    typeof (result as PromiseLike<unknown>).then === "function"
+  ) {
+    activeTransitionCount++;
+    setTransitionPending(true);
+    return Promise.resolve(result).then(
+      () => {
+        if (--activeTransitionCount === 0) {
+          setTransitionPending(false);
+        }
+      },
+      (err) => {
+        if (--activeTransitionCount === 0) {
+          setTransitionPending(false);
+        }
+        throw err;
+      },
+    );
+  }
+  return Promise.resolve();
+}
+
+export function useTransition(): Transition {
+  return [transitionPending, startTransition];
 }

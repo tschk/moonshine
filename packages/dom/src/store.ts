@@ -375,6 +375,11 @@ export function createMutable<T extends object>(
   return wrap(target, "mutable", options.equals ?? strictEqual);
 }
 
+/** Apply a store modifier (such as produce or reconcile) to a mutable store inside a batched untracked scope. */
+export function modifyMutable<T>(state: T, modifier: (state: T) => T): void {
+  batch(() => untrack(() => modifier(raw(state))));
+}
+
 export function produce<T>(fn: (state: T) => void): (state: T) => T {
   return (value) => {
     if (wrappable(raw(value)))
