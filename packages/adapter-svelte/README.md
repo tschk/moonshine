@@ -13,7 +13,7 @@ This requirement does not apply to the signal-only `@tschk/moonshine` core entry
 | Subpath    | Provides                                                                                     |
 | ---------- | -------------------------------------------------------------------------------------------- |
 | `.`        | signal bridges and lazy native SSR compatibility renderer                                    |
-| `./svelte` | lifecycle, context, typed `createContext`, component event dispatch                          |
+| `./svelte` | lifecycle, `tick`, `settled`, `flushSync`, `untrack`, context, typed `createContext`, events |
 | `./class`  | opt-in `classValue` and `classDirectives` for source classes                                 |
 | `./store`  | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore` |
 
@@ -29,8 +29,8 @@ uses it for authored intrinsic `class:` directives, including dynamic elements.
 Source parsing and independent input memoization belong to Crepus; this helper
 does not execute Svelte's compiled component instructions or implement style directives.
 
-The optional `/runes` entry exports compiler-facing `createState`, `createDerived`
-and `createRuneEffect`.
+The optional `/runes` entry exports compiler-facing `createState`, `createDerived`,
+`createProp`, `propsId`, and `createRuneEffect`.
 
 Compiler-facing `/runes` also exports `spreadProps(...layers)` for live component
 props. Layers are objects, nullish values, or object getters; later layers win.
@@ -593,3 +593,21 @@ Svelte 5.57.1 reference retains them. This is bounded authored-source support,
 without hydration or Svelte's compiled component ABI. Set
 `MOONSHINE_CREPUS_COMPILER` to the local compiler to enable the isolated source
 regression in `test/standalone.test.ts`.
+
+### `$props.id()`, `settled`, and `flushSync`
+
+`/runes` and `/ssr` export `propsId()` for Svelte 5's `$props.id()` rune, and the
+local unpublished Crepus compiler lowers top-level component-instance
+`const id = $props.id()` / `let id = $props.id()` declarations to `propsId()`.
+`propsId()` generates deterministic sequential `"s-0"`, `"s-1"`, ... IDs scoped to
+the root `Owner` via `WeakMap<Owner, { next: number }>` so DOM and SSR component
+trees produce identical IDs without cross-request or cross-root counter drift,
+and throws when called outside active component/root initialization or during
+cleanup computations.
+
+`/svelte` and `/ssr` also export `settled()`, `flushSync(fn?)`, and `untrack(fn)`
+(with `settled` routed alongside `tick` from `'svelte'` in the local Crepus
+compiler). `flushSync(fn?)` executes an optional callback and synchronously drains
+all queued native rune work (`drainTickWork()`), while `settled()` awaits queued
+rune flushes in a loop until all chained rune effects settle (`hasPendingTickWork()`
+is false).

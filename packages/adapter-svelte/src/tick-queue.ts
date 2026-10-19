@@ -7,6 +7,9 @@ export function queueTickWork(run: () => void, cancel: () => void): void {
 export function removeTickWork(run: () => void): void {
   pending.delete(run);
 }
+export function hasPendingTickWork(): boolean {
+  return pending.size > 0;
+}
 export function drainTickWork(): void {
   const counts = new Map<() => void, number>();
   let failed = false,

@@ -1,6 +1,7 @@
 /** Compiler-facing server bindings; use explicit native SSR factories. */
 export { createServerProp } from "./server-prop";
-export { afterRender, settle } from "@tschk/moonshine-dom/ssr";
+export { propsId } from "./prop-id";
+export { afterRender, settle, untrack } from "@tschk/moonshine-dom/ssr";
 export { spreadServerProps } from "./spread-props";
 export {
   spreadServerEntries,
@@ -17,6 +18,17 @@ import { peekComponentContext } from "@tschk/moonshine-dom/component";
 
 /** Server tick resolves without flushing another renderer's pending work. */
 export async function tick(): Promise<void> {}
+
+/** Server settled resolves without flushing another renderer's pending work. */
+export async function settled(): Promise<void> {}
+
+/** Server flushSync invokes its optional callback synchronously. */
+export function flushSync<T = void>(fn?: () => T): T {
+  if (fn !== undefined && typeof fn !== "function") {
+    throw new TypeError("flushSync callback must be a function");
+  }
+  return fn ? fn() : (undefined as T);
+}
 
 /** Server state is a plain value box; function values are never invoked. */
 export function createServerState<T>(value: T): { value: T } {

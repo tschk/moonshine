@@ -13,7 +13,7 @@ import {
   hasContext as nativeHasContext,
 } from "@tschk/moonshine-dom/component";
 import { createRuneEffect } from "./effect";
-import { drainTickWork } from "./tick-queue";
+import { drainTickWork, hasPendingTickWork } from "./tick-queue";
 import { withHistoryCleanup } from "./history";
 
 /** Source snippet parameters; compiled render cells are private to Crepus. */
@@ -29,6 +29,7 @@ import {
   runWithOwner,
   untrack,
 } from "@tschk/moonshine-dom/reactive";
+export { untrack };
 
 function componentOwner(hook: string) {
   assertNotCleanupComputation();
@@ -74,6 +75,26 @@ export function onDestroy(fn: () => void): void {
 export async function tick(): Promise<void> {
   await Promise.resolve();
   drainTickWork();
+}
+
+/** Synchronously run an optional callback and drain queued native rune work. */
+export function flushSync<T = void>(fn?: () => T): T {
+  if (fn !== undefined && typeof fn !== "function") {
+    throw new TypeError("flushSync callback must be a function");
+  }
+  const result = fn ? fn() : (undefined as T);
+  drainTickWork();
+  return result;
+}
+
+/** Wait until all queued native rune work (including chained effect ticks) settles. */
+export async function settled(): Promise<void> {
+  await Promise.resolve();
+  drainTickWork();
+  while (hasPendingTickWork()) {
+    await Promise.resolve();
+    drainTickWork();
+  }
 }
 
 export type EventDispatcher<EventMap extends Record<string, any>> = <

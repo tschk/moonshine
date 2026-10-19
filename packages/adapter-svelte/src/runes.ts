@@ -3,6 +3,7 @@ export { createState, stateSnapshot } from "./state";
 export { createRuneEffect, createRuneRoot, runeTracking } from "./effect";
 export { createDerived } from "./derived";
 export { createProp } from "./prop";
+export { propsId } from "./prop-id";
 export { createRawState } from "./raw-state";
 export { spreadProps } from "./spread-props";
 export {

@@ -1,3 +1,21 @@
+# Moonshine 0.4.51
+
+- Add Svelte 5 `$props.id()` runtime helper (`propsId()` in
+  `@tschk/moonshine-svelte/runes` and `@tschk/moonshine-svelte/ssr`) and
+  `settled()`, `flushSync(fn?)`, and `untrack(fn)` in
+  `@tschk/moonshine-svelte/svelte` and `@tschk/moonshine-svelte/ssr`, plus local
+  unpublished Crepuscularity `$props.id()` rune lowering and `'svelte'`
+  `settled` import routing.
+- `propsId()` generates deterministic tree-scoped IDs (`s-0`, `s-1`, ...) keyed
+  by the root `Owner` via `WeakMap<Owner, { next: number }>` so DOM and SSR
+  component trees produce identical IDs without leaking state across requests or
+  mounted instances, and rejects calls outside active component/root
+  initialization or inside cleanup computations.
+- `flushSync(fn?)` executes an optional callback and synchronously drains all
+  pending native rune work (`drainTickWork()`), while `settled()` awaits queued
+  rune flushes in a loop until chained rune effects settle (`hasPendingTickWork()`
+  is false).
+
 # Moonshine 0.4.50
 
 - Add native Solid secondary reactive primitives (`createUniqueId`,
