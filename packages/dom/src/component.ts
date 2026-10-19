@@ -160,6 +160,17 @@ function withConsumer<T>(
   const context = owner.context,
     active = frame.active,
     wasDisposed = owner.disposed;
+  if (!cleanup && active && context?.get(componentKey) === frame) {
+    try {
+      return fn();
+    } finally {
+      frame.active = active;
+      owner.context =
+        owner.disposed && !wasDisposed && !context.has(cleanupComputationKey)
+          ? undefined
+          : context;
+    }
+  }
   owner.context = new Map(context);
   owner.context.set(componentKey, frame);
   if (cleanup) owner.context.set(cleanupComputationKey, true);

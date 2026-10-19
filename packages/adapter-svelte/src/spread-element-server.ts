@@ -7,6 +7,7 @@ import {
 } from "@tschk/moonshine-dom/ssr";
 
 const ATTRIBUTE_NAME = /^[a-zA-Z_:][a-zA-Z0-9:_.-]*$/;
+const EVENT_NAME = /^on/i;
 
 /** Compiler-owned form spread; selection retains source identity through lazy SSR children. */
 export function spreadServerElement(
@@ -16,12 +17,11 @@ export function spreadServerElement(
 ): SSRChild {
   const merged = merge(layers);
   if (tag === "select") {
-    const { value, defaultValue, ...rest } = merged;
     return hSelectionEntries(
       "select",
-      entriesFromMerged(rest),
+      entriesFromMerged(merged, "select"),
       {
-        value: value === undefined ? defaultValue : value,
+        value: merged.value === undefined ? merged.defaultValue : merged.value,
         preserveSelected: true,
       },
       ...children,
@@ -65,16 +65,19 @@ function merge(layers: readonly unknown[]): Record<string, unknown> {
 
 function entriesFromMerged(
   merged: Record<string, unknown>,
-  element?: "input",
+  element?: "input" | "select",
 ): readonly (readonly [string, string | undefined])[] {
   const entries: Array<readonly [string, string | undefined]> = [];
   const keys = Object.keys(merged);
+  let loweredKeys: string[] | undefined;
   for (let index = 0; index < keys.length; index++) {
     const key = keys[index]!;
+    if (element === "select" && (key === "value" || key === "defaultValue"))
+      continue;
     const value = merged[key];
     // Functions, event handlers and internal or invalid names are never attributes.
     if (typeof value === "function" || !ATTRIBUTE_NAME.test(key)) continue;
-    if (/^on/i.test(key)) continue;
+    if (EVENT_NAME.test(key)) continue;
     let name = key.toLowerCase();
     if (
       element === "input" &&
@@ -82,7 +85,13 @@ function entriesFromMerged(
     ) {
       name = name === "defaultvalue" ? "value" : "checked";
       // Presence wins even for nullish values, functions and differently cased keys.
-      if (keys.some((candidate) => candidate.toLowerCase() === name)) continue;
+      if (
+        Object.hasOwn(merged, name) ||
+        (loweredKeys ??= keys.map((candidate) =>
+          candidate.toLowerCase(),
+        )).includes(name)
+      )
+        continue;
     }
     entries.push([
       name,

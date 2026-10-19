@@ -33,37 +33,41 @@ export { scopeSSRChild } from "./ssr-owner";
 export const selectBinding = Symbol("moonshine server select binding");
 export const optionBinding = Symbol("moonshine server option binding");
 type BindingValue = { value: unknown; preserveSelected?: boolean };
-function bindingValue(
-  props: Record<string, unknown> | null,
-  key: symbol,
-): BindingValue | undefined {
-  if (!props || !Object.hasOwn(props, key)) return undefined;
-  const box = Reflect.get(props, key);
-  if (
-    box === null ||
-    typeof box !== "object" ||
-    (Object.getPrototypeOf(box) !== Object.prototype &&
-      Object.getPrototypeOf(box) !== null)
-  )
+const ELEMENT_NAME = /^[a-zA-Z][a-zA-Z0-9:_-]*$/;
+const ATTRIBUTE_NAME = /^[a-zA-Z_:][a-zA-Z0-9:_.-]*$/;
+const EVENT_NAME = /^on/i;
+
+function validateBindingBox(box: unknown): BindingValue {
+  if (box === null || typeof box !== "object")
+    throw new TypeError(
+      "Server binding metadata requires a plain { value } box",
+    );
+  const proto = Object.getPrototypeOf(box);
+  if (proto !== Object.prototype && proto !== null)
     throw new TypeError(
       "Server binding metadata requires a plain { value } box",
     );
   const descriptor = Object.getOwnPropertyDescriptor(box, "value");
   if (!descriptor || !("value" in descriptor))
     throw new TypeError("Server binding metadata requires an own data value");
-  const preserveSelected = Object.getOwnPropertyDescriptor(
-    box,
-    "preserveSelected",
-  );
-  if (
-    preserveSelected &&
-    (!("value" in preserveSelected) ||
-      typeof preserveSelected.value !== "boolean")
-  )
-    throw new TypeError(
-      "Server selected policy requires an own boolean data value",
-    );
-  return { value: descriptor.value, preserveSelected: preserveSelected?.value };
+  let preserveSelected: boolean | undefined;
+  if (Object.hasOwn(box, "preserveSelected")) {
+    const policy = Object.getOwnPropertyDescriptor(box, "preserveSelected");
+    if (policy && (!("value" in policy) || typeof policy.value !== "boolean"))
+      throw new TypeError(
+        "Server selected policy requires an own boolean data value",
+      );
+    preserveSelected = policy?.value;
+  }
+  return { value: descriptor.value, preserveSelected };
+}
+
+function bindingValue(
+  props: Record<string, unknown> | null,
+  key: symbol,
+): BindingValue | undefined {
+  if (!props || !Object.hasOwn(props, key)) return undefined;
+  return validateBindingBox(Reflect.get(props, key));
 }
 const html = Symbol("moonshine server HTML");
 type Selection = {
@@ -112,7 +116,8 @@ export function rawHTML(value: unknown): HTML {
 }
 
 export function escapeHtml(value: unknown): string {
-  const text = String(value);
+  const text = typeof value === "string" ? value : String(value);
+  if (text.length === 0) return "";
   // Bun emits &#x27; for apostrophes; retain this API's exact &#39; output.
   if (typeof Bun !== "undefined" && !text.includes("'"))
     return Bun.escapeHTML(text);
@@ -133,40 +138,51 @@ export function escapeHtml(value: unknown): string {
 }
 
 function resolve(child: SSRChild): SSRChild {
-  if (typeof child === "function") return resolve(child());
-  if (Array.isArray(child)) return child.map(resolve);
-  if (
-    child != null &&
-    typeof child === "object" &&
-    !(html in child) &&
-    !(ssrOwner in child)
-  ) {
+  while (typeof child === "function") child = child();
+  if (child == null || typeof child !== "object") return child;
+  if (Array.isArray(child)) {
+    const length = child.length;
+    if (length === 0) return "";
+    if (length === 1) return resolve(child[0]);
+    const resolved: SSRChild[] = [];
+    for (let index = 0; index < length; index++)
+      resolved.push(resolve(child[index]));
+    return resolved;
+  }
+  if (!(html in child) && !(ssrOwner in child)) {
     throw new TypeError("Server children must be text or factory HTML");
   }
   return child;
 }
 
 function text(child: SSRChild): string {
-  if (child && typeof child === "object" && ssrOwner in child)
-    return inSSRScope(child, () => text(child.child));
-  if (typeof child === "function") return text(child());
-  if (Array.isArray(child)) return child.map(text).join("");
+  while (typeof child === "function") child = child();
   if (child == null || typeof child === "boolean") return "";
-  if (typeof child === "object") {
-    throw new TypeError("Server textarea/title/option children must be text");
+  if (typeof child === "string") return child;
+  if (typeof child !== "object") return String(child);
+  if (ssrOwner in child) return inSSRScope(child, () => text(child.child));
+  if (Array.isArray(child)) {
+    let out = "";
+    for (let index = 0; index < child.length; index++)
+      out += text(child[index]);
+    return out;
   }
-  return String(child);
+  throw new TypeError("Server textarea/title/option children must be text");
 }
 
 function content(child: SSRChild, selection?: Selection, svg = false): string {
-  if (child && typeof child === "object" && ssrOwner in child)
-    return inSSRScope(child, () => content(child.child, selection, svg));
-  if (typeof child === "function") return content(child(), selection, svg);
-  if (Array.isArray(child))
-    return child.map((value) => content(value, selection, svg)).join("");
+  while (typeof child === "function") child = child();
   if (child == null || typeof child === "boolean") return "";
   if (typeof child === "object") {
     if (html in child) return (child as HTML)[html](selection, svg);
+    if (ssrOwner in child)
+      return inSSRScope(child, () => content(child.child, selection, svg));
+    if (Array.isArray(child)) {
+      let out = "";
+      for (let index = 0; index < child.length; index++)
+        out += content(child[index], selection, svg);
+      return out;
+    }
     throw new TypeError("Server children must be text or factory HTML");
   }
   return escapeHtml(child);
@@ -430,9 +446,15 @@ export function hSelectionEntries(
 ): HTML {
   if (tag !== "select" && tag !== "option")
     throw new TypeError("Selection entries require select or option");
-  const key = tag === "select" ? selectBinding : optionBinding;
-  const box = bindingValue({ [key]: selection }, key)!;
-  return intrinsic(tag, null, children, undefined, entries, true, box);
+  return intrinsic(
+    tag,
+    null,
+    children,
+    undefined,
+    entries,
+    true,
+    validateBindingBox(selection),
+  );
 }
 
 function intrinsic(
@@ -444,7 +466,7 @@ function intrinsic(
   explicitAttributes = false,
   selectionBox?: BindingValue,
 ): HTML {
-  if (!/^[a-zA-Z][a-zA-Z0-9:_-]*$/.test(tag)) {
+  if (!ELEMENT_NAME.test(tag)) {
     throw new TypeError("Invalid server element name");
   }
   const owner = getOwner();
@@ -462,7 +484,11 @@ function intrinsic(
   if (lower === "script" || lower === "style") {
     throw new TypeError("Server script/style elements are unsupported");
   }
-  const attributes: Array<[string, unknown]> = [];
+  const staticMode = explicitAttributes || Boolean(sourceCodec);
+  let staticAttributes = "";
+  const attributes: Array<[string, unknown]> | undefined = staticMode
+    ? undefined
+    : [];
   let textareaValue: unknown;
   let hasTextareaValue = false;
   let selectValue: unknown;
@@ -473,22 +499,29 @@ function intrinsic(
   let selectedAttribute = "";
   let sourceNamespace: unknown;
   const names = sourceEntries
-    ? sourceEntries.map(([name]) => name)
-    : Object.keys(props ?? {});
-  for (let index = 0; index < names.length; index++) {
-    const name = names[index]!;
-    if (!/^[a-zA-Z_:][a-zA-Z0-9:_.-]*$/.test(name)) {
+    ? undefined
+    : props
+      ? Object.keys(props)
+      : undefined;
+  const attributeCount = sourceEntries
+    ? sourceEntries.length
+    : (names?.length ?? 0);
+  for (let index = 0; index < attributeCount; index++) {
+    const name = sourceEntries ? sourceEntries[index]![0] : names![index]!;
+    if (!ATTRIBUTE_NAME.test(name)) {
       throw new TypeError("Invalid server attribute name");
     }
     // Event and ref handlers are client-only and must never execute on the server.
     if (
-      /^on/i.test(name) ||
+      EVENT_NAME.test(name) ||
       (!explicitAttributes && (name === "ref" || name === "children"))
     )
       continue;
     if (
       !explicitAttributes &&
-      ["innerHTML", "outerHTML", "dangerouslySetInnerHTML"].includes(name)
+      (name === "innerHTML" ||
+        name === "outerHTML" ||
+        name === "dangerouslySetInnerHTML")
     ) {
       throw new TypeError("Raw server HTML is unsupported");
     }
@@ -512,21 +545,21 @@ function intrinsic(
     if (
       property !== name &&
       (sourceEntries
-        ? names.includes(property)
+        ? sourceEntries.some(([candidate]) => candidate === property)
         : Object.hasOwn(props!, property))
     )
       continue;
     // Typed options carry their serialized value as well as comparison identity.
     // The ordinary value prop loses precedence without invoking its getter/accessor.
     if (name === "value" && (typedOption || typedSelect)) {
-      if (typedOption && (sourceCodec || explicitAttributes)) {
+      if (typedOption && staticMode) {
         typedOptionValueSlot = true;
         if (
           typedOption.value != null &&
           typeof typedOption.value !== "function"
         ) {
           optionValue = String(typedOption.value);
-          attributes.push(["value", optionValue]);
+          staticAttributes += ` value="${escapeHtml(optionValue)}"`;
         }
       }
       continue;
@@ -537,11 +570,14 @@ function intrinsic(
     if (!explicitAttributes && name === "style") {
       if (value == null || value === false) value = undefined;
       else if (typeof value === "object") {
-        value = styleEntries(value)
-          .map(([property, entry]) =>
-            entry == null || entry === "" ? "" : `${property}:${entry};`,
-          )
-          .join("");
+        const entries = styleEntries(value);
+        let styleText = "";
+        for (let styleIndex = 0; styleIndex < entries.length; styleIndex++) {
+          const [styleProp, entry] = entries[styleIndex]!;
+          if (entry != null && entry !== "")
+            styleText += `${styleProp}:${entry};`;
+        }
+        value = styleText;
       } else if (typeof value !== "string") {
         throw new TypeError(
           "Style must be a CSS string, plain record, nullish or false",
@@ -585,22 +621,34 @@ function intrinsic(
           ? "for"
           : property;
     if (!explicitAttributes && property === "value") {
-      const serialized = sourceCodec
-        ? sourceCodec("value", value, typeof supplied === "function")
-        : value;
-      if (lower === "option")
-        optionValue = sourceCodec
-          ? String(serialized ?? "")
-          : String(value ?? "");
-      attributes.push(["value", serialized]);
+      if (sourceCodec) {
+        const serialized = sourceCodec(
+          "value",
+          value,
+          typeof supplied === "function",
+        );
+        if (lower === "option") optionValue = String(serialized ?? "");
+        if (serialized !== undefined)
+          staticAttributes += ` value="${escapeHtml(serialized)}"`;
+      } else {
+        if (lower === "option") optionValue = String(value ?? "");
+        attributes!.push(["value", value]);
+      }
       continue;
     }
-    attributes.push([
-      attr,
-      sourceCodec
-        ? sourceCodec(attr, value, typeof supplied === "function")
-        : value,
-    ]);
+    if (explicitAttributes) {
+      if (value != null) staticAttributes += ` ${attr}="${escapeHtml(value)}"`;
+    } else if (sourceCodec) {
+      const serialized = sourceCodec(
+        attr,
+        value,
+        typeof supplied === "function",
+      );
+      if (serialized !== undefined)
+        staticAttributes += ` ${attr}="${escapeHtml(serialized)}"`;
+    } else {
+      attributes!.push([attr, value]);
+    }
   }
   if (
     typedOption &&
@@ -609,7 +657,11 @@ function intrinsic(
     typeof typedOption.value !== "function"
   ) {
     optionValue = String(typedOption.value);
-    attributes.push(["value", optionValue]);
+    if (staticMode) {
+      staticAttributes += ` value="${escapeHtml(optionValue)}"`;
+    } else {
+      attributes!.push(["value", optionValue]);
+    }
   }
   if (
     lower === "select" &&
@@ -637,43 +689,57 @@ function intrinsic(
       ? String(textareaValue ?? "")
       : text(bodyChild)
     : undefined;
-  const explicitNamespace = sourceCodec
-    ? sourceNamespace
-    : attributes.find(([name]) => name === "xmlns")?.[1];
+  let escapedBodyText =
+    bodyText === undefined ? undefined : escapeHtml(bodyText);
+  if (
+    escapedBodyText !== undefined &&
+    !explicitAttributes &&
+    lower === "textarea" &&
+    (escapedBodyText.startsWith("\n") || escapedBodyText.startsWith("\r"))
+  ) {
+    escapedBodyText = `\n${escapedBodyText}`;
+  }
   const isSvg = (inherited = false) =>
-    explicitNamespace != null
-      ? explicitNamespace === "http://www.w3.org/2000/svg"
+    sourceNamespace != null
+      ? sourceNamespace === "http://www.w3.org/2000/svg"
       : lower === "svg" || inherited;
-  const renderAttributes = (svg: boolean) =>
-    attributes
-      .map(([attr, value]) => {
-        if (explicitAttributes)
-          return value == null ? "" : ` ${attr}="${escapeHtml(value)}"`;
-        if (sourceCodec)
-          return value === undefined ? "" : ` ${attr}="${escapeHtml(value)}"`;
-        if (!explicitAttributes && !svg && attr === "checked" && !value)
-          return "";
-        const text = attributeValue(
-          attr,
-          !svg &&
-            attr === "value" &&
-            lower !== "progress" &&
-            lower !== "meter" &&
-            lower !== "li"
-            ? (value ?? "")
-            : value,
-          !svg,
-        );
-        return text === undefined ? "" : ` ${attr}="${escapeHtml(text)}"`;
-      })
-      .join("");
+  const renderAttributes = (svg: boolean) => {
+    if (staticMode) return staticAttributes;
+    let out = "";
+    for (let index = 0; index < attributes!.length; index++) {
+      const [attr, value] = attributes![index]!;
+      if (!svg && attr === "checked" && !value) continue;
+      const serialized = attributeValue(
+        attr,
+        !svg &&
+          attr === "value" &&
+          lower !== "progress" &&
+          lower !== "meter" &&
+          lower !== "li"
+          ? (value ?? "")
+          : value,
+        !svg,
+      );
+      if (serialized !== undefined)
+        out += ` ${attr}="${escapeHtml(serialized)}"`;
+    }
+    return out;
+  };
   if (VOID.has(lower)) {
-    if (content(bodyChild))
+    if (bodyChild != null && bodyChild !== false && content(bodyChild))
       throw new TypeError("Void server elements cannot have children");
+    if (staticMode) {
+      const markup = `<${tag}${staticAttributes}>`;
+      return { [html]: () => markup };
+    }
     return {
       [html]: (_selection, inheritedSvg) =>
         `<${tag}${renderAttributes(isSvg(inheritedSvg))}>`,
     };
+  }
+  if (staticMode && escapedBodyText !== undefined && lower !== "option") {
+    const markup = `<${tag}${staticAttributes}>${escapedBodyText}</${tag}>`;
+    return { [html]: () => markup };
   }
   return {
     [html]: (inherited, inheritedSvg) => {
@@ -703,28 +769,45 @@ function intrinsic(
       let selected = selectedAttribute;
       if (lower === "option" && selection) {
         selection.options++;
-        const value =
-          optionValue ??
-          bodyText!.replace(/[\t\n\f\r ]+/g, " ").replace(/^ | $/g, "");
-        const raw = typedOption ? typedOption.value : value;
-        const matches = selection.binding
-          ? selection.multiple && Array.isArray(selection.binding.value)
-            ? selection.binding.value.includes(raw)
-            : raw === selection.binding.value
-          : selection.values!.has(value) &&
+        let matches: boolean;
+        if (selection.binding) {
+          const raw =
+            typedOption !== undefined
+              ? typedOption.value
+              : (optionValue ??
+                bodyText!.replace(/[\t\n\f\r ]+/g, " ").replace(/^ | $/g, ""));
+          matches =
+            selection.multiple && Array.isArray(selection.binding.value)
+              ? selection.binding.value.includes(raw)
+              : raw === selection.binding.value;
+        } else {
+          const value =
+            optionValue ??
+            bodyText!.replace(/[\t\n\f\r ]+/g, " ").replace(/^ | $/g, "");
+          matches =
+            selection.values!.has(value) &&
             (selection.multiple || !selection.matched);
+        }
         selected =
           matches || (selection.binding?.preserveSelected && selectedAttribute)
             ? ` selected=""`
             : "";
         if (matches) selection.matched = true;
       }
-      let body =
-        bodyText === undefined
-          ? runWithOwner(owner && !owner.disposed ? owner : getOwner(), () =>
-              content(bodyChild, selection, svg && lower !== "foreignobject"),
-            )
-          : escapeHtml(bodyText);
+      let body: string;
+      if (escapedBodyText !== undefined) {
+        body = escapedBodyText;
+      } else {
+        const activeOwner = getOwner();
+        const targetOwner = owner && !owner.disposed ? owner : activeOwner;
+        const nextSvg = svg && lower !== "foreignobject";
+        body =
+          targetOwner === activeOwner
+            ? content(bodyChild, selection, nextSvg)
+            : runWithOwner(targetOwner, () =>
+                content(bodyChild, selection, nextSvg),
+              );
+      }
       if (
         lower === "select" &&
         selection &&
@@ -735,14 +818,7 @@ function intrinsic(
       ) {
         throw new TypeError("Server select value has no matching option");
       }
-      // Property factories protect values; explicit HTML keeps parser newline rules.
-      if (
-        !explicitAttributes &&
-        lower === "textarea" &&
-        (body.startsWith("\n") || body.startsWith("\r"))
-      )
-        body = `\n${body}`;
-      return `<${tag}${renderAttributes(svg)}${selected}>${body}</${tag}>`;
+      return `<${tag}${staticMode ? staticAttributes : renderAttributes(svg)}${selected}>${body}</${tag}>`;
     },
   };
 }
