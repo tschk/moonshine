@@ -1,7 +1,16 @@
+import { serializeData } from "@tschk/moonshine-framework";
+
 // Island props go into a `<script>` tag, the same hazard the server's data
 // payload has, so both use the framework's one HTML-safe JSON serializer.
 // A second copy here is a second place to forget an escape vector.
-export { serializeData as serializeIslandProps } from "@tschk/moonshine-framework";
+export function serializeIslandProps(props: unknown): string {
+  const serialized = serializeData(props);
+  // Ensure the output is fully sanitized to prevent XSS in <script> tags.
+  return serialized
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}
 
 function escapeHtmlValue(value: string): string {
   return value
