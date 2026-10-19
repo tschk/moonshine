@@ -66,15 +66,19 @@ export function island<P>(
     const mod = use(loader());
     const Component = ((mod as { default?: ComponentType<P> }).default ??
       mod) as FunctionComponent<P>;
+    const safeProps = { ...(props ?? {}) } as Record<string, unknown>;
+    if ("dangerouslySetInnerHTML" in safeProps) {
+      delete safeProps.dangerouslySetInnerHTML;
+    }
     const children = createElement(
       Component as FunctionComponent<unknown>,
-      props as unknown as Record<string, unknown>,
+      safeProps,
     );
     if (registry) {
       registry.entries.set(id, {
         id,
         specifier,
-        props: (props ?? {}) as Record<string, unknown>,
+        props: safeProps,
         hydrate,
       });
     }
@@ -95,7 +99,7 @@ export function island<P>(
           type: "application/json",
           "data-moonshine-island-props": id,
         },
-        serializeIslandProps(props),
+        serializeIslandProps(safeProps),
       ),
     );
   };
