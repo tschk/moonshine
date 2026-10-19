@@ -333,9 +333,9 @@ test("onWatcherCleanup registers cleanups on active watch and watchSyncEffect wi
     "inner:10",
     "inner-hook-clean:10",
     "inner:20",
+    "inner-hook-clean:20",
     "outer-param-clean:0",
     "outer-hook-clean-before:0",
-    "inner-hook-clean:20",
     "outer-hook-clean-after:0",
     "outer:1",
     "inner:20",
@@ -360,22 +360,26 @@ test("onWatcherCleanup registers cleanups on active watch and watchSyncEffect wi
   // Error routing through withComponentErrorHandler for onWatcherCleanup
   const routed: Array<[unknown, string]> = [];
   const errRef = ref(0);
-  withComponentErrorHandler(
-    (err, info) => routed.push([err, info.phase]),
-    () => {
-      const stop = watch(
-        errRef,
-        (v) => {
-          onWatcherCleanup(() => {
-            throw `clean-err:${v}`;
-          });
-        },
-        { flush: "sync", immediate: true },
-      );
-      errRef.value = 1;
-      stop();
-    },
-  );
+  const errScope = effectScope();
+  errScope.run(() => {
+    withComponentErrorHandler(
+      (err, info) => routed.push([err, info.phase]),
+      () => {
+        const stop = watch(
+          errRef,
+          (v) => {
+            onWatcherCleanup(() => {
+              throw `clean-err:${v}`;
+            });
+          },
+          { flush: "sync", immediate: true },
+        );
+        errRef.value = 1;
+        stop();
+      },
+    );
+  });
+  errScope.stop();
   expect(routed).toEqual([
     ["clean-err:0", "watch cleanup"],
     ["clean-err:1", "watch cleanup"],
