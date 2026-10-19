@@ -10,6 +10,7 @@ import {
   clearNuxtState,
   createBridgedRef,
   createError,
+  defineNuxtComponent,
   defineNuxtPlugin,
   defineNuxtRouteMiddleware,
   definePageMeta,
@@ -18,15 +19,19 @@ import {
   navigateTo,
   onBeforeRouteLeave,
   onBeforeRouteUpdate,
+  onNuxtReady,
+  onPrehydrate,
   prefetchComponents,
   preloadComponents,
   preloadRouteComponents,
   refreshCookie,
   refreshNuxtData,
+  reloadNuxtApp,
   resolveHeadTags,
   setPageLayout,
   setResponseStatus,
   showError,
+  tryUseNuxtApp,
   updateAppConfig,
   useAppConfig,
   useAsyncData,
@@ -37,11 +42,15 @@ import {
   useHeadSafe,
   useLazyAsyncData,
   useLazyFetch,
+  useLoadingIndicator,
+  useNuxtApp,
   useNuxtData,
   useRequestEvent,
+  useRequestFetch,
   useRequestHeaders,
   useRequestURL,
   useRoute,
+  useRouteAnnouncer,
   useRouter,
   useRuntimeConfig,
   useSeoMeta,
@@ -573,5 +582,116 @@ describe("@tschk/moonshine-nuxt composables", () => {
       await prefetchComponents("Sidebar");
       await preloadRouteComponents("/docs");
     });
+  });
+
+  test("useNuxtApp, tryUseNuxtApp, defineNuxtComponent, useLoadingIndicator, useRouteAnnouncer, useRequestFetch, onNuxtReady, onPrehydrate, and reloadNuxtApp", async () => {
+    const comp = defineNuxtComponent({ name: "MyPage" });
+    expect(comp.name).toBe("MyPage");
+
+    await withNuxtRequest(
+      {
+        url: "https://example.com/dashboard",
+        headers: {
+          cookie: "auth=secret-cookie",
+          authorization: "Bearer token-123",
+        },
+      },
+      async () => {
+        const nuxtApp = useNuxtApp();
+        expect(tryUseNuxtApp()).toBe(nuxtApp);
+        expect(nuxtApp.payload.serverRendered).toBe(true);
+        expect(nuxtApp.ssrContext?.url).toBe("/dashboard");
+
+        const counter = useState("visits", () => 7);
+        expect(nuxtApp.payload.state.visits).toBe(7);
+        nuxtApp.payload.state.visits = 8;
+        expect(counter.value).toBe(8);
+
+        await useAsyncData("profile", async () => ({ name: "Ada" }));
+        expect(nuxtApp.payload.data.profile).toEqual({ name: "Ada" });
+
+        nuxtApp.provide("analytics", { track: () => "tracked" });
+        expect(nuxtApp.$analytics.track()).toBe("tracked");
+        expect(() => nuxtApp.provide("analytics", {})).toThrow(
+          'Cannot redefine property "$analytics"',
+        );
+
+        const finishHydration = nuxtApp.deferHydration();
+        expect(nuxtApp.isHydrating).toBe(true);
+        finishHydration();
+        expect(nuxtApp.isHydrating).toBe(false);
+
+        const indicator = useLoadingIndicator();
+        expect(indicator.isLoading.value).toBe(false);
+        await nuxtApp.callHook("page:loading:start");
+        expect(indicator.isLoading.value).toBe(true);
+        indicator.set(45);
+        expect(indicator.progress.value).toBe(45);
+        await nuxtApp.callHook("page:loading:end");
+        expect(indicator.isLoading.value).toBe(false);
+        expect(indicator.progress.value).toBe(100);
+
+        useHead({ title: "Dashboard" });
+        const announcer = useRouteAnnouncer();
+        expect(announcer.message.value).toBe("Dashboard");
+        expect(announcer.politeness.value).toBe("polite");
+        announcer.assertive("Urgent Alert");
+        expect(announcer.message.value).toBe("Urgent Alert");
+        expect(announcer.politeness.value).toBe("assertive");
+        announcer.off();
+        expect(announcer.politeness.value).toBe("off");
+
+        const phId = onPrehydrate(() => {}, "custom-ph");
+        expect(phId).toBe("custom-ph");
+
+        // SSR skips onNuxtReady
+        let readyRanInSSR = false;
+        onNuxtReady(() => {
+          readyRanInSSR = true;
+        });
+        await Promise.resolve();
+        expect(readyRanInSSR).toBe(false);
+
+        reloadNuxtApp({ path: "/login", persistState: true });
+
+        const originalFetch = globalThis.fetch;
+        let capturedHeaders: Headers | undefined;
+        let capturedUrl = "";
+        globalThis.fetch = (async (
+          input: RequestInfo | URL,
+          init?: RequestInit,
+        ) => {
+          capturedUrl = String(input);
+          capturedHeaders = new Headers(init?.headers);
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { "content-type": "application/json" },
+          });
+        }) as unknown as typeof fetch;
+
+        try {
+          const reqFetch = useRequestFetch();
+          const res = await reqFetch("/api/me", { query: { detail: 1 } });
+          expect(res).toEqual({ ok: true });
+          expect(capturedUrl).toBe("https://example.com/api/me?detail=1");
+          expect(capturedHeaders?.get("cookie")).toBe("auth=secret-cookie");
+          expect(capturedHeaders?.get("authorization")).toBe(
+            "Bearer token-123",
+          );
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+      },
+    );
+
+    // Client-side onNuxtReady runs in microtask with NuxtApp context
+    let clientReadyApp: unknown;
+    createRoot((dispose) => {
+      onNuxtReady(() => {
+        clientReadyApp = tryUseNuxtApp();
+      });
+      dispose();
+    });
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(clientReadyApp).toBeDefined();
   });
 });

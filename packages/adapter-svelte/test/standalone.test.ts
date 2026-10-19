@@ -211,6 +211,17 @@ assert.equal(flushSync(()=>svelteUntrack(()=>42)),42);assert.equal(serverFlushSy
 createRoot(stop=>{assert.equal(propsId(),'s-0');assert.equal(propsId(),'s-1');stop()});
 assert.throws(()=>onDestroy(()=>{}),/component initialization/);
 assert.throws(()=>propsId(),/component initialization/);
+const {on}=await import('@tschk/moonshine-svelte/events');
+const {cubicOut,linear}=await import('@tschk/moonshine-svelte/easing');
+const {Spring,Tween,spring,tweened,prefersReducedMotion}=await import('@tschk/moonshine-svelte/motion');
+assert.equal(linear(0.5),0.5);
+assert.equal(cubicOut(1),1);
+const et=new EventTarget();let pinged=0;const off=on(et,'ping',()=>{pinged++});et.dispatchEvent(new Event('ping'));off();et.dispatchEvent(new Event('ping'));assert.equal(pinged,1);
+const sp=new Spring(1,{stiffness:1,damping:1});await sp.set(5);assert.equal(sp.current,5);
+const tw=new Tween(2,{duration:0});await tw.set(8);assert.equal(tw.current,8);
+const twStore=tweened(3,{duration:0});await twStore.set(9);assert.equal(get(twStore),9);
+const spStore=spring(4,{stiffness:1,damping:1});await spStore.set(12,{hard:true});assert.equal(get(spStore),12);
+assert.equal(typeof prefersReducedMotion.current,'boolean');
 `);
 });
 

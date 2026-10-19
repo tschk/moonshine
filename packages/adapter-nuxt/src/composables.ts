@@ -123,6 +123,11 @@ type NuxtScopeStore = {
   preloadedComponents: Set<string>;
   prefetchedComponents: Set<string>;
   preloadedRoutes: Set<string>;
+  nuxtApp?: NuxtApp;
+  loadingIndicator?: LoadingIndicator;
+  routeAnnouncer?: RouteAnnouncer;
+  prehydrateCallbacks: Map<string, string>;
+  reloadHistory: ReloadNuxtAppOptions[];
   event?: NuxtRequestEvent;
 };
 
@@ -169,6 +174,8 @@ function createScopeStore(
     preloadedComponents: new Set(),
     prefetchedComponents: new Set(),
     preloadedRoutes: new Set(),
+    prehydrateCallbacks: new Map(),
+    reloadHistory: [],
     event,
   };
 }
@@ -2477,4 +2484,541 @@ export async function prefetchComponents(
 export async function preloadRouteComponents(to: string): Promise<void> {
   const store = resolveScopeStore();
   store.preloadedRoutes.add(to);
+}
+
+export type NuxtHookCallback = (...args: any[]) => any;
+
+export interface NuxtHooks {
+  hook: (name: string, fn: NuxtHookCallback) => () => void;
+  hookOnce: (name: string, fn: NuxtHookCallback) => () => void;
+  removeHook: (name: string, fn: NuxtHookCallback) => void;
+  callHook: (name: string, ...args: any[]) => Promise<void>;
+}
+
+export interface NuxtPayload {
+  data: Record<string, any>;
+  state: Record<string, any>;
+  _errors: Record<string, any>;
+  serverRendered: boolean;
+  prerenderedAt?: number;
+  error?: NuxtError<any>;
+}
+
+export interface NuxtSSRContext {
+  url: string;
+  event?: NuxtRequestEvent;
+  runtimeConfig: NuxtRuntimeConfig;
+  payload: NuxtPayload;
+}
+
+export interface NuxtApp {
+  payload: NuxtPayload;
+  versions: {
+    nuxt: string;
+    moonshine: string;
+  };
+  hooks: NuxtHooks;
+  hook: NuxtHooks["hook"];
+  callHook: NuxtHooks["callHook"];
+  provide: (name: string, value: unknown) => void;
+  runWithContext: <T>(fn: () => T) => T;
+  isHydrating: boolean;
+  deferHydration: () => () => void;
+  ssrContext?: NuxtSSRContext;
+  [key: `$${string}`]: any;
+}
+
+function createHooksRegistry(): NuxtHooks {
+  const map = new Map<string, Set<NuxtHookCallback>>();
+
+  const removeHook = (name: string, fn: NuxtHookCallback) => {
+    const set = map.get(name);
+    if (!set) return;
+    set.delete(fn);
+    if (set.size === 0) {
+      map.delete(name);
+    }
+  };
+
+  const hook = (name: string, fn: NuxtHookCallback) => {
+    let set = map.get(name);
+    if (!set) {
+      set = new Set();
+      map.set(name, set);
+    }
+    set.add(fn);
+    return () => removeHook(name, fn);
+  };
+
+  const hookOnce = (name: string, fn: NuxtHookCallback) => {
+    const wrapper: NuxtHookCallback = (...args: any[]) => {
+      removeHook(name, wrapper);
+      return fn(...args);
+    };
+    return hook(name, wrapper);
+  };
+
+  const callHook = async (name: string, ...args: any[]): Promise<void> => {
+    const set = map.get(name);
+    if (!set || set.size === 0) return;
+    for (const fn of Array.from(set)) {
+      await fn(...args);
+    }
+  };
+
+  return {
+    hook,
+    hookOnce,
+    removeHook,
+    callHook,
+  };
+}
+
+function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
+  const extraData: Record<string, any> = {};
+  const extraErrors: Record<string, any> = {};
+
+  const dataProxy = new Proxy(extraData, {
+    get(target, prop) {
+      if (typeof prop === "string" && store.asyncData.has(prop)) {
+        return store.asyncData.get(prop)!.data.value;
+      }
+      return Reflect.get(target, prop);
+    },
+    set(target, prop, value) {
+      if (typeof prop === "string" && store.asyncData.has(prop)) {
+        store.asyncData.get(prop)!.data.value = value;
+        return true;
+      }
+      return Reflect.set(target, prop, value);
+    },
+    has(target, prop) {
+      return (
+        (typeof prop === "string" && store.asyncData.has(prop)) ||
+        prop in target
+      );
+    },
+    ownKeys(target) {
+      return Array.from(
+        new Set([...store.asyncData.keys(), ...Reflect.ownKeys(target)]),
+      );
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (typeof prop === "string" && store.asyncData.has(prop)) {
+        return {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value: store.asyncData.get(prop)!.data.value,
+        };
+      }
+      return Reflect.getOwnPropertyDescriptor(target, prop);
+    },
+  });
+
+  const stateProxy = new Proxy({} as Record<string, any>, {
+    get(_target, prop) {
+      if (typeof prop === "string" && store.state.has(prop)) {
+        return store.state.get(prop)!.value;
+      }
+      return undefined;
+    },
+    set(_target, prop, value) {
+      if (typeof prop === "string") {
+        const existing = store.state.get(prop);
+        if (existing) {
+          existing.value = value;
+        } else {
+          store.state.set(prop, createBridgedRef(value));
+        }
+        return true;
+      }
+      return false;
+    },
+    has(_target, prop) {
+      return typeof prop === "string" && store.state.has(prop);
+    },
+    ownKeys() {
+      return Array.from(store.state.keys());
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      if (typeof prop === "string" && store.state.has(prop)) {
+        return {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value: store.state.get(prop)!.value,
+        };
+      }
+      return undefined;
+    },
+  });
+
+  const errorsProxy = new Proxy(extraErrors, {
+    get(target, prop) {
+      if (typeof prop === "string" && store.asyncData.has(prop)) {
+        return store.asyncData.get(prop)!.error.value;
+      }
+      return Reflect.get(target, prop);
+    },
+    set(target, prop, value) {
+      if (typeof prop === "string" && store.asyncData.has(prop)) {
+        store.asyncData.get(prop)!.error.value = value;
+        return true;
+      }
+      return Reflect.set(target, prop, value);
+    },
+  });
+
+  return {
+    data: dataProxy,
+    state: stateProxy,
+    _errors: errorsProxy,
+    serverRendered: Boolean(store.event || isSSRRendering()),
+    get error() {
+      return store.error?.value;
+    },
+    set error(next: NuxtError<any> | undefined) {
+      if (!store.error) {
+        store.error = createBridgedRef<NuxtError<any> | undefined>(next);
+      } else {
+        store.error.value = next;
+      }
+    },
+  };
+}
+
+function ensureNuxtApp(store: NuxtScopeStore): NuxtApp {
+  if (!store.nuxtApp) {
+    const hooks = createHooksRegistry();
+    const payload = createNuxtPayload(store);
+    let pendingHydrationCount = 0;
+
+    const app: NuxtApp = {
+      payload,
+      versions: {
+        nuxt: "3.15.0",
+        moonshine: "0.4.60",
+      },
+      hooks,
+      hook: hooks.hook,
+      callHook: hooks.callHook,
+      isHydrating: false,
+      deferHydration() {
+        pendingHydrationCount++;
+        app.isHydrating = true;
+        let released = false;
+        return () => {
+          if (released) return;
+          released = true;
+          pendingHydrationCount = Math.max(0, pendingHydrationCount - 1);
+          if (pendingHydrationCount === 0) {
+            app.isHydrating = false;
+          }
+        };
+      },
+      provide(name: string, value: unknown) {
+        const prefixed = (
+          name.startsWith("$") ? name : `$${name}`
+        ) as `$${string}`;
+        if (prefixed in app) {
+          throw new Error(
+            `Cannot redefine property "${prefixed}" on NuxtApp instance.`,
+          );
+        }
+        Object.defineProperty(app, prefixed, {
+          value,
+          enumerable: true,
+          configurable: false,
+          writable: false,
+        });
+      },
+      runWithContext<T>(fn: () => T): T {
+        const prev = activeRequestStore;
+        activeRequestStore = store;
+        try {
+          const result = fn();
+          if (
+            result !== null &&
+            typeof result === "object" &&
+            typeof (result as { then?: unknown }).then === "function"
+          ) {
+            return Promise.resolve(result).finally(() => {
+              if (activeRequestStore === store) {
+                activeRequestStore = prev;
+              }
+            }) as T;
+          }
+          activeRequestStore = prev;
+          return result;
+        } catch (err) {
+          activeRequestStore = prev;
+          throw err;
+        }
+      },
+      ...(store.event || isSSRRendering()
+        ? {
+            ssrContext: {
+              url: store.event
+                ? store.event.url.pathname + store.event.url.search
+                : "/",
+              event: store.event,
+              runtimeConfig: store.runtimeConfig,
+              payload,
+            },
+          }
+        : {}),
+    };
+    store.nuxtApp = app;
+  }
+  return store.nuxtApp;
+}
+
+export function useNuxtApp(): NuxtApp {
+  return ensureNuxtApp(resolveScopeStore());
+}
+
+export function tryUseNuxtApp(): NuxtApp | null {
+  if (activeRequestStore || getOwner() || getSSRRenderScope()) {
+    return ensureNuxtApp(resolveScopeStore());
+  }
+  return fallbackStore.nuxtApp ?? null;
+}
+
+export function defineNuxtComponent<T extends Record<string, any>>(
+  options: T,
+): T {
+  return options;
+}
+
+export interface LoadingIndicatorOptions {
+  duration?: number;
+  throttle?: number;
+  hideDelay?: number;
+  resetDelay?: number;
+  estimatedProgress?: (duration: number, elapsed: number) => number;
+}
+
+export interface LoadingIndicator {
+  progress: VueRef<number>;
+  isLoading: VueRef<boolean>;
+  error: VueRef<boolean>;
+  start: (opts?: { force?: boolean }) => void;
+  set: (value: number, opts?: { force?: boolean }) => void;
+  finish: (opts?: { force?: boolean; error?: boolean }) => void;
+  clear: () => void;
+}
+
+export function useLoadingIndicator(
+  _opts?: LoadingIndicatorOptions,
+): LoadingIndicator {
+  const store = resolveScopeStore();
+  if (!store.loadingIndicator) {
+    const progress = createBridgedRef(0);
+    const isLoading = createBridgedRef(false);
+    const error = createBridgedRef(false);
+
+    const set = (value: number, opts?: { force?: boolean }) => {
+      const clamped = Math.max(0, Math.min(100, value));
+      if (opts?.force || isLoading.value || clamped > 0) {
+        progress.value = clamped;
+      }
+    };
+
+    const start = (opts?: { force?: boolean }) => {
+      error.value = false;
+      isLoading.value = true;
+      set(0, opts);
+    };
+
+    const clear = () => {
+      isLoading.value = false;
+    };
+
+    const finish = (opts?: { force?: boolean; error?: boolean }) => {
+      progress.value = 100;
+      if (opts?.error) {
+        error.value = true;
+      }
+      isLoading.value = false;
+      if (opts?.force) {
+        progress.value = 0;
+      }
+    };
+
+    const indicator: LoadingIndicator = {
+      progress,
+      isLoading,
+      error,
+      start,
+      set,
+      finish,
+      clear,
+    };
+    store.loadingIndicator = indicator;
+
+    const app = ensureNuxtApp(store);
+    app.hook("page:loading:start", () => {
+      indicator.start();
+    });
+    app.hook("page:loading:end", () => {
+      indicator.finish();
+    });
+  }
+  return store.loadingIndicator;
+}
+
+export type RouteAnnouncerPoliteness = "polite" | "assertive" | "off";
+
+export interface RouteAnnouncer {
+  message: VueRef<string>;
+  politeness: VueRef<RouteAnnouncerPoliteness>;
+  set: (message?: string, politeness?: RouteAnnouncerPoliteness) => void;
+  polite: (message?: string) => void;
+  assertive: (message?: string) => void;
+  off: () => void;
+}
+
+export function useRouteAnnouncer(opts?: {
+  politeness?: RouteAnnouncerPoliteness;
+}): RouteAnnouncer {
+  const store = resolveScopeStore();
+  if (!store.routeAnnouncer) {
+    const initialTitle = resolveHeadTags().title;
+    const message = createBridgedRef(initialTitle);
+    const politeness = createBridgedRef<RouteAnnouncerPoliteness>(
+      opts?.politeness ?? "polite",
+    );
+
+    const set = (
+      nextMessage = "",
+      nextPoliteness: RouteAnnouncerPoliteness = "polite",
+    ) => {
+      message.value = nextMessage;
+      politeness.value = nextPoliteness;
+    };
+
+    store.routeAnnouncer = {
+      message,
+      politeness,
+      set,
+      polite(nextMessage = "") {
+        set(nextMessage, "polite");
+      },
+      assertive(nextMessage = "") {
+        set(nextMessage, "assertive");
+      },
+      off() {
+        politeness.value = "off";
+      },
+    };
+  }
+  return store.routeAnnouncer;
+}
+
+export function useRequestFetch(): (
+  request: string | URL | Request,
+  init?: RequestInit & {
+    query?: Record<string, any>;
+    params?: Record<string, any>;
+    baseURL?: string;
+  },
+) => Promise<any> {
+  const store = resolveScopeStore();
+  const forwardedHeaders = useRequestHeaders(["cookie", "authorization"]);
+
+  return async (request, init = {}) => {
+    const baseURL = init.baseURL ?? store.runtimeConfig.app.baseURL ?? "/";
+    let targetUrl: URL;
+    if (request instanceof Request) {
+      targetUrl = new URL(request.url);
+    } else if (request instanceof URL) {
+      targetUrl = new URL(request.href);
+    } else {
+      const origin = store.event?.url.origin ?? "http://localhost";
+      const baseResolved = new URL(baseURL, origin);
+      targetUrl = new URL(request, baseResolved);
+    }
+
+    const queryObj = init.query ?? init.params;
+    if (queryObj) {
+      for (const [k, v] of Object.entries(queryObj)) {
+        if (v !== undefined && v !== null) {
+          targetUrl.searchParams.set(k, String(v));
+        }
+      }
+    }
+
+    const headers = new Headers(
+      request instanceof Request ? request.headers : undefined,
+    );
+    for (const [k, v] of Object.entries(forwardedHeaders)) {
+      if (v !== undefined && !headers.has(k)) {
+        headers.set(k, v);
+      }
+    }
+    if (init.headers) {
+      const extra = new Headers(init.headers);
+      extra.forEach((val, key) => {
+        headers.set(key, val);
+      });
+    }
+
+    const res = await fetch(targetUrl.href, {
+      ...init,
+      headers,
+    });
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      return res.json();
+    }
+    return res.text();
+  };
+}
+
+export function onNuxtReady(callback: () => any): void {
+  const store = resolveScopeStore();
+  if (store.event || isSSRRendering()) {
+    return;
+  }
+  const app = ensureNuxtApp(store);
+  queueMicrotask(() => {
+    void app.runWithContext(callback);
+  });
+}
+
+let nextPrehydrateId = 1;
+
+export function onPrehydrate(
+  callback: ((el?: HTMLElement) => void) | string,
+  key?: string,
+): string | undefined {
+  const store = resolveScopeStore();
+  const code =
+    typeof callback === "function" ? `(${callback.toString()})()` : callback;
+  const id = key ?? `nph-${nextPrehydrateId++}`;
+  store.prehydrateCallbacks.set(id, code);
+  return key || typeof callback === "function" ? id : undefined;
+}
+
+export interface ReloadNuxtAppOptions {
+  path?: string;
+  ttl?: number;
+  force?: boolean;
+  persistState?: boolean;
+}
+
+export function reloadNuxtApp(options: ReloadNuxtAppOptions = {}): void {
+  const store = resolveScopeStore();
+  store.reloadHistory.push(options);
+  if (store.event || isSSRRendering()) {
+    return;
+  }
+  if (typeof window !== "undefined" && window.location) {
+    if (options.path) {
+      window.location.href = options.path;
+    } else if (typeof window.location.reload === "function") {
+      window.location.reload();
+    }
+  }
 }
