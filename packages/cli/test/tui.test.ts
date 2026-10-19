@@ -10,6 +10,9 @@ describe("clampColumns", () => {
   });
 
   test("clamps to a minimum of 20", () => {
+    expect(clampColumns(0)).toBe(20);
+    expect(clampColumns(-1)).toBe(20);
+    expect(clampColumns(-20)).toBe(20);
     expect(clampColumns(10)).toBe(20);
     expect(clampColumns(19)).toBe(20);
     expect(clampColumns(20)).toBe(20);
