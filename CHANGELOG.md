@@ -1,3 +1,28 @@
+# Moonshine 0.4.44
+
+- Add `toStore` and `fromStore` in `@tschk/moonshine-svelte/store` for Svelte 5
+  rune/store interoperability. `toStore(get, set?)` evaluates `get()` eagerly,
+  captures the creating Rune scope (`pre` before DOM children mount, `render`
+  after), matches Svelte 5 post-order effect registration when subscribed inside
+  an initializing Rune effect, survives parent component disposal while store
+  subscribers remain active, and returns a one-shot `writable(get())` on SSR.
+  `fromStore(store)` bridges `Readable` and `Writable` stores (plus `{ subscribe }`
+  observables) into a `{ current }` accessor, shares one client subscription
+  across tracked readers and `$derived` chains, releases after a microtask when
+  demand drops to zero, preserves effect teardown history values, and falls back
+  to `get(store)` outside tracking or on SSR.
+- Reduce SSR static-attribute, selection, and consumer allocations in
+  `@tschk/moonshine-dom/ssr` (`ssrElement`, `ssrControlValueAttr`) and
+  `@tschk/moonshine-svelte/spread-element-server`.
+- Local unpublished Crepuscularity lowering admits `toStore` and `fromStore`
+  imports, aliases, and re-exports from `svelte/store`.
+- Validation: 2,536 SDK tests pass (with all five optional compiler-gated
+  standalone tests passing when `MOONSHINE_CREPUS_COMPILER` is set); 876
+  source-gate modules (`scripts/check-native-sfc.ts`), Clippy (`-D warnings`),
+  and both 25-project typecheck lanes (`tsc` and `tsgo`) pass against Svelte
+  5.57.1. The signal kernel stays at 4,041 raw bytes. Source compiler changes
+  remain local and unpublished; npm publication stays manual.
+
 # Moonshine 0.4.43
 
 - Add `@tschk/moonshine-vue/expose` (`exposeRefs`, `bindRef`, `ShallowUnwrap`) and
