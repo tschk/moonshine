@@ -78,6 +78,19 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     const res=root.resource({request:()=>count(),defaultValue:0,loader:async({request})=>request*10});
     assert.equal(res.status(),'loading');
     res.destroy();
+    const inp=root.input(5,{transform:(v:number)=>v*2});
+    root.applyInputValue(inp,7);
+    assert.equal(inp(),14);
+    const mdl=root.model('a');
+    const emitted:string[]=[];
+    mdl.subscribe(v=>emitted.push(v));
+    mdl.set('b');
+    assert.deepEqual(emitted,['b']);
+    const out=root.output<number>();
+    const outVals:number[]=[];
+    out.subscribe(v=>outVals.push(v));
+    out.emit(42);
+    assert.deepEqual(outVals,[42]);
   `);
 });
 

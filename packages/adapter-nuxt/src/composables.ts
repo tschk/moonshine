@@ -54,20 +54,99 @@ type AsyncEntry = {
   runId: number;
 };
 
+export interface NuxtRuntimeConfig {
+  app: {
+    baseURL: string;
+    buildAssetsDir: string;
+    cdnURL: string;
+    [key: string]: any;
+  };
+  public: Record<string, any>;
+  [key: string]: any;
+}
+
+export interface NuxtRequestEvent {
+  request: Request;
+  url: URL;
+  headers: Headers;
+  responseHeaders: Headers;
+  context: Record<string, any>;
+}
+
+export interface NuxtRequestInit {
+  request?: Request;
+  url?: URL | string;
+  headers?: HeadersInit;
+  responseHeaders?: HeadersInit;
+  context?: Record<string, any>;
+  runtimeConfig?: Partial<NuxtRuntimeConfig>;
+  appConfig?: Record<string, any>;
+}
+
+type CookieEntry = {
+  ref: VueRef<any>;
+  decode: (raw: string) => any;
+  defaultFactory?: () => any;
+};
+
 type NuxtScopeStore = {
   autoIndex: number;
   state: Map<string, VueRef<any>>;
   asyncData: Map<string, AsyncEntry>;
+  cookies: Map<string, CookieEntry>;
+  callOnceDone: Set<string>;
+  callOnceInFlight: Map<string, Promise<void>>;
+  error?: VueRef<NuxtError<any> | undefined>;
+  runtimeConfig: NuxtRuntimeConfig;
+  appConfigSignal: MsSignal<Record<string, any>>;
+  appConfigProxy?: Record<string, any>;
+  event?: NuxtRequestEvent;
 };
+
+function createDefaultRuntimeConfig(
+  overrides?: Partial<NuxtRuntimeConfig>,
+): NuxtRuntimeConfig {
+  return {
+    ...overrides,
+    app: {
+      baseURL: "/",
+      buildAssetsDir: "/_nuxt/",
+      cdnURL: "",
+      ...overrides?.app,
+    },
+    public: {
+      ...overrides?.public,
+    },
+  };
+}
+
+function createScopeStore(
+  init?: NuxtRequestInit,
+  event?: NuxtRequestEvent,
+): NuxtScopeStore {
+  return {
+    autoIndex: 0,
+    state: new Map(),
+    asyncData: new Map(),
+    cookies: new Map(),
+    callOnceDone: new Set(),
+    callOnceInFlight: new Map(),
+    runtimeConfig: createDefaultRuntimeConfig(init?.runtimeConfig),
+    appConfigSignal: msCreateSignal<Record<string, any>>(
+      init?.appConfig ? { ...init.appConfig } : {},
+    ),
+    event,
+  };
+}
 
 const scopeStores = new WeakMap<object, NuxtScopeStore>();
-let fallbackStore: NuxtScopeStore = {
-  autoIndex: 0,
-  state: new Map(),
-  asyncData: new Map(),
-};
+let activeRequestStore: NuxtScopeStore | undefined;
+let fallbackStore: NuxtScopeStore = createScopeStore();
 
 function resolveScopeStore(): NuxtScopeStore {
+  if (activeRequestStore) {
+    return activeRequestStore;
+  }
   const owner = getOwner();
   if (owner) {
     let root: Owner = owner;
@@ -76,7 +155,7 @@ function resolveScopeStore(): NuxtScopeStore {
     }
     let store = scopeStores.get(root);
     if (!store) {
-      store = { autoIndex: 0, state: new Map(), asyncData: new Map() };
+      store = createScopeStore();
       scopeStores.set(root, store);
     }
     return store;
@@ -85,7 +164,7 @@ function resolveScopeStore(): NuxtScopeStore {
   if (ssrScope) {
     let store = scopeStores.get(ssrScope);
     if (!store) {
-      store = { autoIndex: 0, state: new Map(), asyncData: new Map() };
+      store = createScopeStore();
       scopeStores.set(ssrScope, store);
     }
     return store;
@@ -461,4 +540,809 @@ export function defineNuxtRouteMiddleware<T extends (...args: any[]) => any>(
   middleware: T,
 ): T {
   return middleware;
+}
+
+function isNuxtRequestEvent(value: unknown): value is NuxtRequestEvent {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "request" in value &&
+    (value as NuxtRequestEvent).request instanceof Request &&
+    "responseHeaders" in value &&
+    (value as NuxtRequestEvent).responseHeaders instanceof Headers
+  );
+}
+
+export function createNuxtRequestEvent(
+  init?: Request | NuxtRequestInit | NuxtRequestEvent,
+): NuxtRequestEvent {
+  if (isNuxtRequestEvent(init)) {
+    return init;
+  }
+  if (init instanceof Request) {
+    return {
+      request: init,
+      url: new URL(init.url),
+      headers: new Headers(init.headers),
+      responseHeaders: new Headers(),
+      context: {},
+    };
+  }
+  const resolvedUrl =
+    init?.url instanceof URL
+      ? init.url
+      : typeof init?.url === "string"
+        ? new URL(init.url, "http://localhost")
+        : init?.request
+          ? new URL(init.request.url)
+          : new URL("http://localhost/");
+  const headers = new Headers(init?.headers ?? init?.request?.headers);
+  const request = init?.request ?? new Request(resolvedUrl.href, { headers });
+  const responseHeaders = new Headers(init?.responseHeaders);
+  return {
+    request,
+    url: resolvedUrl,
+    headers,
+    responseHeaders,
+    context: init?.context ? { ...init.context } : {},
+  };
+}
+
+export function withNuxtRequest<T>(
+  initOrEvent: Request | NuxtRequestInit | NuxtRequestEvent,
+  fn: (event: NuxtRequestEvent) => T,
+): T {
+  const event = createNuxtRequestEvent(initOrEvent);
+  const initObj =
+    !(initOrEvent instanceof Request) && !isNuxtRequestEvent(initOrEvent)
+      ? initOrEvent
+      : undefined;
+  const store = createScopeStore(initObj, event);
+  const previous = activeRequestStore;
+  activeRequestStore = store;
+  try {
+    const result = fn(event);
+    if (
+      result !== null &&
+      typeof result === "object" &&
+      typeof (result as { then?: unknown }).then === "function"
+    ) {
+      return Promise.resolve(result).finally(() => {
+        if (activeRequestStore === store) {
+          activeRequestStore = previous;
+        }
+      }) as T;
+    }
+    activeRequestStore = previous;
+    return result;
+  } catch (err) {
+    activeRequestStore = previous;
+    throw err;
+  }
+}
+
+export function useRequestEvent(): NuxtRequestEvent | undefined {
+  return resolveScopeStore().event;
+}
+
+export function useRequestHeaders<K extends string = string>(
+  include?: readonly K[],
+): Record<Lowercase<K>, string | undefined> {
+  const event = resolveScopeStore().event;
+  const result = {} as Record<Lowercase<K>, string | undefined>;
+  if (!event) return result;
+  if (include && include.length > 0) {
+    for (const key of include) {
+      const lower = key.toLowerCase() as Lowercase<K>;
+      const val = event.headers.get(lower);
+      if (val !== null) {
+        result[lower] = val;
+      }
+    }
+    return result;
+  }
+  event.headers.forEach((value, key) => {
+    result[key.toLowerCase() as Lowercase<K>] = value;
+  });
+  return result;
+}
+
+export function useRequestURL(): URL {
+  const event = resolveScopeStore().event;
+  if (event) {
+    return new URL(event.url.href);
+  }
+  if (typeof window !== "undefined" && window.location?.href) {
+    return new URL(window.location.href);
+  }
+  return new URL("http://localhost/");
+}
+
+export interface CookieOptions<T = any> {
+  default?: () => T | VueRef<T>;
+  maxAge?: number;
+  expires?: Date;
+  httpOnly?: boolean;
+  secure?: boolean;
+  domain?: string;
+  path?: string;
+  sameSite?: boolean | "lax" | "strict" | "none" | "Lax" | "Strict" | "None";
+  encode?: (value: T) => string;
+  decode?: (value: string) => T;
+  readonly?: boolean;
+  watch?: boolean | "shallow";
+}
+
+export type CookieRef<T> = VueRef<T>;
+
+function defaultDecodeCookie<T>(raw: string): T {
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    decoded = raw;
+  }
+  if (decoded === "true") return true as unknown as T;
+  if (decoded === "false") return false as unknown as T;
+  if (decoded === "null") return null as unknown as T;
+  if (decoded === "undefined") return undefined as unknown as T;
+  if (/^-?\d+(\.\d+)?$/.test(decoded)) {
+    const num = Number(decoded);
+    if (Number.isSafeInteger(num) || !Number.isNaN(num)) {
+      return num as unknown as T;
+    }
+  }
+  if (
+    (decoded.startsWith("{") && decoded.endsWith("}")) ||
+    (decoded.startsWith("[") && decoded.endsWith("]"))
+  ) {
+    try {
+      return JSON.parse(decoded) as T;
+    } catch {
+      return decoded as unknown as T;
+    }
+  }
+  return decoded as unknown as T;
+}
+
+function defaultEncodeCookie<T>(value: T): string {
+  if (typeof value === "string") {
+    return encodeURIComponent(value);
+  }
+  return encodeURIComponent(JSON.stringify(value));
+}
+
+function parseRawCookies(cookieString: string): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!cookieString) return map;
+  for (const part of cookieString.split(";")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = part.slice(0, eqIdx).trim();
+    if (!key) continue;
+    let val = part.slice(eqIdx + 1).trim();
+    if (val.length >= 2 && val.startsWith('"') && val.endsWith('"')) {
+      val = val.slice(1, -1);
+    }
+    if (!map.has(key)) {
+      map.set(key, val);
+    }
+  }
+  return map;
+}
+
+function formatSetCookieHeader<T>(
+  name: string,
+  value: T | null | undefined,
+  options: CookieOptions<T> = {},
+): string {
+  const isDeleted = value === null || value === undefined;
+  const encode = options.encode ?? defaultEncodeCookie;
+  const encodedVal = isDeleted ? "" : encode(value);
+  const parts = [`${name}=${encodedVal}`];
+  const path = options.path ?? "/";
+  if (isDeleted) {
+    parts.push("Max-Age=0");
+  } else if (options.maxAge !== undefined && Number.isFinite(options.maxAge)) {
+    parts.push(`Max-Age=${Math.trunc(options.maxAge)}`);
+  }
+  if (options.domain) parts.push(`Domain=${options.domain}`);
+  if (path) parts.push(`Path=${path}`);
+  if (options.expires instanceof Date) {
+    parts.push(`Expires=${options.expires.toUTCString()}`);
+  }
+  if (options.httpOnly) parts.push("HttpOnly");
+  if (options.secure) parts.push("Secure");
+  if (options.sameSite !== undefined && options.sameSite !== false) {
+    const mode =
+      options.sameSite === true
+        ? "Strict"
+        : options.sameSite.charAt(0).toUpperCase() +
+          options.sameSite.slice(1).toLowerCase();
+    parts.push(`SameSite=${mode}`);
+  }
+  return parts.join("; ");
+}
+
+function readRawCookieSource(store: NuxtScopeStore): string {
+  if (store.event) {
+    return store.event.headers.get("cookie") ?? "";
+  }
+  if (typeof document !== "undefined" && typeof document.cookie === "string") {
+    return document.cookie;
+  }
+  return "";
+}
+
+export function useCookie<T = string | null | undefined>(
+  name: string,
+  options: CookieOptions<T> = {},
+): CookieRef<T> {
+  const store = resolveScopeStore();
+  const existing = store.cookies.get(name);
+  if (existing) {
+    if (existing.ref.value === undefined && options.default) {
+      const def = untrack(options.default);
+      existing.ref.value = isNuxtRef<T>(def) ? def.value : def;
+    }
+    return existing.ref as CookieRef<T>;
+  }
+
+  const decode = options.decode ?? defaultDecodeCookie<T>;
+  const rawMap = parseRawCookies(readRawCookieSource(store));
+  let initialValue: T;
+  if (rawMap.has(name)) {
+    initialValue = decode(rawMap.get(name)!);
+  } else if (options.default) {
+    const rawDef = untrack(options.default);
+    initialValue = isNuxtRef<T>(rawDef) ? rawDef.value : rawDef;
+  } else {
+    initialValue = undefined as unknown as T;
+  }
+
+  const sig = msCreateSignal<T>(initialValue);
+  const writeCookieOut = (next: T) => {
+    const header = formatSetCookieHeader(name, next, options);
+    if (store.event) {
+      store.event.responseHeaders.append("Set-Cookie", header);
+    } else if (typeof document !== "undefined") {
+      document.cookie = header;
+    }
+  };
+
+  const ref: CookieRef<T> = {
+    get value() {
+      return sig();
+    },
+    set value(next: T) {
+      if (options.readonly) return;
+      sig.set(() => next);
+      if (options.watch !== false) {
+        writeCookieOut(next);
+      }
+    },
+  };
+  refSignals.set(ref, sig);
+  store.cookies.set(name, {
+    ref,
+    decode,
+    defaultFactory: options.default,
+  });
+  return ref;
+}
+
+export function refreshCookie(name: string): void {
+  const store = resolveScopeStore();
+  const entry = store.cookies.get(name);
+  if (!entry) return;
+  const rawMap = parseRawCookies(readRawCookieSource(store));
+  const sig = refSignals.get(entry.ref);
+  if (!sig) return;
+  if (rawMap.has(name)) {
+    const next = entry.decode(rawMap.get(name)!);
+    sig.set(() => next);
+  } else if (entry.defaultFactory) {
+    const rawDef = untrack(entry.defaultFactory);
+    const next = isNuxtRef(rawDef) ? rawDef.value : rawDef;
+    sig.set(() => next);
+  } else {
+    sig.set(() => undefined);
+  }
+}
+
+export type MaybeReactive<T> = T | VueRef<T> | (() => T);
+
+function resolveReactive<T>(
+  input: MaybeReactive<T> | undefined,
+): T | undefined {
+  if (input === undefined) return undefined;
+  if (typeof input === "function") return (input as () => T)();
+  if (isNuxtRef<T>(input)) return input.value;
+  return input;
+}
+
+export interface FetchContext {
+  request: string;
+  options: RequestInit;
+  response?: Response;
+  error?: Error;
+}
+
+export interface UseFetchOptions<ResT, DataT = ResT> extends AsyncDataOptions<
+  ResT,
+  DataT
+> {
+  key?: string;
+  method?: MaybeReactive<string>;
+  query?: MaybeReactive<Record<string, any>>;
+  params?: MaybeReactive<Record<string, any>>;
+  body?: MaybeReactive<RequestInit["body"] | Record<string, any> | null>;
+  headers?: MaybeReactive<HeadersInit>;
+  baseURL?: MaybeReactive<string>;
+  timeout?: number;
+  $fetch?: (url: string, init: RequestInit) => Promise<ResT>;
+  onRequest?: (context: FetchContext) => void | Promise<void>;
+  onRequestError?: (
+    context: FetchContext & { error: Error },
+  ) => void | Promise<void>;
+  onResponse?: (
+    context: FetchContext & { response: Response },
+  ) => void | Promise<void>;
+  onResponseError?: (
+    context: FetchContext & { response: Response },
+  ) => void | Promise<void>;
+}
+
+function buildFetchUrl(
+  rawUrl: string | Request | URL,
+  baseURL?: string,
+  query?: Record<string, any>,
+  params?: Record<string, any>,
+): string {
+  const baseStr =
+    rawUrl instanceof Request
+      ? rawUrl.url
+      : rawUrl instanceof URL
+        ? rawUrl.href
+        : String(rawUrl);
+  const fullPath = baseURL
+    ? `${baseURL.replace(/\/+$/, "")}/${baseStr.replace(/^\/+/, "")}`
+    : baseStr;
+  const mergedQuery = { ...params, ...query };
+  const entries = Object.entries(mergedQuery).filter(
+    ([, val]) => val !== undefined && val !== null,
+  );
+  if (entries.length === 0) return fullPath;
+  const searchParams = new URLSearchParams();
+  for (const [k, v] of entries) {
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (item !== undefined && item !== null) {
+          searchParams.append(k, String(item));
+        }
+      }
+    } else {
+      searchParams.append(k, String(v));
+    }
+  }
+  const qs = searchParams.toString();
+  if (!qs) return fullPath;
+  return fullPath.includes("?") ? `${fullPath}&${qs}` : `${fullPath}?${qs}`;
+}
+
+export function useFetch<ResT = any, DataT = ResT, ErrorT = Error>(
+  request: MaybeReactive<string | Request | URL>,
+  options: UseFetchOptions<ResT, DataT> = {},
+): AsyncData<DataT, ErrorT> {
+  const initialUrl = untrack(() =>
+    buildFetchUrl(
+      resolveReactive(request) ?? "/",
+      resolveReactive(options.baseURL),
+      resolveReactive(options.query),
+      resolveReactive(options.params),
+    ),
+  );
+  const initialMethod = (
+    untrack(() => resolveReactive(options.method)) ?? "GET"
+  ).toUpperCase();
+  const key = options.key ?? `$f_${initialMethod}_${initialUrl}`;
+
+  const reactiveSources: Array<VueRef<any> | (() => any)> = [
+    ...(options.watch ?? []),
+  ];
+  for (const candidate of [
+    request,
+    options.method,
+    options.query,
+    options.params,
+    options.body,
+    options.headers,
+    options.baseURL,
+  ]) {
+    if (typeof candidate === "function" || isNuxtRef(candidate)) {
+      reactiveSources.push(candidate as VueRef<any> | (() => any));
+    }
+  }
+
+  return useAsyncData<ResT, DataT, ErrorT>(
+    key,
+    async () => {
+      const targetUrl = buildFetchUrl(
+        resolveReactive(request) ?? "/",
+        resolveReactive(options.baseURL),
+        resolveReactive(options.query),
+        resolveReactive(options.params),
+      );
+      const method = (resolveReactive(options.method) ?? "GET").toUpperCase();
+      const headers = new Headers(resolveReactive(options.headers));
+      const rawBody = resolveReactive(options.body);
+      let body: RequestInit["body"] | undefined;
+      if (rawBody !== undefined && rawBody !== null) {
+        if (
+          typeof rawBody === "string" ||
+          rawBody instanceof FormData ||
+          rawBody instanceof URLSearchParams ||
+          rawBody instanceof Blob ||
+          rawBody instanceof ArrayBuffer ||
+          ArrayBuffer.isView(rawBody)
+        ) {
+          body = rawBody as RequestInit["body"];
+        } else {
+          if (!headers.has("content-type")) {
+            headers.set("content-type", "application/json");
+          }
+          body = JSON.stringify(rawBody);
+        }
+      }
+
+      const controller =
+        options.timeout !== undefined ? new AbortController() : undefined;
+      const timer =
+        controller && options.timeout !== undefined
+          ? setTimeout(() => controller.abort(), options.timeout)
+          : undefined;
+
+      const reqInit: RequestInit = {
+        method,
+        headers,
+        body,
+        signal: controller?.signal,
+      };
+      const ctx: FetchContext = { request: targetUrl, options: reqInit };
+
+      try {
+        if (options.onRequest) {
+          await options.onRequest(ctx);
+        }
+        if (options.$fetch) {
+          return await options.$fetch(ctx.request, ctx.options);
+        }
+        const response = await fetch(ctx.request, ctx.options);
+        ctx.response = response;
+        if (!response.ok) {
+          if (options.onResponseError) {
+            await options.onResponseError(
+              ctx as FetchContext & { response: Response },
+            );
+          }
+          throw new Error(
+            `Fetch failed with status ${response.status} (${response.statusText || "HTTP Error"})`,
+          );
+        }
+        if (options.onResponse) {
+          await options.onResponse(
+            ctx as FetchContext & { response: Response },
+          );
+        }
+        const contentType = response.headers.get("content-type") ?? "";
+        if (contentType.includes("application/json")) {
+          return (await response.json()) as ResT;
+        }
+        return (await response.text()) as unknown as ResT;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        ctx.error = error;
+        if (!ctx.response && options.onRequestError) {
+          await options.onRequestError(ctx as FetchContext & { error: Error });
+        }
+        throw error;
+      } finally {
+        if (timer !== undefined) {
+          clearTimeout(timer);
+        }
+      }
+    },
+    {
+      ...options,
+      watch: reactiveSources,
+    },
+  );
+}
+
+export function useLazyFetch<ResT = any, DataT = ResT, ErrorT = Error>(
+  request: MaybeReactive<string | Request | URL>,
+  options: Omit<UseFetchOptions<ResT, DataT>, "lazy"> = {},
+): AsyncData<DataT, ErrorT> {
+  return useFetch<ResT, DataT, ErrorT>(request, { ...options, lazy: true });
+}
+
+export function useRuntimeConfig(): NuxtRuntimeConfig {
+  return resolveScopeStore().runtimeConfig;
+}
+
+function deepMergeConfig(
+  target: Record<string, any>,
+  source: Record<string, any>,
+): Record<string, any> {
+  const out: Record<string, any> = { ...target };
+  for (const [key, val] of Object.entries(source)) {
+    if (
+      val !== null &&
+      typeof val === "object" &&
+      !Array.isArray(val) &&
+      typeof out[key] === "object" &&
+      out[key] !== null &&
+      !Array.isArray(out[key])
+    ) {
+      out[key] = deepMergeConfig(out[key], val);
+    } else {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+export function useAppConfig<
+  T extends Record<string, any> = Record<string, any>,
+>(): T {
+  const store = resolveScopeStore();
+  if (!store.appConfigProxy) {
+    store.appConfigProxy = new Proxy(
+      {},
+      {
+        get(_target, prop) {
+          const current = store.appConfigSignal();
+          return Reflect.get(current, prop);
+        },
+        set(_target, prop, value) {
+          const current = untrack(store.appConfigSignal);
+          store.appConfigSignal.set(() => ({
+            ...current,
+            [prop]: value,
+          }));
+          return true;
+        },
+        has(_target, prop) {
+          const current = store.appConfigSignal();
+          return prop in current;
+        },
+        ownKeys() {
+          const current = store.appConfigSignal();
+          return Reflect.ownKeys(current);
+        },
+        getOwnPropertyDescriptor(_target, prop) {
+          const current = store.appConfigSignal();
+          const desc = Reflect.getOwnPropertyDescriptor(current, prop);
+          if (desc) return { ...desc, configurable: true };
+          return undefined;
+        },
+      },
+    );
+  }
+  return store.appConfigProxy as T;
+}
+
+export function updateAppConfig(patch: Record<string, any>): void {
+  const store = resolveScopeStore();
+  const current = untrack(store.appConfigSignal);
+  const merged = deepMergeConfig(current, patch);
+  store.appConfigSignal.set(() => merged);
+}
+
+export class NuxtError<DataT = unknown> extends Error {
+  readonly __nuxt_error = true;
+  statusCode: number;
+  statusMessage?: string;
+  data?: DataT;
+  fatal: boolean;
+  unhandled: boolean;
+
+  constructor(
+    input:
+      | string
+      | {
+          message?: string;
+          statusCode?: number;
+          status?: number;
+          statusMessage?: string;
+          statusText?: string;
+          data?: DataT;
+          fatal?: boolean;
+          unhandled?: boolean;
+          cause?: unknown;
+          stack?: string;
+        },
+  ) {
+    const opts = typeof input === "string" ? { message: input } : input;
+    const statusCode = opts.statusCode ?? opts.status ?? 500;
+    const statusMessage = opts.statusMessage ?? opts.statusText;
+    super(opts.message ?? statusMessage ?? `HTTP Error ${statusCode}`, {
+      cause: opts.cause,
+    });
+    this.name = "NuxtError";
+    this.statusCode = statusCode;
+    this.statusMessage = statusMessage;
+    this.data = opts.data;
+    this.fatal = opts.fatal ?? false;
+    this.unhandled = opts.unhandled ?? false;
+    if (opts.stack) {
+      this.stack = opts.stack;
+    }
+  }
+
+  toJSON(): {
+    message: string;
+    statusCode: number;
+    statusMessage?: string;
+    data?: DataT;
+  } {
+    return {
+      message: this.message,
+      statusCode: this.statusCode,
+      ...(this.statusMessage !== undefined
+        ? { statusMessage: this.statusMessage }
+        : {}),
+      ...(this.data !== undefined ? { data: this.data } : {}),
+    };
+  }
+}
+
+export function isNuxtError<DataT = unknown>(
+  error: unknown,
+): error is NuxtError<DataT> {
+  return (
+    error instanceof NuxtError ||
+    (typeof error === "object" &&
+      error !== null &&
+      (error as { __nuxt_error?: unknown }).__nuxt_error === true)
+  );
+}
+
+export function createError<DataT = unknown>(
+  input:
+    | string
+    | {
+        message?: string;
+        statusCode?: number;
+        status?: number;
+        statusMessage?: string;
+        statusText?: string;
+        data?: DataT;
+        fatal?: boolean;
+        unhandled?: boolean;
+        cause?: unknown;
+        stack?: string;
+      },
+): NuxtError<DataT> {
+  if (isNuxtError<DataT>(input)) return input;
+  return new NuxtError<DataT>(input);
+}
+
+export function useError<DataT = unknown>(): VueRef<
+  NuxtError<DataT> | undefined
+> {
+  const store = resolveScopeStore();
+  if (!store.error) {
+    store.error = createBridgedRef<NuxtError<any> | undefined>(undefined);
+  }
+  return store.error as VueRef<NuxtError<DataT> | undefined>;
+}
+
+export function showError<DataT = unknown>(
+  input:
+    | string
+    | Error
+    | {
+        message?: string;
+        statusCode?: number;
+        status?: number;
+        statusMessage?: string;
+        statusText?: string;
+        data?: DataT;
+        fatal?: boolean;
+      },
+): NuxtError<DataT> {
+  const err = isNuxtError<DataT>(input)
+    ? input
+    : input instanceof Error
+      ? new NuxtError<DataT>({
+          message: input.message,
+          stack: input.stack,
+          cause: input.cause,
+        })
+      : createError<DataT>(input);
+  useError<DataT>().value = err;
+  return err;
+}
+
+export async function clearError(options?: {
+  redirect?: string;
+}): Promise<void> {
+  useError().value = undefined;
+  if (
+    options?.redirect &&
+    typeof window !== "undefined" &&
+    typeof window.history?.pushState === "function"
+  ) {
+    window.history.pushState({}, "", options.redirect);
+  }
+}
+
+export interface CallOnceOptions {
+  mode?: "navigation" | "render";
+}
+
+export async function callOnce(
+  fn: () => any | Promise<any>,
+  options?: CallOnceOptions,
+): Promise<void>;
+export async function callOnce(
+  key: string,
+  fn: () => any | Promise<any>,
+  options?: CallOnceOptions,
+): Promise<void>;
+export async function callOnce(
+  keyOrFn: string | (() => any | Promise<any>),
+  fnOrOptions?: (() => any | Promise<any>) | CallOnceOptions,
+  maybeOptions?: CallOnceOptions,
+): Promise<void> {
+  const store = resolveScopeStore();
+  let key: string;
+  let fn: () => any | Promise<any>;
+  let options: CallOnceOptions | undefined;
+
+  if (typeof keyOrFn === "string") {
+    key = keyOrFn;
+    if (typeof fnOrOptions !== "function") {
+      throw new TypeError("callOnce requires a callback function");
+    }
+    fn = fnOrOptions;
+    options = maybeOptions;
+  } else if (typeof keyOrFn === "function") {
+    key = `$once_${fnToKey(keyOrFn)}`;
+    fn = keyOrFn;
+    options = fnOrOptions as CallOnceOptions | undefined;
+  } else {
+    throw new TypeError("callOnce requires a key or callback function");
+  }
+
+  if (options?.mode !== "navigation" && store.callOnceDone.has(key)) {
+    return;
+  }
+  const existing = store.callOnceInFlight.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const task = (async () => {
+    try {
+      await fn();
+      store.callOnceDone.add(key);
+    } finally {
+      store.callOnceInFlight.delete(key);
+    }
+  })();
+  store.callOnceInFlight.set(key, task);
+  return task;
+}
+
+const fnKeyIds = new WeakMap<Function, number>();
+let nextFnKeyId = 1;
+function fnToKey(fn: Function): number {
+  let id = fnKeyIds.get(fn);
+  if (!id) {
+    id = nextFnKeyId++;
+    fnKeyIds.set(fn, id);
+  }
+  return id;
 }

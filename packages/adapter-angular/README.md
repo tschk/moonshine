@@ -2,11 +2,14 @@
 
 The root and `./signals` entries provide native Moonshine signal primitives
 (`signal`, `computed`, `linkedSignal`, `effect`, `untracked`, `isSignal`,
-`isWritableSignal`, `resource`, `toObservable`, `toSignal`), signal bridges
-(`fromMoonshineSignal`, `createBridgedSignal`), and a lazy native renderer. At
-runtime, root and `./signals` imports need neither Angular, React, parser WASM
-nor the optional framework peer. Legacy host APIs remain explicit on their
-existing subpaths.
+`isWritableSignal`, `resource`, `toObservable`, `toSignal`, `input`,
+`input.required`, `applyInputValue`, `model`, `model.required`, `output`,
+`outputFromObservable`, `outputToObservable`, `createDestroyRef`,
+`injectDestroyRef`, `takeUntilDestroyed`, `afterNextRender`, `afterRender`),
+signal bridges (`fromMoonshineSignal`, `createBridgedSignal`), and a lazy native
+renderer. At runtime, root and `./signals` imports need neither Angular, React,
+parser WASM nor the optional framework peer. Legacy host APIs remain explicit on
+their existing subpaths.
 
 Strict TypeScript checking of the root entry requires installing
 `@tschk/moonshine-framework`, even when importing only a bridge: the root also

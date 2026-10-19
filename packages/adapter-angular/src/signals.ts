@@ -988,3 +988,514 @@ export function resource<T, R = unknown>(
 
   return ref;
 }
+
+export interface OutputOptions {
+  alias?: string;
+}
+
+export interface OutputRefSubscription {
+  unsubscribe(): void;
+}
+
+export interface OutputRef<T> {
+  subscribe(callback: (value: T) => void): OutputRefSubscription;
+}
+
+export class OutputEmitterRef<T = void> implements OutputRef<T> {
+  readonly #listeners = new Set<(value: T) => void>();
+  #destroyed = false;
+
+  constructor() {
+    if (getOwner()) {
+      domOnCleanup(() => {
+        this.destroy();
+      });
+    }
+  }
+
+  get destroyed(): boolean {
+    return this.#destroyed;
+  }
+
+  subscribe(callback: (value: T) => void): OutputRefSubscription {
+    if (this.#destroyed) {
+      throw new Error(
+        "Unexpected subscription to destroyed OutputRef. The owning directive/component is destroyed.",
+      );
+    }
+    this.#listeners.add(callback);
+    const unsubscribe = () => {
+      this.#listeners.delete(callback);
+    };
+    if (getOwner()) {
+      domOnCleanup(unsubscribe);
+    }
+    return { unsubscribe };
+  }
+
+  emit(value: T): void {
+    if (this.#destroyed) {
+      throw new Error(
+        "Unexpected emit for destroyed OutputRef. The owning directive/component is destroyed.",
+      );
+    }
+    for (const listener of Array.from(this.#listeners)) {
+      untracked(() => listener(value));
+    }
+  }
+
+  destroy(): void {
+    this.#destroyed = true;
+    this.#listeners.clear();
+  }
+}
+
+export function output<T = void>(_opts?: OutputOptions): OutputEmitterRef<T> {
+  return new OutputEmitterRef<T>();
+}
+
+export function outputFromObservable<T>(
+  observable: Subscribable<T>,
+  _opts?: OutputOptions,
+): OutputRef<T> {
+  const owner = getOwner();
+  let destroyed = false;
+  if (owner) {
+    domOnCleanup(() => {
+      destroyed = true;
+    });
+  }
+  return {
+    subscribe(callback: (value: T) => void): OutputRefSubscription {
+      if (destroyed) {
+        throw new Error(
+          "Unexpected subscription to destroyed OutputRef. The owning directive/component is destroyed.",
+        );
+      }
+      const sub = observable.subscribe({
+        next: (value: T) => {
+          if (!destroyed) {
+            untracked(() => callback(value));
+          }
+        },
+      });
+      const unsubscribe = () => {
+        if (typeof sub === "function") {
+          sub();
+        } else if (sub && typeof sub.unsubscribe === "function") {
+          sub.unsubscribe();
+        }
+      };
+      if (getOwner()) {
+        domOnCleanup(unsubscribe);
+      } else if (owner && !owner.disposed) {
+        runWithOwner(owner, () => domOnCleanup(unsubscribe));
+      }
+      return { unsubscribe };
+    },
+  };
+}
+
+export function outputToObservable<T>(ref: OutputRef<T>): InteropObservable<T> {
+  const obs: InteropObservable<T> & Record<PropertyKey, unknown> = {
+    subscribe(
+      observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
+    ): Unsubscribable {
+      const nextFn =
+        typeof observerOrNext === "function"
+          ? observerOrNext
+          : observerOrNext?.next
+            ? (v: T) => observerOrNext.next!(v)
+            : undefined;
+      if (!nextFn) {
+        return { unsubscribe() {} };
+      }
+      return ref.subscribe(nextFn);
+    },
+  };
+  obs[ObservableSymbol] = () => obs;
+  obs["@@observable"] = () => obs;
+  return obs;
+}
+
+export interface InputOptionsWithoutTransform<T> {
+  alias?: string;
+  readonly __brand?: T;
+}
+
+export interface InputOptionsWithTransform<T, TransformT> {
+  alias?: string;
+  transform: (v: TransformT) => T;
+}
+
+export type InputOptions<T, TransformT> =
+  InputOptionsWithoutTransform<T> | InputOptionsWithTransform<T, TransformT>;
+
+declare const inputWriteBrand: unique symbol;
+
+export interface InputSignalWithTransform<ReadT, WriteT> extends Signal<ReadT> {
+  readonly [inputWriteBrand]?: WriteT;
+}
+
+export type InputSignal<T> = InputSignalWithTransform<T, T>;
+
+type InputController = {
+  applyValue: (rawValue: any) => void;
+  alias?: string;
+};
+
+const inputControllers = new WeakMap<Function, InputController>();
+
+function createInputSignalInternal<ReadT, WriteT>(
+  initialValue: ReadT | undefined,
+  required: boolean,
+  options?: InputOptions<ReadT, WriteT>,
+): InputSignalWithTransform<ReadT, WriteT> {
+  let initialized = !required;
+  const transform =
+    options && "transform" in options && typeof options.transform === "function"
+      ? options.transform
+      : undefined;
+  const backing = signal<ReadT>(initialValue as ReadT);
+
+  const read = (() => {
+    if (!initialized) {
+      throw new Error(
+        `Input${options?.alias ? ` "${options.alias}"` : ""} is required, but no value is available yet.`,
+      );
+    }
+    return backing();
+  }) as InputSignalWithTransform<ReadT, WriteT>;
+
+  signals.add(read);
+  inputControllers.set(read, {
+    alias: options?.alias,
+    applyValue(rawValue: WriteT) {
+      const next = transform
+        ? transform(rawValue)
+        : (rawValue as unknown as ReadT);
+      initialized = true;
+      backing.set(next);
+    },
+  });
+  return read;
+}
+
+export interface InputFunction {
+  <T>(): InputSignal<T | undefined>;
+  <T>(initialValue: T, opts?: InputOptionsWithoutTransform<T>): InputSignal<T>;
+  <T, TransformT>(
+    initialValue: T,
+    opts: InputOptionsWithTransform<T, TransformT>,
+  ): InputSignalWithTransform<T, TransformT>;
+  required: {
+    <T>(opts?: InputOptionsWithoutTransform<T>): InputSignal<T>;
+    <T, TransformT>(
+      opts: InputOptionsWithTransform<T, TransformT>,
+    ): InputSignalWithTransform<T, TransformT>;
+  };
+}
+
+export const input: InputFunction = Object.assign(
+  function inputImpl<T, TransformT = T>(
+    initialValue?: T,
+    opts?: InputOptions<T, TransformT>,
+  ): InputSignalWithTransform<T, TransformT> {
+    return createInputSignalInternal<T, TransformT>(initialValue, false, opts);
+  },
+  {
+    required<T, TransformT = T>(
+      opts?: InputOptions<T, TransformT>,
+    ): InputSignalWithTransform<T, TransformT> {
+      return createInputSignalInternal<T, TransformT>(undefined, true, opts);
+    },
+  },
+) as InputFunction;
+
+export function applyInputValue<ReadT, WriteT>(
+  target: InputSignalWithTransform<ReadT, WriteT> | ModelSignal<ReadT>,
+  value: WriteT,
+): void {
+  const ctrl = inputControllers.get(target);
+  if (!ctrl) {
+    throw new TypeError("Target is not an Angular input() or model() signal");
+  }
+  ctrl.applyValue(value);
+}
+
+export interface ModelOptions {
+  alias?: string;
+}
+
+export interface ModelSignal<T> extends WritableSignal<T>, OutputRef<T> {}
+
+function createModelSignalInternal<T>(
+  initialValue: T | undefined,
+  required: boolean,
+  options?: ModelOptions,
+): ModelSignal<T> {
+  let initialized = !required;
+  const backing = signal<T>(initialValue as T);
+  const emitter = new OutputEmitterRef<T>();
+
+  const read = (() => {
+    if (!initialized) {
+      throw new Error(
+        `Model${options?.alias ? ` "${options.alias}"` : ""} is required, but no value is available yet.`,
+      );
+    }
+    return backing();
+  }) as ModelSignal<T>;
+
+  read.set = (value: T) => {
+    assertWritesAllowed();
+    initialized = true;
+    backing.set(value);
+    emitter.emit(value);
+  };
+
+  read.update = (updateFn: (value: T) => T) => {
+    assertWritesAllowed();
+    if (!initialized) {
+      throw new Error(
+        `Model${options?.alias ? ` "${options.alias}"` : ""} is required, but no value is available yet.`,
+      );
+    }
+    const current = untracked(backing);
+    const next = untracked(() => updateFn(current));
+    read.set(next);
+  };
+
+  read.asReadonly = attachReadonly(read);
+  read.subscribe = (callback: (value: T) => void) =>
+    emitter.subscribe(callback);
+
+  signals.add(read);
+  writableSignals.add(read);
+  inputControllers.set(read, {
+    alias: options?.alias,
+    applyValue(rawValue: T) {
+      initialized = true;
+      backing.set(rawValue);
+    },
+  });
+
+  return read;
+}
+
+export interface ModelFunction {
+  <T>(): ModelSignal<T | undefined>;
+  <T>(initialValue: T, opts?: ModelOptions): ModelSignal<T>;
+  required: <T>(opts?: ModelOptions) => ModelSignal<T>;
+}
+
+export const model: ModelFunction = Object.assign(
+  function modelImpl<T>(initialValue?: T, opts?: ModelOptions): ModelSignal<T> {
+    return createModelSignalInternal<T>(initialValue, false, opts);
+  },
+  {
+    required<T>(opts?: ModelOptions): ModelSignal<T> {
+      return createModelSignalInternal<T>(undefined, true, opts);
+    },
+  },
+) as ModelFunction;
+
+export interface DestroyRef {
+  onDestroy(callback: () => void): () => void;
+  readonly destroyed: boolean;
+  destroy(): void;
+}
+
+const ownerDestroyRefs = new WeakMap<object, DestroyRef>();
+
+export function createDestroyRef(): DestroyRef {
+  let isDestroyed = false;
+  const callbacks = new Set<() => void>();
+
+  const destroy = () => {
+    if (isDestroyed) return;
+    isDestroyed = true;
+    const toRun = Array.from(callbacks);
+    callbacks.clear();
+    for (const cb of toRun) {
+      cb();
+    }
+  };
+
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+
+  return {
+    get destroyed() {
+      return isDestroyed;
+    },
+    onDestroy(callback: () => void): () => void {
+      if (isDestroyed) {
+        callback();
+        return () => {};
+      }
+      callbacks.add(callback);
+      return () => {
+        callbacks.delete(callback);
+      };
+    },
+    destroy,
+  };
+}
+
+export function injectDestroyRef(): DestroyRef {
+  const owner = getOwner();
+  if (!owner) {
+    throw new Error(
+      "injectDestroyRef() must be called within an active reactive owner or injection context",
+    );
+  }
+  let ref = ownerDestroyRefs.get(owner);
+  if (!ref) {
+    ref = createDestroyRef();
+    ownerDestroyRefs.set(owner, ref);
+  }
+  return ref;
+}
+
+export function takeUntilDestroyed<T>(
+  destroyRef?: DestroyRef,
+): (source: Subscribable<T>) => InteropObservable<T> {
+  const resolvedDestroyRef = destroyRef ?? injectDestroyRef();
+  return (source: Subscribable<T>): InteropObservable<T> => {
+    const obs: InteropObservable<T> & Record<PropertyKey, unknown> = {
+      subscribe(
+        observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
+      ): Unsubscribable {
+        if (resolvedDestroyRef.destroyed) {
+          if (
+            typeof observerOrNext === "object" &&
+            observerOrNext !== null &&
+            typeof observerOrNext.complete === "function"
+          ) {
+            observerOrNext.complete();
+          }
+          return { unsubscribe() {} };
+        }
+        let active = true;
+        const observer: Partial<Observer<T>> =
+          typeof observerOrNext === "function"
+            ? {
+                next: (v: T) => {
+                  if (active) observerOrNext(v);
+                },
+              }
+            : {
+                next: (v: T) => {
+                  if (active) observerOrNext?.next?.(v);
+                },
+                error: (e: unknown) => {
+                  if (active) observerOrNext?.error?.(e);
+                },
+                complete: () => {
+                  if (active) observerOrNext?.complete?.();
+                },
+              };
+        const sub = source.subscribe(observer);
+        const cleanupSub = () => {
+          if (!active) return;
+          active = false;
+          if (typeof sub === "function") {
+            sub();
+          } else if (sub && typeof sub.unsubscribe === "function") {
+            sub.unsubscribe();
+          }
+        };
+        const offDestroy = resolvedDestroyRef.onDestroy(() => {
+          if (active) {
+            observer.complete?.();
+            cleanupSub();
+          }
+        });
+        return {
+          unsubscribe() {
+            offDestroy();
+            cleanupSub();
+          },
+        };
+      },
+    };
+    obs[ObservableSymbol] = () => obs;
+    obs["@@observable"] = () => obs;
+    return obs;
+  };
+}
+
+export interface AfterRenderRef {
+  destroy(): void;
+}
+
+export interface AfterRenderPhases<E = unknown, W = unknown, M = unknown> {
+  earlyRead?: () => E;
+  write?: (...args: [E] extends [never] ? [] : [E]) => W;
+  mixedReadWrite?: (...args: [W] extends [never] ? [] : [W]) => M;
+  read?: (...args: [M] extends [never] ? [] : [M]) => void;
+}
+
+export type AfterRenderSpec<E = any, W = any, M = any> =
+  (() => void) | AfterRenderPhases<E, W, M>;
+
+function executeRenderSpec(spec: AfterRenderSpec): void {
+  if (typeof spec === "function") {
+    untracked(spec);
+    return;
+  }
+  let lastResult: any;
+  if (spec.earlyRead) {
+    lastResult = untracked(() => spec.earlyRead!());
+  }
+  if (spec.write) {
+    lastResult = untracked(() => spec.write!(lastResult));
+  }
+  if (spec.mixedReadWrite) {
+    lastResult = untracked(() => spec.mixedReadWrite!(lastResult));
+  }
+  if (spec.read) {
+    untracked(() => spec.read!(lastResult));
+  }
+}
+
+export function afterNextRender(spec: AfterRenderSpec): AfterRenderRef {
+  if (isSSRRendering()) {
+    return { destroy() {} };
+  }
+  let cancelled = false;
+  const destroy = () => {
+    cancelled = true;
+  };
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+  queueMicrotask(() => {
+    if (!cancelled) {
+      cancelled = true;
+      executeRenderSpec(spec);
+    }
+  });
+  return { destroy };
+}
+
+export function afterRender(spec: AfterRenderSpec): AfterRenderRef {
+  if (isSSRRendering()) {
+    return { destroy() {} };
+  }
+  let cancelled = false;
+  const destroy = () => {
+    cancelled = true;
+  };
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+  queueMicrotask(() => {
+    if (!cancelled) {
+      executeRenderSpec(spec);
+    }
+  });
+  return { destroy };
+}

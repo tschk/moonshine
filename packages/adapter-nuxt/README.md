@@ -1,12 +1,17 @@
 # `@tschk/moonshine-nuxt`
 
 The root and `./composables` entries provide native Moonshine signal bridges,
-owner/SSR-scoped Nuxt state and async data composables (`useState`,
-`clearNuxtState`, `useAsyncData`, `useLazyAsyncData`, `useNuxtData`,
-`refreshNuxtData`, `clearNuxtData`, `definePageMeta`, `defineNuxtPlugin`,
-`defineNuxtRouteMiddleware`), and a lazy native renderer. At runtime, root and
-`./composables` imports need neither Nuxt, React, parser WASM nor the optional
-framework peer. Legacy host APIs remain explicit on their existing subpaths.
+owner/SSR-scoped Nuxt state, async data, fetch, cookie, request context,
+config, error, and macro composables (`useState`, `clearNuxtState`,
+`useAsyncData`, `useLazyAsyncData`, `useNuxtData`, `refreshNuxtData`,
+`clearNuxtData`, `useFetch`, `useLazyFetch`, `useCookie`, `refreshCookie`,
+`withNuxtRequest`, `useRequestEvent`, `useRequestHeaders`, `useRequestURL`,
+`useRuntimeConfig`, `useAppConfig`, `updateAppConfig`, `createError`,
+`showError`, `clearError`, `useError`, `isNuxtError`, `callOnce`,
+`definePageMeta`, `defineNuxtPlugin`, `defineNuxtRouteMiddleware`), and a lazy
+native renderer. At runtime, root and `./composables` imports need neither
+Nuxt, React, parser WASM nor the optional framework peer. Legacy host APIs
+remain explicit on their existing subpaths.
 
 Strict TypeScript checking of the root entry requires installing
 `@tschk/moonshine-framework`, even when importing only a bridge: the root also

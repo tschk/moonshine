@@ -2,18 +2,36 @@ import { describe, expect, test } from "bun:test";
 import { createRoot } from "@tschk/moonshine-dom/reactive";
 import { withSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import {
+  NuxtError,
+  callOnce,
+  clearError,
   clearNuxtData,
   clearNuxtState,
   createBridgedRef,
+  createError,
   defineNuxtPlugin,
   defineNuxtRouteMiddleware,
   definePageMeta,
+  isNuxtError,
   isNuxtRef,
+  refreshCookie,
   refreshNuxtData,
+  showError,
+  updateAppConfig,
+  useAppConfig,
   useAsyncData,
+  useCookie,
+  useError,
+  useFetch,
   useLazyAsyncData,
+  useLazyFetch,
   useNuxtData,
+  useRequestEvent,
+  useRequestHeaders,
+  useRequestURL,
+  useRuntimeConfig,
   useState,
+  withNuxtRequest,
 } from "../src/composables";
 
 describe("@tschk/moonshine-nuxt composables", () => {
@@ -159,5 +177,171 @@ describe("@tschk/moonshine-nuxt composables", () => {
     expect(meta).toEqual({ layout: "admin", middleware: ["auth"] });
     expect(typeof plugin).toBe("function");
     expect(typeof mw).toBe("function");
+  });
+
+  test("withNuxtRequest, useRequestHeaders, useRequestURL, useCookie, and refreshCookie isolate request state and serialize Set-Cookie headers", () => {
+    withNuxtRequest(
+      {
+        url: "https://example.com/profile?tab=settings",
+        headers: {
+          "X-Custom-Token": "secret-token",
+          Authorization: "Bearer xyz",
+          cookie: "theme=dark; count=7; prefs=%7B%22compact%22%3Atrue%7D",
+        },
+        runtimeConfig: {
+          apiSecret: "server-only",
+          public: { apiBase: "https://api.example.com" },
+        },
+        appConfig: {
+          title: "Moonshine Nuxt",
+          ui: { primary: "indigo" },
+        },
+      },
+      (event) => {
+        expect(useRequestEvent()).toBe(event);
+        expect(useRequestURL().pathname).toBe("/profile");
+        expect(useRequestURL().searchParams.get("tab")).toBe("settings");
+
+        const filteredHeaders = useRequestHeaders(["x-custom-token"]);
+        expect(filteredHeaders).toEqual({
+          "x-custom-token": "secret-token",
+        });
+        const allHeaders = useRequestHeaders();
+        expect(allHeaders.authorization).toBe("Bearer xyz");
+
+        const theme = useCookie<string>("theme");
+        const count = useCookie<number>("count");
+        const prefs = useCookie<{ compact: boolean }>("prefs");
+        const missingWithDefault = useCookie("locale", { default: () => "en" });
+        const roCookie = useCookie("theme", { readonly: true });
+
+        expect(theme.value).toBe("dark");
+        expect(count.value).toBe(7);
+        expect(prefs.value).toEqual({ compact: true });
+        expect(missingWithDefault.value).toBe("en");
+
+        roCookie.value = "ignored";
+        theme.value = "light";
+        expect(event.responseHeaders.get("Set-Cookie")).toContain(
+          "theme=light; Path=/",
+        );
+
+        event.headers.set("cookie", "theme=solarized");
+        refreshCookie("theme");
+        expect(theme.value).toBe("solarized");
+
+        const rt = useRuntimeConfig();
+        expect(rt.apiSecret).toBe("server-only");
+        expect(rt.public.apiBase).toBe("https://api.example.com");
+        expect(rt.app.baseURL).toBe("/");
+
+        const appCfg = useAppConfig<{
+          title: string;
+          ui: { primary: string; rounded?: boolean };
+        }>();
+        expect(appCfg.title).toBe("Moonshine Nuxt");
+        updateAppConfig({ ui: { rounded: true } });
+        expect(appCfg.ui).toEqual({ primary: "indigo", rounded: true });
+      },
+    );
+  });
+
+  test("useFetch and useLazyFetch build URLs, serialize JSON bodies, invoke interceptors, and react to query/url changes", async () => {
+    const calls: Array<{ url: string; method?: string; body?: any }> = [];
+    const customFetch = async (url: string, init: RequestInit) => {
+      calls.push({
+        url,
+        method: init.method,
+        body: init.body,
+      });
+      return { url, ok: true };
+    };
+
+    const page = createBridgedRef(1);
+    const search = createBridgedRef("moon");
+    const hookOrder: string[] = [];
+
+    let stopRoot!: () => void;
+    const res = await createRoot(async (dispose) => {
+      stopRoot = dispose;
+      return await useFetch<{ url: string; ok: boolean }>("/items", {
+        baseURL: "https://api.example.com/",
+        query: () => ({ page: page.value, q: search.value }),
+        method: "POST",
+        body: () => ({ active: true }),
+        $fetch: customFetch,
+        onRequest() {
+          hookOrder.push("onRequest");
+        },
+      });
+    });
+
+    expect(res.status.value).toBe("success");
+    expect(res.data.value).toEqual({
+      url: "https://api.example.com/items?page=1&q=moon",
+      ok: true,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.body).toBe('{"active":true}');
+    expect(hookOrder).toEqual(["onRequest"]);
+
+    page.value = 2;
+    await new Promise((r) => setTimeout(r, 10));
+    expect(res.data.value).toEqual({
+      url: "https://api.example.com/items?page=2&q=moon",
+      ok: true,
+    });
+    stopRoot();
+
+    // useLazyFetch with immediate: false
+    const lazyRes = useLazyFetch("/lazy", {
+      immediate: false,
+      $fetch: customFetch,
+    });
+    expect(lazyRes.status.value).toBe("idle");
+    await lazyRes.execute();
+    expect(lazyRes.status.value).toBe("success");
+    expect(lazyRes.data.value?.url).toBe("/lazy");
+  });
+
+  test("createError, showError, useError, clearError, isNuxtError, and callOnce manage scoped error and one-shot state", async () => {
+    await withNuxtRequest({ url: "https://example.com/" }, async () => {
+      expect(useError().value).toBeUndefined();
+      const err = createError({
+        statusCode: 404,
+        statusMessage: "Not Found",
+        data: { resource: "post" },
+      });
+      expect(err).toBeInstanceOf(NuxtError);
+      expect(isNuxtError(err)).toBe(true);
+      expect(err.toJSON()).toEqual({
+        message: "Not Found",
+        statusCode: 404,
+        statusMessage: "Not Found",
+        data: { resource: "post" },
+      });
+
+      showError(err);
+      expect(useError().value).toBe(err);
+
+      await clearError();
+      expect(useError().value).toBeUndefined();
+
+      let runs = 0;
+      const runOnce = async () => {
+        await Promise.resolve();
+        runs++;
+      };
+      await Promise.all([
+        callOnce("init-metric", runOnce),
+        callOnce("init-metric", runOnce),
+      ]);
+      await callOnce("init-metric", runOnce);
+      expect(runs).toBe(1);
+
+      await callOnce("init-metric", runOnce, { mode: "navigation" });
+      expect(runs).toBe(2);
+    });
   });
 });

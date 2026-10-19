@@ -3,15 +3,26 @@ import { batch, createSignal as createMsSignal } from "@tschk/moonshine";
 import { createRoot } from "@tschk/moonshine-dom/reactive";
 import { withSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import {
+  afterNextRender,
+  afterRender,
+  applyInputValue,
   computed,
   createBridgedSignal,
+  createDestroyRef,
   effect,
   fromMoonshineSignal,
+  injectDestroyRef,
+  input,
   isSignal,
   isWritableSignal,
   linkedSignal,
+  model,
+  output,
+  outputFromObservable,
+  outputToObservable,
   resource,
   signal,
+  takeUntilDestroyed,
   toObservable,
   toSignal,
   untracked,
@@ -432,5 +443,158 @@ describe("@tschk/moonshine-angular signals", () => {
     expect(userResource.value()).toBe("anonymous");
 
     userResource.destroy();
+  });
+
+  test("input, input.required, model, model.required, and applyInputValue support reactive reads, transforms, and output emission", () => {
+    const optionalInput = input<string>();
+    const defaultInput = input(10);
+    const transformedInput = input(false, {
+      alias: "disabled",
+      transform: (v: boolean | string) =>
+        v === "" || v === "true" || v === true,
+    });
+    const requiredInput = input.required<string>({ alias: "title" });
+
+    expect(isSignal(optionalInput)).toBe(true);
+    expect(isWritableSignal(optionalInput)).toBe(false);
+    expect(optionalInput()).toBeUndefined();
+    expect(defaultInput()).toBe(10);
+    expect(transformedInput()).toBe(false);
+    expect(() => requiredInput()).toThrow(
+      'Input "title" is required, but no value is available yet.',
+    );
+
+    applyInputValue(optionalInput, "hello");
+    applyInputValue(defaultInput, 25);
+    applyInputValue(transformedInput, "");
+    applyInputValue(requiredInput, "Dashboard");
+
+    expect(optionalInput()).toBe("hello");
+    expect(defaultInput()).toBe(25);
+    expect(transformedInput()).toBe(true);
+    expect(requiredInput()).toBe("Dashboard");
+
+    const countModel = model(0);
+    const requiredModel = model.required<string>({ alias: "username" });
+    expect(isSignal(countModel)).toBe(true);
+    expect(isWritableSignal(countModel)).toBe(true);
+    expect(() => requiredModel()).toThrow(
+      'Model "username" is required, but no value is available yet.',
+    );
+
+    const modelEmissions: number[] = [];
+    const sub = countModel.subscribe((v) => modelEmissions.push(v));
+
+    // Host input update via applyInputValue updates the signal without emitting an output event
+    applyInputValue(countModel, 5);
+    expect(countModel()).toBe(5);
+    expect(modelEmissions).toEqual([]);
+
+    // Component write via .set / .update updates the signal and emits to subscribers
+    countModel.set(6);
+    countModel.update((n) => n + 4);
+    expect(countModel()).toBe(10);
+    expect(modelEmissions).toEqual([6, 10]);
+    sub.unsubscribe();
+
+    applyInputValue(requiredModel, "ada");
+    expect(requiredModel()).toBe("ada");
+  });
+
+  test("output, outputFromObservable, outputToObservable, DestroyRef, takeUntilDestroyed, afterNextRender, and afterRender manage subscriptions and lifecycle", async () => {
+    const clicked = output<string>();
+    const seen: string[] = [];
+    const obs = outputToObservable(clicked);
+    const sub = obs.subscribe((val) => seen.push(val));
+
+    clicked.emit("first");
+    clicked.emit("second");
+    expect(seen).toEqual(["first", "second"]);
+    sub.unsubscribe();
+    clicked.emit("third");
+    expect(seen).toEqual(["first", "second"]);
+
+    const numSig = signal(1);
+    const fromObsOut = outputFromObservable(toObservable(numSig));
+    const fromObsSeen: number[] = [];
+    const sub2 = fromObsOut.subscribe((n) => fromObsSeen.push(n));
+    expect(fromObsSeen).toEqual([1]);
+    numSig.set(2);
+    expect(fromObsSeen).toEqual([1, 2]);
+    sub2.unsubscribe();
+
+    // DestroyRef + takeUntilDestroyed inside createRoot
+    const streamSeen: number[] = [];
+    let completed = false;
+    let destroyCalled = 0;
+    const stopRoot = createRoot((dispose) => {
+      const destroyRef = injectDestroyRef();
+      expect(injectDestroyRef()).toBe(destroyRef);
+      destroyRef.onDestroy(() => {
+        destroyCalled++;
+      });
+      const piped = takeUntilDestroyed<number>()(toObservable(numSig));
+      piped.subscribe({
+        next: (v) => streamSeen.push(v),
+        complete: () => {
+          completed = true;
+        },
+      });
+      return dispose;
+    });
+
+    expect(streamSeen).toEqual([2]);
+    numSig.set(3);
+    expect(streamSeen).toEqual([2, 3]);
+    expect(completed).toBe(false);
+
+    stopRoot();
+    expect(destroyCalled).toBe(1);
+    expect(completed).toBe(true);
+    numSig.set(4);
+    expect(streamSeen).toEqual([2, 3]);
+
+    // Standalone createDestroyRef
+    const manualDestroy = createDestroyRef();
+    expect(manualDestroy.destroyed).toBe(false);
+    manualDestroy.destroy();
+    expect(manualDestroy.destroyed).toBe(true);
+
+    // afterNextRender & afterRender phases (and SSR suppression)
+    const renderPhases: string[] = [];
+    withSSRRendering(() => {
+      afterNextRender(() => renderPhases.push("ssr-next"));
+      afterRender(() => renderPhases.push("ssr-render"));
+    });
+
+    afterNextRender({
+      earlyRead: () => {
+        renderPhases.push("earlyRead");
+        return 10;
+      },
+      write: (v) => {
+        renderPhases.push(`write:${v}`);
+        return v * 2;
+      },
+      mixedReadWrite: (v) => {
+        renderPhases.push(`mixed:${v}`);
+        return v + 1;
+      },
+      read: (v) => {
+        renderPhases.push(`read:${v}`);
+      },
+    });
+    afterRender(() => {
+      renderPhases.push("afterRenderFn");
+    });
+
+    await Promise.resolve();
+    expect(renderPhases).toEqual([
+      "earlyRead",
+      "write:10",
+      "mixed:20",
+      "read:21",
+      "afterRenderFn",
+    ]);
   });
 });

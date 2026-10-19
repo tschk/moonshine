@@ -1,3 +1,20 @@
+# Moonshine 0.4.56
+
+- Add native host-free Nuxt 3/4 fetch, cookie, request context, runtime/app
+  config, error, and one-shot composables (`useFetch`, `useLazyFetch`,
+  `useCookie`, `refreshCookie`, `withNuxtRequest`, `createNuxtRequestEvent`,
+  `useRequestEvent`, `useRequestHeaders`, `useRequestURL`, `useRuntimeConfig`,
+  `useAppConfig`, `updateAppConfig`, `NuxtError`, `createError`, `showError`,
+  `clearError`, `useError`, `isNuxtError`, and `callOnce`) in
+  `@tschk/moonshine-nuxt/composables` and `@tschk/moonshine-nuxt`.
+- Add native host-free Angular 17.3–19 signal inputs, two-way model signals,
+  outputs, RxJS interop, and render/destroy lifecycle helpers (`input`,
+  `input.required`, `applyInputValue`, `model`, `model.required`, `output`,
+  `outputFromObservable`, `outputToObservable`, `OutputEmitterRef`,
+  `DestroyRef`, `createDestroyRef`, `injectDestroyRef`, `takeUntilDestroyed`,
+  `afterNextRender`, and `afterRender`) in `@tschk/moonshine-angular/signals`
+  and `@tschk/moonshine-angular`.
+
 # Moonshine 0.4.55
 
 - Add native host-free Astro Actions (`defineAction`, `ActionError`,

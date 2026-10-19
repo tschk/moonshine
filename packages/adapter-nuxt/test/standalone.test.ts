@@ -68,6 +68,14 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     const asyncRes=await root.useAsyncData('greeting',async()=>'hello');
     assert.equal(asyncRes.data.value,'hello');
     assert.equal(root.useNuxtData('greeting').data.value,'hello');
+    await root.withNuxtRequest({url:'https://example.com/test',headers:{cookie:'lang=fr','x-req':'1'}},async()=>{
+      assert.equal(root.useCookie('lang').value,'fr');
+      assert.equal(root.useRequestHeaders(['x-req'])['x-req'],'1');
+      let count=0;
+      await root.callOnce('k',()=>{count++;});
+      await root.callOnce('k',()=>{count++;});
+      assert.equal(count,1);
+    });
   `);
 });
 
