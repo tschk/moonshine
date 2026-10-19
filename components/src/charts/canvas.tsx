@@ -21,6 +21,28 @@ export type DitherCanvasProps = {
   square?: boolean;
 };
 
+function repaint(
+  canvas: HTMLCanvasElement,
+  wrap: HTMLDivElement,
+  height: number,
+  square: boolean,
+  paint: DitherPaint,
+) {
+  const clientWidth = wrap.clientWidth;
+  if (clientWidth <= 0) return;
+  const width = square ? Math.min(clientWidth, height) : clientWidth;
+  const paintHeight = square ? width : height;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.floor(width * dpr));
+  canvas.height = Math.max(1, Math.floor(paintHeight * dpr));
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${paintHeight}px`;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  paint(ctx, width, paintHeight);
+}
+
 /**
  * Owns the device-pixel-ratio sizing and resize handling every dither chart
  * needs, so each chart only supplies its paint body.
@@ -45,20 +67,7 @@ export function DitherCanvas({
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap || !enabled) return;
-
-    const clientWidth = wrap.clientWidth;
-    if (clientWidth <= 0) return;
-    const width = square ? Math.min(clientWidth, height) : clientWidth;
-    const paintHeight = square ? width : height;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(width * dpr));
-    canvas.height = Math.max(1, Math.floor(paintHeight * dpr));
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${paintHeight}px`;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    paintRef.current(ctx, width, paintHeight);
+    repaint(canvas, wrap, height, square, paintRef.current);
   }, [enabled, height, square]);
 
   useEffect(() => {
