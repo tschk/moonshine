@@ -22,6 +22,34 @@ describe("parseSearch", () => {
   test("returns an empty record for no query", () => {
     expect(parseSearch("")).toEqual({});
   });
+
+  test("decodes null values", () => {
+    expect(parseSearch("?a=null")).toEqual({ a: null });
+  });
+
+  test("decodes arrays", () => {
+    expect(parseSearch("?a=[1,2,3]")).toEqual({ a: [1, 2, 3] });
+  });
+
+  test("decodes explicitly quoted JSON strings", () => {
+    expect(parseSearch('?a="hello"')).toEqual({ a: "hello" });
+  });
+
+  test("handles empty string values for keys", () => {
+    expect(parseSearch("?a=")).toEqual({ a: "" });
+  });
+
+  test("handles URL encoded strings and spaces", () => {
+    expect(parseSearch("?a=hello%20world&b=hello+world")).toEqual({ a: "hello world", b: "hello world" });
+  });
+
+  test("overwrites previous values on duplicate keys", () => {
+    expect(parseSearch("?a=1&a=2")).toEqual({ a: 2 });
+  });
+
+  test("falls back to string correctly for malformed JSON", () => {
+    expect(parseSearch("?a={bad:json}")).toEqual({ a: "{bad:json}" });
+  });
 });
 
 describe("stringifySearch", () => {
