@@ -79,14 +79,18 @@ describe("isContained", () => {
     mkdirSync(similarDir, { recursive: true });
     writeFileSync(resolve(similarDir, "file.txt"), "content");
     try {
-      expect(isContained(staticDir, resolve(similarDir, "file.txt"))).toBe(false);
+      expect(isContained(staticDir, resolve(similarDir, "file.txt"))).toBe(
+        false,
+      );
     } finally {
       rmSync(similarDir, { recursive: true, force: true });
     }
   });
 
   test("throws an error if the file does not exist", () => {
-    expect(() => isContained(staticDir, resolve(staticDir, "missing.txt"))).toThrow();
+    expect(() =>
+      isContained(staticDir, resolve(staticDir, "missing.txt")),
+    ).toThrow();
   });
 });
 
