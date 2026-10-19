@@ -10,12 +10,12 @@ exports `crepusRenderer` with the framework's `Renderer` contract. The framework
 remains optional for runtime imports and bridge-only browser/Bun/Node bundles.
 This requirement does not apply to the signal-only `@tschk/moonshine` core entry.
 
-| Subpath    | Provides                                                             |
-| ---------- | -------------------------------------------------------------------- |
-| `.`        | signal bridges and lazy native SSR compatibility renderer            |
-| `./svelte` | lifecycle, context, typed `createContext`, component event dispatch  |
-| `./class`  | opt-in `classValue` and `classDirectives` for source classes         |
-| `./store`  | independent `writable`, `readable`, `readonly`, `derived`, and `get` |
+| Subpath    | Provides                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `.`        | signal bridges and lazy native SSR compatibility renderer                                    |
+| `./svelte` | lifecycle, context, typed `createContext`, component event dispatch                          |
+| `./class`  | opt-in `classValue` and `classDirectives` for source classes                                 |
+| `./store`  | independent `writable`, `readable`, `readonly`, `derived`, `get`, `toStore`, and `fromStore` |
 
 `classValue` flattens nested class arrays and includes truthy object keys. Empty
 results return `undefined`, omitting the DOM/SSR attribute. Top-level primitive
@@ -552,10 +552,19 @@ The optional `/mount` entry freshly mounts compiler-marked native SFC factories 
 
 `readonly(store)` exposes only a bound `subscribe`, preserving custom store
 receivers, invalidators and cleanup. Writes through the original store still
-notify its subscribers. This facade does not freeze stored values. Authored
-`svelte/store` named imports and aliases of `readonly` are admitted by the
-locally verified Crepus compiler for DOM and SSR. That compiler change is not
-published yet; the direct Moonshine `/store` API is available independently.
+notify its subscribers. This facade does not freeze stored values. `toStore(get,
+set?)` bridges reactive state into a `Readable` or `Writable` store with eager
+initial evaluation, post-order Rune effect scheduling on the client, independent
+root survival across component disposal while subscribers remain active, and
+one-shot `writable(get())` behavior on SSR. `fromStore(store)` bridges a
+`Readable` or `Writable` store (or `{ subscribe }` observable) into a `{ current }`
+reactive wrapper, sharing one store subscription across tracked readers and
+derived chains on the client, releasing after a microtask when demand drops to
+zero, and reading via `get(store)` outside tracking or on SSR. Authored
+`svelte/store` named imports, aliases and re-exports of `readonly`, `toStore`
+and `fromStore` are admitted by the locally verified Crepus compiler for DOM and
+SSR. That compiler change is not published yet; the direct Moonshine `/store`
+API is available independently.
 
 The optional `/binding` entry re-exports native `bindFiles` for independent
 file-input factories. Nullish models preserve selected files; clearing requires

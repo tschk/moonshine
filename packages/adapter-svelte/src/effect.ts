@@ -17,6 +17,7 @@ import { peekComponentContext } from "@tschk/moonshine-dom/component";
 import { flushComponentReferences } from "@tschk/moonshine-dom/component-instance";
 
 import { holdHistory, releaseHistory, withHistoryCleanup } from "./history";
+import { notifyTrackableUnsubscribe } from "./store-demand";
 import { queueTickWork, removeTickWork } from "./tick-queue";
 
 const pending = new Set<() => void>();
@@ -168,6 +169,7 @@ export function createRuneEffect(fn: () => void | (() => void)): void {
       const cleanup = stopRun as (() => void) | undefined;
       stopRun = undefined;
       untrack(() => cleanup?.());
+      notifyTrackableUnsubscribe();
       if (failed) throw failure;
       return;
     }
@@ -184,12 +186,16 @@ export function createRuneEffect(fn: () => void | (() => void)): void {
               }),
           );
         for (const [dependency, unsubscribe] of subscriptions)
-          if (!next.has(dependency)) unsubscribe();
+          if (!next.has(dependency)) {
+            unsubscribe();
+            notifyTrackableUnsubscribe();
+          }
       });
       subscriptions = next;
     } catch (error) {
       for (const [dependency, unsubscribe] of next)
         if (!subscriptions.has(dependency)) unsubscribe();
+      notifyTrackableUnsubscribe();
       if (!failed) failure = error;
       failed = true;
     }
@@ -234,6 +240,7 @@ export function createRuneEffect(fn: () => void | (() => void)): void {
     }
     subscriptions.clear();
     stopRun = undefined;
+    notifyTrackableUnsubscribe();
     if (failed) throw failure;
   });
   enqueue();

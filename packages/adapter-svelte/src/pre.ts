@@ -29,11 +29,14 @@ import {
 import { isSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import { flushComponentReferences } from "@tschk/moonshine-dom/component-instance";
 import { holdHistory, releaseHistory, withHistoryCleanup } from "./history";
+import { notifyTrackableUnsubscribe } from "./store-demand";
 import { queueTickWork, removeTickWork } from "./tick-queue";
 const runeConsumerKey = /* @__PURE__ */ Symbol("moonshine.svelte.consumer");
 const runeNodeKey = /* @__PURE__ */ Symbol("moonshine.svelte.node");
 type Node = {
   source?: true;
+  independentRoot?: true;
+  hasRenderChild?: true;
   componentCap?: Node;
   referenceTail?: { owner: Owner; callbacks: Array<() => void> };
   consumer?: ComponentContext;
@@ -48,6 +51,8 @@ type Node = {
 };
 type Job = Node & { run: () => void };
 function node(owner: Owner, parent?: Node, phase?: Node["phase"]): Node {
+  if (parent && (phase === "render" || phase === "structural"))
+    parent.hasRenderChild = true;
   return {
     owner,
     parent,
@@ -129,8 +134,10 @@ export function flushRuneWork(): void {
   flush();
 }
 function alive(job: Job): boolean {
-  for (let next: Node | undefined = job; next; next = next.parent)
+  for (let next: Node | undefined = job; next; next = next.parent) {
     if (next.disposed || next.owner.disposed) return false;
+    if (next.independentRoot) return true;
+  }
   return true;
 }
 function compare(a: Node, b: Node): number {
@@ -175,6 +182,7 @@ let preDepth = 0;
 let inPost = false;
 let inPublication = false;
 let currentStructural: Job | undefined;
+let initializingJob: Job | undefined;
 function flush() {
   removeTickWork(flushRuneWork);
   flushing = true;
@@ -510,6 +518,8 @@ function ownedJob(
         } catch (error) {
           if (!unsubscribeFailed) unsubscribeFailure = error;
           unsubscribeFailed = true;
+        } finally {
+          notifyTrackableUnsubscribe();
         }
       }
     if (unsubscribeFailed) {
@@ -545,10 +555,17 @@ function ownedJob(
         failed = true;
       }
     }
+    notifyTrackableUnsubscribe();
     if (failed) throw failure;
   }
   onCleanup(shutdown);
-  runWithPhase();
+  const previousInitializingJob = initializingJob;
+  initializingJob = job;
+  try {
+    runWithPhase();
+  } finally {
+    initializingJob = previousInitializingJob;
+  }
 }
 /** Internal const evaluation provenance; synthetic scheduler groups inherit it. */
 export function getRuneConsumer(): ComponentContext | undefined {
@@ -668,4 +685,65 @@ export function createRunePreEffect(fn: () => void | (() => void)): void {
   const scheduler = getRenderScheduler();
   if (!scheduler) throw Error("Pre effects require withRuneScheduler");
   scheduler.pre(fn);
+}
+export type RuneToStoreScope = {
+  readonly owner: Owner | null;
+  readonly node: Node | undefined;
+};
+export function captureRuneToStoreScope(): RuneToStoreScope {
+  return { owner: getOwner(), node: runeNode() };
+}
+export function createRuneToStoreEffect(
+  captured: RuneToStoreScope,
+  fn: () => void,
+): () => void {
+  if (isSSRRendering() || peekComponentContext()?.mode === "ssr")
+    return () => {};
+  return runWithOwner(
+    captured.owner && !captured.owner.disposed ? captured.owner : null,
+    () =>
+      createRoot((stop) => {
+        const owner = getOwner()!;
+        const parent =
+          captured.node &&
+          !captured.node.disposed &&
+          !captured.node.owner.disposed
+            ? captured.node
+            : undefined;
+        const group = node(
+          owner,
+          parent,
+          parent?.hasRenderChild ? "render" : "pre",
+        );
+        group.independentRoot = true;
+        if (parent) {
+          if (initializingJob?.parent === parent) {
+            initializingJob.order = parent.next++;
+          }
+          runWithOwner(parent.owner, () =>
+            onCleanup(() => {
+              if (group.parent === parent) {
+                group.parent = undefined;
+                queueRoot(group);
+                jobsDirty = true;
+              }
+            }),
+          );
+        }
+        onCleanup(() => {
+          group.disposed = true;
+        });
+        owner.context = new Map(owner.context);
+        owner.context.delete(cleanupOrderKey);
+        owner.context.set(renderSchedulerKey, carrier(group));
+        const previous = current;
+        current = group;
+        try {
+          ownedJob(fn, group.phase === "pre" ? "pre" : "render", group);
+        } finally {
+          current = previous;
+        }
+        return () => runWithOwner(owner, () => withHistoryCleanup(stop));
+      }),
+  );
 }

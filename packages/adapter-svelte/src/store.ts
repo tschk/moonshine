@@ -211,3 +211,5 @@ export function get<T>(store: Readable<T>): T {
   })();
   return value;
 }
+
+export { fromStore, toStore } from "./store-interop";
