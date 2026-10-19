@@ -63,19 +63,44 @@ const writableSignals = new WeakSet<Function>();
 const readonlyWrappers = new WeakMap<Function, Signal<any>>();
 
 let disallowWritesDepth = 0;
+let reactiveContextDepth = 0;
 
 function withWritesDisallowed<T>(fn: () => T): T {
   disallowWritesDepth++;
+  reactiveContextDepth++;
   try {
     return fn();
   } finally {
+    reactiveContextDepth--;
     disallowWritesDepth--;
+  }
+}
+
+function withReactiveContext<T>(fn: () => T): T {
+  reactiveContextDepth++;
+  try {
+    return fn();
+  } finally {
+    reactiveContextDepth--;
   }
 }
 
 function assertWritesAllowed(): void {
   if (disallowWritesDepth > 0) {
     throw new Error("Cannot write to signals inside a reactive computation");
+  }
+}
+
+export function assertNotInReactiveContext(
+  debugFn: Function,
+  extraNote?: string,
+): void {
+  if (reactiveContextDepth > 0) {
+    const name = debugFn?.name || "Function";
+    const suffix = extraNote ? ` ${extraNote}` : "";
+    throw new Error(
+      `NG0602: ${name}() cannot be called from within a reactive context.${suffix}`,
+    );
   }
 }
 
@@ -402,7 +427,7 @@ export function effect(
                     if (options?.allowSignalWrites === false) {
                       withWritesDisallowed(() => effectFn(registerCleanup));
                     } else {
-                      effectFn(registerCleanup);
+                      withReactiveContext(() => effectFn(registerCleanup));
                     }
                   };
                   if (activeInj) {
@@ -494,7 +519,13 @@ export function effect(
 }
 
 export function untracked<T>(nonReactiveReadsFn: () => T): T {
-  return untrack(nonReactiveReadsFn);
+  const prevDepth = reactiveContextDepth;
+  reactiveContextDepth = 0;
+  try {
+    return untrack(nonReactiveReadsFn);
+  } finally {
+    reactiveContextDepth = prevDepth;
+  }
 }
 
 export function fromMoonshineSignal<T>(
@@ -927,6 +958,320 @@ export function resource<T, R = unknown>(
         });
       },
     );
+  };
+
+  let lastRequest: R | undefined;
+  const watcher = effect(
+    () => {
+      if (destroyed) return;
+      const req = requestFn();
+      lastRequest = req;
+      const prevStatus = untracked(statusSig);
+      if (req === undefined) {
+        activeLoadId++;
+        abortPending();
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(undefined);
+            statusSig.set("idle");
+          });
+        });
+        return;
+      }
+      startLoad(req as Exclude<R, undefined>, "loading", prevStatus);
+    },
+    { manualCleanup: true },
+  );
+
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    activeLoadId++;
+    abortPending();
+    watcher.destroy();
+  };
+
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+  const activeInj = options.injector ?? currentInjector;
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
+
+  const hasValueMemo = computed(() => {
+    const s = statusSig();
+    const v = valueSig();
+    if (s === "error") return false;
+    if (s === "resolved" || s === "local" || s === "reloading") {
+      return v !== undefined;
+    }
+    return defaultValue !== undefined && v !== undefined;
+  });
+
+  const readonlyView: Resource<T | undefined> = {
+    value: valueSig.asReadonly(),
+    status: statusSig.asReadonly(),
+    error: errorSig.asReadonly(),
+    isLoading: isLoadingSig,
+    hasValue(): this is Resource<Exclude<T | undefined, undefined>> {
+      return hasValueMemo();
+    },
+  };
+
+  const ref: ResourceRef<T | undefined> = {
+    value: valueSig,
+    status: statusSig.asReadonly(),
+    error: errorSig.asReadonly(),
+    isLoading: isLoadingSig,
+    hasValue(): this is Resource<Exclude<T | undefined, undefined>> {
+      return hasValueMemo();
+    },
+    set(newValue: T | undefined) {
+      assertWritesAllowed();
+      activeLoadId++;
+      abortPending();
+      batch(() => {
+        valueSig.set(newValue);
+        errorSig.set(undefined);
+        statusSig.set("local");
+      });
+    },
+    update(updater: (value: T | undefined) => T | undefined) {
+      assertWritesAllowed();
+      const current = untracked(valueSig);
+      const next = untracked(() => updater(current));
+      ref.set(next);
+    },
+    asReadonly() {
+      return readonlyView;
+    },
+    reload(): boolean {
+      if (destroyed) return false;
+      const currentStatus = untracked(statusSig);
+      if (
+        currentStatus === "idle" ||
+        currentStatus === "loading" ||
+        currentStatus === "reloading"
+      ) {
+        return false;
+      }
+      const req = lastRequest ?? untracked(requestFn);
+      if (req === undefined) {
+        return false;
+      }
+      const nextStatus =
+        currentStatus === "resolved" || currentStatus === "local"
+          ? "reloading"
+          : "loading";
+      startLoad(req as Exclude<R, undefined>, nextStatus, currentStatus);
+      return true;
+    },
+    destroy,
+  };
+
+  return ref;
+}
+
+export type RxResourceLoader<T, R> = (
+  params: ResourceLoaderParams<R>,
+) => Subscribable<T>;
+
+export interface RxResourceOptions<T, R = unknown> {
+  request?: () => R;
+  loader: RxResourceLoader<T, R>;
+  defaultValue?: T;
+  equal?: ValueEqualityFn<T>;
+  injector?: Injector;
+}
+
+/**
+ * Reactive Observable-backed resource primitive compatible with Angular 19's `rxResource()` API.
+ */
+export function rxResource<T, R = unknown>(
+  options: RxResourceOptions<T, R> & { defaultValue: NoInfer<T> },
+): ResourceRef<T>;
+export function rxResource<T, R = unknown>(
+  options: RxResourceOptions<T, R>,
+): ResourceRef<T | undefined>;
+export function rxResource<T, R = unknown>(
+  options: RxResourceOptions<T, R>,
+): ResourceRef<T | undefined> {
+  if (
+    typeof options !== "object" ||
+    options === null ||
+    typeof options.loader !== "function"
+  ) {
+    throw new TypeError("rxResource requires an options object with a loader");
+  }
+
+  const defaultValue = options.defaultValue;
+  const equal = options.equal ?? Object.is;
+  const valueSig = signal<T | undefined>(defaultValue, {
+    equal: (a, b) =>
+      a === undefined || b === undefined ? Object.is(a, b) : equal(a, b),
+  });
+  const statusSig = signal<ResourceStatus>("idle");
+  const errorSig = signal<unknown>(undefined);
+  const isLoadingSig = computed(() => {
+    const s = statusSig();
+    return s === "loading" || s === "reloading";
+  });
+
+  const requestFn: () => R = options.request ?? (() => true as unknown as R);
+
+  let currentAbort: AbortController | undefined;
+  let currentCleanupSub: (() => void) | undefined;
+  let activeLoadId = 0;
+  let destroyed = false;
+
+  const abortPending = () => {
+    if (currentCleanupSub) {
+      const unsub = currentCleanupSub;
+      currentCleanupSub = undefined;
+      unsub();
+    }
+    if (currentAbort) {
+      const controller = currentAbort;
+      currentAbort = undefined;
+      controller.abort();
+    }
+  };
+
+  const startLoad = (
+    req: Exclude<R, undefined>,
+    nextStatus: "loading" | "reloading",
+    previousStatus: ResourceStatus,
+  ) => {
+    abortPending();
+    const loadId = ++activeLoadId;
+    const controller = new AbortController();
+    currentAbort = controller;
+
+    untrack(() => {
+      batch(() => {
+        if (nextStatus === "loading") {
+          valueSig.set(defaultValue);
+        }
+        errorSig.set(undefined);
+        statusSig.set(nextStatus);
+      });
+    });
+
+    let stream: Subscribable<T>;
+    try {
+      stream = untrack(() =>
+        options.loader({
+          request: req,
+          abortSignal: controller.signal,
+          previous: { status: previousStatus },
+        }),
+      );
+      if (!stream || typeof stream.subscribe !== "function") {
+        throw new TypeError(
+          "rxResource loader must return a Subscribable with a subscribe() method",
+        );
+      }
+    } catch (err) {
+      if (!destroyed && loadId === activeLoadId && !controller.signal.aborted) {
+        currentAbort = undefined;
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(err);
+            statusSig.set("error");
+          });
+        });
+      }
+      return;
+    }
+
+    let subClosed = false;
+    let rawSub: SubscriptionCleanup = undefined;
+
+    const cleanupSub = () => {
+      if (subClosed) return;
+      subClosed = true;
+      if (typeof rawSub === "function") {
+        rawSub();
+      } else if (rawSub && typeof rawSub.unsubscribe === "function") {
+        rawSub.unsubscribe();
+      }
+    };
+    currentCleanupSub = cleanupSub;
+
+    try {
+      rawSub = untrack(() =>
+        stream.subscribe({
+          next: (resolved: T) => {
+            if (
+              destroyed ||
+              loadId !== activeLoadId ||
+              controller.signal.aborted
+            ) {
+              return;
+            }
+            batch(() => {
+              valueSig.set(resolved);
+              errorSig.set(undefined);
+              statusSig.set("resolved");
+            });
+          },
+          error: (err: unknown) => {
+            if (
+              destroyed ||
+              loadId !== activeLoadId ||
+              controller.signal.aborted
+            ) {
+              return;
+            }
+            subClosed = true;
+            currentCleanupSub = undefined;
+            currentAbort = undefined;
+            batch(() => {
+              valueSig.set(defaultValue);
+              errorSig.set(err);
+              statusSig.set("error");
+            });
+          },
+          complete: () => {
+            if (
+              destroyed ||
+              loadId !== activeLoadId ||
+              controller.signal.aborted
+            ) {
+              return;
+            }
+            subClosed = true;
+            currentCleanupSub = undefined;
+            currentAbort = undefined;
+            const st = untracked(statusSig);
+            if (st === "loading" || st === "reloading") {
+              statusSig.set("resolved");
+            }
+          },
+        }),
+      );
+      if (subClosed) {
+        if (typeof rawSub === "function") {
+          rawSub();
+        } else if (rawSub && typeof rawSub.unsubscribe === "function") {
+          rawSub.unsubscribe();
+        }
+      }
+    } catch (err) {
+      subClosed = true;
+      currentCleanupSub = undefined;
+      currentAbort = undefined;
+      if (!destroyed && loadId === activeLoadId && !controller.signal.aborted) {
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(err);
+            statusSig.set("error");
+          });
+        });
+      }
+    }
   };
 
   let lastRequest: R | undefined;
@@ -1583,6 +1928,147 @@ export function afterRender(
     }
   });
   return { destroy };
+}
+
+export interface AfterRenderEffectPhases<
+  E = unknown,
+  W = unknown,
+  M = unknown,
+> {
+  earlyRead?: (onCleanup: EffectCleanupRegisterFn) => E;
+  write?: (
+    ...args: [E] extends [never]
+      ? [EffectCleanupRegisterFn]
+      : [E, EffectCleanupRegisterFn]
+  ) => W;
+  mixedReadWrite?: (
+    ...args: [W] extends [never]
+      ? [EffectCleanupRegisterFn]
+      : [W, EffectCleanupRegisterFn]
+  ) => M;
+  read?: (
+    ...args: [M] extends [never]
+      ? [EffectCleanupRegisterFn]
+      : [M, EffectCleanupRegisterFn]
+  ) => void;
+}
+
+export type AfterRenderEffectSpec<E = any, W = any, M = any> =
+  | ((onCleanup: EffectCleanupRegisterFn) => void)
+  | AfterRenderEffectPhases<E, W, M>;
+
+export function afterRenderEffect<E = never, W = never, M = never>(
+  spec: AfterRenderEffectSpec<E, W, M>,
+  options?: AfterRenderOptions,
+): EffectRef {
+  if (isSSRRendering()) {
+    return { destroy() {} };
+  }
+  return effect(
+    (onCleanup) => {
+      if (typeof spec === "function") {
+        spec(onCleanup);
+        return;
+      }
+      let hasPrior = false;
+      let lastValue: any;
+      if (spec.earlyRead) {
+        lastValue = withWritesDisallowed(() => spec.earlyRead!(onCleanup));
+        hasPrior = true;
+      }
+      if (spec.write) {
+        const writeFn = spec.write as (...args: any[]) => any;
+        lastValue = hasPrior
+          ? writeFn(lastValue, onCleanup)
+          : writeFn(onCleanup);
+        hasPrior = true;
+      }
+      if (spec.mixedReadWrite) {
+        const mixedFn = spec.mixedReadWrite as (...args: any[]) => any;
+        lastValue = hasPrior
+          ? mixedFn(lastValue, onCleanup)
+          : mixedFn(onCleanup);
+        hasPrior = true;
+      }
+      if (spec.read) {
+        const readFn = spec.read as (...args: any[]) => void;
+        withWritesDisallowed(() => {
+          if (hasPrior) {
+            readFn(lastValue, onCleanup);
+          } else {
+            readFn(onCleanup);
+          }
+        });
+      }
+    },
+    { injector: options?.injector },
+  );
+}
+
+export class PendingTasks {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: (): PendingTasks => new PendingTasks(),
+  };
+
+  readonly #count = signal(0);
+  readonly #activeTasks = new Set<symbol>();
+  readonly hasPendingTasks: Signal<boolean> = computed(() => this.#count() > 0);
+  #destroyed = false;
+
+  constructor() {
+    const cleanup = () => {
+      this.destroy();
+    };
+    if (getOwner()) {
+      domOnCleanup(cleanup);
+    }
+    currentInjector
+      ?.get(DestroyRef, undefined, { optional: true })
+      ?.onDestroy(cleanup);
+  }
+
+  add(): () => void {
+    if (this.#destroyed) {
+      return () => {};
+    }
+    const token = Symbol("PendingTask");
+    this.#activeTasks.add(token);
+    untracked(() => {
+      this.#count.set(this.#activeTasks.size);
+    });
+    return () => {
+      if (this.#activeTasks.delete(token)) {
+        untracked(() => {
+          this.#count.set(this.#activeTasks.size);
+        });
+      }
+    };
+  }
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    const remove = this.add();
+    try {
+      return await fn();
+    } finally {
+      remove();
+    }
+  }
+
+  destroy(): void {
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+    this.#activeTasks.clear();
+    untracked(() => {
+      this.#count.set(0);
+    });
+  }
+}
+
+export { PendingTasks as ExperimentalPendingTasks };
+
+export function createPendingTasks(): PendingTasks {
+  return new PendingTasks();
 }
 
 export interface Type<T> extends Function {

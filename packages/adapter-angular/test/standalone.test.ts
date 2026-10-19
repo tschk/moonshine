@@ -100,6 +100,35 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     const cc=root.contentChildren<number>('item');
     root.applyQueryValue(cc,[1,2,3]);
     assert.deepEqual(cc(),[1,2,3]);
+    const tasks=env.runInContext(()=>root.inject(root.PendingTasks));
+    assert.equal(tasks.hasPendingTasks(),false);
+    const doneTask=tasks.add();
+    assert.equal(tasks.hasPendingTasks(),true);
+    doneTask();
+    assert.equal(tasks.hasPendingTasks(),false);
+    const rxRes=root.rxResource({
+      request:()=>count(),
+      defaultValue:0,
+      loader:({request})=>({
+        subscribe(obs){
+          const next=typeof obs==='function'?obs:obs.next?.bind(obs);
+          next?.(request*100);
+          return {unsubscribe(){}};
+        }
+      })
+    });
+    assert.equal(rxRes.status(),'resolved');
+    assert.equal(rxRes.value(),400);
+    rxRes.destroy();
+    const renderPhases:string[]=[];
+    const areRef=root.afterRenderEffect({
+      earlyRead:()=>count(),
+      write:(v)=>{renderPhases.push('w:'+v);return v+1;},
+      read:(v)=>{renderPhases.push('r:'+v);}
+    });
+    assert.deepEqual(renderPhases,['w:4','r:5']);
+    areRef.destroy();
+    root.assertNotInReactiveContext(function setupCheck(){});
     env.destroy();
     assert.equal(env.destroyed,true);
   `);

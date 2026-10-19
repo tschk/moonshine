@@ -248,5 +248,25 @@ const intro = await getEntry('docs', 'intro');
 const rendered = await render(intro);
 assert.equal(rendered.headings[0].slug, 'intro');
 assert.ok(rendered.Content().includes('<h1 id="intro">Intro</h1>'));
+const { defineMiddleware, sequence, createContext, trySerializeLocals } = await import('@tschk/moonshine-astro/middleware');
+const { configureI18n, getRelativeLocaleUrl, getAbsoluteLocaleUrl } = await import('@tschk/moonshine-astro/i18n');
+const { envField, validateEnv } = await import('@tschk/moonshine-astro/env');
+configureI18n({ defaultLocale: 'en', locales: ['en', 'fr'], site: 'https://example.com' });
+assert.equal(getRelativeLocaleUrl('fr', 'about'), '/fr/about');
+assert.equal(getAbsoluteLocaleUrl('en', 'about'), 'https://example.com/about');
+const mw = sequence(
+  defineMiddleware(async (ctx, next) => {
+    ctx.locals.role = 'admin';
+    return next();
+  }),
+);
+const mwCtx = createContext({ url: 'https://example.com/about' });
+const mwRes = await mw(mwCtx, async () => new Response(trySerializeLocals(mwCtx.locals)));
+assert.equal(await mwRes.text(), '{"role":"admin"}');
+const env = validateEnv(
+  { PORT: envField.number({ context: 'server', access: 'public', default: 3000 }) },
+  {},
+);
+assert.equal(env.PORT, 3000);
 `);
 });

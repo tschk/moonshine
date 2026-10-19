@@ -6,20 +6,25 @@ import {
   DestroyRef,
   ENVIRONMENT_INITIALIZER,
   EnvironmentInjector,
+  ExperimentalPendingTasks,
   HostAttributeToken,
   InjectionToken,
   Injector,
+  PendingTasks,
   afterNextRender,
   afterRender,
+  afterRenderEffect,
   applyInputValue,
   applyQueryValue,
   assertInInjectionContext,
+  assertNotInReactiveContext,
   computed,
   contentChild,
   contentChildren,
   createBridgedSignal,
   createDestroyRef,
   createEnvironmentInjector,
+  createPendingTasks,
   effect,
   fromMoonshineSignal,
   getCurrentInjector,
@@ -38,6 +43,7 @@ import {
   provideEnvironmentInitializer,
   resource,
   runInInjectionContext,
+  rxResource,
   signal,
   takeUntilDestroyed,
   toObservable,
@@ -45,6 +51,7 @@ import {
   untracked,
   viewChild,
   viewChildren,
+  type Observer,
   type Subscribable,
 } from "../src/signals";
 
@@ -835,5 +842,189 @@ describe("@tschk/moonshine-angular signals", () => {
     expect(() => applyQueryValue(signal(1), 2)).toThrow(
       "Target is not an Angular signal query",
     );
+  });
+
+  test("rxResource streams multi-emission Observables, unsubscribes on request change, and supports reload/local state", () => {
+    const query = signal<string | undefined>(undefined);
+    let activeUnsubscribed = 0;
+    let lastObserver: Partial<Observer<string>> | undefined;
+
+    const requested: string[] = [];
+    const res = rxResource({
+      request: () => query(),
+      defaultValue: "initial",
+      loader: ({ request }) => {
+        requested.push(request);
+        return {
+          subscribe(observerOrNext) {
+            lastObserver =
+              typeof observerOrNext === "function"
+                ? { next: observerOrNext }
+                : observerOrNext;
+            return {
+              unsubscribe() {
+                activeUnsubscribed++;
+              },
+            };
+          },
+        };
+      },
+    });
+
+    expect(res.status()).toBe("idle");
+    expect(res.value()).toBe("initial");
+
+    query.set("alpha");
+    expect(res.status()).toBe("loading");
+    expect(res.isLoading()).toBe(true);
+
+    // Emit multiple streaming values
+    lastObserver?.next?.("alpha:chunk-1");
+    expect(res.status()).toBe("resolved");
+    expect(res.value()).toBe("alpha:chunk-1");
+    expect(res.hasValue()).toBe(true);
+
+    lastObserver?.next?.("alpha:chunk-2");
+    expect(res.value()).toBe("alpha:chunk-2");
+
+    // Changing request unsubscribes previous stream
+    query.set("beta");
+    expect(activeUnsubscribed).toBe(1);
+    expect(res.status()).toBe("loading");
+
+    lastObserver?.error?.(new Error("stream-failed"));
+    expect(res.status()).toBe("error");
+    expect((res.error() as Error).message).toBe("stream-failed");
+    expect(res.value()).toBe("initial");
+
+    // Local override and reload
+    res.set("manual");
+    expect(res.status()).toBe("local");
+    expect(res.value()).toBe("manual");
+
+    expect(res.reload()).toBe(true);
+    expect(res.status()).toBe("reloading");
+    lastObserver?.next?.("beta:reloaded");
+    expect(res.status()).toBe("resolved");
+    expect(res.value()).toBe("beta:reloaded");
+
+    res.destroy();
+    expect(activeUnsubscribed).toBe(2);
+  });
+
+  test("PendingTasks tracks pending async work and resolves via DI", async () => {
+    expect(ExperimentalPendingTasks).toBe(PendingTasks);
+    const env = createEnvironmentInjector([]);
+    const tasks = env.runInContext(() => inject(PendingTasks));
+    expect(tasks).toBeInstanceOf(PendingTasks);
+    expect(tasks.hasPendingTasks()).toBe(false);
+
+    const remove1 = tasks.add();
+    expect(tasks.hasPendingTasks()).toBe(true);
+    remove1();
+    // Idempotent removal
+    remove1();
+    expect(tasks.hasPendingTasks()).toBe(false);
+
+    let resolveTask!: (v: string) => void;
+    const promise = tasks.run(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveTask = resolve;
+        }),
+    );
+    expect(tasks.hasPendingTasks()).toBe(true);
+    resolveTask("done");
+    expect(await promise).toBe("done");
+    expect(tasks.hasPendingTasks()).toBe(false);
+
+    const standaloneTasks = createPendingTasks();
+    standaloneTasks.add();
+    expect(standaloneTasks.hasPendingTasks()).toBe(true);
+    standaloneTasks.destroy();
+    expect(standaloneTasks.hasPendingTasks()).toBe(false);
+    env.destroy();
+  });
+
+  test("afterRenderEffect runs reactive phases and assertNotInReactiveContext guards reactive scopes", () => {
+    const width = signal(100);
+    const derivedLabel = signal("init");
+    const log: string[] = [];
+    const cleanups: string[] = [];
+
+    function outsideOnlyHelper() {
+      assertNotInReactiveContext(outsideOnlyHelper, "Call it during setup.");
+    }
+
+    outsideOnlyHelper();
+
+    const c = computed(() => {
+      expect(() => outsideOnlyHelper()).toThrow(
+        "NG0602: outsideOnlyHelper() cannot be called from within a reactive context. Call it during setup.",
+      );
+      // Inside untracked(), reactive context is suspended
+      untracked(() => outsideOnlyHelper());
+      return width() * 2;
+    });
+    expect(c()).toBe(200);
+
+    const ref = afterRenderEffect({
+      earlyRead: (onCleanup) => {
+        onCleanup(() => cleanups.push("earlyRead"));
+        expect(() => derivedLabel.set("illegal")).toThrow(
+          "Cannot write to signals inside a reactive computation",
+        );
+        const w = width();
+        log.push(`earlyRead:${w}`);
+        return w * 2;
+      },
+      write: (doubled, onCleanup) => {
+        onCleanup(() => cleanups.push("write"));
+        derivedLabel.set(`px:${doubled}`);
+        log.push(`write:${doubled}`);
+        return `label=${doubled}`;
+      },
+      mixedReadWrite: (formatted, onCleanup) => {
+        onCleanup(() => cleanups.push("mixed"));
+        log.push(`mixed:${formatted}`);
+        return formatted.toUpperCase();
+      },
+      read: (upper, onCleanup) => {
+        onCleanup(() => cleanups.push("read"));
+        expect(() => derivedLabel.set("illegal")).toThrow(
+          "Cannot write to signals inside a reactive computation",
+        );
+        log.push(`read:${upper}`);
+      },
+    });
+
+    expect(derivedLabel()).toBe("px:200");
+    expect(log).toEqual([
+      "earlyRead:100",
+      "write:200",
+      "mixed:label=200",
+      "read:LABEL=200",
+    ]);
+
+    width.set(150);
+    expect(cleanups).toEqual(["earlyRead", "write", "mixed", "read"]);
+    expect(derivedLabel()).toBe("px:300");
+    expect(log.slice(4)).toEqual([
+      "earlyRead:150",
+      "write:300",
+      "mixed:label=300",
+      "read:LABEL=300",
+    ]);
+
+    ref.destroy();
+
+    // SSR no-op
+    const ssrLog: string[] = [];
+    withSSRRendering(() => {
+      afterRenderEffect(() => {
+        ssrLog.push("ran");
+      });
+    });
+    expect(ssrLog).toEqual([]);
   });
 });
