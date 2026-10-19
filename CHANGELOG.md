@@ -1,3 +1,31 @@
+# Moonshine 0.4.45
+
+- Add `useTemplateRef` and `TemplateRef<T>` in `@tschk/moonshine-vue/reactive`
+  (re-exported from `@tschk/moonshine-vue/expose`) and `bindComponentRef` in
+  `@tschk/moonshine-vue/expose`. `useTemplateRef(key)` validates active component
+  initialization and per-instance key uniqueness, returning a readonly native
+  ref (`r.value = ...` throws `TypeError`) initialized to `null` and bound
+  internally by `bindRef` and `bindComponentRef`.
+- Extend `createTextModel`, `createCheckedModel`, `createSelectModel`, and
+  `createModelOption` in `@tschk/moonshine-vue/model` and
+  `@tschk/moonshine-vue/select` to exclude `"ref"` from attribute getter
+  forwarding and invoke `props.ref(element)` after model initialization (after
+  initial `apply()` on `<select>` so `selectRef.value.value` reflects initial
+  option selection in `onMounted`).
+- Local unpublished Crepuscularity lowering admits `useTemplateRef` (and
+  type-only `Ref` / `TemplateRef`) from `'vue'`, resolves top-level `const x =
+useTemplateRef("key")` bindings (including hyphenated keys), rejects duplicate
+  template ref keys across `ref`/`shallowRef`/`useTemplateRef`, and lowers
+  `ref="x"` and `:ref="'x'"` on `v-model` `<input>`, `<textarea>`, `<select>`,
+  and `<option>` elements.
+- Validation: 2,537 SDK tests pass (with all five optional compiler-gated
+  standalone tests passing when `MOONSHINE_CREPUS_COMPILER` is set); 876
+  source-gate modules (`scripts/check-native-sfc.ts`), 24 Crepuscularity Vue
+  model/expose/template-ref compiler tests, Clippy (`-D warnings`), and both
+  25-project typecheck lanes (`tsc` and `tsgo`) pass. The signal kernel stays at
+  4,041 raw bytes. Source compiler changes remain local and unpublished; npm
+  publication stays manual.
+
 # Moonshine 0.4.44
 
 - Add `toStore` and `fromStore` in `@tschk/moonshine-svelte/store` for Svelte 5
