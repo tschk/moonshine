@@ -16,6 +16,22 @@ describe("errors module", () => {
       const err = new Redirect("/login", 301);
       expect(err.status).toBe(301);
     });
+
+    test("creates a Redirect error with explicit undefined status (defaults to 302)", () => {
+      const err = new Redirect("/login", undefined);
+      expect(err.status).toBe(302);
+    });
+
+    test("creates a Redirect error with empty location", () => {
+      const err = new Redirect("");
+      expect(err.location).toBe("");
+    });
+
+    test("inherits stack trace from Error", () => {
+      const err = new Redirect("/login");
+      expect(err.stack).toBeDefined();
+      expect(typeof err.stack).toBe("string");
+    });
   });
 
   describe("redirect", () => {
