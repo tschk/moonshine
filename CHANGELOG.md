@@ -1,3 +1,33 @@
+# Moonshine 0.4.48
+
+- Add Vue 3.5 `useModel`, compiler-facing `createModel`, `ModelRef<T, M, G, S>`,
+  and `DefineModelOptions<T, G, S>` in `@tschk/moonshine-vue/reactive` (with
+  optional setter type parameter `Ref<T, S = T>`), plus local unpublished
+  Crepuscularity `<script setup>` `defineModel` macro lowering.
+- `createModel` and `useModel` support default (`modelValue`) and named models,
+  `[model, modifiers]` tuple destructuring via `[Symbol.iterator]` with frozen
+  reactive modifiers (`modelModifiers`, `modelValueModifiers`,
+  `model-valueModifiers`, `<name>Modifiers`, and `<kebab-name>Modifiers`),
+  `default` values and cached factories (evaluated inside component context so
+  `inject()` works, with `soleFunction` preservation for function-typed models),
+  `booleanCast` (`""`, `"true"`, and hyphenated prop-name literals cast to
+  `true`; omitted optional boolean models resolve to `false`), and `get`/`set`
+  transforms (including force-triggering local readers when `set` normalizes an
+  assigned value back to the current local value).
+- Controlled parent bindings emit `update:<name>` synchronously on `.value`
+  assignment while updating the local fallback ref so synchronous reads observe
+  the latest value immediately before the parent flushes; omitted parent
+  `v-model` bindings operate as standalone reactive local state, and
+  `useModel(props, name)` interoperates with `withDefaults`
+  (`createDefaultProps`) when raw parent props transition to `undefined`.
+- Local unpublished Crepuscularity lowering lowers `defineModel` in
+  `<script setup>` to `createModel(__ms_raw_props, ...)`, synthesizes the model
+  prop and `<name>Modifiers` prop metadata alongside `"update:<name>"` event
+  declarations, merges cleanly with `defineProps` / `withDefaults` and
+  `defineEmits` while rejecting duplicate model names or conflicting prop/emit
+  declarations, and treats `defineModel` / `useModel` refs as writable `Ref`
+  bindings in templates (`v-model`, auto-unwrap, and `defineExpose`).
+
 # Moonshine 0.4.47
 
 - Extend `@tschk/moonshine-vue/reactive` synchronous `watch` and

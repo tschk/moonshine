@@ -22,8 +22,10 @@ import { createTrackedSet } from "./set";
 import {
   getComponentContext,
   peekComponentContext,
+  withComponentConsumer,
   type ComponentContext,
 } from "@tschk/moonshine-dom/component";
+import { createEmitter } from "./events";
 import {
   createMutable,
   unwrap as unwrapStore,
@@ -34,11 +36,11 @@ const readonlyRefs = new WeakSet<object>();
 const refTriggers = new WeakMap<Ref<any>, () => void>();
 const refTriggerVersions = new WeakMap<Ref<any>, number>();
 declare const refBrand: unique symbol;
-export class Ref<T> {
+export class Ref<T, S = T> {
   declare readonly [refBrand]: true;
   private readonly read: () => T;
-  private readonly write?: (value: T) => void;
-  constructor(read: () => T, write?: (value: T) => void) {
+  private readonly write?: (value: any) => void;
+  constructor(read: () => T, write?: (value: S) => void) {
     this.read = read;
     this.write = write;
     refs.add(this);
@@ -47,12 +49,12 @@ export class Ref<T> {
   get value(): T {
     return this.read();
   }
-  set value(value: T) {
+  set value(value: S) {
     if (!this.write) throw new TypeError("Native ref is readonly");
     this.write(value);
   }
 }
-export function isRef(value: unknown): value is Ref<any> {
+export function isRef(value: unknown): value is Ref<any, any> {
   return typeof value === "object" && value !== null && refs.has(value);
 }
 export type MaybeRef<T = any> = T | Ref<T> | Readonly<Ref<T>>;
@@ -1375,4 +1377,328 @@ export function useTemplateRef<T = unknown, K extends string = string>(
   const refObject = new Ref<T | null>(read);
   templateRefBindings.set(refObject, { get: read, set: write });
   return refObject;
+}
+
+export interface DefineModelOptions<T = any, G = T, S = T> {
+  default?: any;
+  required?: boolean;
+  get?: (v: T) => G;
+  set?: (v: S) => any;
+}
+
+export type ModelRef<T, M extends PropertyKey = string, G = T, S = T> = Ref<
+  G,
+  S
+> &
+  [ModelRef<T, M, G, S>, Record<M, true | undefined>];
+
+const camelizeModelKey = (key: string) =>
+  key.replace(/-(\w)/g, (_, letter: string) => letter.toUpperCase());
+const hyphenateModelKey = (key: string) =>
+  key.replace(/\B([A-Z])/g, "-$1").toLowerCase();
+const emptyModelModifiers: Record<PropertyKey, true | undefined> =
+  /* @__PURE__ */ Object.freeze({});
+const unsetModelValue = /* @__PURE__ */ Symbol("moonshine.vue.model.unset");
+const hasListenerOn = (target: object, key: string) =>
+  key in target && Reflect.get(target, key, target) != null;
+
+export function createModel<V, M extends PropertyKey = string, G = V, S = V>(
+  props: Record<string, any>,
+  name: string,
+  options?: DefineModelOptions<V, G, S>,
+  booleanCast?: boolean,
+  soleFunction = false,
+): ModelRef<V, M, G, S> {
+  const frame = getComponentContext();
+  if (props === null || typeof props !== "object" || Array.isArray(props)) {
+    throw new TypeError("useModel requires a props object");
+  }
+  if (typeof name !== "string" || name.length === 0) {
+    throw new TypeError("useModel requires a non-empty string prop name");
+  }
+  if (
+    options !== undefined &&
+    (options === null || typeof options !== "object" || Array.isArray(options))
+  ) {
+    throw new TypeError("useModel options must be an object");
+  }
+  if (options?.get !== undefined && typeof options.get !== "function") {
+    throw new TypeError("useModel get option must be a function");
+  }
+  if (options?.set !== undefined && typeof options.set !== "function") {
+    throw new TypeError("useModel set option must be a function");
+  }
+  const raw = (
+    frame.props !== null &&
+    typeof frame.props === "object" &&
+    !Array.isArray(frame.props)
+      ? frame.props
+      : props
+  ) as Record<string, unknown>;
+  const emit = createEmitter<Record<string, readonly unknown[]>>(raw);
+  const camelName = camelizeModelKey(name);
+  const hyphenName = hyphenateModelKey(camelName);
+  const rawUpdateEvent = "update:" + name;
+  const camelUpdateKey = "onUpdate:" + camelName;
+  const rawUpdateKey = "onUpdate:" + name;
+  const hyphenUpdateKey = "onUpdate:" + hyphenName;
+
+  const hasUpdateListener = () =>
+    hasListenerOn(raw, camelUpdateKey) ||
+    hasListenerOn(raw, rawUpdateKey) ||
+    hasListenerOn(raw, hyphenUpdateKey) ||
+    hasListenerOn(raw, camelUpdateKey + "Once") ||
+    hasListenerOn(raw, rawUpdateKey + "Once") ||
+    hasListenerOn(raw, hyphenUpdateKey + "Once") ||
+    (props !== raw &&
+      (hasListenerOn(props, camelUpdateKey) ||
+        hasListenerOn(props, rawUpdateKey) ||
+        hasListenerOn(props, hyphenUpdateKey)));
+
+  const hasDefaultOption = options !== undefined && "default" in options;
+  let hasCachedDefault = false;
+  let cachedDefault: unknown;
+  const resolveDefault = () => {
+    if (!hasDefaultOption) return undefined;
+    const def = options!.default;
+    if (!soleFunction && typeof def === "function") {
+      if (!hasCachedDefault) {
+        cachedDefault = withComponentConsumer(frame, () =>
+          untrack(() => (def as () => unknown)()),
+        );
+        hasCachedDefault = true;
+      }
+      return cachedDefault;
+    }
+    return def;
+  };
+
+  let prevRawOnly: unknown = unsetModelValue;
+  const readIncomingProp = (): {
+    hasProp: boolean;
+    rawValue: unknown;
+    resolved: V;
+  } => {
+    let hasProp = false;
+    let propValue: unknown;
+    if (name in raw) {
+      hasProp = true;
+      propValue = Reflect.get(raw, name, raw);
+    } else if (camelName in raw) {
+      hasProp = true;
+      propValue = Reflect.get(raw, camelName, raw);
+    } else if (hyphenName in raw) {
+      hasProp = true;
+      propValue = Reflect.get(raw, hyphenName, raw);
+    }
+    const rawOnly = propValue;
+    if (props !== raw) {
+      const fromProps =
+        name in props
+          ? Reflect.get(props, name, props)
+          : Reflect.get(props, camelName, props);
+      if (!hasProp && fromProps !== undefined) {
+        hasProp = true;
+        propValue = fromProps;
+      } else if (
+        hasProp &&
+        propValue === undefined &&
+        fromProps !== undefined &&
+        (prevRawOnly === unsetModelValue || !Object.is(fromProps, prevRawOnly))
+      ) {
+        propValue = fromProps;
+      }
+    }
+    if (rawOnly !== undefined) prevRawOnly = rawOnly;
+    let resolved = propValue;
+    if (resolved === undefined && hasDefaultOption) {
+      resolved = resolveDefault();
+    }
+    if (booleanCast !== undefined) {
+      if (!hasProp && !hasDefaultOption) {
+        resolved = false;
+      } else if (booleanCast && (resolved === "" || resolved === hyphenName)) {
+        resolved = true;
+      }
+    }
+    return { hasProp, rawValue: propValue, resolved: resolved as V };
+  };
+
+  let forceTrigger = false;
+  let writing = false;
+  const initial = untrack(readIncomingProp);
+  const [readLocal, writeLocal] = createSignal<V>(initial.resolved, {
+    equals: (prev, next) => !forceTrigger && Object.is(prev, next),
+  });
+  let prevHasProp = initial.hasProp;
+  let prevRawValue = initial.rawValue;
+  let prevSetValue: unknown = unsetModelValue;
+  let localWrittenInSSR = false;
+
+  if (frame.mode === "dom") {
+    let initialized = false;
+    createComputed(() => {
+      const next = readIncomingProp();
+      if (!initialized) {
+        initialized = true;
+        prevHasProp = next.hasProp;
+        prevRawValue = next.rawValue;
+        untrack(() => writeLocal(() => next.resolved));
+        return;
+      }
+      if (
+        next.hasProp !== prevHasProp ||
+        !Object.is(next.rawValue, prevRawValue)
+      ) {
+        prevHasProp = next.hasProp;
+        prevRawValue = next.rawValue;
+        if (!writing) prevSetValue = unsetModelValue;
+        untrack(() => writeLocal(() => next.resolved));
+      }
+    });
+  }
+
+  const getter = options?.get;
+  const setter = options?.set;
+  let modelRef!: ModelRef<V, M, G, S>;
+
+  const read = (): G => {
+    const value =
+      frame.mode === "ssr" && !localWrittenInSSR
+        ? readIncomingProp().resolved
+        : readLocal();
+    return getter ? getter(value) : (value as unknown as G);
+  };
+
+  const write = (next: S): void => {
+    const currentLocal =
+      frame.mode === "ssr" && !localWrittenInSSR
+        ? untrack(readIncomingProp).resolved
+        : untrack(readLocal);
+    const emittedValue = (setter ? setter(next) : next) as unknown as V;
+    if (
+      Object.is(emittedValue, currentLocal) &&
+      Object.is(next, emittedValue) &&
+      (prevSetValue === unsetModelValue || Object.is(next, prevSetValue))
+    ) {
+      return;
+    }
+    prevSetValue = next;
+    localWrittenInSSR = true;
+    refTriggerVersions.set(
+      modelRef,
+      (refTriggerVersions.get(modelRef) ?? 0) + 1,
+    );
+    writing = true;
+    try {
+      if (!Object.is(next, emittedValue)) {
+        forceTrigger = true;
+      }
+      try {
+        writeLocal(() => emittedValue);
+      } finally {
+        forceTrigger = false;
+      }
+      emit(rawUpdateEvent, emittedValue);
+      const post = untrack(readIncomingProp);
+      if (post.hasProp && hasUpdateListener()) {
+        prevHasProp = post.hasProp;
+        prevRawValue = post.rawValue;
+        writeLocal(() => post.resolved);
+      }
+    } finally {
+      writing = false;
+    }
+  };
+
+  const resolveModifiers = (): Record<PropertyKey, true | undefined> => {
+    const mod =
+      (camelName === "modelValue"
+        ? (Reflect.get(raw, "modelModifiers", raw) ??
+          Reflect.get(raw, "modelValueModifiers", raw) ??
+          Reflect.get(raw, "model-valueModifiers", raw))
+        : undefined) ??
+      Reflect.get(raw, name + "Modifiers", raw) ??
+      Reflect.get(raw, camelName + "Modifiers", raw) ??
+      Reflect.get(raw, hyphenName + "Modifiers", raw) ??
+      (props !== raw
+        ? ((camelName === "modelValue"
+            ? (Reflect.get(props, "modelModifiers", props) ??
+              Reflect.get(props, "modelValueModifiers", props))
+            : undefined) ??
+          Reflect.get(props, name + "Modifiers", props) ??
+          Reflect.get(props, camelName + "Modifiers", props))
+        : undefined);
+    if (!mod || typeof mod !== "object") return emptyModelModifiers;
+    const normalized: Record<PropertyKey, true | undefined> = {};
+    for (const key of Reflect.ownKeys(mod)) {
+      if (Reflect.get(mod, key, mod)) {
+        normalized[key] = true;
+      }
+    }
+    return Object.freeze(normalized);
+  };
+  const modifiers = resolveModifiers() as Record<M, true | undefined>;
+
+  modelRef = new Ref<G, S>(read, write) as ModelRef<V, M, G, S>;
+  refTriggers.set(modelRef, () => {
+    forceTrigger = true;
+    try {
+      refTriggerVersions.set(
+        modelRef,
+        (refTriggerVersions.get(modelRef) ?? 0) + 1,
+      );
+      writeLocal((current) => current);
+    } finally {
+      forceTrigger = false;
+    }
+  });
+  Object.defineProperty(modelRef, Symbol.iterator, {
+    value: function* () {
+      yield modelRef;
+      yield modifiers;
+    },
+    writable: false,
+    enumerable: false,
+    configurable: true,
+  });
+  return modelRef;
+}
+
+export function useModel<
+  T extends Record<string, any>,
+  K extends keyof T & string,
+  M extends PropertyKey = string,
+  G = Exclude<T[K], undefined>,
+  S = Exclude<T[K], undefined>,
+>(
+  props: T,
+  name: K,
+  options: DefineModelOptions<Exclude<T[K], undefined>, G, S> & {
+    default: Exclude<T[K], undefined> | (() => Exclude<T[K], undefined>);
+  },
+): ModelRef<Exclude<T[K], undefined>, M, G, S>;
+export function useModel<
+  T extends Record<string, any>,
+  K extends keyof T & string,
+  M extends PropertyKey = string,
+  G = T[K],
+  S = T[K],
+>(
+  props: T,
+  name: K,
+  options?: DefineModelOptions<T[K], G, S>,
+): ModelRef<T[K], M, G, S>;
+export function useModel<
+  T extends Record<string, any>,
+  K extends keyof T & string,
+  M extends PropertyKey = string,
+  G = T[K],
+  S = T[K],
+>(
+  props: T,
+  name: K,
+  options?: DefineModelOptions<T[K], G, S>,
+): ModelRef<T[K], M, G, S> {
+  return createModel<T[K], M, G, S>(props, name, options);
 }

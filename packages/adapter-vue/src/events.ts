@@ -27,7 +27,9 @@ const modifiersOf = (source: object, model: string) => {
   const read = (name: string) =>
     Reflect.get(source, name + "Modifiers", source);
   return model === "modelValue" || model === "model-value"
-    ? Reflect.get(source, "modelModifiers", source)
+    ? Reflect.get(source, "modelModifiers", source) ||
+        read("modelValue") ||
+        read("model-value")
     : read(model) ||
         read(camel(model)) ||
         read(model.replace(/\B([A-Z])/g, "-$1").toLowerCase());

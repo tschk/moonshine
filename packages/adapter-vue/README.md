@@ -20,19 +20,19 @@ import { fromMoonshineSignal } from "@tschk/moonshine-vue";
 import { ref } from "@tschk/moonshine-vue/reactive";
 ```
 
-| Subpath          | Provides                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                                                                                                                                                                                                                                                    |
-| `./vue`          | `vue` runtime re-exports                                                                                                                                                                                                                                                                                                                                                  |
-| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                                                                                                                                                                                                                                                             |
-| `./reactive`     | native `ref`/`shallowRef`/`customRef`/`triggerRef`/`useTemplateRef`, `toRef`/`toRefs`/`unref`/`toValue`/`isRef`, `reactive`/`shallowReactive`/`readonly`/`shallowReadonly`, `isReactive`/`isReadonly`/`isShallow`/`isProxy`/`toRaw`/`markRaw`, `computed`, `watch`/`watchSyncEffect`/`onWatcherCleanup` (`WatchHandle`), `effectScope`/`getCurrentScope`/`onScopeDispose` |
-| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                                                                                                                                                                                                                                                               |
-| `./text`         | native DOM and SSR interpolation conversion                                                                                                                                                                                                                                                                                                                               |
-| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                                                                                                                                                                                                                                                           |
-| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                                                                                                                                                                                                                                                                 |
-| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                                                                                                                                                                                                                                                     |
-| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                                                                                                                                                                                                                                                    |
-| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                                                                                                                                                                                                                                                               |
+| Subpath          | Provides                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                                                                                                                                                                                                                                                                                                                |
+| `./vue`          | `vue` runtime re-exports                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `./reactive`     | native `ref`/`shallowRef`/`customRef`/`triggerRef`/`useTemplateRef`/`useModel`/`createModel` (`ModelRef`, `DefineModelOptions`), `toRef`/`toRefs`/`unref`/`toValue`/`isRef`, `reactive`/`shallowReactive`/`readonly`/`shallowReadonly`, `isReactive`/`isReadonly`/`isShallow`/`isProxy`/`toRaw`/`markRaw`, `computed`, `watch`/`watchSyncEffect`/`onWatcherCleanup` (`WatchHandle`), `effectScope`/`getCurrentScope`/`onScopeDispose` |
+| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                                                                                                                                                                                                                                                                                                                           |
+| `./text`         | native DOM and SSR interpolation conversion                                                                                                                                                                                                                                                                                                                                                                                           |
+| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                                                                                                                                                                                                                                                                                                                       |
+| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                                                                                                                                                                                                                                                                                                                             |
+| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                                                                                                                                                                                                                                                                                                                 |
+| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                                                                                                                                                                                                                                                                                                                |
+| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                                                                                                                                                                                                                                                                                                                           |
 
 `./framework` exports the same lazy `crepusRenderer` compatibility name as the
 root. Its optional `@tschk/moonshine-framework` peer is needed only when rendering.
@@ -201,7 +201,8 @@ unchanged. This select fixture is 11,722 gzip bytes versus Vue 3.5.13's 21,900;
 there is no startup/runtime speed claim. Compiler changes remain unpublished.
 
 Plain component `v-model` compiles locally when the imported Vue SFC child declares
-`modelValue` in typed props and `update:modelValue` in typed emits. It uses the
+`modelValue` in typed props and `update:modelValue` in typed emits, or declares
+`defineModel`. It uses the
 existing live props and event protocol, with no added runtime or dependencies.
 Explicit update listeners retain template attribute order relative to the setter;
 `.once` listeners preserve the distinct DOM/server policies. Readonly targets,
@@ -209,9 +210,27 @@ conflicting explicit model props/listeners and missing child contracts reject.
 Static named and multiple models also compile locally: identifier/kebab arguments
 normalize to canonical child prop names, each with a matching declared update
 event. Listener order is tracked separately for each model. Model props named
-`class` and `style` use the existing component normalizers. Dynamic arguments and
-`defineModel` remain unsupported. Component modifiers compile locally as described
+`class` and `style` use the existing component normalizers. Dynamic model arguments
+remain unsupported. Component modifiers compile locally as described
 below. This is source support, not Vue's compiled component ABI or hydration.
+
+`@tschk/moonshine-vue/reactive` exports `useModel(props, name, options?)`,
+compiler-facing `createModel`, `ModelRef<T, M, G, S>`, and
+`DefineModelOptions<T, G, S>`. Top-level `const` `defineModel` declarations
+(including `const [model, modifiers] = defineModel<T, M>(...)` and
+`const [model, modifiers] = useModel(props, name, options)`) lower in the local
+Crepus compiler to `createModel`, augmenting the component's public TypeScript
+props type with the model prop (`required` when `{ required: true }` without
+`default`), modifier prop (`modelModifiers`/`modelValueModifiers` or
+`<name>Modifiers`), and `EventListeners<{ "update:<name>": [value: T] }>` while
+registering child `defineModel` metadata for parent `v-model` and boolean-cast
+validation. `createModel` / `useModel` support static and cached factory
+defaults (running factories within the component consumer context for `inject()`
+and preserving function defaults when the model type is a sole function),
+Boolean prop casting, custom `get` and `set` transforms (with normalization
+force-trigger when `set` normalizes an assigned value back to the current model
+value), standalone local state when the parent omits `v-model`, controlled
+parent props, and SSR reads/writes.
 
 Thirteen authored parent/child browser phases compare both listener orders,
 `.once`, external parent updates, multiple instances and disposal against Vue
@@ -250,8 +269,8 @@ raw modifier object. This mutation pattern is not compatible yet. This
 fixture is 10,943 gzip bytes versus Vue's 21,493. The unchanged named-model control
 adds 158 gzip bytes for emit conversion (11,141 versus its previous 10,983);
 the signal kernel stays unchanged. No startup/runtime speed claim. Compiler
-changes remain local and unpublished; dynamic model arguments, `defineModel`
-and hydration remain unsupported.
+changes remain local and unpublished; dynamic model arguments and hydration
+remain unsupported.
 
 Native `./context` provides `provide`, `inject`, `hasInjectionContext`, and typed
 `InjectionKey` symbols during synchronous native component initialization. Injection
