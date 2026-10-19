@@ -205,6 +205,75 @@ describe("createRequestHandler", () => {
     expect(await res.text()).toBe("Invalid redirect");
   });
 
+  test("error boundary catches before middleware errors", async () => {
+    const routes = graph([
+      { id: "root", path: "/", file: "root.tsx" },
+      { id: "child", path: "/child", file: "child.tsx", layouts: ["root"] },
+    ]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        root: {
+          errorBoundary: (_ctx, err) =>
+            new Response(
+              `root:${err instanceof Error ? err.message : String(err)}`,
+              { status: 500 },
+            ),
+        },
+        child: {
+          before: [
+            () => {
+              throw new Error("child before fail");
+            },
+          ],
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/child"));
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe("root:child before fail");
+  });
+
+  test("unhandled before middleware error returns generic error response", async () => {
+    const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        from: {
+          before: [
+            () => {
+              throw new Error("unhandled before error");
+            },
+          ],
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/from"));
+    expect(res.status).toBe(500);
+  });
+
+  test("thrown response from before middleware becomes the response", async () => {
+    const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        from: {
+          before: [
+            () => {
+              throw new Response("early exit", { status: 418 });
+            },
+          ],
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/from"));
+    expect(res.status).toBe(418);
+    expect(await res.text()).toBe("early exit");
+  });
+
   test("nearest error boundary catches loader errors", async () => {
     const routes = graph([
       { id: "root", path: "/", file: "root.tsx" },
