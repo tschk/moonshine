@@ -22,6 +22,26 @@ describe("parseSearch", () => {
   test("returns an empty record for no query", () => {
     expect(parseSearch("")).toEqual({});
   });
+
+  test("handles query without leading ?", () => {
+    expect(parseSearch("page=2&open=true")).toEqual({ page: 2, open: true });
+  });
+
+  test("handles URL-encoded JSON values", () => {
+    expect(parseSearch("?arr=%5B1%2C2%2C3%5D")).toEqual({ arr: [1, 2, 3] });
+  });
+
+  test("falls back to string for invalid JSON", () => {
+    expect(parseSearch("?bad={notjson}")).toEqual({ bad: "{notjson}" });
+  });
+
+  test("handles duplicated keys by taking the last one", () => {
+    expect(parseSearch("?q=first&q=second")).toEqual({ q: "second" });
+  });
+
+  test("handles empty string values", () => {
+    expect(parseSearch("?empty=")).toEqual({ empty: "" });
+  });
 });
 
 describe("stringifySearch", () => {
