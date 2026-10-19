@@ -231,6 +231,12 @@ assert.equal(fade({style:{opacity:'1'}},{duration:100}).css(0.5,0.5),'opacity: 0
 assert.ok(fly({style:{opacity:'1',transform:'none'}},{x:20}).css(0.5,0.5).includes('translate(10px, 0px)'));
 assert.ok(scale({style:{opacity:'1',transform:'none'}},{start:0.5}).css(0.5,0.5).includes('scale(0.75)'));
 assert.ok(flip({style:{transform:'none'}},{from:{left:0,top:0,width:50,height:50},to:{left:10,top:20,width:50,height:50}}).css(0.5,0.5).includes('translate(-5px, -10px)'));
+const {render:serverRender}=await import('@tschk/moonshine-svelte/server');
+const {once,preventDefault,handlers}=await import('@tschk/moonshine-svelte/legacy');
+const srvOut=serverRender(p=>h('div',{id:serverPropsId()},p.text),{props:{text:'ok'},idPrefix:'p-'});
+assert.equal(srvOut.body,'<div id="p-s-0">ok</div>');assert.equal(srvOut.html,srvOut.body);assert.equal(srvOut.head,'');
+let onceCount=0;const fnOnce=once(preventDefault(()=>{onceCount++}));let prevented=false;fnOnce({preventDefault(){prevented=true}});fnOnce({preventDefault(){}});assert.equal(onceCount,1);assert.equal(prevented,true);
+let hSum=0;handlers(n=>{hSum+=n},null,n=>{hSum+=n*2})(3);assert.equal(hSum,9);
 `);
 });
 

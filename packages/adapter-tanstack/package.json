@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-tanstack",
-  "version": "0.4.64",
+  "version": "0.4.65",
   "description": "TanStack Router / Start client API reimplemented on moonshine — drop @tanstack/react-router, keep the imports",
   "license": "ISC",
   "type": "module",

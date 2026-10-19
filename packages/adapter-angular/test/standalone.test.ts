@@ -142,6 +142,23 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     ]);
     const data=await httpEnv.get(httpMod.HttpClient).get('/ping');
     assert.deepEqual(data,{u:'/ping?i=1'});
+    const formsMod=await import('@tschk/moonshine-angular/forms');
+    const fc=new formsMod.FormControl('hi',{nonNullable:true,validators:[formsMod.Validators.minLength(3)]});
+    assert.equal(fc.valid,false);
+    fc.setValue('hello');
+    assert.equal(fc.valid,true);
+    assert.equal(fc.valueSignal(),'hello');
+    const routerMod=await import('@tschk/moonshine-angular/router');
+    const routerEnv=root.createEnvironmentInjector([
+      routerMod.provideRouter([{path:'items/:id',title:r=>'Item '+r.params.id}])
+    ]);
+    const rtr=routerEnv.get(routerMod.Router);
+    const act=routerEnv.get(routerMod.ActivatedRoute);
+    assert.equal(await rtr.navigateByUrl('/items/42?sort=asc'),true);
+    assert.equal(act.paramsSignal().id,'42');
+    assert.equal(act.queryParamsSignal().sort,'asc');
+    assert.equal(act.titleSignal(),'Item 42');
+    routerEnv.destroy();
     httpEnv.destroy();
     env.destroy();
     assert.equal(env.destroyed,true);

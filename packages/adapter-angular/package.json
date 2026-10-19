@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-angular",
-  "version": "0.4.64",
+  "version": "0.4.65",
   "description": "Native signal bridges and rendering with optional legacy angular entries",
   "license": "ISC",
   "type": "module",
@@ -10,6 +10,8 @@
     ".": "./src/index.ts",
     "./signals": "./src/signals.ts",
     "./http": "./src/http.ts",
+    "./forms": "./src/forms.ts",
+    "./router": "./src/router.ts",
     "./core": "./src/core.ts",
     "./common": "./src/common.ts"
   },
