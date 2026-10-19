@@ -205,6 +205,44 @@ describe("createRequestHandler", () => {
     expect(await res.text()).toBe("Invalid redirect");
   });
 
+  test("error boundary throws out of the pipeline handler", async () => {
+    const handler = createRequestHandler({
+      routes: [{ id: "root", path: "/", file: "root.tsx" }],
+      modules: {
+        root: {
+          loader: () => {
+            throw new Error("loader error");
+          },
+          errorBoundary: () => {
+            throw new Error("boundary error");
+          },
+        },
+      },
+    });
+    await expect(handler(new Request("http://x/"))).rejects.toThrow(
+      "boundary error",
+    );
+  });
+
+  test("error boundary throwing a Response rejects with the Response", async () => {
+    const handler = createRequestHandler({
+      routes: [{ id: "root", path: "/", file: "root.tsx" }],
+      modules: {
+        root: {
+          loader: () => {
+            throw new Error("loader error");
+          },
+          errorBoundary: () => {
+            throw new Response("boundary error response", { status: 418 });
+          },
+        },
+      },
+    });
+    const res = await handler(new Request("http://x/")).catch((e) => e);
+    expect(res).toBeInstanceOf(Response);
+    expect(res.status).toBe(418);
+  });
+
   test("nearest error boundary catches loader errors", async () => {
     const routes = graph([
       { id: "root", path: "/", file: "root.tsx" },
