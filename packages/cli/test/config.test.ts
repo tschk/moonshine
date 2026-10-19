@@ -55,7 +55,9 @@ describe("findConfig", () => {
   });
 
   test("returns ts config over js config if both exist", () => {
-    const bothTmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-both-config-")));
+    const bothTmp = resolve(
+      mkdtempSync(join(tmpdir(), "moonshine-both-config-")),
+    );
     const tsConfigPath = join(bothTmp, "moonshine.config.ts");
     const jsConfigPath = join(bothTmp, "moonshine.config.js");
     writeFileSync(tsConfigPath, `export default { adapter: "bun" };\n`);
@@ -63,7 +65,8 @@ describe("findConfig", () => {
     try {
       expect(findConfig(bothTmp)).toBe(tsConfigPath);
     } finally {
-      if (existsSync(bothTmp)) rmSync(bothTmp, { recursive: true, force: true });
+      if (existsSync(bothTmp))
+        rmSync(bothTmp, { recursive: true, force: true });
     }
   });
 
