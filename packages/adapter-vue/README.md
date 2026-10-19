@@ -49,27 +49,27 @@ Native `watch` requires `{ flush: "sync" }` and supports `immediate`, `deep`
 default for `reactive`, depth `1` by default for `shallowReactive` or
 `{ deep: false }`), `onWatcherCleanup(fn, failSilently?)`, and `WatchHandle`
 (`stop()`, `pause()`, `resume()`, and callable `handle()`). Component
-pre/post render scheduling and Vue Map/WeakMap/WeakSet collection proxies are
-not implemented by this entry. Plain objects and
-arrays are reactive; nested refs unwrap on object properties and retain their
-identity at integer array entries.
+pre/post render scheduling and Vue WeakMap/WeakSet collection proxies are
+not implemented by this entry. Plain objects, arrays, `Set`, and `Map` are
+reactive; nested refs unwrap on object properties and retain their
+identity at integer array entries and `Set`/`Map` collection entries.
 Each watcher run can register multiple cleanup callbacks (via the callback's
 third parameter or `onWatcherCleanup`). Reruns and stops drain
 them in registration order, attempt all callbacks after a failure, and preserve
 the first error. A cleanup that stops its watcher prevents another callback run.
 
-### Native Set tracking
+### Native Set and Map tracking
 
-`reactive(new Set())`, `shallowReactive(new Set())`, `readonly(new Set())`,
-`shallowReadonly(new Set())`, deep refs containing Sets and Sets nested in plain state
-use the independent native graph. Membership reads track individual keys;
-size, iteration and `forEach` track membership changes. Duplicate additions,
-missing deletions and empty clears do not notify. Object entries retain
-raw/proxy membership identity and wrap on iteration in deep `reactive`/`readonly`; stored native refs retain
-their identity. `shallowRef` keeps external Sets raw and tracks replacement only.
-Map/WeakMap/WeakSet reactivity and Set algebra methods remain unsupported. Mutating an original raw Set bypasses notification.
+`reactive(new Set())`, `reactive(new Map())`, `shallowReactive`, `readonly`,
+`shallowReadonly`, deep refs containing `Set`/`Map` instances, and `Set`/`Map` instances nested in plain state
+use the independent native graph. Membership (`has`) and key lookups (`get`) track individual keys;
+size, iteration (`keys`, `values`, `entries`, `[Symbol.iterator]`) and `forEach` track collection changes. Duplicate additions,
+equal-value `Map.set` writes (`Object.is`), missing deletions and empty clears do not notify. Object keys and entries retain
+raw/proxy membership identity and wrap on access/iteration in deep `reactive`/`readonly`; stored native refs retain
+their identity. `shallowRef` keeps external `Set`/`Map` instances raw and tracks replacement only.
+`WeakMap`/`WeakSet` reactivity and `Set` algebra methods remain unsupported. Mutating an original raw `Set` or `Map` bypasses notification.
 
-The local compiler accepts unshadowed global `Set<T>` prop values. Local `Set`
+The local compiler accepts unshadowed global `Set<T>` and `Map<K, V>` prop values. Local `Set` or `Map`
 bindings, including conservative checks in nested scopes, remain rejected until
 full type-resolution metadata is available. The existing authored counter fixture grows by 730 gzip bytes with
 this support; the default signal kernel remains unchanged. No speed claim.
@@ -115,11 +115,11 @@ and synchronous `watch`) to re-evaluate after in-place mutations. `customRef((tr
 creates a native ref with explicit dependency tracking and notification control.
 
 `shallowReactive` tracks root-level object properties, array indices/length/mutations,
-and `Set` membership without deep wrapping or nested ref unwrapping. `readonly`
-creates a deep read-only view over plain objects, arrays, `Set`s, reactive proxies,
+and `Set`/`Map` membership and entries without deep wrapping or nested ref unwrapping. `readonly`
+creates a deep read-only view over plain objects, arrays, `Set`s, `Map`s, reactive proxies,
 and refs (forwarding reactive tracking when wrapping a reactive target while throwing
-`TypeError` on writes, deletes, `defineProperty`, or `Set` mutations); `shallowReadonly`
-enforces read-only access only at the root level. `markRaw` marks an object or `Set`
+`TypeError` on writes, deletes, `defineProperty`, or `Set`/`Map` mutations); `shallowReadonly`
+enforces read-only access only at the root level. `markRaw` marks an object, `Set`, or `Map`
 so `reactive`, `shallowReactive`, `readonly`, `shallowReadonly`, and `ref` return it
 unwrapped (both at root and nested positions), and `toRaw` unwraps any native proxy
 layer back to the underlying raw object. `isReactive`, `isReadonly`, `isShallow`,

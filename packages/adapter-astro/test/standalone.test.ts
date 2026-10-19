@@ -268,5 +268,15 @@ const env = validateEnv(
   {},
 );
 assert.equal(env.PORT, 3000);
+const { getImage, inferImageDimensions } = await import('@tschk/moonshine-astro/assets');
+const { paginate } = await import('@tschk/moonshine-astro/routing');
+const img = await getImage({ src: { src: '/hero.png', width: 800, height: 400, format: 'png' }, width: 400, alt: 'Hero' });
+assert.equal(img.attributes.width, 400);
+assert.equal(img.attributes.height, 200);
+const svgDims = inferImageDimensions(new TextEncoder().encode('<svg viewBox="0 0 64 32"></svg>'));
+assert.deepEqual(svgDims, { width: 64, height: 32, format: 'svg' });
+const paginated = paginate(['a', 'b', 'c'], { pageSize: 2 });
+assert.equal(paginated.length, 2);
+assert.equal(paginated[0].props.page.url.next, '/2');
 `);
 });

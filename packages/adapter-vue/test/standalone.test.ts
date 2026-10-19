@@ -47,6 +47,7 @@ import SetChild from './SetChild.vue';
 import ModelChild from './ModelChild.vue';
 import DefineModelChild from './DefineModelChild.vue';
 const selected=ref(new Set(['x']));
+const entries=ref(new Map([['x',7]]));
 const count=ref(2);
 const label=ref('label');
 const id=useId();
@@ -54,16 +55,16 @@ const doubled=computed(()=>count.value*2);
 onBeforeMount(()=>{count.value+=10;});
 onErrorCaptured(()=>false);
 function increment(){count.value++;}
-</script><template><div :id="id"><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected"/><ModelChild v-model="count" v-model:label.trim="label"/><DefineModelChild v-model.trim="label" active/><output>{{count}}/{{label}}</output></div></template>`;
+</script><template><div :id="id"><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected" :entries="entries"/><ModelChild v-model="count" v-model:label.trim="label"/><DefineModelChild v-model.trim="label" active/><output>{{count}}/{{label}}</output></div></template>`;
     const child = `<script setup>import {useId} from 'vue';const id=useId();const label='<b>&';</script><template><p :id="id">{{label}}</p></template>`;
-    const setChild = `<script setup lang="ts">const props=defineProps<{values:Set<string>}>();</script><template><em>{{props.values.size}}</em></template>`;
+    const setChild = `<script setup lang="ts">const props=defineProps<{values:Set<string>;entries:Map<string,number>}>();</script><template><em>{{props.values.size}}/{{props.entries.get('x')}}</em></template>`;
     const modelChild = `<script setup lang="ts">const props=defineProps<{modelValue:number;label:string}>();const emit=defineEmits<{'update:modelValue':[number];'update:label':[string]}>();if(typeof document==='undefined'){emit('update:modelValue',props.modelValue+1);emit('update:label',' '+props.label+'-ssr ');}</script><template><strong>{{props.modelValue}}/{{props.label}}</strong></template>`;
     const defineModelChild = `<script setup lang="ts">const [model,mods]=defineModel<string,'trim'>({default:'fallback',get:(v)=>mods.trim?v.trim():v});const active=defineModel<boolean>('active',{default:false});if(typeof document==='undefined'){model.value=' '+model.value+'-dm ';}</script><template><kbd>{{model}}/{{active}}</kbd></template>`;
     const check = `import assert from 'node:assert/strict';
 import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
 assert.equal(typeof document,'undefined');
-for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div id="v-0"><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p id="v-1">&lt;b&gt;&amp;</p><em>1</em><strong>2/label</strong><kbd>label-ssr-dm/true</kbd><output>3/label-ssr-dm</output></div>');
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div id="v-0"><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p id="v-1">&lt;b&gt;&amp;</p><em>1/7</em><strong>2/label</strong><kbd>label-ssr-dm/true</kbd><output>3/label-ssr-dm</output></div>');
 assert.equal(typeof document,'undefined');`;
     await standalone(`
 import assert from 'node:assert/strict';

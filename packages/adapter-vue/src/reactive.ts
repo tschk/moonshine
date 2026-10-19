@@ -18,6 +18,7 @@ import {
   trackDependency,
   type Trackable,
 } from "@tschk/moonshine/tracking";
+import { createTrackedMap } from "./map";
 import { createTrackedSet } from "./set";
 import {
   getComponentContext,
@@ -123,30 +124,40 @@ const arrayIndex = (key: PropertyKey) =>
 export type Unwrap<T> =
   T extends Readonly<Ref<infer V>>
     ? V
-    : T extends Set<infer V>
-      ? Set<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
-      : T extends ReadonlySet<infer V>
-        ? ReadonlySet<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
-        : T extends Function | Date | Map<unknown, unknown> | Node | Window
-          ? T
-          : T extends readonly unknown[]
-            ? {
-                [K in keyof T]: T[K] extends Readonly<Ref<any>>
-                  ? T[K]
-                  : Unwrap<T[K]>;
-              }
-            : T extends object
-              ? { [K in keyof T]: Unwrap<T[K]> }
-              : T;
+    : T extends Map<infer K, infer V>
+      ? Map<
+          K extends Readonly<Ref<any>> ? K : Unwrap<K>,
+          V extends Readonly<Ref<any>> ? V : Unwrap<V>
+        >
+      : T extends ReadonlyMap<infer K, infer V>
+        ? ReadonlyMap<
+            K extends Readonly<Ref<any>> ? K : Unwrap<K>,
+            V extends Readonly<Ref<any>> ? V : Unwrap<V>
+          >
+        : T extends Set<infer V>
+          ? Set<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
+          : T extends ReadonlySet<infer V>
+            ? ReadonlySet<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
+            : T extends Function | Date | Node | Window
+              ? T
+              : T extends readonly unknown[]
+                ? {
+                    [K in keyof T]: T[K] extends Readonly<Ref<any>>
+                      ? T[K]
+                      : Unwrap<T[K]>;
+                  }
+                : T extends object
+                  ? { [K in keyof T]: Unwrap<T[K]> }
+                  : T;
 export type DeepReadonly<T> = T extends
   ((...args: any[]) => any) | Date | RegExp | Node | Window
   ? T
   : T extends Readonly<Ref<infer V>>
     ? Readonly<Ref<DeepReadonly<Unwrap<V>>>>
-    : T extends Set<infer V> | ReadonlySet<infer V>
-      ? ReadonlySet<DeepReadonly<V>>
-      : T extends Map<infer K, infer V> | ReadonlyMap<infer K, infer V>
-        ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
+    : T extends Map<infer K, infer V> | ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
+      : T extends Set<infer V> | ReadonlySet<infer V>
+        ? ReadonlySet<DeepReadonly<V>>
         : T extends readonly unknown[]
           ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
           : T extends object
@@ -159,13 +170,17 @@ function wrapValue<T>(value: T): T {
   if (value === null || typeof value !== "object") return value;
   const raw: object = unwrapStore(value);
   if (rawMarked.has(value) || rawMarked.has(raw)) return raw as T;
-  return plain(raw) || raw instanceof Set ? (reactive(value) as T) : value;
+  return plain(raw) || raw instanceof Set || raw instanceof Map
+    ? (reactive(value) as T)
+    : value;
 }
 function wrapReadonly<T>(value: T): T {
   if (value === null || typeof value !== "object") return value;
   const raw: object = toRaw(value);
   if (rawMarked.has(value) || rawMarked.has(raw)) return value;
-  return plain(raw) || raw instanceof Set ? (readonly(value) as T) : value;
+  return plain(raw) || raw instanceof Set || raw instanceof Map
+    ? (readonly(value) as T)
+    : value;
 }
 export function reactive<T extends object>(value: T): Unwrap<T> {
   if (readonlyProxies.has(value)) return value as Unwrap<T>;
@@ -185,9 +200,18 @@ export function reactive<T extends object>(value: T): Unwrap<T> {
     proxies.set(proxy, proxy);
     return proxy as Unwrap<T>;
   }
+  if (rawTarget instanceof Map) {
+    if (!Object.isExtensible(rawTarget)) return rawTarget as Unwrap<T>;
+    const proxy = createTrackedMap(rawTarget, wrapValue, rawValue);
+    reactiveProxies.add(proxy);
+    targets.set(proxy, rawTarget);
+    proxies.set(rawTarget, proxy);
+    proxies.set(proxy, proxy);
+    return proxy as Unwrap<T>;
+  }
   if (!plain(rawTarget))
     throw new TypeError(
-      "Native reactive requires a plain object, array or Set",
+      "Native reactive requires a plain object, array, Set or Map",
     );
   if (!Object.isExtensible(rawTarget)) return rawTarget as Unwrap<T>;
   const mutable = createMutable(rawTarget, { equals: Object.is });
@@ -285,9 +309,18 @@ export function shallowReactive<T extends object>(value: T): T {
     shallowReactiveMap.set(proxy, proxy);
     return proxy as unknown as T;
   }
+  if (rawTarget instanceof Map) {
+    const proxy = createTrackedMap(rawTarget, (v) => v, rawValue);
+    reactiveProxies.add(proxy);
+    shallowProxies.add(proxy);
+    targets.set(proxy, rawTarget);
+    shallowReactiveMap.set(rawTarget, proxy);
+    shallowReactiveMap.set(proxy, proxy);
+    return proxy as unknown as T;
+  }
   if (!plain(rawTarget))
     throw new TypeError(
-      "Native shallowReactive requires a plain object, array or Set",
+      "Native shallowReactive requires a plain object, array, Set or Map",
     );
   const methods = new Map<PropertyKey, Function>();
   const proxy = new Proxy(rawTarget, {
@@ -473,6 +506,110 @@ function createReadonlySet(target: Set<unknown>, deep: boolean): Set<unknown> {
   return proxy;
 }
 
+const readonlyMapStates = new WeakMap<
+  object,
+  { target: Map<unknown, unknown>; deep: boolean }
+>();
+function readonlyMapState(value: object) {
+  const found = readonlyMapStates.get(value);
+  if (!found) throw new TypeError("Map method requires a native readonly Map");
+  return found;
+}
+function readonlyMapIterator(
+  receiver: Map<unknown, unknown>,
+  mode: "keys" | "values" | "entries",
+): MapIterator<any> {
+  const s = readonlyMapState(receiver);
+  return (function* () {
+    for (const [key, value] of s.target.entries()) {
+      const wrappedKey = s.deep ? wrapReadonly(key) : key;
+      const wrappedValue = s.deep ? wrapReadonly(value) : value;
+      yield mode === "keys"
+        ? wrappedKey
+        : mode === "values"
+          ? wrappedValue
+          : [wrappedKey, wrappedValue];
+    }
+    return undefined;
+  })();
+}
+const readonlyMapMethods = {
+  get size() {
+    return readonlyMapState(this).target.size;
+  },
+  has(this: Map<unknown, unknown>, key: unknown) {
+    const { target } = readonlyMapState(this);
+    const raw = toRaw(key);
+    return target.has(key) || (raw !== key && target.has(raw));
+  },
+  get(this: Map<unknown, unknown>, key: unknown) {
+    const { target, deep } = readonlyMapState(this);
+    const raw = toRaw(key);
+    let value: unknown;
+    if (target.has(key)) {
+      value = target.get(key);
+    } else if (raw !== key && target.has(raw)) {
+      value = target.get(raw);
+    } else {
+      value = target.get(key);
+    }
+    return deep ? wrapReadonly(value) : value;
+  },
+  set() {
+    throw new TypeError("Cannot mutate a readonly Map");
+  },
+  delete() {
+    throw new TypeError("Cannot mutate a readonly Map");
+  },
+  clear() {
+    throw new TypeError("Cannot mutate a readonly Map");
+  },
+  keys(this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "keys");
+  },
+  values(this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "values");
+  },
+  entries(this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "entries");
+  },
+  [Symbol.iterator](this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "entries");
+  },
+  forEach(
+    this: Map<unknown, unknown>,
+    callback: (
+      value: unknown,
+      key: unknown,
+      map: Map<unknown, unknown>,
+    ) => void,
+    thisArg?: unknown,
+  ) {
+    if (typeof callback !== "function")
+      throw new TypeError("Map callback must be a function");
+    const s = readonlyMapState(this);
+    s.target.forEach((value, key) => {
+      const wrappedKey = s.deep ? wrapReadonly(key) : key;
+      const wrappedValue = s.deep ? wrapReadonly(value) : value;
+      callback.call(thisArg, wrappedValue, wrappedKey, this);
+    });
+  },
+};
+function createReadonlyMap(
+  target: Map<unknown, unknown>,
+  deep: boolean,
+): Map<unknown, unknown> {
+  const proxy = new Proxy(target, {
+    get(source, key, receiver) {
+      return Object.hasOwn(readonlyMapMethods, key) && key in source
+        ? Reflect.get(readonlyMapMethods, key, receiver)
+        : Reflect.get(source, key, receiver);
+    },
+  });
+  readonlyMapStates.set(proxy, { target, deep });
+  return proxy;
+}
+
 function createReadonly<T extends object>(value: T, shallow: boolean): any {
   if (isRef(value)) {
     if (readonlyRefs.has(value) && (!shallow || shallowProxies.has(value))) {
@@ -522,9 +659,21 @@ function createReadonly<T extends object>(value: T, shallow: boolean): any {
     cache.set(proxy, proxy);
     return proxy;
   }
+  if (rawCandidate instanceof Map) {
+    const proxy = createReadonlyMap(
+      underlying as unknown as Map<unknown, unknown>,
+      !shallow,
+    );
+    readonlyProxies.add(proxy);
+    if (shallow) shallowProxies.add(proxy);
+    targets.set(proxy, underlying);
+    cache.set(underlying, proxy);
+    cache.set(proxy, proxy);
+    return proxy;
+  }
   if (!plain(rawCandidate))
     throw new TypeError(
-      "Native readonly requires a plain object, array or Set",
+      "Native readonly requires a plain object, array, Set or Map",
     );
   const proxy = new Proxy(underlying, {
     get(target, key, receiver) {
@@ -860,8 +1009,13 @@ function traverse(
     for (let i = 0; i < value.length; i++) {
       traverse(value[i], depth, seen);
     }
-  } else if (value instanceof Set || value instanceof Map) {
+  } else if (value instanceof Set) {
     value.forEach((entry) => {
+      traverse(entry, depth, seen);
+    });
+  } else if (value instanceof Map) {
+    value.forEach((entry, key) => {
+      traverse(key, depth, seen);
       traverse(entry, depth, seen);
     });
   } else if (plain(value)) {
