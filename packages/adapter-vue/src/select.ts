@@ -110,7 +110,13 @@ export function createModelOption(
 ): HTMLOptionElement {
   const attributes: Record<string, unknown> = Object.create(null);
   for (const key of Object.keys(props))
-    attributes[key] = key.startsWith("on") ? props[key] : () => props[key];
+    if (key !== "ref")
+      attributes[key] = key.startsWith("on") ? props[key] : () => props[key];
+  if ("ref" in props)
+    attributes.ref = (option: HTMLOptionElement) => {
+      if (typeof props.ref === "function")
+        (props.ref as (node: HTMLOptionElement) => void)(option);
+    };
   const option = h("option", attributes, children);
   if ("value" in props)
     createRenderEffect(() => {
@@ -131,7 +137,8 @@ export function createSelectModel(
 ): HTMLSelectElement {
   const attributes: Record<string, unknown> = Object.create(null);
   for (const key of Object.keys(props))
-    if (!key.startsWith("on")) attributes[key] = () => props[key];
+    if (!key.startsWith("on") && key !== "ref")
+      attributes[key] = () => props[key];
   let apply!: () => void;
   attributes.ref = (select: HTMLSelectElement) => {
     apply = bindSelectModel(select, read, write, number);
@@ -140,6 +147,8 @@ export function createSelectModel(
     if (key.startsWith("on")) attributes[key] = props[key];
   const select = h("select", attributes, children);
   apply();
+  if (typeof props.ref === "function")
+    (props.ref as (node: HTMLSelectElement) => void)(select);
   return select;
 }
 

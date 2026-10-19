@@ -115,9 +115,15 @@ export function createTextModel(
 ): HTMLInputElement | HTMLTextAreaElement {
   const attributes: Record<string, unknown> = Object.create(null);
   for (const key of Object.keys(props))
-    if (!key.startsWith("on")) attributes[key] = () => props[key];
-  attributes.ref = (element: HTMLInputElement | HTMLTextAreaElement) =>
+    if (!key.startsWith("on") && key !== "ref")
+      attributes[key] = () => props[key];
+  attributes.ref = (element: HTMLInputElement | HTMLTextAreaElement) => {
     bindTextModel(element, read, write, modifiers);
+    if (typeof props.ref === "function")
+      (props.ref as (node: HTMLInputElement | HTMLTextAreaElement) => void)(
+        element,
+      );
+  };
   for (const key of Object.keys(props))
     if (key.startsWith("on")) attributes[key] = props[key];
   return h(tag, attributes) as HTMLInputElement | HTMLTextAreaElement;
@@ -195,13 +201,20 @@ export function createCheckedModel(
 ): HTMLInputElement {
   const attributes: Record<string, unknown> = Object.create(null);
   for (const key of Object.keys(props))
-    if (!key.startsWith("on") && key !== "checked" && key !== "value")
+    if (
+      !key.startsWith("on") &&
+      key !== "checked" &&
+      key !== "value" &&
+      key !== "ref"
+    )
       attributes[key] = () => props[key];
   if (props.value != null) attributes.value = () => props.value;
   attributes.type = type;
   attributes.ref = (element: HTMLInputElement) => {
     if ("checked" in props) element.checked = Boolean(props.checked);
     bindCheckedModel(element, read, write, props);
+    if (typeof props.ref === "function")
+      (props.ref as (node: HTMLInputElement) => void)(element);
   };
   for (const key of Object.keys(props))
     if (key.startsWith("on")) attributes[key] = props[key];

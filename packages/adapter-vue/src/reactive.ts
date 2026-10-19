@@ -12,6 +12,10 @@ import {
 import { createMemo } from "@tschk/moonshine";
 import { createTrackedSet } from "./set";
 import {
+  getComponentContext,
+  type ComponentContext,
+} from "@tschk/moonshine-dom/component";
+import {
   createMutable,
   unwrap as unwrapStore,
 } from "@tschk/moonshine-dom/store";
@@ -415,4 +419,47 @@ export function watchSyncEffect(
   });
   if (outer) onCleanup(stop);
   return stop;
+}
+
+export type TemplateRef<T = unknown> = Readonly<Ref<T | null>>;
+
+const templateRefBindings = new WeakMap<
+  Ref<any>,
+  {
+    get: () => any;
+    set: (value: any) => void;
+  }
+>();
+const componentTemplateRefKeys = new WeakMap<ComponentContext, Set<string>>();
+
+/** Internal binder lookup for readonly useTemplateRef instances. */
+export function getTemplateRefBinding<T>(target: Readonly<Ref<T | null>>):
+  | {
+      get: () => T | null | undefined;
+      set: (value: T | null) => void;
+    }
+  | undefined {
+  return templateRefBindings.get(target as Ref<any>);
+}
+
+/** Native component template ref; readonly to user code, bound by template ref wave. */
+export function useTemplateRef<T = unknown, K extends string = string>(
+  key: K,
+): TemplateRef<T> {
+  const frame = getComponentContext();
+  if (typeof key !== "string" || key.length === 0)
+    throw new TypeError("Template ref key must be a non-empty string");
+  let keys = componentTemplateRefKeys.get(frame);
+  if (!keys) {
+    keys = new Set();
+    componentTemplateRefKeys.set(frame, keys);
+  }
+  if (keys.has(key))
+    throw new Error(`useTemplateRef(${JSON.stringify(key)}) already exists`);
+  keys.add(key);
+  if (frame.mode === "ssr") return new Ref<T | null>(() => null);
+  const [read, write] = createSignal<T | null>(null, { equals: Object.is });
+  const refObject = new Ref<T | null>(read);
+  templateRefBindings.set(refObject, { get: read, set: write });
+  return refObject;
 }

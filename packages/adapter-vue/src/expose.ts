@@ -1,13 +1,57 @@
 import {
   bindOwnedReference,
   enqueueComponentReference,
+  type ComponentReference,
 } from "@tschk/moonshine-dom/component-instance";
 import { getOwner } from "@tschk/moonshine-dom/reactive";
-import { isRef, unref, type Ref } from "./reactive";
+import {
+  getTemplateRefBinding,
+  isRef,
+  unref,
+  useTemplateRef,
+  type Ref,
+  type TemplateRef,
+} from "./reactive";
+
+export { useTemplateRef, type TemplateRef };
 
 export type ShallowUnwrap<T> = T extends () => infer R
   ? { [K in keyof R]: R[K] extends Readonly<Ref<infer V>> ? V : R[K] }
   : { [K in keyof T]: T[K] extends Readonly<Ref<infer V>> ? V : T[K] };
+
+export type TemplateRefBinding<T> =
+  | {
+      get: () => T | null | undefined;
+      set: (value: T | null) => void;
+    }
+  | Readonly<Ref<T | null>>;
+
+function resolveRefBinding<T>(binding: TemplateRefBinding<T>): {
+  get: () => T | null | undefined;
+  set: (value: T | null) => void;
+} {
+  if (isRef(binding)) {
+    const internal = getTemplateRefBinding(binding);
+    if (internal) return internal;
+    return {
+      get: () => binding.value,
+      set: (value: T | null) => {
+        (binding as Ref<T | null>).value = value;
+      },
+    };
+  }
+  const accessor = binding as {
+    get?: () => T | null | undefined;
+    set?: (value: T | null) => void;
+  };
+  if (
+    !accessor ||
+    typeof accessor.get !== "function" ||
+    typeof accessor.set !== "function"
+  )
+    throw new TypeError("Template ref binding requires get and set functions");
+  return { get: accessor.get, set: accessor.set };
+}
 
 /** Wrap a plain defineExpose object so own enumerable keys unwrap and write through refs. */
 export function exposeRefs<T extends object>(source: T): ShallowUnwrap<T> {
@@ -47,29 +91,33 @@ export function exposeRefs<T extends object>(source: T): ShallowUnwrap<T> {
 /** Bind an intrinsic element reference into the shared component reference flush wave. */
 export function bindRef<T extends Element>(
   element: T,
-  binding: {
-    get: () => T | null | undefined;
-    set: (value: T | null) => void;
-  },
+  binding: TemplateRefBinding<T>,
 ): void {
   const owner = getOwner();
   if (!owner || owner.disposed) return;
-  if (
-    !binding ||
-    typeof binding.get !== "function" ||
-    typeof binding.set !== "function"
-  )
-    throw new TypeError("Template ref binding requires get and set functions");
+  const resolved = resolveRefBinding(binding);
   enqueueComponentReference(
     bindOwnedReference(
       owner,
       element,
       {
         cleanup: "commit",
-        get: binding.get,
-        set: binding.set,
+        get: resolved.get,
+        set: resolved.set,
       },
       enqueueComponentReference,
     ),
   );
+}
+
+/** Create a commit-cleaned component reference binding for a setup ref or useTemplateRef. */
+export function bindComponentRef<T extends object>(
+  binding: TemplateRefBinding<T>,
+): ComponentReference<T> {
+  const resolved = resolveRefBinding(binding);
+  return {
+    cleanup: "commit",
+    get: resolved.get,
+    set: resolved.set,
+  };
 }

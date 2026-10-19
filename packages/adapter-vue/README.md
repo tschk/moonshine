@@ -20,19 +20,19 @@ import { fromMoonshineSignal } from "@tschk/moonshine-vue";
 import { ref } from "@tschk/moonshine-vue/reactive";
 ```
 
-| Subpath          | Provides                                                                                                             |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `.`              | signal bridges, lazy native SSR compatibility renderer                                                               |
-| `./vue`          | `vue` runtime re-exports                                                                                             |
-| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                        |
-| `./reactive`     | native refs/`shallowRef`, `toRef`/`toRefs`/`unref`/`isRef`, `reactive`/`isReactive`, `computed`, synchronous `watch` |
-| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                          |
-| `./text`         | native DOM and SSR interpolation conversion                                                                          |
-| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                      |
-| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                            |
-| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                |
-| `./expose`       | compiler-facing `exposeRefs` shallow-unwrapping proxy for `defineExpose` and default empty component exports         |
-| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance          |
+| Subpath          | Provides                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                |
+| `./vue`          | `vue` runtime re-exports                                                                                                              |
+| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                         |
+| `./reactive`     | native refs/`shallowRef`/`useTemplateRef`, `toRef`/`toRefs`/`unref`/`isRef`, `reactive`/`isReactive`, `computed`, synchronous `watch` |
+| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                           |
+| `./text`         | native DOM and SSR interpolation conversion                                                                                           |
+| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                       |
+| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                             |
+| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                 |
+| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                |
+| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                           |
 
 `./framework` exports the same lazy `crepusRenderer` compatibility name as the
 root. Its optional `@tschk/moonshine-framework` peer is needed only when rendering.
@@ -256,8 +256,8 @@ full SFC compatibility. Crepus lowers named/aliased imports of these three hooks
 in the accepted authored source slice. Permanent DOM/SSR fixtures verify nested
 registration, connected mount/before phases, disconnected child-first cleanup,
 two instances and server callback suppression. Intrinsic and imported component
-template refs (`ref="x"` and `:ref="'x'"` targeting top-level `const` `ref` or
-`shallowRef` setup declarations) publish before `onMounted` hooks run and clear
+template refs (`ref="x"` and `:ref="'x'"` targeting top-level `const` `ref`,
+`shallowRef`, or `useTemplateRef` setup declarations) publish before `onMounted` hooks run and clear
 to `null` on unmount. Vue's full error-handler policy remains unproven. A failed
 native mounted hook tears down its owner; the reference can retain the subtree
 until unmount.
@@ -405,26 +405,34 @@ turn a default factory failure into an app error handler call.
 ### Compiler-facing expose and template refs
 
 `@tschk/moonshine-vue/expose` exports `exposeRefs(exposed)` and its
-`ShallowUnwrap<T>` type helper. `exposeRefs` returns a shallow-unwrapping proxy
-for `defineExpose(record)` where top-level native refs (`ref`, `shallowRef`,
-`computed`, `toRef`) unwrap on `get` and forward `set` to writable `.value`
+`ShallowUnwrap<T>` type helper, `bindRef`, `bindComponentRef`, and re-exports
+`useTemplateRef` and `TemplateRef<T>` from `@tschk/moonshine-vue/reactive`.
+`exposeRefs` returns a shallow-unwrapping proxy for `defineExpose(record)` where
+top-level native refs (`ref`, `shallowRef`, `computed`, `toRef`,
+`useTemplateRef`) unwrap on `get` and forward `set` to writable `.value`
 (throwing `TypeError` on readonly refs), while plain values, getters/setters and
 reactive objects retain their descriptors and prototype checks. When a `<script setup>`
 component omits `defineExpose` or calls `defineExpose()`, it exposes an empty
 null-prototype object (`exposeRefs({})`) so component template refs receive a
 non-null exposed instance rather than leaking internal setup bindings.
 
+`useTemplateRef<T>(key)` requires active component initialization and a unique
+non-empty string key per component instance, returning a `TemplateRef<T>`
+(`Readonly<Ref<T | null>>`) initialized to `null` whose user `.value = ...`
+setter throws `TypeError` while internal `bindRef` / `bindComponentRef` bindings
+publish and clear the reference.
+
 The local Crepus compiler lowers top-level `defineExpose` and static template
-refs (`ref="x"` and `:ref="'x'"` targeting a top-level `const` `ref` or
-`shallowRef` setup binding) on intrinsic elements and imported PascalCase
-components. Intrinsic refs bind through `@tschk/moonshine-dom`'s `bindRef` and
-component refs bind through `@tschk/moonshine-dom/component-instance`'s
-`componentRef` with `cleanup: "commit"`, publishing before `onMounted` hooks run
-and clearing to `null` on unmount. In SSR, `defineExpose` runtime evaluation and
-template `ref` attributes are erased while preserving the component's
-`ComponentView<Node, Exports, Props>` return brand. Dynamic ref expressions,
-function refs, `useTemplateRef`, `v-for` ref arrays and template refs on
-`v-model` form controls remain explicit compile errors.
+refs (`ref="x"` and `:ref="'x'"` targeting a top-level `const` `ref`,
+`shallowRef`, or `useTemplateRef("x")` setup binding) on intrinsic elements
+(including `<input>`, `<textarea>`, `<select>`, and `<option>` with `v-model`)
+and imported PascalCase components. Intrinsic refs bind through `bindRef` and
+component refs bind through `componentRef` (or `bindComponentRef` for
+`useTemplateRef` targets) with `cleanup: "commit"`, publishing before `onMounted`
+hooks run and clearing to `null` on unmount. In SSR, `defineExpose` runtime
+evaluation and template `ref` attributes are erased while preserving the
+component's `ComponentView<Node, Exports, Props>` return brand. Dynamic ref
+expressions, function refs, and `v-for` ref arrays remain explicit compile errors.
 
 ### Optional native application mount
 
