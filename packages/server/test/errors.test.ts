@@ -15,6 +15,17 @@ describe("errors module", () => {
     test("creates a Redirect error with custom status", () => {
       const err = new Redirect("/login", 301);
       expect(err.status).toBe(301);
+      expect(err.name).toBe("Redirect");
+      expect(err.location).toBe("/login");
+      expect(err.message).toBe("Redirect to /login");
+    });
+
+    test("creates a Redirect error with empty location and missing status", () => {
+      const err = new Redirect("");
+      expect(err.status).toBe(302);
+      expect(err.name).toBe("Redirect");
+      expect(err.location).toBe("");
+      expect(err.message).toBe("Redirect to ");
     });
   });
 
