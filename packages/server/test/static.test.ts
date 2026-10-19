@@ -19,7 +19,10 @@ beforeAll(() => {
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
-  symlinkSync(resolve(staticDir, "ok.txt"), resolve(staticDir, "internal-link.txt"));
+  symlinkSync(
+    resolve(staticDir, "ok.txt"),
+    resolve(staticDir, "internal-link.txt"),
+  );
 });
 
 afterAll(() => {
@@ -58,11 +61,15 @@ describe("isContained", () => {
   });
 
   test("returns false for a symlink escaping the directory", () => {
-    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(false);
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(
+      false,
+    );
   });
 
   test("returns true for a symlink pointing inside the directory", () => {
-    expect(isContained(staticDir, resolve(staticDir, "internal-link.txt"))).toBe(true);
+    expect(
+      isContained(staticDir, resolve(staticDir, "internal-link.txt")),
+    ).toBe(true);
   });
 
   test("returns true for the root directory itself", () => {
@@ -70,7 +77,9 @@ describe("isContained", () => {
   });
 
   test("throws for a non-existent file", () => {
-    expect(() => isContained(staticDir, resolve(staticDir, "missing.txt"))).toThrow();
+    expect(() =>
+      isContained(staticDir, resolve(staticDir, "missing.txt")),
+    ).toThrow();
   });
 
   test("caches the real root on successive calls", () => {
