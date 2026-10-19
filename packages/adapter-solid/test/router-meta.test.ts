@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import "../../react/test/dom";
 import { h as hDOM } from "@tschk/moonshine-dom";
 import { createRoot } from "@tschk/moonshine-dom/reactive";
@@ -27,6 +30,8 @@ import {
   revalidate,
   Route,
   Router,
+  Routes,
+  StaticRouter,
   useAction,
   useBeforeLeave,
   useCurrentMatches,
@@ -39,6 +44,7 @@ import {
   useSubmission,
   useSubmissions,
 } from "../src/router";
+import { $RAW, createStore, DEV as storeDEV } from "../src/store";
 
 describe("@tschk/moonshine-solid/router (@solidjs/router replacement)", () => {
   test("renders routes, nested layouts, dynamic params, A links, searchParams, and Navigate in SSR and DOM", async () => {
@@ -150,6 +156,31 @@ describe("@tschk/moonshine-solid/router (@solidjs/router replacement)", () => {
       }),
     );
     expect(hashHtml).toBe("<span>Hash Dashboard</span>");
+
+    const staticHtml = renderToString(() =>
+      hSSR(StaticRouter, {
+        url: "/docs/intro",
+        children: hSSR(Routes, {
+          children: hSSR(Route, {
+            path: "/docs/:slug",
+            component: () => {
+              const params = useParams<{ slug: string }>();
+              return hSSR("em", null, () => `Doc:${params.slug}`);
+            },
+          }),
+        }),
+      }),
+    );
+    expect(staticHtml).toBe("<em>Doc:intro</em>");
+  });
+
+  test("store $RAW symbol returns underlying raw object without reactive tracking", () => {
+    expect(storeDEV).toEqual({ $RAW });
+    const rawSource = { count: 5, nested: { label: "ok" } };
+    const [state] = createStore(rawSource);
+    expect((state as any)[$RAW]).toBe(rawSource);
+    expect((state.nested as any)[$RAW]).toBe(rawSource.nested);
+    expect($RAW in state).toBe(true);
   });
 
   test("supports query, createAsync, createAsyncStore, revalidate, action, useSubmission, and response helpers", async () => {
@@ -268,3 +299,134 @@ describe("@tschk/moonshine-solid/meta (@solidjs/meta replacement)", () => {
     disposeRoot();
   });
 });
+
+const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
+
+test.skipIf(!sourceCompiler)(
+  "Crepus lowers explicit Solid source modules importing solid-js/store, solid-js/web, @solidjs/router, and @solidjs/meta",
+  async () => {
+    const root = join(import.meta.dir, "..");
+    const dir = await mkdtemp(join(tmpdir(), "moonshine-solid-ecosystem-"));
+    try {
+      for (const [name, source] of [
+        ["moonshine", join(root, "../core")],
+        ["moonshine-dom", join(root, "../dom")],
+        ["moonshine-solid", root],
+      ]) {
+        const target = join(dir, "node_modules/@tschk", name!);
+        await cp(join(source!, "src"), join(target, "src"), {
+          recursive: true,
+        });
+        await cp(join(source!, "package.json"), join(target, "package.json"));
+      }
+
+      const appSource = `/** @jsxImportSource solid-js */
+import { createSignal } from "solid-js";
+import { createStore, produce, $RAW } from "solid-js/store";
+import { Show, NoHydration, isServer } from "solid-js/web";
+import { Router, Route, A, useParams } from "@solidjs/router";
+import { MetaProvider, Title, Meta, renderTags } from "@solidjs/meta";
+
+function UserView() {
+  const params = useParams<{ id: string }>();
+  return (
+    <div class="route-box">
+      <span class="user-id">id:{params.id}</span>
+      <A href="/u/77" activeClass="current">Link</A>
+    </div>
+  );
+}
+
+export const headTags: Array<{ tag: string; props: Record<string, unknown> }> = [];
+
+export default function App() {
+  const [state, setState] = createStore({ count: 3, label: "solid-store" });
+  setState(produce((draft) => { draft.count += 2; }));
+  const [visible] = createSignal(true);
+  const hasRaw = Boolean((state as any)[$RAW]);
+  return (
+    <MetaProvider tags={headTags}>
+      <Title>Solid Ecosystem</Title>
+      <Meta name="generator" content="moonshine" />
+      <div data-server={String(isServer)} data-raw={String(hasRaw)}>
+        <Show when={visible()}>
+          <strong>{state.label}:{state.count}</strong>
+        </Show>
+        <NoHydration>
+          <i>static</i>
+        </NoHydration>
+        <Router url="/u/77">
+          <Route path="/u/:id" component={UserView} />
+        </Router>
+      </div>
+    </MetaProvider>
+  );
+}
+export { renderTags };
+`;
+      await Bun.write(join(dir, "source/App.tsx"), appSource);
+
+      for (const [emitTarget, outName] of [
+        ["moonshine-dom", "dom"],
+        ["moonshine-ssr", "ssr"],
+      ] as const) {
+        const proc = Bun.spawn(
+          [
+            sourceCompiler!,
+            "web",
+            "build",
+            "--site",
+            join(dir, "source"),
+            "--entry",
+            "App.tsx",
+            "--emit",
+            emitTarget,
+            "--out-dir",
+            join(dir, outName),
+          ],
+          { stdout: "pipe", stderr: "pipe" },
+        );
+        const [stdout, stderr, code] = await Promise.all([
+          new Response(proc.stdout).text(),
+          new Response(proc.stderr).text(),
+          proc.exited,
+        ]);
+        expect(code, stdout + stderr).toBe(0);
+      }
+
+      const checkScript = `
+import assert from "node:assert/strict";
+import AppSSR, { headTags, renderTags } from "./ssr/CrepusEmit.moonshine-ssr.ts";
+import { h, renderToString } from "@tschk/moonshine-solid/ssr";
+headTags.length = 0;
+const html = renderToString(() => h(AppSSR, {}));
+assert.ok(html.includes('data-server="true"'), html);
+assert.ok(html.includes('data-raw="true"'), html);
+assert.ok(html.includes('<strong>solid-store:5</strong>'), html);
+assert.ok(html.includes('<i>static</i>'), html);
+assert.ok(html.includes('<span class="user-id">id:77</span>'), html);
+assert.ok(html.includes('<a href="/u/77" class="current" aria-current="page">Link</a>'), html);
+const head = renderTags(headTags);
+assert.ok(head.includes('<title>Solid Ecosystem</title>'), head);
+assert.ok(head.includes('<meta name="generator" content="moonshine">'), head);
+`;
+      await Bun.write(join(dir, "check.ts"), checkScript);
+      const runCheck = Bun.spawn(
+        [Bun.which("bun")!, "--no-install", "check.ts"],
+        {
+          cwd: dir,
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      const [out, err, exitCode] = await Promise.all([
+        new Response(runCheck.stdout).text(),
+        new Response(runCheck.stderr).text(),
+        runCheck.exited,
+      ]);
+      expect(exitCode, out + err).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);

@@ -4,7 +4,8 @@ The root, `./composables`, and `./server` entries provide native Moonshine
 signal bridges, owner/SSR-scoped Nuxt state, async data, fetch, cookie,
 request context, config, error, routing, route middleware, navigation, layout,
 response status/headers, head/SEO, payload serialization/revival, preview mode,
-hydration, macro composables, and host-free Nitro/`h3` server utilities
+hydration, macro composables, built-in Nuxt components, and host-free
+Nitro/`h3` server utilities
 (`useState`, `clearNuxtState`, `useAsyncData`, `useLazyAsyncData`,
 `useNuxtData`, `refreshNuxtData`, `clearNuxtData`, `useFetch`, `useLazyFetch`,
 `useCookie`, `refreshCookie`, `withNuxtRequest`, `useRequestEvent`,
@@ -20,13 +21,21 @@ hydration, macro composables, and host-free Nitro/`h3` server utilities
 `definePayloadReducer`, `definePayloadReviver`, `serializeNuxtPayload`,
 `reviveNuxtPayload`, `onNuxtReady`, `onPrehydrate`, `reloadNuxtApp`,
 `definePageMeta`, `defineNuxtComponent`, `defineNuxtPlugin`,
-`defineNuxtRouteMiddleware`, `defineEventHandler`, `eventHandler`,
+`defineNuxtRouteMiddleware`, `NuxtLink`, `defineNuxtLink`, `NuxtPage`,
+`NuxtLayout`, `registerNuxtLayout`, `clearNuxtLayouts`, `ClientOnly`,
+`DevOnly`, `configureNuxtDevMode`, `NuxtErrorBoundary`,
+`NuxtLoadingIndicator`, `NuxtRouteAnnouncer`, `NuxtTime`, `Head`, `Title`,
+`Meta`, `Link`, `Style`, `Base`, `NoScript`, `Body`, `Html`,
+`defineEventHandler`, `eventHandler`,
 `defineLazyEventHandler`, `getQuery`, `getValidatedQuery`, `getRouterParams`,
 `getRouterParam`, `getValidatedRouterParams`, `readBody`, `readValidatedBody`,
 `readRawBody`, `readFormData`, `getHeaders`, `getHeader`, `setHeaders`,
 `setHeader`, `appendHeader`, `removeResponseHeader`, `parseCookies`,
 `getCookie`, `setCookie`, `deleteCookie`, `sendRedirect`, `sendNoContent`,
-`handleCacheHeaders`), and a lazy native renderer. At runtime, root,
+`handleCacheHeaders`), and a lazy native renderer. The local Crepus compiler
+lowers `#imports`, `#app`, and `nuxt/app` imports inside `.vue` `<script setup>`
+blocks directly to `@tschk/moonshine-nuxt/composables` with automatic template
+and destructuring ref unwrapping. At runtime, root,
 `./composables`, and `./server` imports need neither Nuxt, `h3`, React, parser
 WASM nor the optional framework peer. Legacy host APIs remain explicit on their
 existing subpaths.

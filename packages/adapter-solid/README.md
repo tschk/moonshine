@@ -16,8 +16,8 @@ modules retaining a Solid runtime import.
   context providers, memoized `children`, `mergeProps`/`splitProps`, client resources, `catchError`, DOM
   `ErrorBoundary`, `Suspense`, `SuspenseList`, and getter-based `For`, `Index`, `Show`, `Match`, `Switch`.
 - `/web`: native `solid-js/web` runtime surface (`isServer`, `isDev`, `DEV`, `render`, `renderToString`, `Portal`, `Dynamic`, `createDynamic`, `Show`, `For`, `Index`, `Switch`, `Match`, `ErrorBoundary`, `Suspense`, `SuspenseList`, `mergeProps`, `splitProps`, `setAttribute`, `setAttributeNS`, `classList`, `style`, `addEventListener`, `assign`, `spread`, `insert`, `delegateEvents`, `clearDelegatedEvents`, `generateHydrationScript`, `HydrationScript`, `NoHydration`, `Assets`).
-- `/store`: independent `createStore`, `produce`, `reconcile` on the same graph.
-- `/router`: host-free `@solidjs/router` replacement (`Router`, `MemoryRouter`, `HashRouter`, `Route`, `A`, `Navigate`, `createMemoryHistory`, `useNavigate`, `useLocation`, `useParams`, `useSearchParams`, `useIsRouting`, `useMatch`, `useCurrentMatches`, `useBeforeLeave`, `usePreloadRoute`, `query`, `createAsync`, `createAsyncStore`, `revalidate`, `action`, `useAction`, `useSubmission`, `useSubmissions`, `redirect`, `reload`, `json`).
+- `/store`: independent `createStore`, `createMutable`, `modifyMutable`, `produce`, `reconcile`, `unwrap`, `$RAW`, `DEV`, `type Store`, `type StoreSetter`, `type StorePathRange`, `type NotWrappable`, and `type ReconcileOptions` on the same graph.
+- `/router`: host-free `@solidjs/router` replacement (`Router`, `StaticRouter`, `MemoryRouter`, `HashRouter`, `Routes`, `Route`, `A`, `Navigate`, `createMemoryHistory`, `useNavigate`, `useLocation`, `useParams`, `useSearchParams`, `useIsRouting`, `useMatch`, `useCurrentMatches`, `useBeforeLeave`, `usePreloadRoute`, `query`, `createAsync`, `createAsyncStore`, `revalidate`, `action`, `useAction`, `useSubmission`, `useSubmissions`, `redirect`, `reload`, `json`).
 - `/meta`: host-free `@solidjs/meta` replacement (`MetaProvider`, `Title`, `Meta`, `Link`, `Style`, `Base`, `useHead`, `renderTags`).
 - `/h`: the native browser `h` factory, exported as default. Use explicit tag
   names and props; Solid hyperscript selector shorthand is unsupported.
@@ -25,7 +25,7 @@ modules retaining a Solid runtime import.
 - `/reactive`, `/control`, `/dom`: direct native APIs. `/control` takes explicit
   accessors, while `/solid` adapts Solid-style prop getters.
 - `/ssr`: escaped server factories, suppressed effects/mount callbacks, server-safe
-  `Show`/`Switch`/`Match`/`ErrorBoundary`/`Suspense`/`SuspenseList`, context/props/children helpers,
+  `Show`/`Switch`/`Match`/`ErrorBoundary`/`Suspense`/`SuspenseList`, `isServer`/`isDev`/`createComponent`/`generateHydrationScript`/`HydrationScript`/`NoHydration`/`Assets`/`delegateEvents`/`clearDelegatedEvents`, context/props/children helpers,
   `createUniqueId`/`createSelector`/`createReaction`/`observable`/`from`, and
   explicit server IR rendering. Author server modules against this entry.
 - `/framework-native`: the bundled native framework renderer, requiring the
@@ -438,5 +438,15 @@ leading `/** @jsxImportSource solid-js */` directive:
   converts a subscribe function or observable into a Solid accessor that unsubscribes
   when its owning scope disposes.
 - `/store` exports `modifyMutable(state, modifier)` (alongside `createStore`,
-  `createMutable`, `produce`, `reconcile`, `unwrap`, and `SetStoreFunction`) to
-  batch `produce` and `reconcile` mutations on mutable stores.
+  `createMutable`, `produce`, `reconcile`, `unwrap`, `$RAW`, `DEV`, `Store`,
+  `SetStoreFunction`, `StoreSetter`, `StorePathRange`, `NotWrappable`, and
+  `ReconcileOptions`) to batch `produce` and `reconcile` mutations on mutable
+  stores, and exposes `store[$RAW]` to inspect the underlying raw target without
+  tracking.
+- The local Crepus compiler lowers explicit Solid source modules (`/** @jsxImportSource solid-js */`)
+  importing from `"solid-js/store"`, `"solid-js/web"`, `"@solidjs/router"`, and
+  `"@solidjs/meta"` to `@tschk/moonshine-solid/{store,web,ssr,router,meta}`, and
+  admits their JSX components (`Router`, `StaticRouter`, `MemoryRouter`,
+  `HashRouter`, `Routes`, `Route`, `A`, `Navigate`, `MetaProvider`, `Title`,
+  `Meta`, `Link`, `Style`, `Base`, `Portal`, `Dynamic`, `HydrationScript`,
+  `NoHydration`, `Assets`) in both DOM and SSR targets.

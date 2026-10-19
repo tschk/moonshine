@@ -1,16 +1,41 @@
 import { describe, expect, test } from "bun:test";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createRoot } from "@tschk/moonshine-dom/reactive";
+import { h as ssrH, renderToString } from "@tschk/moonshine-dom/ssr";
 import { withSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import {
+  Base,
+  Body,
+  ClientOnly,
+  DevOnly,
+  Head,
+  Html,
+  Link,
+  Meta,
+  NoScript,
   NuxtError,
+  NuxtErrorBoundary,
+  NuxtLayout,
+  NuxtLink,
+  NuxtLoadingIndicator,
+  NuxtPage,
+  NuxtRouteAnnouncer,
+  NuxtTime,
+  Style,
+  Title,
   abortNavigation,
   callOnce,
   clearError,
   clearNuxtData,
+  clearNuxtLayouts,
   clearNuxtState,
+  configureNuxtDevMode,
   createBridgedRef,
   createError,
   defineNuxtComponent,
+  defineNuxtLink,
   defineNuxtPlugin,
   defineNuxtRouteMiddleware,
   definePageMeta,
@@ -26,6 +51,7 @@ import {
   preloadRouteComponents,
   refreshCookie,
   refreshNuxtData,
+  registerNuxtLayout,
   reloadNuxtApp,
   resolveHeadTags,
   setPageLayout,
@@ -694,4 +720,259 @@ describe("@tschk/moonshine-nuxt composables", () => {
     await new Promise<void>((resolve) => queueMicrotask(resolve));
     expect(clientReadyApp).toBeDefined();
   });
+
+  test("host-free Nuxt components (NuxtLink, defineNuxtLink, NuxtPage, NuxtLayout, ClientOnly, DevOnly, NuxtErrorBoundary, NuxtLoadingIndicator, NuxtRouteAnnouncer, NuxtTime, and Head tags) render in SSR and client scopes", async () => {
+    const CustomLink = defineNuxtLink({
+      activeClass: "custom-active",
+      exactActiveClass: "custom-exact",
+      trailingSlash: "append",
+    });
+
+    await withNuxtRequest(
+      { url: "https://example.com/docs/guide" },
+      async () => {
+        const router = useRouter();
+        router.addRoute({
+          name: "docs-guide",
+          path: "/docs/guide",
+          component: () => ssrH("article", { class: "doc-page" }, "Guide Body"),
+        });
+        await navigateTo("/docs/guide");
+
+        registerNuxtLayout("custom", (props) =>
+          ssrH("section", { class: "custom-layout" }, props.children),
+        );
+
+        let headSnapshot: ReturnType<typeof resolveHeadTags> | undefined;
+        const html = renderToString(() => {
+          const tree = ssrH("div", null, [
+            ssrH(Html, { lang: "en" }, [
+              ssrH(Head, null, [
+                ssrH(Title, { children: "Docs Guide" }),
+                ssrH(Meta, { name: "description", content: "Guide Meta" }),
+                ssrH(Link, {
+                  rel: "canonical",
+                  href: "https://example.com/docs/guide",
+                }),
+                ssrH(Base, { href: "https://example.com/" }),
+                ssrH(Style, { children: "body{margin:0}" }),
+                ssrH(NoScript, { children: "Enable JS" }),
+              ]),
+              ssrH(Body, { class: "dark" }, [
+                ssrH(NuxtLink, {
+                  to: "/docs/guide",
+                  children: "Current Guide",
+                }),
+                ssrH(CustomLink, {
+                  to: "/docs",
+                  children: "Docs Index",
+                }),
+                ssrH(NuxtLink, {
+                  to: "https://nuxt.com",
+                  target: "_blank",
+                  children: "External",
+                }),
+                ssrH(ClientOnly, {
+                  fallback: "Loading widget...",
+                  fallbackTag: "span",
+                  children: "Client Widget",
+                }),
+                ssrH(DevOnly, {
+                  children: "Dev Banner",
+                }),
+                ssrH(NuxtLayout, {
+                  name: "custom",
+                  children: ssrH(NuxtPage, {}),
+                }),
+                ssrH(NuxtLoadingIndicator, { height: 4 }),
+                ssrH(NuxtRouteAnnouncer, { politeness: "polite" }),
+                ssrH(NuxtTime, {
+                  datetime: "2025-01-15T12:00:00.000Z",
+                  locale: "en-US",
+                  timeZone: "UTC",
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                }),
+                ssrH(NuxtErrorBoundary, {
+                  fallback: (err) =>
+                    ssrH("p", { class: "err" }, String(err.value)),
+                  children: () => {
+                    throw new Error("Widget crashed");
+                  },
+                }),
+              ]),
+            ]),
+          ]);
+          headSnapshot = resolveHeadTags();
+          return tree;
+        });
+
+        expect(html).toContain(
+          '<a href="/docs/guide" class="router-link-active router-link-exact-active" aria-current="page">Current Guide</a>',
+        );
+        expect(html).toContain(
+          '<a href="/docs/" class="custom-active">Docs Index</a>',
+        );
+        expect(html).toContain(
+          '<a href="https://nuxt.com" target="_blank" rel="noopener noreferrer">External</a>',
+        );
+        expect(html).toContain("<span>Loading widget...</span>");
+        expect(html).not.toContain("Client Widget");
+        expect(html).toContain("Dev Banner");
+        expect(html).toContain(
+          '<section class="custom-layout"><article class="doc-page">Guide Body</article></section>',
+        );
+        expect(html).toContain('class="nuxt-loading-indicator"');
+        expect(html).toContain("data-nuxt-route-announcer");
+        expect(html).toContain('datetime="2025-01-15T12:00:00.000Z"');
+        expect(html).toContain("Jan 15, 2025");
+        expect(html).toContain('<p class="err">Error: Widget crashed</p>');
+
+        expect(headSnapshot?.title).toBe("Docs Guide");
+        expect(headSnapshot?.htmlAttrs.lang).toBe("en");
+        expect(headSnapshot?.bodyAttrs.class).toBe("dark");
+        expect(headSnapshot?.meta).toEqual([
+          { name: "description", content: "Guide Meta" },
+        ]);
+        expect(headSnapshot?.link).toEqual([
+          { rel: "canonical", href: "https://example.com/docs/guide" },
+        ]);
+        expect(headSnapshot?.base).toEqual({ href: "https://example.com/" });
+        expect(headSnapshot?.style).toEqual([{ children: "body{margin:0}" }]);
+        expect(headSnapshot?.noscript).toEqual([{ children: "Enable JS" }]);
+
+        configureNuxtDevMode(false);
+        const prodHtml = renderToString(() =>
+          ssrH(
+            "div",
+            null,
+            ssrH(DevOnly, { fallback: "Prod Fallback", children: "Dev Only" }),
+          ),
+        );
+        expect(prodHtml).toBe("<div>Prod Fallback</div>");
+        clearNuxtLayouts();
+      },
+    );
+  });
 });
+
+const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
+
+test.skipIf(!sourceCompiler)(
+  "Crepus lowers .vue SFCs importing Nuxt composables and components from #imports, #app, and nuxt/app",
+  async () => {
+    const root = join(import.meta.dir, "..");
+    const dir = await mkdtemp(join(tmpdir(), "moonshine-nuxt-sfc-"));
+    try {
+      for (const [name, source] of [
+        ["moonshine", join(root, "../core")],
+        ["moonshine-dom", join(root, "../dom")],
+        ["moonshine-vue", join(root, "../adapter-vue")],
+        ["moonshine-nuxt", root],
+      ]) {
+        const target = join(dir, "node_modules/@tschk", name!);
+        await cp(join(source!, "src"), join(target, "src"), {
+          recursive: true,
+        });
+        await cp(join(source!, "package.json"), join(target, "package.json"));
+      }
+
+      const nuxtPage = `<script setup lang="ts">
+import { useState, useCookie, useRoute, useRuntimeConfig, NuxtLink, ClientOnly, Title } from "#imports";
+import { useAsyncData } from "#app";
+import { useLoadingIndicator } from "nuxt/app";
+
+const count = useState("counter", () => 12);
+const theme = useCookie("theme", { default: () => "emerald" });
+const route = useRoute();
+const config = useRuntimeConfig();
+const { data, status } = useAsyncData("greeting", () => "Hello from Nuxt SFC");
+const { isLoading, progress } = useLoadingIndicator();
+</script>
+<template>
+  <main :data-theme="theme" :data-status="status" :data-loading="String(isLoading)">
+    <Title>Nuxt SFC Title</Title>
+    <h1>{{ data }} ({{ count }})</h1>
+    <p class="route-info">{{ route.path }} | {{ config.app.baseURL }} | {{ progress }}</p>
+    <NuxtLink to="/dashboard">Go Dashboard</NuxtLink>
+    <ClientOnly fallback="SSR Placeholder">
+      <span>Browser Content</span>
+    </ClientOnly>
+  </main>
+</template>`;
+
+      await Bun.write(join(dir, "source/Page.vue"), nuxtPage);
+
+      for (const [emitTarget, outName] of [
+        ["moonshine-dom", "dom"],
+        ["moonshine-ssr", "ssr"],
+      ] as const) {
+        const proc = Bun.spawn(
+          [
+            sourceCompiler!,
+            "web",
+            "build",
+            "--site",
+            join(dir, "source"),
+            "--entry",
+            "Page.vue",
+            "--emit",
+            emitTarget,
+            "--out-dir",
+            join(dir, outName),
+          ],
+          { stdout: "pipe", stderr: "pipe" },
+        );
+        const [stdout, stderr, code] = await Promise.all([
+          new Response(proc.stdout).text(),
+          new Response(proc.stderr).text(),
+          proc.exited,
+        ]);
+        expect(code, stdout + stderr).toBe(0);
+      }
+
+      const checkScript = `
+import assert from "node:assert/strict";
+import PageSSR from "./ssr/CrepusEmit.moonshine-ssr.ts";
+import { h, renderToString } from "@tschk/moonshine-dom/ssr";
+import { withNuxtRequest, resolveHeadTags } from "@tschk/moonshine-nuxt";
+
+await withNuxtRequest(
+  {
+    url: "https://example.com/dashboard?tab=1",
+    headers: { cookie: "theme=obsidian" },
+    runtimeConfig: { app: { baseURL: "/app/", buildAssetsDir: "/_nuxt/", cdnURL: "" } },
+  },
+  async () => {
+    const html = renderToString(() => h(PageSSR, {}));
+    assert.ok(html.includes('data-theme="obsidian"'), html);
+    assert.ok(html.includes('data-status="success"'), html);
+    assert.ok(html.includes('<h1>Hello from Nuxt SFC (12)</h1>'), html);
+    assert.ok(html.includes('<p class="route-info">/dashboard | /app/ | 0</p>'), html);
+    assert.ok(html.includes('<a href="/dashboard" class="router-link-active router-link-exact-active" aria-current="page">Go Dashboard</a>'), html);
+    assert.ok(html.includes('SSR Placeholder'), html);
+    assert.equal(resolveHeadTags().title, "Nuxt SFC Title");
+  }
+);
+`;
+      await Bun.write(join(dir, "check.ts"), checkScript);
+      const runCheck = Bun.spawn(
+        [Bun.which("bun")!, "--no-install", "check.ts"],
+        {
+          cwd: dir,
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      const [out, err, exitCode] = await Promise.all([
+        new Response(runCheck.stdout).text(),
+        new Response(runCheck.stderr).text(),
+        runCheck.exited,
+      ]);
+      expect(exitCode, out + err).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);

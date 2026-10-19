@@ -23,6 +23,7 @@ import { createTrackedMap } from "./map";
 import { createTrackedSet } from "./set";
 import {
   getComponentContext,
+  nativeRefSet,
   peekComponentContext,
   withComponentConsumer,
   type ComponentContext,
@@ -57,7 +58,7 @@ import {
   unwrap as unwrapStore,
 } from "@tschk/moonshine-dom/store";
 
-const refs = new WeakSet<object>();
+const refs = nativeRefSet;
 const readonlyRefs = new WeakSet<object>();
 const refTriggers = new WeakMap<Ref<any>, () => void>();
 const refTriggerVersions = new WeakMap<Ref<any>, number>();

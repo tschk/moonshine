@@ -14,6 +14,7 @@ import type { DOMChild } from "@tschk/moonshine-dom";
 import type { SSRChild } from "@tschk/moonshine-dom/ssr";
 const slots = /* @__PURE__ */ Symbol("moonshine.vue.slots");
 type Content = () => unknown;
+const frameDefaultSlotSymbol = Symbol.for("moonshine.vue.frame.defaultSlot");
 const frameDefaultSlots = /* @__PURE__ */ new WeakMap<
   ComponentContext,
   Content
@@ -23,7 +24,9 @@ export function getDefaultSlotFactory(
   frame?: ComponentContext,
 ): Content | undefined {
   if (frame) {
-    const fromFrame = frameDefaultSlots.get(frame);
+    const fromFrame =
+      frameDefaultSlots.get(frame) ??
+      (Reflect.get(frame, frameDefaultSlotSymbol) as Content | undefined);
     if (typeof fromFrame === "function") return fromFrame;
   }
   if (!source || typeof source !== "object") return undefined;
@@ -84,6 +87,7 @@ export function withDefaultSlot<P extends object, R>(
     const activeFrame = peekComponentContext();
     if (activeFrame) {
       frameDefaultSlots.set(activeFrame, content);
+      Reflect.set(activeFrame, frameDefaultSlotSymbol, content);
     }
     const target = Object.create(
       Object.getPrototypeOf(source),

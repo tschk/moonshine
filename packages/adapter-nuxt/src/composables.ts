@@ -1,11 +1,29 @@
-/** Host-free Nuxt 3/4 state, async data, and macro composables on the Moonshine graph. */
+/** Host-free Nuxt 3/4 state, async data, components, and macro composables on the Moonshine graph. */
 import {
   createSignal as msCreateSignal,
   untrack,
   type Signal as MsSignal,
 } from "@tschk/moonshine";
 import { collectDeps, type Trackable } from "@tschk/moonshine/tracking";
-import { getOwner, onCleanup, type Owner } from "@tschk/moonshine-dom/reactive";
+import { h as domH, type DOMChild } from "@tschk/moonshine-dom";
+import {
+  createComponent,
+  nativeRefSet,
+  peekComponentContext,
+} from "@tschk/moonshine-dom/component";
+import {
+  createRoot,
+  errorHandlerKey,
+  getOwner,
+  onCleanup,
+  runWithOwner,
+  type Owner,
+} from "@tschk/moonshine-dom/reactive";
+import {
+  boundary as ssrBoundary,
+  h as ssrH,
+  type SSRChild,
+} from "@tschk/moonshine-dom/ssr";
 import {
   getSSRRenderScope,
   isSSRRendering,
@@ -22,7 +40,7 @@ export function isNuxtRef<T = any>(value: unknown): value is VueRef<T> {
   return (
     typeof value === "object" &&
     value !== null &&
-    refSignals.has(value as VueRef<any>)
+    (refSignals.has(value as VueRef<any>) || nativeRefSet.has(value))
   );
 }
 
@@ -36,6 +54,7 @@ export function fromMoonshineSignal<T>(signal: MsSignal<T>): VueRef<T> {
     },
   };
   refSignals.set(ref, signal);
+  nativeRefSet.add(ref);
   return ref;
 }
 
@@ -132,6 +151,8 @@ type NuxtScopeStore = {
   reloadHistory: ReloadNuxtAppOptions[];
   payloadReducers: Map<string, (data: any) => any>;
   payloadRevivers: Map<string, (data: any) => any>;
+  layouts: Map<string, (props: any) => unknown>;
+  devMode: boolean;
   event?: NuxtRequestEvent;
 };
 
@@ -184,6 +205,8 @@ function createScopeStore(
     reloadHistory: [],
     payloadReducers: new Map(),
     payloadRevivers: new Map(),
+    layouts: new Map(),
+    devMode: true,
     event,
   };
 }
@@ -401,37 +424,79 @@ export function useAsyncData<ResT, DataT = ResT, ErrorT = Error>(
     entry.status.value = "pending";
     entry.error.value = null;
 
-    const task = (async () => {
-      try {
-        const raw = await handler();
-        let transformed: any = options.transform
-          ? await options.transform(raw)
-          : raw;
-        if (
-          options.pick &&
-          transformed !== null &&
-          typeof transformed === "object"
-        ) {
-          const picked: Partial<DataT> = {};
-          for (const field of options.pick) {
-            if (field in transformed) {
-              picked[field] = transformed[field];
-            }
+    const finalize = (transformedRaw: any) => {
+      let transformed = transformedRaw;
+      if (
+        options.pick &&
+        transformed !== null &&
+        typeof transformed === "object"
+      ) {
+        const picked: Partial<DataT> = {};
+        for (const field of options.pick) {
+          if (field in transformed) {
+            picked[field] = transformed[field];
           }
-          transformed = picked;
         }
-        if (currentRun === entry.runId) {
-          entry.data.value = transformed as DataT;
-          entry.pending.value = false;
-          entry.status.value = "success";
+        transformed = picked;
+      }
+      if (currentRun === entry.runId) {
+        entry.data.value = transformed as DataT;
+        entry.pending.value = false;
+        entry.status.value = "success";
+      }
+    };
+
+    const fail = (err: unknown) => {
+      if (currentRun === entry.runId) {
+        entry.error.value = err instanceof Error ? err : new Error(String(err));
+        entry.pending.value = false;
+        entry.status.value = "error";
+      }
+    };
+
+    let syncResult: ResT | Promise<ResT>;
+    try {
+      syncResult = handler();
+    } catch (err) {
+      fail(err);
+      entry.inFlight = undefined;
+      return;
+    }
+
+    if (
+      syncResult === null ||
+      (typeof syncResult !== "object" && typeof syncResult !== "function") ||
+      typeof (syncResult as PromiseLike<ResT>).then !== "function"
+    ) {
+      try {
+        const tx = options.transform
+          ? options.transform(syncResult as ResT)
+          : (syncResult as ResT);
+        if (
+          tx === null ||
+          (typeof tx !== "object" && typeof tx !== "function") ||
+          typeof (tx as PromiseLike<any>).then !== "function"
+        ) {
+          finalize(tx);
+          entry.inFlight = undefined;
+          return;
         }
       } catch (err) {
-        if (currentRun === entry.runId) {
-          entry.error.value =
-            err instanceof Error ? err : new Error(String(err));
-          entry.pending.value = false;
-          entry.status.value = "error";
-        }
+        fail(err);
+        entry.inFlight = undefined;
+        return;
+      }
+    }
+
+    const task = (async () => {
+      try {
+        const raw = await syncResult;
+        const transformed = options.transform
+          ? await options.transform(raw)
+          : raw;
+        finalize(transformed);
+      } catch (err) {
+        fail(err);
       } finally {
         if (currentRun === entry.runId) {
           entry.inFlight = undefined;
@@ -917,6 +982,7 @@ export function useCookie<T = string | null | undefined>(
     },
   };
   refSignals.set(ref, sig);
+  nativeRefSet.add(ref);
   store.cookies.set(name, {
     ref,
     decode,
@@ -2258,7 +2324,7 @@ export function useHead(
   };
 
   const owner = getOwner();
-  if (owner) {
+  if (owner && !isSSRRendering() && !store.event) {
     onCleanup(dispose);
   }
 
@@ -2768,7 +2834,7 @@ function ensureNuxtApp(store: NuxtScopeStore): NuxtApp {
       payload,
       versions: {
         nuxt: "3.15.0",
-        moonshine: "0.4.67",
+        moonshine: "0.4.68",
       },
       hooks,
       hook: hooks.hook,
@@ -3264,6 +3330,7 @@ export function usePreviewMode<
       }
     },
   };
+  nativeRefSet.add(enabled);
 
   return {
     enabled,
@@ -3305,6 +3372,7 @@ export function useResponseHeader(
     },
   };
   refSignals.set(ref, sig);
+  nativeRefSet.add(ref);
   return ref;
 }
 
@@ -3328,4 +3396,717 @@ export function useHydration<K extends string = string, T = any>(
   } else if (key in app.payload.data) {
     set(app.payload.data[key] as T);
   }
+}
+
+const frameDefaultSlotSymbol = Symbol.for("moonshine.vue.frame.defaultSlot");
+
+function resolveDefaultSlotFactory(
+  props: Record<string, any> | null | undefined,
+): (() => unknown) | undefined {
+  const frame = peekComponentContext();
+  if (frame) {
+    const slotFn = Reflect.get(frame, frameDefaultSlotSymbol);
+    if (typeof slotFn === "function") {
+      return slotFn as () => unknown;
+    }
+  }
+  if (!props || typeof props !== "object") return undefined;
+  if (typeof props.default === "function") {
+    return () => props.default();
+  }
+  for (const sym of Object.getOwnPropertySymbols(props)) {
+    if (String(sym) === "Symbol(moonshine.vue.slots)") {
+      const fn = (props as Record<symbol, unknown>)[sym];
+      if (typeof fn === "function") return fn as () => unknown;
+    }
+  }
+  if (props.children !== undefined) {
+    return () =>
+      typeof props.children === "function" ? props.children() : props.children;
+  }
+  return undefined;
+}
+
+function readDefaultSlotContent(
+  props: Record<string, any> | null | undefined,
+): unknown {
+  return resolveDefaultSlotFactory(props)?.();
+}
+
+function renderElement(
+  tag: string,
+  props: Record<string, any> | null,
+  ...children: unknown[]
+): unknown {
+  if (isSSRRendering()) {
+    return ssrH(tag, props, ...(children as SSRChild[]));
+  }
+  return domH(tag, props, ...(children as DOMChild[]));
+}
+
+function renderFragment(...children: unknown[]): unknown {
+  if (children.length === 0) return null;
+  if (children.length === 1) return children[0];
+  return children;
+}
+
+export interface NuxtLinkOptions {
+  componentName?: string;
+  externalRelAttribute?: string | null;
+  activeClass?: string;
+  exactActiveClass?: string;
+  prefetchedClass?: string;
+  trailingSlash?: "append" | "remove";
+}
+
+export interface NuxtLinkProps {
+  to?: MaybeReactive<NuxtRouteLocationRaw>;
+  href?: MaybeReactive<NuxtRouteLocationRaw>;
+  external?: boolean;
+  replace?: boolean;
+  custom?: boolean;
+  target?: "_blank" | "_parent" | "_self" | "_top" | (string & {});
+  rel?: string | null;
+  noRel?: boolean;
+  prefetch?: boolean;
+  noPrefetch?: boolean;
+  activeClass?: string;
+  exactActiveClass?: string;
+  ariaCurrentValue?: string;
+  trailingSlash?: "append" | "remove";
+  class?: unknown;
+  style?: unknown;
+  id?: string;
+  title?: string;
+  tabindex?: number | string;
+  onClick?: (event: MouseEvent) => void;
+  children?: unknown;
+  default?: () => unknown;
+  [key: string]: any;
+}
+
+function applyTrailingSlash(path: string, mode?: "append" | "remove"): string {
+  if (!mode || !path || path === "/") return path;
+  const qIdx = path.indexOf("?");
+  const hIdx = path.indexOf("#");
+  const splitIdx =
+    qIdx !== -1 && hIdx !== -1
+      ? Math.min(qIdx, hIdx)
+      : qIdx !== -1
+        ? qIdx
+        : hIdx;
+  const pathname = splitIdx === -1 ? path : path.slice(0, splitIdx);
+  const suffix = splitIdx === -1 ? "" : path.slice(splitIdx);
+  if (pathname === "/") return path;
+  if (mode === "append") {
+    return (pathname.endsWith("/") ? pathname : `${pathname}/`) + suffix;
+  }
+  return pathname.replace(/\/+$/, "") + suffix;
+}
+
+function isExternalUrl(target: string): boolean {
+  return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(target) || target.startsWith("//");
+}
+
+function renderNuxtLink(
+  props: NuxtLinkProps = {},
+  options: NuxtLinkOptions = {},
+): unknown {
+  const resolveTarget = () => {
+    const raw = resolveReactive(props.to ?? props.href) ?? "";
+    const router = useRouter();
+    if (typeof raw === "string") {
+      if (isExternalUrl(raw)) {
+        return {
+          href: raw,
+          path: raw,
+          external: true,
+        };
+      }
+      const loc = router.resolve(raw);
+      const trailingMode = props.trailingSlash ?? options.trailingSlash;
+      return {
+        href: applyTrailingSlash(loc.fullPath, trailingMode),
+        path: applyTrailingSlash(loc.path, trailingMode),
+        external: Boolean(props.external || props.target === "_blank"),
+      };
+    }
+    const loc = router.resolve(raw);
+    const trailingMode = props.trailingSlash ?? options.trailingSlash;
+    return {
+      href: applyTrailingSlash(loc.fullPath, trailingMode),
+      path: applyTrailingSlash(loc.path, trailingMode),
+      external: Boolean(props.external || props.target === "_blank"),
+    };
+  };
+
+  const isExactActive = () => {
+    const resolved = resolveTarget();
+    if (resolved.external) return false;
+    const current = useRoute().path.replace(/\/+$/, "") || "/";
+    const targetPath = resolved.path.replace(/\/+$/, "") || "/";
+    return current === targetPath;
+  };
+
+  const isActive = () => {
+    const resolved = resolveTarget();
+    if (resolved.external) return false;
+    const current = useRoute().path.replace(/\/+$/, "") || "/";
+    const targetPath = resolved.path.replace(/\/+$/, "") || "/";
+    if (targetPath === "/") return current === "/";
+    return current === targetPath || current.startsWith(`${targetPath}/`);
+  };
+
+  const computedClass = () => {
+    const classes: string[] = [];
+    const baseClass =
+      typeof props.class === "function" ? props.class() : props.class;
+    if (typeof baseClass === "string" && baseClass.trim()) {
+      classes.push(baseClass.trim());
+    }
+    const activeCls =
+      props.activeClass ?? options.activeClass ?? "router-link-active";
+    const exactCls =
+      props.exactActiveClass ??
+      options.exactActiveClass ??
+      "router-link-exact-active";
+    if (isActive() && activeCls) classes.push(activeCls);
+    if (isExactActive() && exactCls) classes.push(exactCls);
+    return classes.length > 0 ? classes.join(" ") : undefined;
+  };
+
+  const computedRel = () => {
+    if (props.noRel) return undefined;
+    if (props.rel !== undefined) return props.rel ?? undefined;
+    const resolved = resolveTarget();
+    if (resolved.external || props.target === "_blank") {
+      const defRel =
+        options.externalRelAttribute !== undefined
+          ? options.externalRelAttribute
+          : "noopener noreferrer";
+      return defRel ?? undefined;
+    }
+    return undefined;
+  };
+
+  const handleClick = (event: MouseEvent) => {
+    if (typeof props.onClick === "function") {
+      props.onClick(event);
+    }
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+    const resolved = resolveTarget();
+    if (resolved.external) return;
+    event.preventDefault();
+    void navigateTo(resolved.href, { replace: Boolean(props.replace) });
+  };
+
+  if (props.prefetch !== false && !props.noPrefetch) {
+    const initial = untrack(resolveTarget);
+    if (!initial.external && initial.path) {
+      void preloadRouteComponents(initial.path);
+    }
+  }
+
+  const slotChildren = readDefaultSlotContent(props);
+  return renderElement(
+    "a",
+    {
+      href: () => resolveTarget().href,
+      target: props.target,
+      rel: computedRel,
+      class: computedClass,
+      style: props.style,
+      id: props.id,
+      title: props.title,
+      tabindex: props.tabindex,
+      "aria-current": () =>
+        isExactActive() ? (props.ariaCurrentValue ?? "page") : undefined,
+      onClick: handleClick,
+    },
+    slotChildren,
+  );
+}
+
+export function defineNuxtLink(
+  options: NuxtLinkOptions = {},
+): (props?: NuxtLinkProps) => unknown {
+  return function CustomNuxtLink(props: NuxtLinkProps = {}): unknown {
+    return renderNuxtLink(props, options);
+  };
+}
+
+export function NuxtLink(props: NuxtLinkProps = {}): unknown {
+  return renderNuxtLink(props);
+}
+
+export interface NuxtPageProps {
+  name?: string;
+  route?: NuxtRouteLocation;
+  pageKey?: string | ((route: NuxtRouteLocation) => string);
+  keepalive?: boolean | Record<string, any>;
+  transition?: boolean | Record<string, any>;
+  children?: unknown;
+  default?: () => unknown;
+  [key: string]: any;
+}
+
+export function NuxtPage(props: NuxtPageProps = {}): unknown {
+  const fallbackSlot = resolveDefaultSlotFactory(props);
+  return () => {
+    const activeRoute = props.route ?? useRoute();
+    const matched = activeRoute.matched;
+    const leaf =
+      matched && matched.length > 0 ? matched[matched.length - 1] : undefined;
+    const comp = leaf?.component;
+    if (typeof comp === "function") {
+      return createComponent(
+        comp as (p: any) => unknown,
+        {
+          params: activeRoute.params,
+          query: activeRoute.query,
+          route: activeRoute,
+        },
+        isSSRRendering() ? "ssr" : "dom",
+      );
+    }
+    return fallbackSlot?.() ?? null;
+  };
+}
+
+export function registerNuxtLayout(
+  name: string,
+  component: (props: any) => unknown,
+): void {
+  resolveScopeStore().layouts.set(name, component);
+}
+
+export function clearNuxtLayouts(): void {
+  resolveScopeStore().layouts.clear();
+}
+
+export interface NuxtLayoutProps {
+  name?: MaybeReactive<string | false | null | undefined>;
+  fallback?: string;
+  children?: unknown;
+  default?: () => unknown;
+  [key: string]: any;
+}
+
+export function NuxtLayout(props: NuxtLayoutProps = {}): unknown {
+  const slotContent = readDefaultSlotContent(props);
+  return () => {
+    const store = resolveScopeStore();
+    const route = useRoute();
+    const explicitName = resolveReactive(props.name);
+    const metaLayout = route.meta?.layout as string | false | undefined;
+    const layoutName =
+      explicitName !== undefined
+        ? explicitName
+        : metaLayout !== undefined
+          ? metaLayout
+          : "default";
+
+    if (layoutName === false || layoutName === null) {
+      return renderFragment(slotContent);
+    }
+
+    const layoutComp =
+      store.layouts.get(String(layoutName)) ??
+      (props.fallback ? store.layouts.get(props.fallback) : undefined);
+
+    if (typeof layoutComp === "function") {
+      return createComponent(
+        layoutComp,
+        {
+          ...props,
+          name: String(layoutName),
+          children: slotContent,
+          default: () => slotContent,
+        },
+        isSSRRendering() ? "ssr" : "dom",
+      );
+    }
+
+    return renderElement(
+      "div",
+      {
+        "data-nuxt-layout": String(layoutName),
+        class: props.class,
+        style: props.style,
+      },
+      slotContent,
+    );
+  };
+}
+
+export interface ClientOnlyProps {
+  fallbackTag?: string;
+  placeholderTag?: string;
+  fallback?: unknown;
+  placeholder?: unknown;
+  children?: unknown;
+  default?: () => unknown;
+}
+
+export function ClientOnly(props: ClientOnlyProps = {}): unknown {
+  const store = resolveScopeStore();
+  if (store.event || isSSRRendering()) {
+    const fallbackText = props.fallback ?? props.placeholder;
+    const tag = props.fallbackTag ?? props.placeholderTag;
+    if (tag) {
+      return renderElement(tag, null, fallbackText ?? "");
+    }
+    if (fallbackText !== undefined) {
+      return renderFragment(fallbackText);
+    }
+    return renderFragment();
+  }
+  const content = readDefaultSlotContent(props);
+  return renderFragment(content);
+}
+
+export interface DevOnlyProps {
+  fallback?: unknown;
+  children?: unknown;
+  default?: () => unknown;
+}
+
+export function configureNuxtDevMode(enabled: boolean): void {
+  resolveScopeStore().devMode = enabled;
+}
+
+export function DevOnly(props: DevOnlyProps = {}): unknown {
+  const store = resolveScopeStore();
+  if (!store.devMode) {
+    return props.fallback !== undefined
+      ? renderFragment(props.fallback)
+      : renderFragment();
+  }
+  return renderFragment(readDefaultSlotContent(props));
+}
+
+export interface NuxtErrorBoundaryProps {
+  onError?: (error: unknown) => void;
+  fallback?: (error: VueRef<unknown>, clearError: () => void) => unknown;
+  children?: unknown;
+  default?: () => unknown;
+}
+
+export function NuxtErrorBoundary(props: NuxtErrorBoundaryProps = {}): unknown {
+  const errorRef = createBridgedRef<unknown>(null);
+  const reset = () => {
+    errorRef.value = null;
+  };
+  const slotFactory = resolveDefaultSlotFactory(props);
+  const renderSlot = () => slotFactory?.();
+  const renderFallback = (err: unknown) => {
+    errorRef.value = err;
+    props.onError?.(err);
+    if (typeof props.fallback === "function") {
+      return props.fallback(errorRef, reset);
+    }
+    return null;
+  };
+
+  if (isSSRRendering()) {
+    return ssrBoundary(
+      () => renderSlot() as SSRChild,
+      (err) => renderFallback(err) as SSRChild,
+    );
+  }
+
+  return () => {
+    const currentErr = errorRef.value;
+    if (currentErr != null) {
+      if (typeof props.fallback === "function") {
+        return props.fallback(errorRef, reset);
+      }
+      return null;
+    }
+    const parentOwner = getOwner();
+    try {
+      if (parentOwner) {
+        return runWithOwner(parentOwner, () =>
+          createRoot((dispose) => {
+            const scope = getOwner()!;
+            onCleanup(dispose);
+            (scope.context ??= new Map()).set(
+              errorHandlerKey,
+              (err: unknown) => {
+                renderFallback(err);
+              },
+            );
+            return renderSlot();
+          }),
+        );
+      }
+      return renderSlot();
+    } catch (err) {
+      return renderFallback(err);
+    }
+  };
+}
+
+export interface NuxtLoadingIndicatorProps {
+  color?: string;
+  errorColor?: string;
+  height?: number;
+  duration?: number;
+  throttle?: number;
+}
+
+export function NuxtLoadingIndicator(
+  props: NuxtLoadingIndicatorProps = {},
+): unknown {
+  const indicator = useLoadingIndicator({
+    duration: props.duration,
+    throttle: props.throttle,
+  });
+  const height = props.height ?? 3;
+  const color =
+    props.color ??
+    "repeating-linear-gradient(to right,#00dc82 0%,#34cdfe 50%,#0047e1 100%)";
+  const errorColor =
+    props.errorColor ??
+    "repeating-linear-gradient(to right,#f87171 0%,#ef4444 100%)";
+
+  return renderElement("div", {
+    class: "nuxt-loading-indicator",
+    role: "progressbar",
+    "aria-hidden": () => (indicator.isLoading.value ? "false" : "true"),
+    "aria-valuenow": () => Math.round(indicator.progress.value),
+    style: () => ({
+      position: "fixed",
+      top: "0px",
+      right: "0px",
+      left: "0px",
+      "pointer-events": "none",
+      width: "auto",
+      height: `${height}px`,
+      opacity: indicator.isLoading.value ? "1" : "0",
+      background: indicator.error.value ? errorColor : color,
+      "background-size": `${
+        indicator.progress.value > 0
+          ? (100 / indicator.progress.value) * 100
+          : 100
+      }% auto`,
+      transform: `scaleX(${indicator.progress.value / 100})`,
+      "transform-origin": "left",
+      transition: "transform 0.1s, height 0.4s, opacity 0.4s",
+      "z-index": "999999",
+    }),
+  });
+}
+
+export interface NuxtRouteAnnouncerProps {
+  atomic?: boolean;
+  politeness?: RouteAnnouncerPoliteness;
+}
+
+export function NuxtRouteAnnouncer(
+  props: NuxtRouteAnnouncerProps = {},
+): unknown {
+  const announcer = useRouteAnnouncer({ politeness: props.politeness });
+  return renderElement(
+    "div",
+    {
+      "data-nuxt-route-announcer": "",
+      style: {
+        position: "absolute",
+        width: "1px",
+        height: "1px",
+        padding: "0px",
+        margin: "-1px",
+        overflow: "hidden",
+        clip: "rect(0, 0, 0, 0)",
+        "white-space": "nowrap",
+        "border-width": "0px",
+      },
+    },
+    renderElement(
+      "div",
+      {
+        role: "status",
+        "aria-live": () => announcer.politeness.value,
+        "aria-atomic": props.atomic ? "true" : "false",
+      },
+      () => announcer.message.value,
+    ),
+  );
+}
+
+export interface NuxtTimeProps extends Intl.DateTimeFormatOptions {
+  datetime: MaybeReactive<Date | number | string>;
+  locale?: MaybeReactive<string>;
+  title?: MaybeReactive<string | boolean>;
+  relative?: boolean;
+  [key: string]: any;
+}
+
+export function NuxtTime(props: NuxtTimeProps): unknown {
+  const resolveDate = (): Date => {
+    const raw = resolveReactive(props.datetime);
+    return raw instanceof Date ? raw : new Date(raw ?? 0);
+  };
+  const isoString = () => {
+    const d = resolveDate();
+    return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+  };
+  const formatted = () => {
+    const d = resolveDate();
+    if (Number.isNaN(d.getTime())) return "";
+    const locale = resolveReactive(props.locale) ?? "en-US";
+    const fmtOpts: Intl.DateTimeFormatOptions = {};
+    for (const key of [
+      "weekday",
+      "era",
+      "year",
+      "month",
+      "day",
+      "hour",
+      "minute",
+      "second",
+      "timeZoneName",
+      "timeZone",
+      "hour12",
+      "dateStyle",
+      "timeStyle",
+    ] as const) {
+      if (props[key] !== undefined) {
+        (fmtOpts as Record<string, any>)[key] = props[key];
+      }
+    }
+    return new Intl.DateTimeFormat(locale, fmtOpts).format(d);
+  };
+  const resolvedTitle = () => {
+    const t = resolveReactive(props.title);
+    if (t === true) return isoString();
+    if (typeof t === "string") return t;
+    return undefined;
+  };
+  return renderElement(
+    "time",
+    {
+      datetime: isoString,
+      title: resolvedTitle,
+      class: props.class,
+      style: props.style,
+    },
+    formatted,
+  );
+}
+
+function extractTextContent(node: unknown): string {
+  while (typeof node === "function") node = node();
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractTextContent).join("");
+  return "";
+}
+
+function cleanTagProps(props: Record<string, any>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(props)) {
+    if (
+      k === "children" ||
+      k === "default" ||
+      v === undefined ||
+      v === null ||
+      v === false ||
+      typeof v === "function"
+    ) {
+      continue;
+    }
+    const resolved = isNuxtRef(v) ? v.value : v;
+    if (resolved === undefined || resolved === null || resolved === false) {
+      continue;
+    }
+    out[k] = resolved === true ? "" : String(resolved);
+  }
+  return out;
+}
+
+export function Head(props: Record<string, any> = {}): unknown {
+  const content = readDefaultSlotContent(props);
+  return renderFragment(content);
+}
+
+export function Title(props: Record<string, any> = {}): unknown {
+  const slotFactory = resolveDefaultSlotFactory(props);
+  useHead(() => ({
+    title: extractTextContent(slotFactory?.()),
+  }));
+  return renderFragment();
+}
+
+export function Meta(props: Record<string, any> = {}): unknown {
+  useHead(() => ({
+    meta: [cleanTagProps(props)],
+  }));
+  return renderFragment();
+}
+
+export function Link(props: Record<string, any> = {}): unknown {
+  useHead(() => ({
+    link: [cleanTagProps(props)],
+  }));
+  return renderFragment();
+}
+
+export function Style(props: Record<string, any> = {}): unknown {
+  const slotFactory = resolveDefaultSlotFactory(props);
+  useHead(() => ({
+    style: [
+      {
+        ...cleanTagProps(props),
+        children: extractTextContent(slotFactory?.()),
+      },
+    ],
+  }));
+  return renderFragment();
+}
+
+export function Base(props: Record<string, any> = {}): unknown {
+  useHead(() => ({
+    base: cleanTagProps(props),
+  }));
+  return renderFragment();
+}
+
+export function NoScript(props: Record<string, any> = {}): unknown {
+  const slotFactory = resolveDefaultSlotFactory(props);
+  useHead(() => ({
+    noscript: [
+      {
+        ...cleanTagProps(props),
+        children: extractTextContent(slotFactory?.()),
+      },
+    ],
+  }));
+  return renderFragment();
+}
+
+export function Html(props: Record<string, any> = {}): unknown {
+  useHead(() => ({
+    htmlAttrs: cleanTagProps(props),
+  }));
+  const content = readDefaultSlotContent(props);
+  return renderFragment(content);
+}
+
+export function Body(props: Record<string, any> = {}): unknown {
+  useHead(() => ({
+    bodyAttrs: cleanTagProps(props),
+  }));
+  const content = readDefaultSlotContent(props);
+  return renderFragment(content);
 }

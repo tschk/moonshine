@@ -5,6 +5,45 @@ export type { CrepusNode, CrepusIr, RenderCrepusOptions } from "./ir";
 export const { renderCrepusNodeSolid, renderCrepusIrSolid } =
   /* @__PURE__ */ createIrRenderer<SSRChild>(h);
 
+export const isServer: boolean = true;
+export const isDev: boolean = false;
+
+export function createComponent<P extends Record<string, unknown>>(
+  Comp: (props: P) => SSRChild,
+  props: P,
+): SSRChild {
+  return h(Comp, props);
+}
+
+export function generateHydrationScript(_options?: {
+  nonce?: string;
+  eventNames?: string[];
+}): string {
+  return "";
+}
+
+export function HydrationScript(_props?: {
+  nonce?: string;
+  eventNames?: string[];
+}): undefined {
+  return undefined;
+}
+
+export function NoHydration<T>(props: { children?: T }): T | undefined {
+  return props.children;
+}
+
+export function Assets<T>(_props: { children?: T }): undefined {
+  return undefined;
+}
+
+export function delegateEvents(
+  _eventNames: readonly string[],
+  _doc?: Document,
+): void {}
+
+export function clearDelegatedEvents(_doc?: Document): void {}
+
 /** Portals have no server output and never evaluate their children. */
 export function Portal(_props: {
   children?: unknown;

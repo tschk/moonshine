@@ -749,6 +749,14 @@ export function HashRouter(props: HashRouterProps): any {
   return renderRouterTree(ctx, props.root);
 }
 
+export function StaticRouter(props: RouterProps): any {
+  return Router(props);
+}
+
+export function Routes(props: { children?: any; base?: string }): any {
+  return props.children;
+}
+
 export function useNavigate(): Navigator {
   return getRouterContext("useNavigate").navigate;
 }

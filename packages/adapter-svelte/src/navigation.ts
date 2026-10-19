@@ -31,7 +31,7 @@ export let browser: boolean =
   typeof window !== "undefined" && typeof document !== "undefined";
 export let dev = false;
 export let building = false;
-export let version = "0.4.67";
+export let version = "0.4.68";
 
 export interface KitEnvironmentConfig {
   browser?: boolean;

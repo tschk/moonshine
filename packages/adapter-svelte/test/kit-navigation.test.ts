@@ -67,7 +67,7 @@ describe("@tschk/moonshine-svelte/navigation & @tschk/moonshine-svelte/kit", () 
       browser: false,
       dev: false,
       building: false,
-      version: "0.4.67",
+      version: "0.4.68",
     });
   });
 

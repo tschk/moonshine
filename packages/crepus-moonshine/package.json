@@ -1,6 +1,6 @@
 {
   "name": "@tschk/crepus-moonshine",
-  "version": "0.4.67",
+  "version": "0.4.68",
   "description": "Bridge: .crepus (parsed by the Rust parser via WASM) to moonshine React elements",
   "license": "ISC",
   "type": "module",
