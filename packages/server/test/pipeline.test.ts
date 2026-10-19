@@ -159,6 +159,26 @@ describe("createRequestHandler", () => {
     expect(res.headers.get("location")).toBe("/to");
   });
 
+  test("throws invalid redirect if redirect location is not safe in middleware", async () => {
+    const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        from: {
+          before: [
+            async () => {
+              throw redirect("//evil.com", 302);
+            },
+          ],
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/from"));
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Invalid redirect");
+  });
+
   test("blocks unsafe redirects (open redirect bypass)", async () => {
     const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
     const handler = createRequestHandler({
