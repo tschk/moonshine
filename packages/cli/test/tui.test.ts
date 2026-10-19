@@ -4,12 +4,14 @@ import { clampColumns, truncate, warningBar } from "../src/tui";
 describe("clampColumns", () => {
   test("returns 80 for undefined or non-finite values", () => {
     expect(clampColumns(undefined)).toBe(80);
+    expect(clampColumns(0)).toBe(80);
     expect(clampColumns(NaN)).toBe(80);
     expect(clampColumns(Infinity)).toBe(80);
     expect(clampColumns(-Infinity)).toBe(80);
   });
 
   test("clamps to a minimum of 20", () => {
+    expect(clampColumns(-1)).toBe(20);
     expect(clampColumns(10)).toBe(20);
     expect(clampColumns(19)).toBe(20);
     expect(clampColumns(20)).toBe(20);
@@ -22,7 +24,9 @@ describe("clampColumns", () => {
   });
 
   test("returns the exact value if within range, rounding down floats", () => {
+    expect(clampColumns(21)).toBe(21);
     expect(clampColumns(50)).toBe(50);
+    expect(clampColumns(99)).toBe(99);
     expect(clampColumns(50.5)).toBe(50);
     expect(clampColumns(99.9)).toBe(99);
   });
