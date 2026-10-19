@@ -68,9 +68,16 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     const asyncRes=await root.useAsyncData('greeting',async()=>'hello');
     assert.equal(asyncRes.data.value,'hello');
     assert.equal(root.useNuxtData('greeting').data.value,'hello');
-    await root.withNuxtRequest({url:'https://example.com/test',headers:{cookie:'lang=fr','x-req':'1'}},async()=>{
+    await root.withNuxtRequest({url:'https://example.com/test?q=1',headers:{cookie:'lang=fr','x-req':'1'}},async(ev)=>{
       assert.equal(root.useCookie('lang').value,'fr');
       assert.equal(root.useRequestHeaders(['x-req'])['x-req'],'1');
+      assert.equal(root.useRoute().path,'/test');
+      assert.equal(root.useRoute().query.q,'1');
+      root.useSeoMeta({title:'Hello Nuxt',ogTitle:'OG Nuxt'});
+      assert.equal(root.resolveHeadTags().title,'Hello Nuxt');
+      await root.navigateTo('/next',{redirectCode:307});
+      assert.equal(ev.responseStatus,307);
+      assert.equal(ev.responseHeaders.get('location'),'/next');
       let count=0;
       await root.callOnce('k',()=>{count++;});
       await root.callOnce('k',()=>{count++;});

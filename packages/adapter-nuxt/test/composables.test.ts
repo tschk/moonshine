@@ -3,6 +3,7 @@ import { createRoot } from "@tschk/moonshine-dom/reactive";
 import { withSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import {
   NuxtError,
+  abortNavigation,
   callOnce,
   clearError,
   clearNuxtData,
@@ -14,8 +15,17 @@ import {
   definePageMeta,
   isNuxtError,
   isNuxtRef,
+  navigateTo,
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+  prefetchComponents,
+  preloadComponents,
+  preloadRouteComponents,
   refreshCookie,
   refreshNuxtData,
+  resolveHeadTags,
+  setPageLayout,
+  setResponseStatus,
   showError,
   updateAppConfig,
   useAppConfig,
@@ -23,13 +33,19 @@ import {
   useCookie,
   useError,
   useFetch,
+  useHead,
+  useHeadSafe,
   useLazyAsyncData,
   useLazyFetch,
   useNuxtData,
   useRequestEvent,
   useRequestHeaders,
   useRequestURL,
+  useRoute,
+  useRouter,
   useRuntimeConfig,
+  useSeoMeta,
+  useServerSeoMeta,
   useState,
   withNuxtRequest,
 } from "../src/composables";
@@ -342,6 +358,220 @@ describe("@tschk/moonshine-nuxt composables", () => {
 
       await callOnce("init-metric", runOnce, { mode: "navigation" });
       expect(runs).toBe(2);
+    });
+  });
+
+  test("useRoute, useRouter, navigateTo, abortNavigation, route guards, setPageLayout, and setResponseStatus", async () => {
+    await withNuxtRequest(
+      {
+        url: "https://example.com/posts/42?tag=news&tag=featured#comments",
+        context: { params: { id: "42" }, routeMeta: { auth: true } },
+      },
+      async (event) => {
+        const route = useRoute();
+        expect(route.path).toBe("/posts/42");
+        expect(route.fullPath).toBe("/posts/42?tag=news&tag=featured#comments");
+        expect(route.query).toEqual({ tag: ["news", "featured"] });
+        expect(route.hash).toBe("#comments");
+        expect(route.params).toEqual({ id: "42" });
+        expect(route.meta).toEqual({ auth: true });
+
+        setResponseStatus(201, "Created");
+        expect(event.responseStatus).toBe(201);
+        expect(event.responseStatusText).toBe("Created");
+
+        setResponseStatus(event, 202, "Accepted");
+        expect(event.responseStatus).toBe(202);
+        expect(event.responseStatusText).toBe("Accepted");
+
+        setPageLayout("admin");
+        expect(useState("_layout").value).toBe("admin");
+        expect(route.meta.layout).toBe("admin");
+
+        const redirectRes = await navigateTo(
+          { path: "/login", query: { next: "/posts/42" } },
+          { redirectCode: 307 },
+        );
+        expect(redirectRes).toBeInstanceOf(Response);
+        expect(event.responseStatus).toBe(307);
+        expect(event.responseHeaders.get("Location")).toBe(
+          "/login?next=%2Fposts%2F42",
+        );
+        expect(route.path).toBe("/login");
+
+        await expect(
+          navigateTo("https://external.example.com"),
+        ).rejects.toThrow(/external/);
+        const extRes = await navigateTo("https://external.example.com", {
+          external: true,
+          redirectCode: 301,
+        });
+        expect(extRes).toBeInstanceOf(Response);
+        expect(event.responseStatus).toBe(301);
+        expect(event.responseHeaders.get("Location")).toBe(
+          "https://external.example.com",
+        );
+      },
+    );
+
+    // Client-style router with guards and dynamic routes
+    window.history?.replaceState?.({}, "", "/");
+    await createRoot(async (dispose) => {
+      try {
+        const router = useRouter();
+        const route = useRoute();
+        router.addRoute({
+          name: "user-detail",
+          path: "/users/:username",
+          meta: { section: "users" },
+        });
+        expect(router.hasRoute("user-detail")).toBe(true);
+        expect(router.getRoutes()).toHaveLength(1);
+
+        const resolved = router.resolve({
+          name: "user-detail",
+          params: { username: "ada" },
+          query: { tab: "repos" },
+          hash: "bio",
+        });
+        expect(resolved.fullPath).toBe("/users/ada?tab=repos#bio");
+
+        const log: string[] = [];
+        onBeforeRouteLeave((to, from) => {
+          log.push(`leave:${from.path}->${to.path}`);
+        });
+        onBeforeRouteUpdate((to) => {
+          log.push(`update:${to.fullPath}`);
+        });
+        const removeBefore = router.beforeEach((to) => {
+          if (to.path === "/blocked") {
+            return abortNavigation();
+          }
+          if (to.path === "/old") {
+            return "/users/grace";
+          }
+        });
+        router.afterEach((to, _from, failure) => {
+          log.push(failure ? `failed:${to.path}` : `after:${to.fullPath}`);
+        });
+
+        await router.push("/users/ada");
+        expect(route.params).toEqual({ username: "ada" });
+        expect(route.meta.section).toBe("users");
+
+        await router.push("/users/ada?tab=stars");
+        expect(route.query).toEqual({ tab: "stars" });
+
+        const blocked = await router.push("/blocked");
+        expect((blocked as any)?.type).toBe("aborted");
+        expect(route.path).toBe("/users/ada");
+
+        await router.push("/old");
+        expect(route.path).toBe("/users/grace");
+        expect(route.redirectedFrom?.path).toBe("/old");
+
+        removeBefore();
+        expect(log).toEqual([
+          "leave:/->/users/ada",
+          "after:/users/ada",
+          "update:/users/ada?tab=stars",
+          "after:/users/ada?tab=stars",
+          "leave:/users/ada->/blocked",
+          "failed:/blocked",
+          "leave:/users/ada->/old",
+          "leave:/users/ada->/users/grace",
+          "after:/users/grace",
+        ]);
+      } finally {
+        window.history?.replaceState?.({}, "", "/");
+        dispose();
+      }
+    });
+  });
+
+  test("useHead, useHeadSafe, resolveHeadTags, useSeoMeta, useServerSeoMeta, and component preload helpers", async () => {
+    await withNuxtRequest({ url: "https://example.com/" }, async () => {
+      const pageTitle = createBridgedRef("Home");
+      useHead({
+        titleTemplate: "%s | Moonshine",
+        htmlAttrs: { lang: "en" },
+        meta: [{ name: "description", content: "Initial description" }],
+      });
+
+      const seoEntry = useSeoMeta({
+        title: () => pageTitle.value,
+        description: "Updated SEO description",
+        ogTitle: () => `OG: ${pageTitle.value}`,
+        ogImage: "https://example.com/og.png",
+        twitterCard: "summary_large_image",
+        canonical: "https://example.com/home",
+      });
+
+      const safeEntry = useHeadSafe({
+        script: [{ src: "https://evil.example.com/xss.js" }],
+        link: [
+          { rel: "stylesheet", href: "https://evil.example.com/bad.css" },
+          {
+            rel: "icon",
+            href: "https://example.com/favicon.ico",
+            onload: "alert(1)",
+            "data-theme": "dark",
+          },
+          { rel: "canonical", href: "javascript:alert(1)" },
+        ],
+        meta: [
+          {
+            "http-equiv": "refresh",
+            content: "0;url=https://evil.example.com",
+          },
+          { name: "author", content: "Ada", onclick: "evil()" },
+        ],
+        bodyAttrs: {
+          class: "theme-dark",
+          onload: "evil()",
+        },
+      });
+
+      let resolved = resolveHeadTags();
+      expect(resolved.title).toBe("Home | Moonshine");
+      expect(resolved.htmlAttrs).toEqual({ lang: "en" });
+      expect(resolved.bodyAttrs).toEqual({ class: "theme-dark" });
+      expect(resolved.script).toEqual([]);
+      expect(resolved.link).toEqual([
+        { rel: "canonical", href: "https://example.com/home" },
+        {
+          rel: "icon",
+          href: "https://example.com/favicon.ico",
+          "data-theme": "dark",
+        },
+      ]);
+      expect(resolved.meta).toEqual([
+        { name: "description", content: "Updated SEO description" },
+        { property: "og:title", content: "OG: Home" },
+        { property: "og:image", content: "https://example.com/og.png" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "author", content: "Ada" },
+      ]);
+
+      pageTitle.value = "Docs";
+      resolved = resolveHeadTags();
+      expect(resolved.title).toBe("Docs | Moonshine");
+      expect(
+        resolved.meta.find((m) => m.property === "og:title")?.content,
+      ).toBe("OG: Docs");
+
+      useServerSeoMeta({ robots: "index, follow" });
+      expect(
+        resolveHeadTags().meta.find((m) => m.name === "robots")?.content,
+      ).toBe("index, follow");
+
+      safeEntry.dispose();
+      seoEntry.dispose();
+      expect(resolveHeadTags().bodyAttrs).toEqual({});
+
+      await preloadComponents(["Header", "Footer"]);
+      await prefetchComponents("Sidebar");
+      await preloadRouteComponents("/docs");
     });
   });
 });

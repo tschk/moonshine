@@ -1,3 +1,21 @@
+# Moonshine 0.4.57
+
+- Add native host-free Nuxt 3/4 routing, navigation, response status, layout,
+  head/SEO, and component preload composables (`useRoute`, `useRouter`,
+  `navigateTo`, `abortNavigation`, `onBeforeRouteLeave`, `onBeforeRouteUpdate`,
+  `setResponseStatus`, `setPageLayout`, `useHead`, `useHeadSafe`,
+  `resolveHeadTags`, `useSeoMeta`, `useServerSeoMeta`, `preloadComponents`,
+  `prefetchComponents`, and `preloadRouteComponents`) in
+  `@tschk/moonshine-nuxt/composables` and `@tschk/moonshine-nuxt`.
+- Add native host-free Astro Content Collections, Live Content Layer, and
+  zero-dependency Zod-compatible `z` schema builder (`defineCollection`,
+  `getCollection`, `getEntry`, `getEntries`, `getLiveCollection`,
+  `getLiveEntry`, `reference`, `registerCollections`, `seedCollection`,
+  `clearCollections`, `render`, `extractMarkdownHeadings`, `z`, `ZodType`,
+  `ZodString`, `ZodNumber`, `ZodBoolean`, `ZodDate`, `ZodArray`, `ZodObject`,
+  and `ZodError`) in `@tschk/moonshine-astro/content`, `@tschk/moonshine-astro`,
+  and `@tschk/moonshine-astro/actions`.
+
 # Moonshine 0.4.56
 
 - Add native host-free Nuxt 3/4 fetch, cookie, request context, runtime/app

@@ -361,3 +361,5 @@ export function defineAction<
     queryString,
   }) as ActionClient<TOutput, TAccept, TInput>;
 }
+
+export { z } from "./content";

@@ -207,18 +207,20 @@ for(const command of [['bun','--no-install','check.ts'],['bun','build','check.ts
   },
 );
 
-test("native Astro actions, context, and transitions run and bundle without Astro host or framework", async () => {
+test("native Astro actions, context, transitions, and content collections run and bundle without Astro host or framework", async () => {
   await standalone(`
 import assert from 'node:assert/strict';
 import { defineAction, ActionError, isActionError } from '@tschk/moonshine-astro/actions';
 import { AstroCookies, withAstroContext, useAstro } from '@tschk/moonshine-astro/context';
 import { fade, slide, createAnimationScope, transition } from '@tschk/moonshine-astro/transitions';
+import { defineCollection, registerCollections, seedCollection, getCollection, getEntry, render, z } from '@tschk/moonshine-astro/content';
 for (const name of ['astro', 'react', 'react-dom', '@tschk/crepuscularity-wasm', '@tschk/moonshine-framework']) {
   assert.throws(() => Bun.resolveSync(name, process.cwd()));
 }
 const action = defineAction({
   name: 'ping',
-  handler: async (input: { msg: string }, ctx) => {
+  input: z.object({ msg: z.string() }),
+  handler: async (input, ctx) => {
     if (input.msg === 'fail') throw new ActionError({ code: 'BAD_REQUEST', message: 'bad' });
     return { echo: input.msg, url: ctx.url.pathname };
   },
@@ -233,5 +235,18 @@ assert.equal(cookies.get('sid')?.value, 'xyz');
 const scope = createAnimationScope('card', fade({ duration: 120 }), 'astro-card-1');
 assert.equal(scope.attributes['data-astro-transition-scope'], 'astro-card-1');
 assert.ok(transition({ name: 'nav', animate: slide() })['data-astro-transition-scope'].startsWith('astro-nav-'));
+registerCollections({
+  docs: defineCollection({
+    schema: z.object({ title: z.string(), order: z.number().default(1) }),
+  }),
+});
+seedCollection('docs', [{ id: 'intro.md', data: { title: 'Intro' }, body: '# Intro\\n\\nWelcome.' }]);
+const docs = await getCollection('docs');
+assert.equal(docs.length, 1);
+assert.equal(docs[0].data.order, 1);
+const intro = await getEntry('docs', 'intro');
+const rendered = await render(intro);
+assert.equal(rendered.headings[0].slug, 'intro');
+assert.ok(rendered.Content().includes('<h1 id="intro">Intro</h1>'));
 `);
 });

@@ -343,6 +343,7 @@ describe("@tschk/moonshine-astro/transitions", () => {
         TRANSITION_PAGE_LOAD,
       ]);
     } finally {
+      window.history?.replaceState?.({}, "", "/");
       document.removeEventListener(TRANSITION_BEFORE_PREPARATION, onBeforePrep);
       document.removeEventListener(TRANSITION_AFTER_PREPARATION, onAfterPrep);
       document.removeEventListener(TRANSITION_BEFORE_SWAP, onBeforeSwap);

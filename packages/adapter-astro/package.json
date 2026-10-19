@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./actions": "./src/actions.ts",
     "./compiler": "./src/compiler.ts",
+    "./content": "./src/content.ts",
     "./context": "./src/context.ts",
     "./ssr": "./src/ssr.ts",
     "./transitions": "./src/transitions.ts"

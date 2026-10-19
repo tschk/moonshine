@@ -70,6 +70,8 @@ export interface NuxtRequestEvent {
   url: URL;
   headers: Headers;
   responseHeaders: Headers;
+  responseStatus: number;
+  responseStatusText?: string;
   context: Record<string, any>;
 }
 
@@ -78,6 +80,8 @@ export interface NuxtRequestInit {
   url?: URL | string;
   headers?: HeadersInit;
   responseHeaders?: HeadersInit;
+  responseStatus?: number;
+  responseStatusText?: string;
   context?: Record<string, any>;
   runtimeConfig?: Partial<NuxtRuntimeConfig>;
   appConfig?: Record<string, any>;
@@ -87,6 +91,11 @@ type CookieEntry = {
   ref: VueRef<any>;
   decode: (raw: string) => any;
   defaultFactory?: () => any;
+};
+
+type HeadEntryRecord = {
+  id: number;
+  signal: MsSignal<MaybeReactive<HeadInput>>;
 };
 
 type NuxtScopeStore = {
@@ -100,6 +109,20 @@ type NuxtScopeStore = {
   runtimeConfig: NuxtRuntimeConfig;
   appConfigSignal: MsSignal<Record<string, any>>;
   appConfigProxy?: Record<string, any>;
+  routeSignal?: MsSignal<NuxtRouteLocation>;
+  routeProxy?: NuxtRouteLocation;
+  router?: NuxtRouter;
+  routes: Map<string | symbol, NuxtRouteRecord>;
+  beforeGuards: Set<NavigationGuard>;
+  updateGuards: Set<NavigationGuard>;
+  leaveGuards: Set<NavigationGuard>;
+  afterHooks: Set<AfterNavigationHook>;
+  errorHandlers: Set<(error: unknown) => void>;
+  headEntries: HeadEntryRecord[];
+  nextHeadId: number;
+  preloadedComponents: Set<string>;
+  prefetchedComponents: Set<string>;
+  preloadedRoutes: Set<string>;
   event?: NuxtRequestEvent;
 };
 
@@ -135,6 +158,17 @@ function createScopeStore(
     appConfigSignal: msCreateSignal<Record<string, any>>(
       init?.appConfig ? { ...init.appConfig } : {},
     ),
+    routes: new Map(),
+    beforeGuards: new Set(),
+    updateGuards: new Set(),
+    leaveGuards: new Set(),
+    afterHooks: new Set(),
+    errorHandlers: new Set(),
+    headEntries: [],
+    nextHeadId: 1,
+    preloadedComponents: new Set(),
+    prefetchedComponents: new Set(),
+    preloadedRoutes: new Set(),
     event,
   };
 }
@@ -565,6 +599,7 @@ export function createNuxtRequestEvent(
       url: new URL(init.url),
       headers: new Headers(init.headers),
       responseHeaders: new Headers(),
+      responseStatus: 200,
       context: {},
     };
   }
@@ -584,6 +619,8 @@ export function createNuxtRequestEvent(
     url: resolvedUrl,
     headers,
     responseHeaders,
+    responseStatus: init?.responseStatus ?? 200,
+    responseStatusText: init?.responseStatusText,
     context: init?.context ? { ...init.context } : {},
   };
 }
@@ -1269,12 +1306,8 @@ export async function clearError(options?: {
   redirect?: string;
 }): Promise<void> {
   useError().value = undefined;
-  if (
-    options?.redirect &&
-    typeof window !== "undefined" &&
-    typeof window.history?.pushState === "function"
-  ) {
-    window.history.pushState({}, "", options.redirect);
+  if (options?.redirect) {
+    await navigateTo(options.redirect, { replace: true });
   }
 }
 
@@ -1345,4 +1378,1103 @@ function fnToKey(fn: Function): number {
     fnKeyIds.set(fn, id);
   }
   return id;
+}
+
+export function setResponseStatus(
+  event: NuxtRequestEvent,
+  code?: number,
+  message?: string,
+): void;
+export function setResponseStatus(code: number, message?: string): void;
+export function setResponseStatus(
+  eventOrCode: NuxtRequestEvent | number,
+  codeOrMessage?: number | string,
+  maybeMessage?: string,
+): void {
+  if (typeof eventOrCode === "number") {
+    const event = resolveScopeStore().event;
+    if (!event) return;
+    event.responseStatus = eventOrCode;
+    if (typeof codeOrMessage === "string") {
+      event.responseStatusText = codeOrMessage;
+    }
+    return;
+  }
+  if (isNuxtRequestEvent(eventOrCode)) {
+    if (typeof codeOrMessage === "number") {
+      eventOrCode.responseStatus = codeOrMessage;
+    }
+    if (typeof maybeMessage === "string") {
+      eventOrCode.responseStatusText = maybeMessage;
+    }
+  }
+}
+
+export interface NuxtRouteRecord {
+  path: string;
+  name?: string | symbol;
+  meta?: Record<string, any>;
+  component?: unknown;
+  children?: NuxtRouteRecord[];
+}
+
+export interface NuxtRouteLocation {
+  path: string;
+  fullPath: string;
+  query: Record<string, string | string[]>;
+  hash: string;
+  params: Record<string, string | string[]>;
+  name?: string | symbol | null;
+  meta: Record<string, any>;
+  matched: NuxtRouteRecord[];
+  redirectedFrom?: NuxtRouteLocation;
+}
+
+export type NuxtRouteLocationRaw =
+  | string
+  | {
+      path?: string;
+      name?: string | symbol;
+      query?: Record<string, any>;
+      params?: Record<string, any>;
+      hash?: string;
+      replace?: boolean;
+      meta?: Record<string, any>;
+    };
+
+export interface NavigationAbort {
+  readonly __nuxt_abort: true;
+  readonly error?: NuxtError;
+}
+
+export interface NavigationFailure extends Error {
+  readonly __nuxt_nav_failure: true;
+  readonly from: NuxtRouteLocation;
+  readonly to: NuxtRouteLocation;
+  readonly type: "aborted" | "cancelled" | "duplicated";
+}
+
+export type NavigationGuardReturn =
+  | void
+  | undefined
+  | boolean
+  | string
+  | NuxtRouteLocationRaw
+  | NavigationAbort
+  | Error;
+
+export type NavigationGuard = (
+  to: NuxtRouteLocation,
+  from: NuxtRouteLocation,
+) => NavigationGuardReturn | Promise<NavigationGuardReturn>;
+
+export type AfterNavigationHook = (
+  to: NuxtRouteLocation,
+  from: NuxtRouteLocation,
+  failure?: NavigationFailure,
+) => void | Promise<void>;
+
+export interface NuxtRouter {
+  currentRoute: VueRef<NuxtRouteLocation>;
+  resolve: (to: NuxtRouteLocationRaw) => NuxtRouteLocation;
+  push: (
+    to: NuxtRouteLocationRaw,
+  ) => Promise<NuxtRouteLocation | NavigationFailure | void>;
+  replace: (
+    to: NuxtRouteLocationRaw,
+  ) => Promise<NuxtRouteLocation | NavigationFailure | void>;
+  back: () => void;
+  forward: () => void;
+  go: (delta: number) => void;
+  beforeEach: (guard: NavigationGuard) => () => void;
+  afterEach: (hook: AfterNavigationHook) => () => void;
+  onError: (handler: (error: unknown) => void) => () => void;
+  addRoute: (
+    parentOrRoute: string | symbol | NuxtRouteRecord,
+    route?: NuxtRouteRecord,
+  ) => () => void;
+  removeRoute: (name: string | symbol) => void;
+  hasRoute: (name: string | symbol) => boolean;
+  getRoutes: () => NuxtRouteRecord[];
+}
+
+function parseQueryRecord(
+  searchParams: URLSearchParams,
+): Record<string, string | string[]> {
+  const query: Record<string, string | string[]> = {};
+  searchParams.forEach((value, key) => {
+    const existing = query[key];
+    if (existing === undefined) {
+      query[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      query[key] = [existing, value];
+    }
+  });
+  return query;
+}
+
+function serializeQueryRecord(query?: Record<string, any>): string {
+  if (!query) return "";
+  const params = new URLSearchParams();
+  for (const [key, val] of Object.entries(query)) {
+    if (val === undefined || val === null) continue;
+    if (Array.isArray(val)) {
+      for (const item of val) {
+        if (item !== undefined && item !== null) {
+          params.append(key, String(item));
+        }
+      }
+    } else {
+      params.append(key, String(val));
+    }
+  }
+  const str = params.toString();
+  return str ? `?${str}` : "";
+}
+
+function matchRegisteredRoute(
+  store: NuxtScopeStore,
+  path: string,
+  name?: string | symbol | null,
+): {
+  record?: NuxtRouteRecord;
+  params: Record<string, string | string[]>;
+} {
+  if (name !== undefined && name !== null && store.routes.has(name)) {
+    const rec = store.routes.get(name)!;
+    return { record: rec, params: {} };
+  }
+  for (const rec of store.routes.values()) {
+    if (rec.path === path) {
+      return { record: rec, params: {} };
+    }
+    const patternParts = rec.path.split("/").filter(Boolean);
+    const pathParts = path.split("/").filter(Boolean);
+    if (patternParts.length !== pathParts.length) continue;
+    const params: Record<string, string> = {};
+    let matched = true;
+    for (let i = 0; i < patternParts.length; i++) {
+      const pat = patternParts[i]!;
+      const seg = pathParts[i]!;
+      if (pat.startsWith(":")) {
+        params[pat.slice(1)] = decodeURIComponent(seg);
+      } else if (pat !== seg) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) {
+      return { record: rec, params };
+    }
+  }
+  return { params: {} };
+}
+
+function buildRouteLocation(
+  store: NuxtScopeStore,
+  raw: NuxtRouteLocationRaw,
+): NuxtRouteLocation {
+  if (typeof raw === "string") {
+    const parsed = new URL(raw, "http://localhost");
+    const path = parsed.pathname || "/";
+    const query = parseQueryRecord(parsed.searchParams);
+    const hash = parsed.hash || "";
+    const fullPath = `${path}${parsed.search}${hash}`;
+    const { record, params } = matchRegisteredRoute(store, path);
+    const ctxParams = store.event?.context?.params;
+    const ctxMeta = store.event?.context?.routeMeta;
+    return {
+      path,
+      fullPath,
+      query,
+      hash,
+      params: { ...params, ...ctxParams },
+      name: record?.name ?? null,
+      meta: { ...record?.meta, ...ctxMeta },
+      matched: record ? [record] : [],
+    };
+  }
+
+  let basePath = raw.path;
+  let matchedRecord: NuxtRouteRecord | undefined;
+  if (!basePath && raw.name !== undefined && store.routes.has(raw.name)) {
+    matchedRecord = store.routes.get(raw.name)!;
+    basePath = matchedRecord.path;
+    if (raw.params) {
+      for (const [k, v] of Object.entries(raw.params)) {
+        basePath = basePath.replace(`:${k}`, encodeURIComponent(String(v)));
+      }
+    }
+  }
+  const parsed = new URL(basePath ?? "/", "http://localhost");
+  const path = parsed.pathname || "/";
+  const mergedQuery: Record<string, string | string[]> = {
+    ...parseQueryRecord(parsed.searchParams),
+  };
+  if (raw.query) {
+    for (const [k, v] of Object.entries(raw.query)) {
+      if (v === undefined || v === null) {
+        delete mergedQuery[k];
+      } else if (Array.isArray(v)) {
+        mergedQuery[k] = v.map(String);
+      } else {
+        mergedQuery[k] = String(v);
+      }
+    }
+  }
+  const search = serializeQueryRecord(mergedQuery);
+  const rawHash = raw.hash ?? parsed.hash ?? "";
+  const hash =
+    rawHash && !rawHash.startsWith("#") ? `#${rawHash}` : rawHash || "";
+  const fullPath = `${path}${search}${hash}`;
+  const match = matchedRecord
+    ? { record: matchedRecord, params: {} }
+    : matchRegisteredRoute(store, path, raw.name);
+  const normalizedParams: Record<string, string | string[]> = {
+    ...match.params,
+  };
+  if (raw.params) {
+    for (const [k, v] of Object.entries(raw.params)) {
+      normalizedParams[k] = Array.isArray(v) ? v.map(String) : String(v);
+    }
+  }
+  return {
+    path,
+    fullPath,
+    query: mergedQuery,
+    hash,
+    params: normalizedParams,
+    name: raw.name ?? match.record?.name ?? null,
+    meta: { ...match.record?.meta, ...raw.meta },
+    matched: match.record ? [match.record] : [],
+  };
+}
+
+function ensureRouteSignal(store: NuxtScopeStore): MsSignal<NuxtRouteLocation> {
+  if (!store.routeSignal) {
+    const initialRaw = store.event
+      ? `${store.event.url.pathname}${store.event.url.search}${store.event.url.hash}`
+      : typeof window !== "undefined" && window.location
+        ? `${window.location.pathname || "/"}${window.location.search || ""}${window.location.hash || ""}`
+        : "/";
+    store.routeSignal = msCreateSignal<NuxtRouteLocation>(
+      buildRouteLocation(store, initialRaw),
+    );
+  }
+  return store.routeSignal;
+}
+
+export function useRoute(): NuxtRouteLocation {
+  const store = resolveScopeStore();
+  const sig = ensureRouteSignal(store);
+  if (!store.routeProxy) {
+    store.routeProxy = new Proxy({} as NuxtRouteLocation, {
+      get(_target, prop) {
+        const current = sig();
+        return Reflect.get(current, prop);
+      },
+      set(_target, prop, value) {
+        const current = untrack(sig);
+        sig.set(() => ({
+          ...current,
+          [prop]: value,
+        }));
+        return true;
+      },
+      has(_target, prop) {
+        const current = sig();
+        return prop in current;
+      },
+      ownKeys() {
+        const current = sig();
+        return Reflect.ownKeys(current);
+      },
+      getOwnPropertyDescriptor(_target, prop) {
+        const current = sig();
+        const desc = Reflect.getOwnPropertyDescriptor(current, prop);
+        if (desc) return { ...desc, configurable: true };
+        return undefined;
+      },
+    });
+  }
+  return store.routeProxy;
+}
+
+function isNavigationAbort(value: unknown): value is NavigationAbort {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { __nuxt_abort?: unknown }).__nuxt_abort === true
+  );
+}
+
+function createNavigationFailure(
+  from: NuxtRouteLocation,
+  to: NuxtRouteLocation,
+  type: "aborted" | "cancelled" | "duplicated" = "aborted",
+  message?: string,
+): NavigationFailure {
+  const err = new Error(
+    message ?? `Navigation ${type} from "${from.fullPath}" to "${to.fullPath}"`,
+  ) as NavigationFailure;
+  Object.defineProperty(err, "__nuxt_nav_failure", {
+    value: true,
+    enumerable: false,
+  });
+  Object.defineProperty(err, "from", { value: from, enumerable: true });
+  Object.defineProperty(err, "to", { value: to, enumerable: true });
+  Object.defineProperty(err, "type", { value: type, enumerable: true });
+  return err;
+}
+
+export function abortNavigation(
+  err?: string | Partial<NuxtError> | Error,
+): NavigationAbort {
+  if (!err) {
+    return { __nuxt_abort: true };
+  }
+  const nuxtErr = isNuxtError(err)
+    ? err
+    : err instanceof Error
+      ? new NuxtError({
+          message: err.message,
+          stack: err.stack,
+          cause: err.cause,
+        })
+      : createError(err);
+  return {
+    __nuxt_abort: true,
+    error: nuxtErr,
+  };
+}
+
+async function performRouterNavigation(
+  store: NuxtScopeStore,
+  rawTo: NuxtRouteLocationRaw,
+  replace = false,
+  redirectedFrom?: NuxtRouteLocation,
+): Promise<NuxtRouteLocation | NavigationFailure | void> {
+  const sig = ensureRouteSignal(store);
+  const from = untrack(sig);
+  const to = buildRouteLocation(store, rawTo);
+  if (redirectedFrom) {
+    to.redirectedFrom = redirectedFrom;
+  }
+
+  const guards: NavigationGuard[] = [
+    ...(from.path !== to.path ? Array.from(store.leaveGuards) : []),
+    ...Array.from(store.beforeGuards),
+    ...(from.path === to.path ? Array.from(store.updateGuards) : []),
+  ];
+
+  for (const guard of guards) {
+    try {
+      const result = await guard(to, from);
+      if (result === false || isNavigationAbort(result)) {
+        if (isNavigationAbort(result) && result.error) {
+          for (const handler of store.errorHandlers) {
+            handler(result.error);
+          }
+          throw result.error;
+        }
+        const failure = createNavigationFailure(from, to, "aborted");
+        for (const hook of store.afterHooks) {
+          await hook(to, from, failure);
+        }
+        return failure;
+      }
+      if (result instanceof Error) {
+        for (const handler of store.errorHandlers) {
+          handler(result);
+        }
+        throw result;
+      }
+      if (
+        typeof result === "string" ||
+        (typeof result === "object" && result !== null)
+      ) {
+        return performRouterNavigation(
+          store,
+          result as NuxtRouteLocationRaw,
+          replace,
+          redirectedFrom ?? to,
+        );
+      }
+    } catch (err) {
+      for (const handler of store.errorHandlers) {
+        handler(err);
+      }
+      throw err;
+    }
+  }
+
+  sig.set(() => to);
+  if (store.event) {
+    store.event.url = new URL(to.fullPath, store.event.url.origin);
+  } else if (typeof window !== "undefined" && window.history) {
+    if (replace && typeof window.history.replaceState === "function") {
+      window.history.replaceState({}, "", to.fullPath);
+    } else if (!replace && typeof window.history.pushState === "function") {
+      window.history.pushState({}, "", to.fullPath);
+    }
+  }
+
+  for (const hook of store.afterHooks) {
+    await hook(to, from, undefined);
+  }
+  return to;
+}
+
+export function useRouter(): NuxtRouter {
+  const store = resolveScopeStore();
+  if (!store.router) {
+    const sig = ensureRouteSignal(store);
+    const currentRoute = fromMoonshineSignal(sig);
+    store.router = {
+      currentRoute,
+      resolve(to: NuxtRouteLocationRaw): NuxtRouteLocation {
+        return buildRouteLocation(store, to);
+      },
+      push(to: NuxtRouteLocationRaw) {
+        const isReplace =
+          typeof to === "object" && to !== null && Boolean(to.replace);
+        return performRouterNavigation(store, to, isReplace);
+      },
+      replace(to: NuxtRouteLocationRaw) {
+        return performRouterNavigation(store, to, true);
+      },
+      back() {
+        if (
+          typeof window !== "undefined" &&
+          typeof window.history?.back === "function"
+        ) {
+          window.history.back();
+        }
+      },
+      forward() {
+        if (
+          typeof window !== "undefined" &&
+          typeof window.history?.forward === "function"
+        ) {
+          window.history.forward();
+        }
+      },
+      go(delta: number) {
+        if (
+          typeof window !== "undefined" &&
+          typeof window.history?.go === "function"
+        ) {
+          window.history.go(delta);
+        }
+      },
+      beforeEach(guard: NavigationGuard) {
+        store.beforeGuards.add(guard);
+        return () => {
+          store.beforeGuards.delete(guard);
+        };
+      },
+      afterEach(hook: AfterNavigationHook) {
+        store.afterHooks.add(hook);
+        return () => {
+          store.afterHooks.delete(hook);
+        };
+      },
+      onError(handler: (error: unknown) => void) {
+        store.errorHandlers.add(handler);
+        return () => {
+          store.errorHandlers.delete(handler);
+        };
+      },
+      addRoute(
+        parentOrRoute: string | symbol | NuxtRouteRecord,
+        maybeRoute?: NuxtRouteRecord,
+      ) {
+        const record =
+          typeof parentOrRoute === "object" ? parentOrRoute : maybeRoute!;
+        const key = record.name ?? record.path;
+        store.routes.set(key, record);
+        return () => {
+          store.routes.delete(key);
+        };
+      },
+      removeRoute(name: string | symbol) {
+        store.routes.delete(name);
+      },
+      hasRoute(name: string | symbol): boolean {
+        return store.routes.has(name);
+      },
+      getRoutes(): NuxtRouteRecord[] {
+        return Array.from(store.routes.values());
+      },
+    };
+  }
+  return store.router;
+}
+
+export function onBeforeRouteLeave(guard: NavigationGuard): void {
+  const store = resolveScopeStore();
+  store.leaveGuards.add(guard);
+  const owner = getOwner();
+  if (owner) {
+    onCleanup(() => {
+      store.leaveGuards.delete(guard);
+    });
+  }
+}
+
+export function onBeforeRouteUpdate(guard: NavigationGuard): void {
+  const store = resolveScopeStore();
+  store.updateGuards.add(guard);
+  const owner = getOwner();
+  if (owner) {
+    onCleanup(() => {
+      store.updateGuards.delete(guard);
+    });
+  }
+}
+
+export interface NavigateToOptions {
+  replace?: boolean;
+  redirectCode?: number;
+  external?: boolean;
+  open?: {
+    target: string;
+    windowFeatures?: Record<string, any>;
+  };
+}
+
+export async function navigateTo(
+  to: NuxtRouteLocationRaw | undefined | null,
+  options: NavigateToOptions = {},
+): Promise<NuxtRouteLocation | NavigationFailure | Response | void> {
+  const store = resolveScopeStore();
+  const normalizedTo: NuxtRouteLocationRaw = to || "/";
+  const isExternalUrl =
+    typeof normalizedTo === "string" &&
+    /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(normalizedTo);
+
+  if (isExternalUrl && !options.external && !options.open) {
+    throw new Error(
+      `Navigating to an external URL ("${normalizedTo}") is not allowed by default. Use navigateTo(url, { external: true }).`,
+    );
+  }
+
+  const targetHref = isExternalUrl
+    ? (normalizedTo as string)
+    : buildRouteLocation(store, normalizedTo).fullPath;
+
+  if (options.open && typeof window !== "undefined") {
+    const features = options.open.windowFeatures
+      ? Object.entries(options.open.windowFeatures)
+          .filter(([, v]) => v !== undefined && v !== false)
+          .map(([k, v]) => (v === true ? k : `${k}=${v}`))
+          .join(",")
+      : undefined;
+    if (typeof window.open === "function") {
+      window.open(targetHref, options.open.target, features);
+    }
+    return;
+  }
+
+  if (store.event) {
+    const status = options.redirectCode ?? 302;
+    store.event.responseStatus = status;
+    store.event.responseHeaders.set("Location", targetHref);
+    if (!isExternalUrl) {
+      await performRouterNavigation(
+        store,
+        normalizedTo,
+        Boolean(options.replace),
+      );
+    }
+    return new Response(null, {
+      status,
+      headers: { Location: targetHref },
+    });
+  }
+
+  if (isExternalUrl) {
+    if (typeof window !== "undefined" && window.location) {
+      if (options.replace && typeof window.location.replace === "function") {
+        window.location.replace(targetHref);
+      } else {
+        window.location.href = targetHref;
+      }
+    }
+    return;
+  }
+
+  const router = useRouter();
+  return options.replace
+    ? router.replace(normalizedTo)
+    : router.push(normalizedTo);
+}
+
+export function setPageLayout(layout: string | false): void {
+  const layoutState = useState<string | false>("_layout", () => "default");
+  layoutState.value = layout;
+  const route = useRoute();
+  route.meta = { ...route.meta, layout };
+}
+
+export interface HeadInput {
+  title?: MaybeReactive<string | null | undefined>;
+  titleTemplate?: string | ((title?: string) => string | null) | null;
+  base?: MaybeReactive<Record<string, any>>;
+  link?: MaybeReactive<Array<Record<string, any>>>;
+  meta?: MaybeReactive<Array<Record<string, any>>>;
+  style?: MaybeReactive<Array<Record<string, any> | string>>;
+  script?: MaybeReactive<Array<Record<string, any> | string>>;
+  noscript?: MaybeReactive<Array<Record<string, any> | string>>;
+  htmlAttrs?: MaybeReactive<Record<string, any>>;
+  bodyAttrs?: MaybeReactive<Record<string, any>>;
+}
+
+export interface ResolvedHead {
+  title: string;
+  base?: Record<string, any>;
+  link: Array<Record<string, any>>;
+  meta: Array<Record<string, any>>;
+  style: Array<Record<string, any> | string>;
+  script: Array<Record<string, any> | string>;
+  noscript: Array<Record<string, any> | string>;
+  htmlAttrs: Record<string, any>;
+  bodyAttrs: Record<string, any>;
+}
+
+export interface ActiveHeadEntry<T = HeadInput> {
+  patch: (input: MaybeReactive<T>) => void;
+  dispose: () => void;
+}
+
+function deepResolveHeadValue<T>(value: T): T {
+  const unwrapped = resolveReactive(value as MaybeReactive<T>);
+  if (Array.isArray(unwrapped)) {
+    return unwrapped.map((item) => deepResolveHeadValue(item)) as unknown as T;
+  }
+  if (
+    unwrapped !== null &&
+    typeof unwrapped === "object" &&
+    Object.getPrototypeOf(unwrapped) === Object.prototype
+  ) {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(unwrapped)) {
+      out[k] = deepResolveHeadValue(v);
+    }
+    return out as T;
+  }
+  return unwrapped as T;
+}
+
+export function resolveHeadTags(): ResolvedHead {
+  const store = resolveScopeStore();
+  let rawTitle: string | undefined;
+  let titleTemplate:
+    string | ((title?: string) => string | null) | null | undefined;
+  let base: Record<string, any> | undefined;
+  const link: Array<Record<string, any>> = [];
+  const metaMap = new Map<string, Record<string, any>>();
+  const metaList: Array<Record<string, any>> = [];
+  const style: Array<Record<string, any> | string> = [];
+  const script: Array<Record<string, any> | string> = [];
+  const noscript: Array<Record<string, any> | string> = [];
+  const htmlAttrs: Record<string, any> = {};
+  const bodyAttrs: Record<string, any> = {};
+
+  for (const entry of store.headEntries) {
+    const raw = entry.signal();
+    const resolved = deepResolveHeadValue(raw) as HeadInput | undefined;
+    if (!resolved) continue;
+
+    if (resolved.title !== undefined && resolved.title !== null) {
+      rawTitle = String(resolved.title);
+    }
+    if (resolved.titleTemplate !== undefined) {
+      titleTemplate = resolved.titleTemplate;
+    }
+    if (resolved.base) {
+      base = { ...base, ...resolved.base };
+    }
+    if (Array.isArray(resolved.link)) {
+      for (const item of resolved.link) {
+        link.push({ ...item });
+      }
+    }
+    if (Array.isArray(resolved.meta)) {
+      for (const item of resolved.meta) {
+        const dedupeKey =
+          item.key ??
+          (item.name ? `name:${item.name}` : undefined) ??
+          (item.property ? `property:${item.property}` : undefined) ??
+          (item.httpEquiv ? `http-equiv:${item.httpEquiv}` : undefined) ??
+          (item.charset ? "charset" : undefined);
+        if (dedupeKey) {
+          metaMap.set(String(dedupeKey), { ...item });
+        } else {
+          metaList.push({ ...item });
+        }
+      }
+    }
+    if (Array.isArray(resolved.style)) {
+      for (const item of resolved.style) {
+        style.push(typeof item === "string" ? item : { ...item });
+      }
+    }
+    if (Array.isArray(resolved.script)) {
+      for (const item of resolved.script) {
+        script.push(typeof item === "string" ? item : { ...item });
+      }
+    }
+    if (Array.isArray(resolved.noscript)) {
+      for (const item of resolved.noscript) {
+        noscript.push(typeof item === "string" ? item : { ...item });
+      }
+    }
+    if (resolved.htmlAttrs) {
+      Object.assign(htmlAttrs, resolved.htmlAttrs);
+    }
+    if (resolved.bodyAttrs) {
+      Object.assign(bodyAttrs, resolved.bodyAttrs);
+    }
+  }
+
+  let finalTitle = rawTitle ?? "";
+  if (titleTemplate) {
+    if (typeof titleTemplate === "function") {
+      finalTitle = titleTemplate(rawTitle) ?? "";
+    } else if (typeof titleTemplate === "string") {
+      finalTitle = rawTitle
+        ? titleTemplate.replace(/%s/g, rawTitle)
+        : titleTemplate.replace(/\s*[-|]\s*%s|%s/g, "").trim();
+    }
+  }
+
+  return {
+    title: finalTitle,
+    ...(base ? { base } : {}),
+    link,
+    meta: [...Array.from(metaMap.values()), ...metaList],
+    style,
+    script,
+    noscript,
+    htmlAttrs,
+    bodyAttrs,
+  };
+}
+
+export function useHead(
+  input: MaybeReactive<HeadInput>,
+): ActiveHeadEntry<HeadInput> {
+  const store = resolveScopeStore();
+  const id = store.nextHeadId++;
+  const signal = msCreateSignal<MaybeReactive<HeadInput>>(input);
+  const record: HeadEntryRecord = { id, signal };
+  store.headEntries.push(record);
+
+  const dispose = () => {
+    const idx = store.headEntries.indexOf(record);
+    if (idx !== -1) {
+      store.headEntries.splice(idx, 1);
+    }
+  };
+
+  const owner = getOwner();
+  if (owner) {
+    onCleanup(dispose);
+  }
+
+  return {
+    patch(nextInput: MaybeReactive<HeadInput>) {
+      signal.set(() => nextInput);
+    },
+    dispose,
+  };
+}
+
+function isUnsafeUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim().toLowerCase();
+  return (
+    trimmed.startsWith("javascript:") ||
+    trimmed.startsWith("vbscript:") ||
+    trimmed.startsWith("data:text/html")
+  );
+}
+
+function sanitizeAttrs(
+  attrs: Record<string, any> | undefined,
+  allowedKeys?: Set<string>,
+): Record<string, any> {
+  if (!attrs || typeof attrs !== "object") return {};
+  const clean: Record<string, any> = {};
+  for (const [key, val] of Object.entries(attrs)) {
+    const lower = key.toLowerCase();
+    if (lower.startsWith("on")) continue;
+    if (allowedKeys && !allowedKeys.has(key) && !key.startsWith("data-")) {
+      continue;
+    }
+    if (
+      (lower === "href" ||
+        lower === "src" ||
+        lower === "content" ||
+        lower === "action") &&
+      isUnsafeUrl(val)
+    ) {
+      continue;
+    }
+    clean[key] = val;
+  }
+  return clean;
+}
+
+const SAFE_LINK_KEYS = new Set([
+  "id",
+  "rel",
+  "href",
+  "hreflang",
+  "type",
+  "media",
+  "sizes",
+  "imagesrcset",
+  "imagesizes",
+  "as",
+  "crossorigin",
+  "integrity",
+  "referrerpolicy",
+  "title",
+  "color",
+  "key",
+]);
+
+const SAFE_META_KEYS = new Set([
+  "id",
+  "name",
+  "property",
+  "content",
+  "charset",
+  "media",
+  "key",
+]);
+
+const SAFE_A11Y_ATTR_KEYS = new Set([
+  "id",
+  "class",
+  "dir",
+  "lang",
+  "translate",
+  "tabindex",
+  "role",
+]);
+
+function sanitizeHeadInput(raw: HeadInput): HeadInput {
+  const resolved = deepResolveHeadValue(raw);
+  const safeLink = Array.isArray(resolved.link)
+    ? resolved.link
+        .filter((rawItem) => !("href" in rawItem && isUnsafeUrl(rawItem.href)))
+        .map((item) => sanitizeAttrs(item, SAFE_LINK_KEYS))
+        .filter((item) => {
+          const rel = String(item.rel ?? "").toLowerCase();
+          if (
+            rel === "stylesheet" ||
+            rel === "preload" ||
+            rel === "modulepreload"
+          ) {
+            return false;
+          }
+          return Boolean(item.href || item.imagesrcset);
+        })
+    : undefined;
+
+  const safeMeta = Array.isArray(resolved.meta)
+    ? resolved.meta
+        .filter((item) => !("http-equiv" in item) && !("httpEquiv" in item))
+        .map((item) => sanitizeAttrs(item, SAFE_META_KEYS))
+        .filter((item) => Object.keys(item).length > 0)
+    : undefined;
+
+  return {
+    ...(resolved.title !== undefined ? { title: resolved.title } : {}),
+    ...(safeLink ? { link: safeLink } : {}),
+    ...(safeMeta ? { meta: safeMeta } : {}),
+    ...(resolved.htmlAttrs
+      ? { htmlAttrs: sanitizeAttrs(resolved.htmlAttrs, SAFE_A11Y_ATTR_KEYS) }
+      : {}),
+    ...(resolved.bodyAttrs
+      ? { bodyAttrs: sanitizeAttrs(resolved.bodyAttrs, SAFE_A11Y_ATTR_KEYS) }
+      : {}),
+  };
+}
+
+export function useHeadSafe(
+  input: MaybeReactive<HeadInput>,
+): ActiveHeadEntry<HeadInput> {
+  const entry = useHead(() => sanitizeHeadInput(resolveReactive(input) ?? {}));
+  return {
+    patch(nextInput: MaybeReactive<HeadInput>) {
+      entry.patch(() => sanitizeHeadInput(resolveReactive(nextInput) ?? {}));
+    },
+    dispose: entry.dispose,
+  };
+}
+
+export interface SeoMetaInput {
+  title?: MaybeReactive<string | null | undefined>;
+  titleTemplate?: string | ((title?: string) => string | null) | null;
+  description?: MaybeReactive<string | null | undefined>;
+  author?: MaybeReactive<string | null | undefined>;
+  robots?: MaybeReactive<string | null | undefined>;
+  keywords?: MaybeReactive<string | null | undefined>;
+  applicationName?: MaybeReactive<string | null | undefined>;
+  generator?: MaybeReactive<string | null | undefined>;
+  referrer?: MaybeReactive<string | null | undefined>;
+  colorScheme?: MaybeReactive<string | null | undefined>;
+  themeColor?: MaybeReactive<string | null | undefined>;
+  viewport?: MaybeReactive<string | null | undefined>;
+  charset?: MaybeReactive<string | null | undefined>;
+  ogTitle?: MaybeReactive<string | null | undefined>;
+  ogDescription?: MaybeReactive<string | null | undefined>;
+  ogImage?: MaybeReactive<string | null | undefined>;
+  ogImageAlt?: MaybeReactive<string | null | undefined>;
+  ogImageWidth?: MaybeReactive<string | number | null | undefined>;
+  ogImageHeight?: MaybeReactive<string | number | null | undefined>;
+  ogUrl?: MaybeReactive<string | null | undefined>;
+  ogType?: MaybeReactive<string | null | undefined>;
+  ogSiteName?: MaybeReactive<string | null | undefined>;
+  ogLocale?: MaybeReactive<string | null | undefined>;
+  twitterCard?: MaybeReactive<
+    | "summary"
+    | "summary_large_image"
+    | "app"
+    | "player"
+    | (string & {})
+    | null
+    | undefined
+  >;
+  twitterTitle?: MaybeReactive<string | null | undefined>;
+  twitterDescription?: MaybeReactive<string | null | undefined>;
+  twitterImage?: MaybeReactive<string | null | undefined>;
+  twitterImageAlt?: MaybeReactive<string | null | undefined>;
+  twitterSite?: MaybeReactive<string | null | undefined>;
+  twitterCreator?: MaybeReactive<string | null | undefined>;
+  fbAppId?: MaybeReactive<string | number | null | undefined>;
+  canonical?: MaybeReactive<string | null | undefined>;
+  [key: string]: any;
+}
+
+const SEO_PROPERTY_MAP: Record<
+  string,
+  { attr: "name" | "property"; key: string }
+> = {
+  description: { attr: "name", key: "description" },
+  author: { attr: "name", key: "author" },
+  robots: { attr: "name", key: "robots" },
+  keywords: { attr: "name", key: "keywords" },
+  applicationName: { attr: "name", key: "application-name" },
+  generator: { attr: "name", key: "generator" },
+  referrer: { attr: "name", key: "referrer" },
+  colorScheme: { attr: "name", key: "color-scheme" },
+  themeColor: { attr: "name", key: "theme-color" },
+  viewport: { attr: "name", key: "viewport" },
+  ogTitle: { attr: "property", key: "og:title" },
+  ogDescription: { attr: "property", key: "og:description" },
+  ogImage: { attr: "property", key: "og:image" },
+  ogImageAlt: { attr: "property", key: "og:image:alt" },
+  ogImageWidth: { attr: "property", key: "og:image:width" },
+  ogImageHeight: { attr: "property", key: "og:image:height" },
+  ogUrl: { attr: "property", key: "og:url" },
+  ogType: { attr: "property", key: "og:type" },
+  ogSiteName: { attr: "property", key: "og:site_name" },
+  ogLocale: { attr: "property", key: "og:locale" },
+  twitterCard: { attr: "name", key: "twitter:card" },
+  twitterTitle: { attr: "name", key: "twitter:title" },
+  twitterDescription: { attr: "name", key: "twitter:description" },
+  twitterImage: { attr: "name", key: "twitter:image" },
+  twitterImageAlt: { attr: "name", key: "twitter:image:alt" },
+  twitterSite: { attr: "name", key: "twitter:site" },
+  twitterCreator: { attr: "name", key: "twitter:creator" },
+  fbAppId: { attr: "property", key: "fb:app_id" },
+};
+
+function convertSeoMetaToHead(input: SeoMetaInput): HeadInput {
+  const meta: Array<Record<string, any>> = [];
+  const link: Array<Record<string, any>> = [];
+  const head: HeadInput = {};
+
+  if (input.title !== undefined) {
+    head.title = resolveReactive(input.title);
+  }
+  if (input.titleTemplate !== undefined) {
+    head.titleTemplate = input.titleTemplate;
+  }
+  const charsetVal = resolveReactive(input.charset);
+  if (charsetVal !== undefined && charsetVal !== null) {
+    meta.push({ charset: String(charsetVal) });
+  }
+  const canonicalVal = resolveReactive(input.canonical);
+  if (canonicalVal !== undefined && canonicalVal !== null) {
+    link.push({ rel: "canonical", href: String(canonicalVal) });
+  }
+
+  for (const [prop, mapping] of Object.entries(SEO_PROPERTY_MAP)) {
+    if (!(prop in input)) continue;
+    const val = resolveReactive(input[prop]);
+    if (val === undefined || val === null) continue;
+    meta.push({
+      [mapping.attr]: mapping.key,
+      content: String(val),
+    });
+  }
+
+  if (meta.length > 0) head.meta = meta;
+  if (link.length > 0) head.link = link;
+  return head;
+}
+
+export function useSeoMeta(
+  input: MaybeReactive<SeoMetaInput>,
+): ActiveHeadEntry<SeoMetaInput> {
+  const headEntry = useHead(() =>
+    convertSeoMetaToHead(resolveReactive(input) ?? {}),
+  );
+  return {
+    patch(nextInput: MaybeReactive<SeoMetaInput>) {
+      headEntry.patch(() =>
+        convertSeoMetaToHead(resolveReactive(nextInput) ?? {}),
+      );
+    },
+    dispose: headEntry.dispose,
+  };
+}
+
+export function useServerSeoMeta(
+  input: MaybeReactive<SeoMetaInput>,
+): ActiveHeadEntry<SeoMetaInput> {
+  return useSeoMeta(input);
+}
+
+export async function preloadComponents(
+  components: string | string[],
+): Promise<void> {
+  const store = resolveScopeStore();
+  const list = Array.isArray(components) ? components : [components];
+  for (const name of list) {
+    store.preloadedComponents.add(name);
+  }
+}
+
+export async function prefetchComponents(
+  components: string | string[],
+): Promise<void> {
+  const store = resolveScopeStore();
+  const list = Array.isArray(components) ? components : [components];
+  for (const name of list) {
+    store.prefetchedComponents.add(name);
+  }
+}
+
+export async function preloadRouteComponents(to: string): Promise<void> {
+  const store = resolveScopeStore();
+  store.preloadedRoutes.add(to);
 }
