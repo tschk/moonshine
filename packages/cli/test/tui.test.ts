@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { clampColumns, truncate, warningBar } from "../src/tui";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { clampColumns, terminalTui, truncate, warningBar } from "../src/tui";
 
 describe("clampColumns", () => {
   test("returns 80 for undefined or non-finite values", () => {
@@ -12,11 +12,15 @@ describe("clampColumns", () => {
   test("clamps to a minimum of 20", () => {
     expect(clampColumns(10)).toBe(20);
     expect(clampColumns(19)).toBe(20);
+    expect(clampColumns(19.9)).toBe(20);
     expect(clampColumns(20)).toBe(20);
+    expect(clampColumns(20.1)).toBe(20);
   });
 
   test("clamps to a maximum of 100", () => {
+    expect(clampColumns(99.9)).toBe(99);
     expect(clampColumns(100)).toBe(100);
+    expect(clampColumns(100.1)).toBe(100);
     expect(clampColumns(101)).toBe(100);
     expect(clampColumns(150)).toBe(100);
   });
@@ -69,5 +73,76 @@ describe("warningBar", () => {
 
     // text: "Longer text here", truncate("Longer text here", 7) -> "Longer…"
     expect(warningBar("Longer text here", tui)).toBe("!! Longer…");
+  });
+});
+
+describe("terminalTui", () => {
+  let originalIsTTY: boolean | undefined;
+  let originalColumns: number | undefined;
+
+  beforeEach(() => {
+    originalIsTTY = process.stdout.isTTY;
+    originalColumns = process.stdout.columns;
+  });
+
+  afterEach(() => {
+    process.stdout.isTTY = originalIsTTY;
+    process.stdout.columns = originalColumns;
+  });
+
+  test("uses clampColumns for columns", () => {
+    process.stdout.columns = 150;
+    const tui = terminalTui();
+    expect(tui.columns).toBe(100);
+  });
+
+  test("write() delegates to process.stdout.write", () => {
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+    const tui = terminalTui();
+    tui.write("hello");
+    expect(writeSpy).toHaveBeenCalledWith("hello");
+    writeSpy.mockRestore();
+  });
+
+  test("prompt() writes question and reads from console", async () => {
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+    const originalConsoleIterator = console[Symbol.asyncIterator];
+    // @ts-ignore
+    console[Symbol.asyncIterator] = async function* () {
+      yield "answer 1";
+      yield "answer 2";
+    };
+
+    const tui = terminalTui();
+    const result = await tui.prompt("What is your name?");
+
+    expect(writeSpy).toHaveBeenCalledWith("What is your name?");
+    expect(result).toBe("answer 1");
+
+    // @ts-ignore
+    console[Symbol.asyncIterator] = originalConsoleIterator;
+    writeSpy.mockRestore();
+  });
+
+  test("prompt() returns empty string if console closes immediately", async () => {
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+    const originalConsoleIterator = console[Symbol.asyncIterator];
+    // @ts-ignore
+    console[Symbol.asyncIterator] = async function* () {};
+
+    const tui = terminalTui();
+    const result = await tui.prompt("Empty?");
+
+    expect(result).toBe("");
+
+    // @ts-ignore
+    console[Symbol.asyncIterator] = originalConsoleIterator;
+    writeSpy.mockRestore();
   });
 });
