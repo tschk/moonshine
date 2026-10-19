@@ -63,6 +63,31 @@ describe("isContained", () => {
     // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
     realpathSpy.mockRestore();
   });
+
+  test("returns false for a symlink escaping the directory", () => {
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(
+      false,
+    );
+  });
+
+  test("returns true for the root directory itself", () => {
+    expect(isContained(staticDir, staticDir)).toBe(true);
+  });
+
+  test("returns false for a path sharing a string prefix but not contained", () => {
+    const similarDir = staticDir + "-other";
+    mkdirSync(similarDir, { recursive: true });
+    writeFileSync(resolve(similarDir, "file.txt"), "content");
+    try {
+      expect(isContained(staticDir, resolve(similarDir, "file.txt"))).toBe(false);
+    } finally {
+      rmSync(similarDir, { recursive: true, force: true });
+    }
+  });
+
+  test("throws an error if the file does not exist", () => {
+    expect(() => isContained(staticDir, resolve(staticDir, "missing.txt"))).toThrow();
+  });
 });
 
 describe("tryServeStatic", () => {
