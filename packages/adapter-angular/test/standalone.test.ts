@@ -91,6 +91,17 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     out.subscribe(v=>outVals.push(v));
     out.emit(42);
     assert.deepEqual(outVals,[42]);
+    const TOKEN=new root.InjectionToken<string>('TOKEN',{factory:()=>'root-val'});
+    const env=root.createEnvironmentInjector([{provide:TOKEN,useValue:'custom-val'}]);
+    assert.equal(env.runInContext(()=>root.inject(TOKEN)),'custom-val');
+    const vc=root.viewChild.required<string>('box');
+    root.applyQueryValue(vc,'found-box');
+    assert.equal(vc(),'found-box');
+    const cc=root.contentChildren<number>('item');
+    root.applyQueryValue(cc,[1,2,3]);
+    assert.deepEqual(cc(),[1,2,3]);
+    env.destroy();
+    assert.equal(env.destroyed,true);
   `);
 });
 

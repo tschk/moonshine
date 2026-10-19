@@ -345,10 +345,11 @@ error. This follows native error handling rather than Vue's app error handler.
 This entry does not supply scheduled `watchEffect` / `watchPostEffect` or a Vue
 component render scheduler.
 
-`./reactive` exports `toRefs(object)` for destructuring linked properties without
-losing live reads or writes. It snapshots enumerable string keys (including
+`./reactive` exports `toRefs(object)` and `proxyRefs(objectWithRefs)` (`ShallowUnwrapRef<T>`) for destructuring and unwrapping linked properties without
+losing live reads or writes. `toRefs` snapshots enumerable string keys (including
 inherited keys), omits symbols and preserves array length and holes. Properties
 added later need `toRef(object, key)`. Existing native refs retain their identity.
+`proxyRefs` shallowly unwraps ref reads and forwards non-ref property writes into existing refs while returning `reactive` objects unchanged.
 Getter/setter descriptors keep their source receiver; writes to getter-only
 properties throw. This does not implement Vue readonly-proxy warnings or SFC
 compilation.

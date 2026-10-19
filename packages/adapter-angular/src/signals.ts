@@ -55,6 +55,7 @@ export interface EffectRef {
 export interface CreateEffectOptions {
   allowSignalWrites?: boolean;
   manualCleanup?: boolean;
+  injector?: Injector;
 }
 
 const signals = new WeakSet<Function>();
@@ -276,7 +277,14 @@ export function effect(
     return { destroy() {} };
   }
   const outer = getOwner();
-  if (!options?.manualCleanup && outer?.disposed) {
+  const activeInj = options?.injector ?? currentInjector;
+  const injDestroyRef = activeInj?.get(DestroyRef, undefined, {
+    optional: true,
+  });
+  if (
+    !options?.manualCleanup &&
+    (outer?.disposed || injDestroyRef?.destroyed)
+  ) {
     throw new Error("Cannot create an effect inside a disposed native owner");
   }
 
@@ -390,10 +398,17 @@ export function effect(
             deps = collectDeps(
               () => {
                 try {
-                  if (options?.allowSignalWrites === false) {
-                    withWritesDisallowed(() => effectFn(registerCleanup));
+                  const runBody = () => {
+                    if (options?.allowSignalWrites === false) {
+                      withWritesDisallowed(() => effectFn(registerCleanup));
+                    } else {
+                      effectFn(registerCleanup);
+                    }
+                  };
+                  if (activeInj) {
+                    runInInjectionContext(activeInj, runBody);
                   } else {
-                    effectFn(registerCleanup);
+                    runBody();
                   }
                 } catch (error) {
                   runFailed = true;
@@ -464,8 +479,13 @@ export function effect(
     }
   };
 
-  if (outer && !options?.manualCleanup) {
-    domOnCleanup(destroy);
+  if (!options?.manualCleanup) {
+    if (outer) {
+      domOnCleanup(destroy);
+    }
+    if (injDestroyRef) {
+      injDestroyRef.onDestroy(destroy);
+    }
   }
 
   execute();
@@ -541,12 +561,17 @@ export interface InteropObservable<T> extends Subscribable<T> {
   ): Unsubscribable;
 }
 
+export interface ToObservableOptions {
+  injector?: Injector;
+}
+
 export interface ToSignalOptions<T> {
   initialValue?: T;
   requireSync?: boolean;
   manualCleanup?: boolean;
   rejectErrors?: boolean;
   equal?: ValueEqualityFn<T>;
+  injector?: Injector;
 }
 
 function resolveSubscribable<T>(
@@ -581,10 +606,17 @@ function resolveSubscribable<T>(
 /**
  * Exposes an Angular `Signal<T>` as an RxJS-compatible `InteropObservable<T>`.
  */
-export function toObservable<T>(source: Signal<T>): InteropObservable<T> {
+export function toObservable<T>(
+  source: Signal<T>,
+  options?: ToObservableOptions,
+): InteropObservable<T> {
   if (typeof source !== "function") {
     throw new TypeError("toObservable requires a signal function");
   }
+  const boundInjector = options?.injector ?? currentInjector;
+  const boundDestroyRef = boundInjector?.get(DestroyRef, undefined, {
+    optional: true,
+  });
   const observable: InteropObservable<T> & Record<PropertyKey, unknown> = {
     subscribe(
       observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
@@ -601,6 +633,10 @@ export function toObservable<T>(source: Signal<T>): InteropObservable<T> {
                 observerOrNext,
               ),
             };
+      if (boundDestroyRef?.destroyed) {
+        untrack(() => observer.complete?.());
+        return { unsubscribe() {} };
+      }
       let closed = false;
       const ref = effect(
         () => {
@@ -616,15 +652,22 @@ export function toObservable<T>(source: Signal<T>): InteropObservable<T> {
           }
           untrack(() => observer.next?.(value));
         },
-        { manualCleanup: true },
+        { manualCleanup: true, injector: boundInjector },
       );
       if (closed) {
         ref.destroy();
       }
+      const offDestroy = boundDestroyRef?.onDestroy(() => {
+        if (closed) return;
+        closed = true;
+        ref.destroy();
+        untrack(() => observer.complete?.());
+      });
       return {
         unsubscribe() {
           if (closed) return;
           closed = true;
+          offDestroy?.();
           ref.destroy();
         },
       };
@@ -703,8 +746,14 @@ export function toSignal<T, U = undefined>(
     );
   }
 
-  if (!options?.manualCleanup && getOwner()) {
-    domOnCleanup(cleanup);
+  if (!options?.manualCleanup) {
+    if (getOwner()) {
+      domOnCleanup(cleanup);
+    }
+    const activeInj = options?.injector ?? currentInjector;
+    activeInj
+      ?.get(DestroyRef, undefined, { optional: true })
+      ?.onDestroy(cleanup);
   }
 
   const read = (() => {
@@ -740,6 +789,7 @@ export interface ResourceOptions<T, R = unknown> {
   loader: ResourceLoader<T, R>;
   defaultValue?: T;
   equal?: ValueEqualityFn<T>;
+  injector?: Injector;
 }
 
 export interface Resource<T> {
@@ -914,6 +964,8 @@ export function resource<T, R = unknown>(
   if (getOwner()) {
     domOnCleanup(destroy);
   }
+  const activeInj = options.injector ?? currentInjector;
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
 
   const hasValueMemo = computed(() => {
     const s = statusSig();
@@ -1300,51 +1352,66 @@ export const model: ModelFunction = Object.assign(
   },
 ) as ModelFunction;
 
-export interface DestroyRef {
-  onDestroy(callback: () => void): () => void;
-  readonly destroyed: boolean;
-  destroy(): void;
+export abstract class DestroyRef {
+  abstract onDestroy(callback: () => void): () => void;
+  abstract readonly destroyed: boolean;
+  abstract destroy(): void;
+}
+
+class NativeDestroyRef extends DestroyRef {
+  #isDestroyed = false;
+  readonly #callbacks = new Set<() => void>();
+
+  constructor(bindToOwner = true) {
+    super();
+    if (bindToOwner && getOwner()) {
+      domOnCleanup(() => {
+        this.destroy();
+      });
+    }
+  }
+
+  override get destroyed(): boolean {
+    return this.#isDestroyed;
+  }
+
+  override onDestroy(callback: () => void): () => void {
+    if (this.#isDestroyed) {
+      callback();
+      return () => {};
+    }
+    this.#callbacks.add(callback);
+    return () => {
+      this.#callbacks.delete(callback);
+    };
+  }
+
+  override destroy(): void {
+    if (this.#isDestroyed) return;
+    this.#isDestroyed = true;
+    const toRun = Array.from(this.#callbacks);
+    this.#callbacks.clear();
+    for (const cb of toRun) {
+      cb();
+    }
+  }
 }
 
 const ownerDestroyRefs = new WeakMap<object, DestroyRef>();
 
 export function createDestroyRef(): DestroyRef {
-  let isDestroyed = false;
-  const callbacks = new Set<() => void>();
-
-  const destroy = () => {
-    if (isDestroyed) return;
-    isDestroyed = true;
-    const toRun = Array.from(callbacks);
-    callbacks.clear();
-    for (const cb of toRun) {
-      cb();
-    }
-  };
-
-  if (getOwner()) {
-    domOnCleanup(destroy);
-  }
-
-  return {
-    get destroyed() {
-      return isDestroyed;
-    },
-    onDestroy(callback: () => void): () => void {
-      if (isDestroyed) {
-        callback();
-        return () => {};
-      }
-      callbacks.add(callback);
-      return () => {
-        callbacks.delete(callback);
-      };
-    },
-    destroy,
-  };
+  return new NativeDestroyRef(true);
 }
 
 export function injectDestroyRef(): DestroyRef {
+  if (currentInjector) {
+    const fromInj = currentInjector.get(DestroyRef, undefined, {
+      optional: true,
+    });
+    if (fromInj) {
+      return fromInj;
+    }
+  }
   const owner = getOwner();
   if (!owner) {
     throw new Error(
@@ -1431,6 +1498,10 @@ export interface AfterRenderRef {
   destroy(): void;
 }
 
+export interface AfterRenderOptions {
+  injector?: Injector;
+}
+
 export interface AfterRenderPhases<E = unknown, W = unknown, M = unknown> {
   earlyRead?: () => E;
   write?: (...args: [E] extends [never] ? [] : [E]) => W;
@@ -1441,30 +1512,38 @@ export interface AfterRenderPhases<E = unknown, W = unknown, M = unknown> {
 export type AfterRenderSpec<E = any, W = any, M = any> =
   (() => void) | AfterRenderPhases<E, W, M>;
 
-function executeRenderSpec(spec: AfterRenderSpec): void {
+function executeRenderSpec(spec: AfterRenderSpec, injector?: Injector): void {
+  const runPhase = <R>(fn: () => R): R =>
+    injector
+      ? runInInjectionContext(injector, () => untracked(fn))
+      : untracked(fn);
   if (typeof spec === "function") {
-    untracked(spec);
+    runPhase(spec);
     return;
   }
   let lastResult: any;
   if (spec.earlyRead) {
-    lastResult = untracked(() => spec.earlyRead!());
+    lastResult = runPhase(() => spec.earlyRead!());
   }
   if (spec.write) {
-    lastResult = untracked(() => spec.write!(lastResult));
+    lastResult = runPhase(() => spec.write!(lastResult));
   }
   if (spec.mixedReadWrite) {
-    lastResult = untracked(() => spec.mixedReadWrite!(lastResult));
+    lastResult = runPhase(() => spec.mixedReadWrite!(lastResult));
   }
   if (spec.read) {
-    untracked(() => spec.read!(lastResult));
+    runPhase(() => spec.read!(lastResult));
   }
 }
 
-export function afterNextRender(spec: AfterRenderSpec): AfterRenderRef {
+export function afterNextRender(
+  spec: AfterRenderSpec,
+  options?: AfterRenderOptions,
+): AfterRenderRef {
   if (isSSRRendering()) {
     return { destroy() {} };
   }
+  const activeInj = options?.injector ?? currentInjector;
   let cancelled = false;
   const destroy = () => {
     cancelled = true;
@@ -1472,19 +1551,24 @@ export function afterNextRender(spec: AfterRenderSpec): AfterRenderRef {
   if (getOwner()) {
     domOnCleanup(destroy);
   }
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
   queueMicrotask(() => {
     if (!cancelled) {
       cancelled = true;
-      executeRenderSpec(spec);
+      executeRenderSpec(spec, activeInj);
     }
   });
   return { destroy };
 }
 
-export function afterRender(spec: AfterRenderSpec): AfterRenderRef {
+export function afterRender(
+  spec: AfterRenderSpec,
+  options?: AfterRenderOptions,
+): AfterRenderRef {
   if (isSSRRendering()) {
     return { destroy() {} };
   }
+  const activeInj = options?.injector ?? currentInjector;
   let cancelled = false;
   const destroy = () => {
     cancelled = true;
@@ -1492,10 +1576,870 @@ export function afterRender(spec: AfterRenderSpec): AfterRenderRef {
   if (getOwner()) {
     domOnCleanup(destroy);
   }
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
   queueMicrotask(() => {
     if (!cancelled) {
-      executeRenderSpec(spec);
+      executeRenderSpec(spec, activeInj);
     }
   });
   return { destroy };
+}
+
+export interface Type<T> extends Function {
+  new (...args: any[]): T;
+}
+
+export interface AbstractType<T> extends Function {
+  prototype: T;
+}
+
+export interface InjectionTokenOptions<T> {
+  providedIn?: "root" | "platform" | "any" | null;
+  factory?: () => T;
+}
+
+export class InjectionToken<T> {
+  readonly _desc: string;
+  readonly ɵprov?: {
+    token: InjectionToken<T>;
+    providedIn: "root" | "platform" | "any" | null;
+    factory: () => T;
+  };
+
+  constructor(desc: string, options?: InjectionTokenOptions<T>) {
+    this._desc = desc;
+    if (options?.factory) {
+      this.ɵprov = {
+        token: this,
+        providedIn:
+          options.providedIn === undefined ? "root" : options.providedIn,
+        factory: options.factory,
+      };
+    }
+  }
+
+  toString(): string {
+    return `InjectionToken ${this._desc}`;
+  }
+}
+
+export class HostAttributeToken {
+  readonly attributeName: string;
+
+  constructor(attributeName: string) {
+    this.attributeName = attributeName;
+  }
+
+  toString(): string {
+    return `HostAttributeToken ${this.attributeName}`;
+  }
+}
+
+export type ProviderToken<T> = Type<T> | AbstractType<T> | InjectionToken<T>;
+
+export interface InjectOptions {
+  optional?: boolean;
+  skipSelf?: boolean;
+  self?: boolean;
+  host?: boolean;
+}
+
+export interface ValueProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useValue: T;
+  multi?: boolean;
+}
+
+export interface FactoryProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useFactory: (...deps: any[]) => T;
+  deps?: any[];
+  multi?: boolean;
+}
+
+export interface ExistingProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useExisting: ProviderToken<T> | HostAttributeToken | string;
+  multi?: boolean;
+}
+
+export interface ClassProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useClass: Type<T>;
+  deps?: any[];
+  multi?: boolean;
+}
+
+export interface ConstructorProvider<T = any> {
+  provide: Type<T>;
+  deps?: any[];
+  multi?: boolean;
+}
+
+export type StaticProvider =
+  | ValueProvider
+  | FactoryProvider
+  | ExistingProvider
+  | ClassProvider
+  | ConstructorProvider
+  | StaticProvider[];
+
+export interface EnvironmentProviders {
+  readonly ɵbrand: "EnvironmentProviders";
+  readonly providers: (Provider | EnvironmentProviders)[];
+}
+
+export type Provider =
+  | Type<any>
+  | ValueProvider
+  | FactoryProvider
+  | ExistingProvider
+  | ClassProvider
+  | ConstructorProvider
+  | EnvironmentProviders
+  | Provider[];
+
+export function makeEnvironmentProviders(
+  providers: (Provider | EnvironmentProviders)[],
+): EnvironmentProviders {
+  return {
+    ɵbrand: "EnvironmentProviders",
+    providers,
+  };
+}
+
+export const ENVIRONMENT_INITIALIZER = new InjectionToken<
+  readonly (() => void)[]
+>("ENVIRONMENT_INITIALIZER");
+
+export function provideEnvironmentInitializer(
+  initializerFn: () => void,
+): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    {
+      provide: ENVIRONMENT_INITIALIZER,
+      useValue: initializerFn,
+      multi: true,
+    },
+  ]);
+}
+
+function formatTokenName(token: unknown): string {
+  if (token instanceof InjectionToken || token instanceof HostAttributeToken) {
+    return token.toString();
+  }
+  if (typeof token === "function") {
+    return token.name || "AnonymousType";
+  }
+  return String(token);
+}
+
+const THROW_IF_NOT_FOUND_SYMBOL = Symbol("Injector.THROW_IF_NOT_FOUND");
+const UNINITIALIZED_RECORD = Symbol("Injector.UNINITIALIZED");
+
+export abstract class Injector {
+  static readonly THROW_IF_NOT_FOUND: symbol = THROW_IF_NOT_FOUND_SYMBOL;
+  static NULL: Injector;
+
+  static create(
+    options:
+      | {
+          providers: (Provider | EnvironmentProviders)[];
+          parent?: Injector;
+          name?: string;
+        }
+      | (Provider | EnvironmentProviders)[],
+    parent?: Injector,
+  ): EnvironmentInjector {
+    if (Array.isArray(options)) {
+      return createEnvironmentInjector(options, parent);
+    }
+    return createEnvironmentInjector(
+      options.providers,
+      options.parent ?? parent,
+      options.name,
+    );
+  }
+
+  abstract get<T>(
+    token: ProviderToken<T> | HostAttributeToken | string,
+    notFoundValue?: T,
+    options?: InjectOptions,
+  ): T;
+}
+
+class NullInjector extends Injector {
+  override get<T>(
+    token: ProviderToken<T> | HostAttributeToken | string,
+    notFoundValue: unknown = THROW_IF_NOT_FOUND_SYMBOL,
+    options?: InjectOptions,
+  ): T {
+    if (notFoundValue === THROW_IF_NOT_FOUND_SYMBOL) {
+      if (options?.optional) {
+        return null as unknown as T;
+      }
+      throw new Error(
+        `NG0201: No provider for ${formatTokenName(token)} found!`,
+      );
+    }
+    return notFoundValue as T;
+  }
+}
+
+Injector.NULL = new NullInjector();
+
+export abstract class EnvironmentInjector extends Injector {
+  abstract runInContext<ReturnT>(fn: () => ReturnT): ReturnT;
+  abstract destroy(): void;
+  abstract readonly destroyed: boolean;
+}
+
+type ProviderRecord = {
+  multi: boolean;
+  factory: () => any;
+  factories?: Array<() => any>;
+  value: any;
+};
+
+type InjectableDef<T = any> = {
+  providedIn?: "root" | "platform" | "any" | null;
+  factory: () => T;
+};
+
+function getInjectableDef<T>(token: unknown): InjectableDef<T> | undefined {
+  if (
+    (typeof token === "object" || typeof token === "function") &&
+    token !== null &&
+    "ɵprov" in token
+  ) {
+    const prov = (token as { ɵprov?: InjectableDef<T> }).ɵprov;
+    if (prov && typeof prov.factory === "function") {
+      return prov;
+    }
+  }
+  return undefined;
+}
+
+class NativeEnvironmentInjector extends EnvironmentInjector {
+  readonly #records = new Map<unknown, ProviderRecord>();
+  readonly #hostAttrs = new Map<string, string>();
+  readonly #instantiating = new Set<unknown>();
+  readonly #parent: Injector;
+  readonly #isRoot: boolean;
+  readonly #destroyRef: NativeDestroyRef;
+  readonly debugName?: string;
+
+  constructor(
+    providers: (Provider | EnvironmentProviders)[],
+    parent?: Injector,
+    debugName?: string,
+    isRoot = false,
+  ) {
+    super();
+    this.#parent = parent ?? Injector.NULL;
+    this.#isRoot = isRoot || !(parent instanceof NativeEnvironmentInjector);
+    this.debugName = debugName;
+    this.#destroyRef = new NativeDestroyRef(true);
+
+    this.#records.set(Injector, {
+      multi: false,
+      factory: () => this,
+      value: this,
+    });
+    this.#records.set(EnvironmentInjector, {
+      multi: false,
+      factory: () => this,
+      value: this,
+    });
+    this.#records.set(DestroyRef, {
+      multi: false,
+      factory: () => this.#destroyRef,
+      value: this.#destroyRef,
+    });
+
+    this.#registerProviders(providers);
+  }
+
+  override get destroyed(): boolean {
+    return this.#destroyRef.destroyed;
+  }
+
+  override runInContext<ReturnT>(fn: () => ReturnT): ReturnT {
+    if (this.#destroyRef.destroyed) {
+      throw new Error("NG0205: Injector has already been destroyed.");
+    }
+    return runInInjectionContext(this, fn);
+  }
+
+  override destroy(): void {
+    this.#destroyRef.destroy();
+  }
+
+  #resolveDeps(deps?: any[]): any[] {
+    if (!deps || deps.length === 0) return [];
+    return deps.map((depEntry) => {
+      if (Array.isArray(depEntry)) {
+        let opts: InjectOptions = {};
+        let token: any;
+        for (const item of depEntry) {
+          if (
+            item &&
+            typeof item === "object" &&
+            !(item instanceof InjectionToken) &&
+            !(item instanceof HostAttributeToken)
+          ) {
+            opts = { ...opts, ...item };
+          } else {
+            token = item;
+          }
+        }
+        return this.get(token, undefined, opts);
+      }
+      return this.get(depEntry);
+    });
+  }
+
+  #createProviderFactory(
+    provider: Exclude<Provider, Provider[] | EnvironmentProviders>,
+  ): () => any {
+    if (typeof provider === "function") {
+      return () =>
+        runInInjectionContext(this, () => new (provider as Type<any>)());
+    }
+    if ("useValue" in provider) {
+      return () => provider.useValue;
+    }
+    if ("useFactory" in provider) {
+      return () =>
+        runInInjectionContext(this, () => {
+          const resolved = this.#resolveDeps(provider.deps);
+          return provider.useFactory(...resolved);
+        });
+    }
+    if ("useExisting" in provider) {
+      return () => this.get(provider.useExisting);
+    }
+    if ("useClass" in provider) {
+      return () =>
+        runInInjectionContext(this, () => {
+          const resolved = this.#resolveDeps(provider.deps);
+          return new provider.useClass(...resolved);
+        });
+    }
+    return () =>
+      runInInjectionContext(this, () => {
+        const resolved = this.#resolveDeps(provider.deps);
+        return new provider.provide(...resolved);
+      });
+  }
+
+  #registerProviders(providers: (Provider | EnvironmentProviders)[]): void {
+    for (const entry of providers) {
+      if (!entry) continue;
+      if (Array.isArray(entry)) {
+        this.#registerProviders(entry);
+        continue;
+      }
+      if (typeof entry === "object" && "ɵbrand" in entry) {
+        this.#registerProviders(entry.providers);
+        continue;
+      }
+      const token = typeof entry === "function" ? entry : entry.provide;
+      const isMulti = typeof entry === "object" && Boolean(entry.multi);
+      const factory = this.#createProviderFactory(entry);
+
+      if (
+        token instanceof HostAttributeToken &&
+        typeof entry === "object" &&
+        "useValue" in entry
+      ) {
+        this.#hostAttrs.set(token.attributeName, String(entry.useValue));
+      }
+
+      if (isMulti) {
+        let existing = this.#records.get(token);
+        if (!existing || !existing.multi) {
+          existing = {
+            multi: true,
+            factory: () => existing!.factories!.map((f) => f()),
+            factories: [],
+            value: UNINITIALIZED_RECORD,
+          };
+          this.#records.set(token, existing);
+        }
+        existing.factories!.push(factory);
+      } else {
+        this.#records.set(token, {
+          multi: false,
+          factory,
+          value: UNINITIALIZED_RECORD,
+        });
+      }
+    }
+  }
+
+  #resolveRecord<T>(token: unknown, record: ProviderRecord): T {
+    if (record.value !== UNINITIALIZED_RECORD) {
+      return record.value as T;
+    }
+    if (this.#instantiating.has(token)) {
+      throw new Error(
+        `NG0200: Circular dependency in DI detected for ${formatTokenName(token)}.`,
+      );
+    }
+    this.#instantiating.add(token);
+    try {
+      const value = record.factory();
+      record.value = value;
+      return value as T;
+    } finally {
+      this.#instantiating.delete(token);
+    }
+  }
+
+  override get<T>(
+    token: ProviderToken<T> | HostAttributeToken | string,
+    notFoundValue: unknown = THROW_IF_NOT_FOUND_SYMBOL,
+    options?: InjectOptions,
+  ): T {
+    if (options?.skipSelf) {
+      if (options.self) {
+        return Injector.NULL.get(token, notFoundValue as T, options);
+      }
+      const nextOpts: InjectOptions = { ...options, skipSelf: false };
+      return this.#parent.get(token, notFoundValue as T, nextOpts);
+    }
+
+    if (
+      token instanceof HostAttributeToken &&
+      this.#hostAttrs.has(token.attributeName)
+    ) {
+      return this.#hostAttrs.get(token.attributeName) as unknown as T;
+    }
+
+    const record = this.#records.get(token);
+    if (record) {
+      return this.#resolveRecord<T>(token, record);
+    }
+
+    const def = getInjectableDef<T>(token);
+    if (def && !options?.self) {
+      if (
+        def.providedIn === "any" ||
+        (this.#isRoot &&
+          (def.providedIn === "root" || def.providedIn === "platform"))
+      ) {
+        const autoRecord: ProviderRecord = {
+          multi: false,
+          factory: () => runInInjectionContext(this, def.factory),
+          value: UNINITIALIZED_RECORD,
+        };
+        this.#records.set(token, autoRecord);
+        return this.#resolveRecord<T>(token, autoRecord);
+      }
+    }
+
+    if (options?.self) {
+      return Injector.NULL.get(token, notFoundValue as T, options);
+    }
+
+    return this.#parent.get(token, notFoundValue as T, options);
+  }
+}
+
+let currentInjector: Injector | undefined;
+let defaultRootInjector: NativeEnvironmentInjector | undefined;
+const ownerInjectors = new WeakMap<object, NativeEnvironmentInjector>();
+
+function getDefaultRootInjector(): NativeEnvironmentInjector {
+  if (!defaultRootInjector || defaultRootInjector.destroyed) {
+    defaultRootInjector = new NativeEnvironmentInjector(
+      [],
+      Injector.NULL,
+      "RootEnvironmentInjector",
+      true,
+    );
+  }
+  return defaultRootInjector;
+}
+
+export function getCurrentInjector(): Injector | undefined {
+  return currentInjector;
+}
+
+export function setCurrentInjector(
+  injector: Injector | undefined,
+): Injector | undefined {
+  const prev = currentInjector;
+  currentInjector = injector;
+  return prev;
+}
+
+export function runInInjectionContext<ReturnT>(
+  injector: Injector,
+  fn: () => ReturnT,
+): ReturnT {
+  if (injector instanceof EnvironmentInjector && injector.destroyed) {
+    throw new Error("NG0205: Injector has already been destroyed.");
+  }
+  const prev = setCurrentInjector(injector);
+  try {
+    return fn();
+  } finally {
+    setCurrentInjector(prev);
+  }
+}
+
+export function assertInInjectionContext(debugFn: Function): void {
+  if (!currentInjector && !getOwner()) {
+    const name = debugFn?.name || "Function";
+    throw new Error(
+      `NG0203: ${name}() must be called from an injection context such as a constructor, a factory function, a field initializer, or a function used with \`runInInjectionContext\`.`,
+    );
+  }
+}
+
+export function createEnvironmentInjector(
+  providers: (Provider | EnvironmentProviders)[],
+  parent?: EnvironmentInjector | Injector,
+  debugName?: string,
+): EnvironmentInjector {
+  const resolvedParent = parent ?? getDefaultRootInjector();
+  const injector = new NativeEnvironmentInjector(
+    providers,
+    resolvedParent,
+    debugName,
+    !parent,
+  );
+  const initializers = injector.get(ENVIRONMENT_INITIALIZER, null, {
+    optional: true,
+    self: true,
+  });
+  if (Array.isArray(initializers)) {
+    for (const init of initializers) {
+      if (typeof init === "function") {
+        runInInjectionContext(injector, init);
+      }
+    }
+  }
+  return injector;
+}
+
+function resolveActiveInjectorForInject(): Injector {
+  if (currentInjector) {
+    return currentInjector;
+  }
+  const owner = getOwner();
+  if (!owner) {
+    throw new Error(
+      "NG0203: inject() must be called from an injection context such as a constructor, a factory function, a field initializer, or a function used with `runInInjectionContext`.",
+    );
+  }
+  let inj = ownerInjectors.get(owner);
+  if (!inj) {
+    const destroyRef = injectDestroyRef();
+    inj = new NativeEnvironmentInjector(
+      [{ provide: DestroyRef, useValue: destroyRef }],
+      getDefaultRootInjector(),
+      "OwnerEnvironmentInjector",
+      false,
+    );
+    ownerInjectors.set(owner, inj);
+  }
+  return inj;
+}
+
+export function inject<T>(token: ProviderToken<T>): T;
+export function inject<T>(
+  token: ProviderToken<T>,
+  options: InjectOptions & { optional?: false },
+): T;
+export function inject<T>(
+  token: ProviderToken<T>,
+  options: InjectOptions,
+): T | null;
+export function inject(
+  token: HostAttributeToken,
+  options?: InjectOptions & { optional?: false },
+): string;
+export function inject(
+  token: HostAttributeToken,
+  options: InjectOptions,
+): string | null;
+export function inject<T>(
+  token: ProviderToken<T> | HostAttributeToken,
+  options?: InjectOptions,
+): T | string | null {
+  const injector = resolveActiveInjectorForInject();
+  return injector.get(
+    token as ProviderToken<T>,
+    THROW_IF_NOT_FOUND_SYMBOL as unknown as T,
+    options,
+  );
+}
+
+export interface QueryOptions<ReadT = unknown> {
+  read?: ProviderToken<ReadT> | string;
+}
+
+export interface ContentChildOptions<
+  ReadT = unknown,
+> extends QueryOptions<ReadT> {
+  descendants?: boolean;
+}
+
+export type QueryKind =
+  "viewChild" | "viewChildren" | "contentChild" | "contentChildren";
+
+export interface QueryMetadata<LocatorT = unknown, ReadT = unknown> {
+  readonly kind: QueryKind;
+  readonly locator: ProviderToken<LocatorT> | string;
+  readonly read?: ProviderToken<ReadT> | string;
+  readonly descendants: boolean;
+  readonly required: boolean;
+}
+
+type QueryController = {
+  applyValue: (value: any) => void;
+  metadata: QueryMetadata<any, any>;
+};
+
+const queryControllers = new WeakMap<Function, QueryController>();
+
+function createSingleQuerySignal<LocatorT, ReadT>(
+  kind: "viewChild" | "contentChild",
+  locator: ProviderToken<LocatorT> | string,
+  required: boolean,
+  descendants: boolean,
+  options?: QueryOptions<ReadT>,
+): Signal<ReadT> {
+  let initialized = !required;
+  const backing = signal<ReadT | undefined>(undefined);
+  const metadata: QueryMetadata<LocatorT, ReadT> = Object.freeze({
+    kind,
+    locator,
+    read: options?.read,
+    descendants,
+    required,
+  });
+
+  const read = (() => {
+    const current = backing();
+    if (required && (!initialized || current === undefined)) {
+      throw new Error(
+        `NG0951: Child query result is required, but no value is available (${formatTokenName(locator)}).`,
+      );
+    }
+    return current as ReadT;
+  }) as Signal<ReadT>;
+
+  signals.add(read);
+  queryControllers.set(read, {
+    metadata,
+    applyValue(nextValue: ReadT | undefined) {
+      initialized = true;
+      backing.set(nextValue);
+    },
+  });
+  return read;
+}
+
+function createMultiQuerySignal<LocatorT, ReadT>(
+  kind: "viewChildren" | "contentChildren",
+  locator: ProviderToken<LocatorT> | string,
+  descendants: boolean,
+  options?: QueryOptions<ReadT>,
+): Signal<readonly ReadT[]> {
+  const emptyList: readonly ReadT[] = Object.freeze([]);
+  const backing = signal<readonly ReadT[]>(emptyList);
+  const metadata: QueryMetadata<LocatorT, ReadT> = Object.freeze({
+    kind,
+    locator,
+    read: options?.read,
+    descendants,
+    required: false,
+  });
+
+  const read = (() => backing()) as Signal<readonly ReadT[]>;
+  signals.add(read);
+  queryControllers.set(read, {
+    metadata,
+    applyValue(nextValues: readonly ReadT[]) {
+      const normalized = Array.isArray(nextValues)
+        ? Object.freeze(Array.from(nextValues))
+        : emptyList;
+      backing.set(normalized);
+    },
+  });
+  return read;
+}
+
+export interface ViewChildFunction {
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+  ): Signal<LocatorT | undefined>;
+  <LocatorT, ReadT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts: QueryOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+  ): Signal<ReadT | undefined>;
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: QueryOptions<LocatorT>,
+  ): Signal<LocatorT | undefined>;
+  required: {
+    <LocatorT>(locator: ProviderToken<LocatorT> | string): Signal<LocatorT>;
+    <LocatorT, ReadT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts: QueryOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+    ): Signal<ReadT>;
+    <LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: QueryOptions<LocatorT>,
+    ): Signal<LocatorT>;
+  };
+}
+
+export const viewChild: ViewChildFunction = Object.assign(
+  function viewChildImpl<LocatorT, ReadT = LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: QueryOptions<ReadT>,
+  ): Signal<ReadT | undefined> {
+    return createSingleQuerySignal<LocatorT, ReadT | undefined>(
+      "viewChild",
+      locator,
+      false,
+      true,
+      opts as QueryOptions<ReadT | undefined>,
+    );
+  },
+  {
+    required<LocatorT, ReadT = LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: QueryOptions<ReadT>,
+    ): Signal<ReadT> {
+      return createSingleQuerySignal<LocatorT, ReadT>(
+        "viewChild",
+        locator,
+        true,
+        true,
+        opts,
+      );
+    },
+  },
+) as ViewChildFunction;
+
+export function viewChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+): Signal<readonly LocatorT[]>;
+export function viewChildren<LocatorT, ReadT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts: QueryOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+): Signal<readonly ReadT[]>;
+export function viewChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: QueryOptions<LocatorT>,
+): Signal<readonly LocatorT[]>;
+export function viewChildren<LocatorT, ReadT = LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: QueryOptions<ReadT>,
+): Signal<readonly ReadT[]> {
+  return createMultiQuerySignal<LocatorT, ReadT>(
+    "viewChildren",
+    locator,
+    true,
+    opts,
+  );
+}
+
+export interface ContentChildFunction {
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+  ): Signal<LocatorT | undefined>;
+  <LocatorT, ReadT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts: ContentChildOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+  ): Signal<ReadT | undefined>;
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: ContentChildOptions<LocatorT>,
+  ): Signal<LocatorT | undefined>;
+  required: {
+    <LocatorT>(locator: ProviderToken<LocatorT> | string): Signal<LocatorT>;
+    <LocatorT, ReadT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts: ContentChildOptions<ReadT> & {
+        read: ProviderToken<ReadT> | string;
+      },
+    ): Signal<ReadT>;
+    <LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: ContentChildOptions<LocatorT>,
+    ): Signal<LocatorT>;
+  };
+}
+
+export const contentChild: ContentChildFunction = Object.assign(
+  function contentChildImpl<LocatorT, ReadT = LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: ContentChildOptions<ReadT>,
+  ): Signal<ReadT | undefined> {
+    return createSingleQuerySignal<LocatorT, ReadT | undefined>(
+      "contentChild",
+      locator,
+      false,
+      opts?.descendants ?? true,
+      opts as QueryOptions<ReadT | undefined>,
+    );
+  },
+  {
+    required<LocatorT, ReadT = LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: ContentChildOptions<ReadT>,
+    ): Signal<ReadT> {
+      return createSingleQuerySignal<LocatorT, ReadT>(
+        "contentChild",
+        locator,
+        true,
+        opts?.descendants ?? true,
+        opts,
+      );
+    },
+  },
+) as ContentChildFunction;
+
+export function contentChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+): Signal<readonly LocatorT[]>;
+export function contentChildren<LocatorT, ReadT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts: ContentChildOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+): Signal<readonly ReadT[]>;
+export function contentChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: ContentChildOptions<LocatorT>,
+): Signal<readonly LocatorT[]>;
+export function contentChildren<LocatorT, ReadT = LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: ContentChildOptions<ReadT>,
+): Signal<readonly ReadT[]> {
+  return createMultiQuerySignal<LocatorT, ReadT>(
+    "contentChildren",
+    locator,
+    opts?.descendants ?? false,
+    opts,
+  );
+}
+
+export function applyQueryValue<T>(target: Signal<T>, value: T): void {
+  const ctrl = queryControllers.get(target);
+  if (!ctrl) {
+    throw new TypeError("Target is not an Angular signal query");
+  }
+  ctrl.applyValue(value);
+}
+
+export function getQueryMetadata(
+  target: Signal<unknown>,
+): QueryMetadata | undefined {
+  return queryControllers.get(target)?.metadata;
 }

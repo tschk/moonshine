@@ -719,6 +719,41 @@ export function toRefs<T extends object>(object: T): ToRefs<T> {
   }
   return result;
 }
+type DistributeRef<T> = T extends Readonly<Ref<infer V>> ? V : T;
+export type ShallowUnwrapRef<T> = {
+  [K in keyof T]: DistributeRef<T[K]>;
+};
+const proxyRefsCache = new WeakMap<object, object>();
+export function proxyRefs<T extends object>(
+  objectWithRefs: T,
+): ShallowUnwrapRef<T> {
+  if (objectWithRefs === null || typeof objectWithRefs !== "object") {
+    throw new TypeError("proxyRefs requires an object");
+  }
+  if (isReactive(objectWithRefs)) {
+    return objectWithRefs as unknown as ShallowUnwrapRef<T>;
+  }
+  const existing = proxyRefsCache.get(objectWithRefs);
+  if (existing) {
+    return existing as ShallowUnwrapRef<T>;
+  }
+  const proxy = new Proxy(objectWithRefs, {
+    get(target, key, receiver) {
+      return unref(Reflect.get(target, key, receiver));
+    },
+    set(target, key, value, receiver) {
+      const oldValue: unknown = Reflect.get(target, key, target);
+      if (isRef(oldValue) && !isRef(value)) {
+        oldValue.value = value;
+        return true;
+      }
+      return Reflect.set(target, key, value, receiver);
+    },
+  });
+  proxyRefsCache.set(objectWithRefs, proxy);
+  proxyRefsCache.set(proxy, proxy);
+  return proxy as unknown as ShallowUnwrapRef<T>;
+}
 export function computed<T>(
   getter: (previous: T | undefined) => T,
 ): Readonly<Ref<T>>;

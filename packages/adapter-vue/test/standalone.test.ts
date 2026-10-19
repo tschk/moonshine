@@ -119,7 +119,7 @@ import assert from 'node:assert/strict';
 import {existsSync} from 'node:fs';
 import * as root from '@tschk/moonshine-vue';
 import {crepusRenderer} from '@tschk/moonshine-vue/framework';
-import {ref,shallowRef,reactive,toRefs,computed,watch,watchSyncEffect,useId as reactiveUseId} from '@tschk/moonshine-vue/reactive';
+import {ref,shallowRef,reactive,toRefs,proxyRefs,computed,watch,watchSyncEffect,useId as reactiveUseId} from '@tschk/moonshine-vue/reactive';
 import {toDisplayString,toDisplayStringSSR} from '@tschk/moonshine-vue/text';
 import {bindTextModel,createTextModel} from '@tschk/moonshine-vue/model';
 import {createServerTextModel} from '@tschk/moonshine-vue/model/ssr';
@@ -161,6 +161,7 @@ policyValue.value=1;stopPolicy();rejectPolicy(policyFailure);await Promise.resol
 assert.deepEqual(policyErrors,[[policyFailure,'watch callback',undefined]]);
 
 const linked=toRefs(state);linked.nested.value.count=5;assert.equal(state.nested.count,5);
+const proxiedRefs=proxyRefs({count});assert.equal(proxiedRefs.count,5);proxiedRefs.count=6;assert.equal(count.value,6);
 const sync=ref(0), syncTrace=[];
 const endSync=watchSyncEffect(clean=>{const value=sync.value;syncTrace.push(value);clean(()=>syncTrace.push('clean:'+value));});
 sync.value=1;endSync();sync.value=2;assert.deepEqual(syncTrace,[0,'clean:0',1,'clean:1']);

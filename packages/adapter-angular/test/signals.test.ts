@@ -3,29 +3,48 @@ import { batch, createSignal as createMsSignal } from "@tschk/moonshine";
 import { createRoot } from "@tschk/moonshine-dom/reactive";
 import { withSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import {
+  DestroyRef,
+  ENVIRONMENT_INITIALIZER,
+  EnvironmentInjector,
+  HostAttributeToken,
+  InjectionToken,
+  Injector,
   afterNextRender,
   afterRender,
   applyInputValue,
+  applyQueryValue,
+  assertInInjectionContext,
   computed,
+  contentChild,
+  contentChildren,
   createBridgedSignal,
   createDestroyRef,
+  createEnvironmentInjector,
   effect,
   fromMoonshineSignal,
+  getCurrentInjector,
+  getQueryMetadata,
+  inject,
   injectDestroyRef,
   input,
   isSignal,
   isWritableSignal,
   linkedSignal,
+  makeEnvironmentProviders,
   model,
   output,
   outputFromObservable,
   outputToObservable,
+  provideEnvironmentInitializer,
   resource,
+  runInInjectionContext,
   signal,
   takeUntilDestroyed,
   toObservable,
   toSignal,
   untracked,
+  viewChild,
+  viewChildren,
   type Subscribable,
 } from "../src/signals";
 
@@ -596,5 +615,225 @@ describe("@tschk/moonshine-angular signals", () => {
       "read:21",
       "afterRenderFn",
     ]);
+  });
+
+  test("InjectionToken, Injector, EnvironmentInjector, runInInjectionContext, assertInInjectionContext, inject, and provideEnvironmentInitializer", () => {
+    expect(getCurrentInjector()).toBeUndefined();
+    expect(() => assertInInjectionContext(function myHelper() {})).toThrow(
+      "NG0203: myHelper() must be called from an injection context",
+    );
+    expect(() => inject(DestroyRef)).toThrow("NG0203");
+
+    const API_URL = new InjectionToken<string>("API_URL", {
+      factory: () => "https://api.example.com",
+    });
+    const MULTI_PLUGINS = new InjectionToken<string[]>("MULTI_PLUGINS");
+    const ALIAS_URL = new InjectionToken<string>("ALIAS_URL");
+    const MISSING_TOKEN = new InjectionToken<string>("MISSING_TOKEN");
+    const ROLE_ATTR = new HostAttributeToken("role");
+
+    class LoggerService {
+      logs: string[] = [];
+      log(msg: string) {
+        this.logs.push(msg);
+      }
+    }
+
+    class ApiService {
+      readonly url = inject(API_URL);
+      readonly logger = inject(LoggerService);
+      readonly destroyRef = inject(DestroyRef);
+      readonly role = inject(ROLE_ATTR, { optional: true });
+      destroyed = false;
+
+      constructor() {
+        this.destroyRef.onDestroy(() => {
+          this.destroyed = true;
+        });
+      }
+    }
+
+    const initCalls: string[] = [];
+    const parentInjector = createEnvironmentInjector(
+      [
+        LoggerService,
+        { provide: MULTI_PLUGINS, useValue: "plugin-a", multi: true },
+        { provide: MULTI_PLUGINS, useFactory: () => "plugin-b", multi: true },
+        makeEnvironmentProviders([
+          { provide: ALIAS_URL, useExisting: API_URL },
+          { provide: ROLE_ATTR, useValue: "main" },
+        ]),
+        provideEnvironmentInitializer(() => {
+          const logger = inject(LoggerService);
+          logger.log("initialized");
+          initCalls.push(inject(API_URL));
+        }),
+      ],
+      undefined,
+      "ParentEnv",
+    );
+
+    expect(initCalls).toEqual(["https://api.example.com"]);
+    expect(parentInjector.get(ENVIRONMENT_INITIALIZER)).toHaveLength(1);
+    expect(parentInjector.get(LoggerService).logs).toEqual(["initialized"]);
+    expect(parentInjector.get(MULTI_PLUGINS)).toEqual(["plugin-a", "plugin-b"]);
+    expect(parentInjector.get(ALIAS_URL)).toBe("https://api.example.com");
+    expect(parentInjector.get(MISSING_TOKEN, "fallback")).toBe("fallback");
+    expect(
+      parentInjector.get(MISSING_TOKEN, undefined, { optional: true }),
+    ).toBeNull();
+    expect(() => parentInjector.get(MISSING_TOKEN)).toThrow(
+      "NG0201: No provider for InjectionToken MISSING_TOKEN found!",
+    );
+
+    const childInjector = Injector.create({
+      name: "ChildEnv",
+      parent: parentInjector,
+      providers: [
+        { provide: API_URL, useValue: "https://child.example.com" },
+        { provide: ApiService, useClass: ApiService },
+      ],
+    });
+
+    const api = childInjector.get(ApiService);
+    expect(api.url).toBe("https://child.example.com");
+    expect(api.logger).toBe(parentInjector.get(LoggerService));
+    expect(api.role).toBe("main");
+    expect(api.destroyed).toBe(false);
+
+    // skipSelf & self options
+    expect(childInjector.get(EnvironmentInjector)).toBe(childInjector);
+    const fromSkipSelf = runInInjectionContext(childInjector, () => {
+      assertInInjectionContext(function checkCtx() {});
+      expect(getCurrentInjector()).toBe(childInjector);
+      expect(inject(LoggerService, { self: true, optional: true })).toBeNull();
+      return inject(API_URL, { skipSelf: true });
+    });
+    expect(fromSkipSelf).toBe("https://api.example.com");
+
+    // Circular dependency detection
+    const TOKEN_A = new InjectionToken<unknown>("TOKEN_A");
+    const TOKEN_B = new InjectionToken<unknown>("TOKEN_B");
+    const cyclicInjector = createEnvironmentInjector([
+      { provide: TOKEN_A, useFactory: () => inject(TOKEN_B) },
+      { provide: TOKEN_B, useFactory: () => inject(TOKEN_A) },
+    ]);
+    expect(() => cyclicInjector.get(TOKEN_A)).toThrow(
+      "NG0200: Circular dependency in DI detected",
+    );
+
+    // Effect & toObservable bound via { injector: childInjector }
+    const counter = signal(1);
+    const seenEffect: number[] = [];
+    const seenObs: number[] = [];
+    let obsCompleted = false;
+    effect(
+      () => {
+        seenEffect.push(counter());
+      },
+      { injector: childInjector },
+    );
+    toObservable(counter, { injector: childInjector }).subscribe({
+      next: (v) => seenObs.push(v),
+      complete: () => {
+        obsCompleted = true;
+      },
+    });
+    expect(seenEffect).toEqual([1]);
+    expect(seenObs).toEqual([1]);
+
+    counter.set(2);
+    expect(seenEffect).toEqual([1, 2]);
+    expect(seenObs).toEqual([1, 2]);
+
+    childInjector.destroy();
+    expect(childInjector.destroyed).toBe(true);
+    expect(api.destroyed).toBe(true);
+    expect(obsCompleted).toBe(true);
+
+    counter.set(3);
+    expect(seenEffect).toEqual([1, 2]);
+    expect(seenObs).toEqual([1, 2]);
+    expect(() => childInjector.runInContext(() => {})).toThrow("NG0205");
+  });
+
+  test("viewChild, viewChild.required, viewChildren, contentChild, contentChild.required, contentChildren, and applyQueryValue", () => {
+    class HeaderWidget {
+      title = "Header";
+    }
+    class TabItem {
+      constructor(public label: string) {}
+    }
+
+    const optionalHeader = viewChild(HeaderWidget);
+    const requiredInputEl = viewChild.required<
+      string,
+      { nativeElement: string }
+    >("searchBox", { read: "ElementRef" });
+    const allTabs = viewChildren(TabItem);
+    const projectedFooter = contentChild<string>("footerSlot", {
+      descendants: false,
+    });
+    const requiredProjected = contentChild.required(HeaderWidget);
+    const projectedItems = contentChildren(TabItem, { descendants: true });
+
+    expect(isSignal(optionalHeader)).toBe(true);
+    expect(isSignal(requiredInputEl)).toBe(true);
+    expect(isSignal(allTabs)).toBe(true);
+    expect(isSignal(projectedFooter)).toBe(true);
+    expect(isSignal(requiredProjected)).toBe(true);
+    expect(isSignal(projectedItems)).toBe(true);
+
+    expect(getQueryMetadata(optionalHeader)).toEqual({
+      kind: "viewChild",
+      locator: HeaderWidget,
+      read: undefined,
+      descendants: true,
+      required: false,
+    });
+    expect(getQueryMetadata(requiredInputEl)).toEqual({
+      kind: "viewChild",
+      locator: "searchBox",
+      read: "ElementRef",
+      descendants: true,
+      required: true,
+    });
+    expect(getQueryMetadata(projectedFooter)?.descendants).toBe(false);
+    expect(getQueryMetadata(projectedItems)?.descendants).toBe(true);
+
+    expect(optionalHeader()).toBeUndefined();
+    expect(allTabs()).toEqual([]);
+    expect(Object.isFrozen(allTabs())).toBe(true);
+    expect(projectedFooter()).toBeUndefined();
+    expect(projectedItems()).toEqual([]);
+    expect(() => requiredInputEl()).toThrow(
+      "NG0951: Child query result is required",
+    );
+    expect(() => requiredProjected()).toThrow(
+      "NG0951: Child query result is required",
+    );
+
+    const tabCount = computed(() => allTabs().length + projectedItems().length);
+    expect(tabCount()).toBe(0);
+
+    const headerInstance = new HeaderWidget();
+    applyQueryValue(optionalHeader, headerInstance);
+    applyQueryValue(requiredInputEl, { nativeElement: "<input>" });
+    applyQueryValue(allTabs, [new TabItem("Home"), new TabItem("Settings")]);
+    applyQueryValue(projectedFooter, "Footer Content");
+    applyQueryValue(requiredProjected, headerInstance);
+    applyQueryValue(projectedItems, [new TabItem("Extra")]);
+
+    expect(optionalHeader()).toBe(headerInstance);
+    expect(requiredInputEl()).toEqual({ nativeElement: "<input>" });
+    expect(allTabs().map((t) => t.label)).toEqual(["Home", "Settings"]);
+    expect(Object.isFrozen(allTabs())).toBe(true);
+    expect(projectedFooter()).toBe("Footer Content");
+    expect(requiredProjected()).toBe(headerInstance);
+    expect(tabCount()).toBe(3);
+
+    expect(() => applyQueryValue(signal(1), 2)).toThrow(
+      "Target is not an Angular signal query",
+    );
   });
 });

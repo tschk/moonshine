@@ -4,7 +4,13 @@ The root and `./signals` entries provide native Moonshine signal primitives
 (`signal`, `computed`, `linkedSignal`, `effect`, `untracked`, `isSignal`,
 `isWritableSignal`, `resource`, `toObservable`, `toSignal`, `input`,
 `input.required`, `applyInputValue`, `model`, `model.required`, `output`,
-`outputFromObservable`, `outputToObservable`, `createDestroyRef`,
+`outputFromObservable`, `outputToObservable`, `viewChild`, `viewChild.required`,
+`viewChildren`, `contentChild`, `contentChild.required`, `contentChildren`,
+`applyQueryValue`, `getQueryMetadata`, `InjectionToken`, `HostAttributeToken`,
+`Injector`, `EnvironmentInjector`, `createEnvironmentInjector`,
+`makeEnvironmentProviders`, `ENVIRONMENT_INITIALIZER`,
+`provideEnvironmentInitializer`, `runInInjectionContext`,
+`assertInInjectionContext`, `inject`, `DestroyRef`, `createDestroyRef`,
 `injectDestroyRef`, `takeUntilDestroyed`, `afterNextRender`, `afterRender`),
 signal bridges (`fromMoonshineSignal`, `createBridgedSignal`), and a lazy native
 renderer. At runtime, root and `./signals` imports need neither Angular, React,
@@ -28,17 +34,22 @@ import {
   resource,
   toObservable,
   toSignal,
+  InjectionToken,
+  createEnvironmentInjector,
+  inject,
+  viewChild,
+  contentChildren,
   fromMoonshineSignal,
   crepusRenderer,
 } from "@tschk/moonshine-angular";
 ```
 
-| Entry       | Provides                                                                                                                                                                              |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`         | Native Angular signals, async `resource`, RxJS-compatible `toObservable`/`toSignal`, signal bridges, and lazy native renderer                                                         |
-| `./signals` | Host-free Angular signal primitives (`signal`, `computed`, `linkedSignal`, `effect`, `untracked`, `isSignal`, `isWritableSignal`, `resource`, `toObservable`, `toSignal`) and bridges |
-| `./core`    | Legacy Angular core re-exports                                                                                                                                                        |
-| `./common`  | Legacy Angular common re-exports                                                                                                                                                      |
+| Entry       | Provides                                                                                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.`         | Native Angular signals, signal queries, DI (`inject`, `EnvironmentInjector`), async `resource`, RxJS-compatible `toObservable`/`toSignal`, signal bridges, and lazy native renderer  |
+| `./signals` | Host-free Angular signal primitives, signal inputs/models/outputs/queries, DI (`InjectionToken`, `Injector`, `EnvironmentInjector`, `inject`), `resource`, `toObservable`/`toSignal` |
+| `./core`    | Legacy Angular core re-exports                                                                                                                                                       |
+| `./common`  | Legacy Angular common re-exports                                                                                                                                                     |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install
