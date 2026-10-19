@@ -12,7 +12,12 @@ import {
   type Owner,
 } from "@tschk/moonshine-dom/reactive";
 import { createMemo } from "@tschk/moonshine";
-import { isTracking } from "@tschk/moonshine/tracking";
+import {
+  collectDeps,
+  isTracking,
+  trackDependency,
+  type Trackable,
+} from "@tschk/moonshine/tracking";
 import { createTrackedSet } from "./set";
 import {
   getComponentContext,
@@ -738,91 +743,287 @@ export function computed<T>(
   );
 }
 export type WatchSource<T = unknown> = Readonly<Ref<T>> | (() => T);
-export type WatchOptions = { flush: "sync"; immediate?: boolean };
+export type WatchOptions = {
+  flush: "sync";
+  immediate?: boolean;
+  deep?: boolean | number;
+  once?: boolean;
+};
+export type WatchStopHandle = () => void;
+export interface WatchHandle extends WatchStopHandle {
+  pause: () => void;
+  resume: () => void;
+  stop: () => void;
+}
+export type WatchCallback<V = any, OV = any> = (
+  value: V,
+  previous: OV,
+  onCleanup: (fn: () => void) => void,
+) => void;
+type MapWatchSources<T> = {
+  -readonly [K in keyof T]: T[K] extends WatchSource<infer V>
+    ? V
+    : T[K] extends object
+      ? T[K]
+      : never;
+};
+
+let activeWatcherCleanup: ((fn: () => void) => void) | undefined;
+
+export function onWatcherCleanup(
+  cleanupFn: () => void,
+  failSilently = false,
+): void {
+  if (typeof cleanupFn !== "function")
+    throw new TypeError("Watcher cleanup must be a function");
+  if (activeWatcherCleanup) {
+    activeWatcherCleanup(cleanupFn);
+  } else if (!failSilently) {
+    throw new Error("onWatcherCleanup requires an active watcher");
+  }
+}
+
+type DepSnapshot = Array<{ node: Trackable; version: number }>;
+function captureDeps(fn: () => void): DepSnapshot {
+  const nodes = collectDeps(fn, undefined, true);
+  return nodes.map((node) => ({ node, version: node.version }));
+}
+function depsChanged(prev: DepSnapshot, next: DepSnapshot): boolean {
+  if (prev.length !== next.length) return true;
+  for (let i = 0; i < next.length; i++) {
+    if (
+      prev[i]!.node !== next[i]!.node ||
+      prev[i]!.version !== next[i]!.version
+    )
+      return true;
+  }
+  return false;
+}
+function traverse(
+  value: unknown,
+  depth = Infinity,
+  seen = new Set<unknown>(),
+): unknown {
+  if (
+    depth <= 0 ||
+    value === null ||
+    typeof value !== "object" ||
+    rawMarked.has(value) ||
+    rawMarked.has(toRaw(value))
+  )
+    return value;
+  if (seen.has(value)) return value;
+  seen.add(value);
+  depth--;
+  if (isRef(value)) {
+    const inner = value.value;
+    if (depth > 0) traverse(inner, depth, seen);
+  } else if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      traverse(value[i], depth, seen);
+    }
+  } else if (value instanceof Set || value instanceof Map) {
+    value.forEach((entry) => {
+      traverse(entry, depth, seen);
+    });
+  } else if (plain(value)) {
+    for (const key in value) {
+      traverse(value[key], depth, seen);
+    }
+    for (const symbol of Object.getOwnPropertySymbols(value)) {
+      if (Object.prototype.propertyIsEnumerable.call(value, symbol)) {
+        traverse(value[symbol], depth, seen);
+      }
+    }
+  }
+  return value;
+}
+function createWatchHandle(
+  stop: () => void,
+  pause: () => void,
+  resume: () => void,
+): WatchHandle {
+  const handle = (() => {
+    stop();
+  }) as WatchHandle;
+  handle.stop = stop;
+  handle.pause = pause;
+  handle.resume = resume;
+  return handle;
+}
+
 export function watch<T>(
   source: WatchSource<T>,
-  callback: (
-    value: T,
-    previous: T | undefined,
-    onCleanup: (fn: () => void) => void,
-  ) => void,
+  callback: WatchCallback<T, T | undefined>,
   options: WatchOptions,
-): () => void;
+): WatchHandle;
 export function watch<T extends readonly unknown[]>(
   source: { [K in keyof T]: WatchSource<T[K]> },
-  callback: (
-    value: T,
-    previous: T | undefined,
-    onCleanup: (fn: () => void) => void,
-  ) => void,
+  callback: WatchCallback<T, T | undefined>,
   options: WatchOptions,
-): () => void;
+): WatchHandle;
+export function watch<T extends readonly (WatchSource<unknown> | object)[]>(
+  source: readonly [...T],
+  callback: WatchCallback<MapWatchSources<T>, MapWatchSources<T> | undefined>,
+  options: WatchOptions,
+): WatchHandle;
+export function watch<T extends object>(
+  source: T,
+  callback: WatchCallback<T, T | undefined>,
+  options: WatchOptions,
+): WatchHandle;
 export function watch(
-  source: WatchSource<any> | readonly WatchSource<any>[],
-  callback: (
-    value: any,
-    previous: any,
-    onCleanup: (fn: () => void) => void,
-  ) => void,
+  source: WatchSource<any> | object | readonly (WatchSource<any> | object)[],
+  callback: WatchCallback<any, any>,
   options: WatchOptions,
-): () => void {
+): WatchHandle {
   if (
     !options ||
     options.flush !== "sync" ||
-    Object.keys(options).some((key) => key !== "flush" && key !== "immediate")
+    Object.keys(options).some(
+      (key) =>
+        key !== "flush" &&
+        key !== "immediate" &&
+        key !== "deep" &&
+        key !== "once",
+    ) ||
+    (options.immediate !== undefined &&
+      typeof options.immediate !== "boolean") ||
+    (options.once !== undefined && typeof options.once !== "boolean") ||
+    (options.deep !== undefined &&
+      typeof options.deep !== "boolean" &&
+      (typeof options.deep !== "number" || Number.isNaN(options.deep)))
   )
     throw new TypeError(
-      "Native watch supports only flush:'sync' and immediate",
+      "Native watch supports only flush:'sync', immediate, deep, and once",
     );
   const sources = Array.isArray(source) ? source : [source];
-  if (sources.some((item) => !isRef(item) && typeof item !== "function"))
-    throw new TypeError("Native watch requires refs or getters");
+  if (
+    sources.some(
+      (item) => !isRef(item) && !isReactive(item) && typeof item !== "function",
+    )
+  )
+    throw new TypeError(
+      "Native watch requires refs, reactive objects, or getters",
+    );
   const outer = getOwner();
   if (outer?.disposed)
     throw new Error("Cannot watch from a disposed native owner");
   const reportError = captureWatchErrorHandler();
+  const depths = sources.map((item) => {
+    if (typeof options.deep === "number")
+      return options.deep <= 0 ? 0 : options.deep;
+    if (options.deep === true) return Infinity;
+    if (options.deep === false) return isReactive(item) ? 1 : 0;
+    return isReactive(item) ? (isShallow(item) ? 1 : Infinity) : 0;
+  });
   let stop!: () => void;
+  let pause!: () => void;
+  let resume!: () => void;
   createRoot((dispose) => {
     stop = dispose;
     let previous: any[] | undefined;
     let previousVersions: number[] | undefined;
+    let previousDepSnapshots: Array<DepSnapshot | undefined> | undefined;
     let reading = false;
-    const cleanups: Array<() => void> = [];
     let active = true;
+    let paused = false;
+    let dirtyWhilePaused = false;
+    let lastDeps: Array<Parameters<typeof trackDependency>[0]> = [];
+    const [readResume, writeResume] = createSignal(0, { equals: false });
+    const cleanups: Array<() => void> = [];
+    pause = () => {
+      if (active) paused = true;
+    };
+    resume = () => {
+      if (!active || !paused) return;
+      paused = false;
+      if (dirtyWhilePaused) {
+        dirtyWhilePaused = false;
+        writeResume((v) => v + 1);
+      }
+    };
     const clean = () => {
       let failed = false;
       let failure: unknown;
-      for (const fn of cleanups.splice(0)) {
-        try {
-          untrack(() =>
-            reportError ? invokeWatch(reportError, "watch cleanup", fn) : fn(),
-          );
-        } catch (error) {
-          if (!failed) failure = error;
-          failed = true;
+      const prevCleanup = activeWatcherCleanup;
+      activeWatcherCleanup = undefined;
+      try {
+        for (const fn of cleanups.splice(0)) {
+          try {
+            untrack(() =>
+              reportError
+                ? invokeWatch(reportError, "watch cleanup", fn)
+                : fn(),
+            );
+          } catch (error) {
+            if (!failed) failure = error;
+            failed = true;
+          }
         }
+      } finally {
+        activeWatcherCleanup = prevCleanup;
       }
       if (failed) throw failure;
     };
     onCleanup(() => {
       active = false;
+      paused = false;
+      dirtyWhilePaused = false;
       clean();
     });
     createComputed(() => {
+      readResume();
       // Getter reporting may write its source; callback feedback remains reentrant.
-      if (reportError && reading) return;
-      let values: any[];
+      if ((reportError && reading) || !active) return;
+      if (paused) {
+        dirtyWhilePaused = true;
+        for (const dep of lastDeps) {
+          dep.validate?.();
+          trackDependency(dep);
+        }
+        return;
+      }
+      let values!: any[];
+      const depSnapshots: Array<DepSnapshot | undefined> = [];
+      const prevCleanup = activeWatcherCleanup;
+      activeWatcherCleanup = undefined;
       reading = true;
       try {
-        values = sources.map((item) =>
-          isRef(item)
-            ? item.value
-            : reportError
-              ? invokeWatch(reportError, "watch getter", item)
-              : item(),
-        );
+        lastDeps = collectDeps(
+          () => {
+            values = sources.map((item, i) => {
+              const depth = depths[i]!;
+              let value: any;
+              if (depth > 0) {
+                depSnapshots[i] = captureDeps(() => {
+                  value = isRef(item)
+                    ? item.value
+                    : typeof item === "function"
+                      ? reportError
+                        ? invokeWatch(reportError, "watch getter", item)
+                        : item()
+                      : item;
+                  traverse(value, depth);
+                });
+              } else {
+                value = isRef(item)
+                  ? item.value
+                  : typeof item === "function"
+                    ? reportError
+                      ? invokeWatch(reportError, "watch getter", item)
+                      : item()
+                    : item;
+              }
+              return value;
+            });
+          },
+          undefined,
+          true,
+        ) as Array<Parameters<typeof trackDependency>[0]>;
       } finally {
         reading = false;
+        activeWatcherCleanup = prevCleanup;
       }
       const versions = sources.map((item) =>
         isRef(item) ? (refTriggerVersions.get(item) ?? 0) : 0,
@@ -832,43 +1033,65 @@ export function watch(
         values.every(
           (value, i) =>
             Object.is(value, previous![i]) &&
-            versions[i] === previousVersions![i],
+            versions[i] === previousVersions![i] &&
+            (depths[i] === 0 ||
+              !depsChanged(previousDepSnapshots![i]!, depSnapshots[i]!)),
         )
       )
         return;
       const old = previous;
       previous = values;
       previousVersions = versions;
+      previousDepSnapshots = depSnapshots;
       if (!old && !options.immediate) return;
       untrack(() => {
         clean();
         if (!active) return;
-        const invoke = () =>
-          callback(
-            Array.isArray(source) ? values : values[0],
-            Array.isArray(source) ? old : old?.[0],
-            (fn) => {
-              if (typeof fn !== "function")
-                throw new TypeError("Watcher cleanup must be a function");
-              if (active) cleanups.push(fn);
-              else if (reportError)
-                invokeWatch(reportError, "watch cleanup", fn);
-              else fn();
-            },
-          );
-        if (reportError) invokeWatch(reportError, "watch callback", invoke);
-        else invoke();
+        const registerCleanup = (fn: () => void) => {
+          if (typeof fn !== "function")
+            throw new TypeError("Watcher cleanup must be a function");
+          if (active) cleanups.push(fn);
+          else if (reportError) invokeWatch(reportError, "watch cleanup", fn);
+          else fn();
+        };
+        const invoke = () => {
+          const previousCleanup = activeWatcherCleanup;
+          activeWatcherCleanup = registerCleanup;
+          try {
+            return callback(
+              Array.isArray(source) ? values : values[0],
+              Array.isArray(source) ? old : old?.[0],
+              registerCleanup,
+            );
+          } finally {
+            activeWatcherCleanup = previousCleanup;
+          }
+        };
+        try {
+          if (reportError) invokeWatch(reportError, "watch callback", invoke);
+          else invoke();
+        } catch (error) {
+          if (options.once && active) {
+            try {
+              stop();
+            } catch {
+              /* Preserve callback failure when once-stop cleanup also throws. */
+            }
+          }
+          throw error;
+        }
+        if (options.once && active) stop();
       });
     });
   });
   if (outer) onCleanup(stop);
-  return stop;
+  return createWatchHandle(stop, pause, resume);
 }
 
 /** Synchronously track an owned effect; no component render scheduler is implied. */
 export function watchSyncEffect(
   effect: (onCleanup: (fn: () => void) => void) => void,
-): () => void {
+): WatchHandle {
   if (typeof effect !== "function")
     throw new TypeError("Watcher effect must be a function");
   const outer = getOwner();
@@ -876,44 +1099,94 @@ export function watchSyncEffect(
     throw new Error("Cannot watch from a disposed native owner");
   const reportError = captureWatchErrorHandler();
   let stop!: () => void;
+  let pause!: () => void;
+  let resume!: () => void;
   createRoot((dispose) => {
     stop = dispose;
     let active = true;
     let running = false;
+    let paused = false;
+    let dirtyWhilePaused = false;
+    let lastDeps: Array<Parameters<typeof trackDependency>[0]> = [];
+    const [readResume, writeResume] = createSignal(0, { equals: false });
     const cleanups: Array<() => void> = [];
+    pause = () => {
+      if (active) paused = true;
+    };
+    resume = () => {
+      if (!active || !paused) return;
+      paused = false;
+      if (dirtyWhilePaused) {
+        dirtyWhilePaused = false;
+        writeResume((v) => v + 1);
+      }
+    };
     const clean = () => {
       let failed = false;
       let failure: unknown;
-      for (const fn of cleanups.splice(0)) {
-        try {
-          untrack(() =>
-            reportError ? invokeWatch(reportError, "watch cleanup", fn) : fn(),
-          );
-        } catch (error) {
-          if (!failed) failure = error;
-          failed = true;
+      const prevCleanup = activeWatcherCleanup;
+      activeWatcherCleanup = undefined;
+      try {
+        for (const fn of cleanups.splice(0)) {
+          try {
+            untrack(() =>
+              reportError
+                ? invokeWatch(reportError, "watch cleanup", fn)
+                : fn(),
+            );
+          } catch (error) {
+            if (!failed) failure = error;
+            failed = true;
+          }
         }
+      } finally {
+        activeWatcherCleanup = prevCleanup;
       }
       if (failed) throw failure;
     };
     onCleanup(() => {
       active = false;
+      paused = false;
+      dirtyWhilePaused = false;
       clean();
     });
     createComputed(() => {
+      readResume();
       if (running || !active) return;
+      if (paused) {
+        dirtyWhilePaused = true;
+        for (const dep of lastDeps) {
+          dep.validate?.();
+          trackDependency(dep);
+        }
+        return;
+      }
       running = true;
       try {
         untrack(clean);
         if (!active) return;
-        const invoke = () =>
-          effect((fn) => {
-            if (typeof fn !== "function")
-              throw new TypeError("Watcher cleanup must be a function");
-            if (active) cleanups.push(fn);
-          });
-        if (reportError) invokeWatch(reportError, "watch effect", invoke);
-        else invoke();
+        const registerCleanup = (fn: () => void) => {
+          if (typeof fn !== "function")
+            throw new TypeError("Watcher cleanup must be a function");
+          if (active) cleanups.push(fn);
+        };
+        const invoke = () => {
+          const previousCleanup = activeWatcherCleanup;
+          activeWatcherCleanup = registerCleanup;
+          try {
+            return effect(registerCleanup);
+          } finally {
+            activeWatcherCleanup = previousCleanup;
+          }
+        };
+        lastDeps = collectDeps(
+          () => {
+            if (reportError) invokeWatch(reportError, "watch effect", invoke);
+            else invoke();
+          },
+          undefined,
+          true,
+        ) as Array<Parameters<typeof trackDependency>[0]>;
       } catch (error) {
         if (!reportError)
           try {
@@ -928,7 +1201,7 @@ export function watchSyncEffect(
     });
   });
   if (outer) onCleanup(stop);
-  return stop;
+  return createWatchHandle(stop, pause, resume);
 }
 
 let activeEffectScope: EffectScope | undefined;

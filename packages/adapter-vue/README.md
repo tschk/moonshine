@@ -20,19 +20,19 @@ import { fromMoonshineSignal } from "@tschk/moonshine-vue";
 import { ref } from "@tschk/moonshine-vue/reactive";
 ```
 
-| Subpath          | Provides                                                                                                                                                                                                                                                                                                                               |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                                                                                                                                                                                                                 |
-| `./vue`          | `vue` runtime re-exports                                                                                                                                                                                                                                                                                                               |
-| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                                                                                                                                                                                                                          |
-| `./reactive`     | native `ref`/`shallowRef`/`customRef`/`triggerRef`/`useTemplateRef`, `toRef`/`toRefs`/`unref`/`toValue`/`isRef`, `reactive`/`shallowReactive`/`readonly`/`shallowReadonly`, `isReactive`/`isReadonly`/`isShallow`/`isProxy`/`toRaw`/`markRaw`, `computed`, `watch`/`watchSyncEffect`, `effectScope`/`getCurrentScope`/`onScopeDispose` |
-| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                                                                                                                                                                                                                            |
-| `./text`         | native DOM and SSR interpolation conversion                                                                                                                                                                                                                                                                                            |
-| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                                                                                                                                                                                                                        |
-| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                                                                                                                                                                                                                              |
-| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                                                                                                                                                                                                                  |
-| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                                                                                                                                                                                                                 |
-| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                                                                                                                                                                                                                            |
+| Subpath          | Provides                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                                                                                                                                                                                                                                                    |
+| `./vue`          | `vue` runtime re-exports                                                                                                                                                                                                                                                                                                                                                  |
+| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                                                                                                                                                                                                                                                             |
+| `./reactive`     | native `ref`/`shallowRef`/`customRef`/`triggerRef`/`useTemplateRef`, `toRef`/`toRefs`/`unref`/`toValue`/`isRef`, `reactive`/`shallowReactive`/`readonly`/`shallowReadonly`, `isReactive`/`isReadonly`/`isShallow`/`isProxy`/`toRaw`/`markRaw`, `computed`, `watch`/`watchSyncEffect`/`onWatcherCleanup` (`WatchHandle`), `effectScope`/`getCurrentScope`/`onScopeDispose` |
+| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                                                                                                                                                                                                                                                               |
+| `./text`         | native DOM and SSR interpolation conversion                                                                                                                                                                                                                                                                                                                               |
+| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                                                                                                                                                                                                                                                           |
+| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                                                                                                                                                                                                                                                                 |
+| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                                                                                                                                                                                                                                                     |
+| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                                                                                                                                                                                                                                                    |
+| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                                                                                                                                                                                                                                                               |
 
 `./framework` exports the same lazy `crepusRenderer` compatibility name as the
 root. Its optional `@tschk/moonshine-framework` peer is needed only when rendering.
@@ -43,11 +43,17 @@ The compatibility root renderer loads source files under Bun. Bundled deployment
 
 Legacy peer: `vue` >= 3, needed only for `/vue` and `/compiler-sfc`.
 
-Native `watch` requires `{ flush: "sync" }`; component scheduling, deep watches,
-and Vue Map/WeakMap/WeakSet collection proxies are not implemented by this entry. Plain objects and
+Native `watch` requires `{ flush: "sync" }` and supports `immediate`, `deep`
+(`boolean` or finite depth `number`), `once`, reactive object sources (deep by
+default for `reactive`, depth `1` by default for `shallowReactive` or
+`{ deep: false }`), `onWatcherCleanup(fn, failSilently?)`, and `WatchHandle`
+(`stop()`, `pause()`, `resume()`, and callable `handle()`). Component
+pre/post render scheduling and Vue Map/WeakMap/WeakSet collection proxies are
+not implemented by this entry. Plain objects and
 arrays are reactive; nested refs unwrap on object properties and retain their
 identity at integer array entries.
-Each watcher run can register multiple cleanup callbacks. Reruns and stops drain
+Each watcher run can register multiple cleanup callbacks (via the callback's
+third parameter or `onWatcherCleanup`). Reruns and stops drain
 them in registration order, attempt all callbacks after a failure, and preserve
 the first error. A cleanup that stops its watcher prevents another callback run.
 
@@ -289,21 +295,28 @@ Callback failures propagate after pending peers and disposal finish.
 A watch started under an already disposed native owner throws. Ownerless watches
 remain manually stoppable.
 
-`./reactive` also exports `watchSyncEffect(effect)`, returning a stop function.
-The effect runs immediately and tracks synchronous reads, including conditional
-sources. Its supplied cleanup registrar accepts multiple callbacks, including
-late registrations while active; registrations after stopping are ignored.
-Cleanup runs untracked before reruns and on stop. Writes made by the effect or
-its cleanup do not recursively invoke that same effect; cleanup writes remain
-visible to the following run. Native owners stop their effects on disposal;
-ownerless effects require manual stopping. SSR sync effects run and stop with the
-request owner. Promise continuations are not tracked.
+`./reactive` also exports `watchSyncEffect(effect)` and
+`onWatcherCleanup(cleanupFn, failSilently?)`, with `watch` and `watchSyncEffect`
+returning a `WatchHandle` (`stop()`, `pause()`, `resume()`, and callable
+`handle()`). The effect runs immediately and tracks synchronous reads, including
+conditional sources. Its supplied cleanup registrar and `onWatcherCleanup`
+accept multiple callbacks while active; registrations after stopping are ignored
+in `watchSyncEffect` and run immediately in `watch`. Calling `onWatcherCleanup`
+outside an active watcher execution (or inside a `watch` source getter or
+cleanup function) throws unless `failSilently` is `true`. Cleanup runs untracked
+before reruns and on stop. Writes made by the effect or its cleanup do not
+recursively invoke that same effect; cleanup writes remain visible to the
+following run. `pause()` suspends callback/effect reruns while retaining tracked
+dependencies, and `resume()` synchronously flushes if any tracked dependency
+changed while paused. Native owners stop their effects on disposal; ownerless
+effects require manual stopping. SSR sync effects run and stop with the request
+owner. Promise continuations are not tracked.
 
 Cleanup attempts every registered callback and propagates the first failure;
 failed effect runs release their registered cleanup while preserving the effect
 error. This follows native error handling rather than Vue's app error handler.
-This entry does not supply scheduled `watchEffect`, pause/resume handles, or a
-Vue component render scheduler.
+This entry does not supply scheduled `watchEffect` / `watchPostEffect` or a Vue
+component render scheduler.
 
 `./reactive` exports `toRefs(object)` for destructuring linked properties without
 losing live reads or writes. It snapshots enumerable string keys (including

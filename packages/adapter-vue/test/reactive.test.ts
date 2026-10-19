@@ -177,8 +177,11 @@ test("watch rejects unsupported options before evaluating sources", () => {
     {},
     { flush: "pre" },
     { flush: "post" },
-    { flush: "sync", deep: true },
-    { flush: "sync", once: true },
+    { flush: "sync", unknown: true },
+    { flush: "sync", deep: "invalid" },
+    { flush: "sync", deep: Number.NaN },
+    { flush: "sync", once: "invalid" },
+    { flush: "sync", immediate: "invalid" },
   ]) {
     expect(() =>
       watch(
@@ -190,7 +193,7 @@ test("watch rejects unsupported options before evaluating sources", () => {
   }
   expect(reads).toBe(0);
   expect(() => watch({} as any, () => {}, { flush: "sync" })).toThrow(
-    "refs or getters",
+    "refs, reactive objects, or getters",
   );
 });
 

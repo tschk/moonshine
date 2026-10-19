@@ -1,3 +1,23 @@
+# Moonshine 0.4.47
+
+- Extend `@tschk/moonshine-vue/reactive` synchronous `watch` and
+  `watchSyncEffect` with Vue 3.5 watcher capabilities: reactive object watch
+  sources (`reactive`, `shallowReactive`, `readonly(reactive(...))`), `deep`
+  (`boolean` or finite depth `number`), `once`, `onWatcherCleanup`, and
+  `WatchHandle` (`WatchStopHandle` function with `.stop()`, `.pause()`, and
+  `.resume()`).
+- Direct reactive object watch sources default to deep traversal for `reactive`
+  proxies and depth `1` for `shallowReactive` proxies or `{ deep: false }`.
+  Deep traversal handles cycles, arrays, `Set`s, nested refs, and symbol keys
+  while skipping `markRaw` values and tracking per-source dependency versions so
+  mixed tuples do not falsely fire on unchanged sibling getters.
+- `onWatcherCleanup(cleanupFn, failSilently?)` registers cleanup callbacks on
+  the active `watch` callback or `watchSyncEffect` effect with lexical nesting
+  and `withComponentErrorHandler` `"watch cleanup"` phase routing.
+- `WatchHandle.pause()` suspends watcher reruns while retaining tracked
+  dependencies, and `WatchHandle.resume()` synchronously flushes if any tracked
+  dependency changed while paused.
+
 # Moonshine 0.4.46
 
 - Add Vue 3.5 reactivity inspection, shallow/readonly/raw proxy helpers, ref
