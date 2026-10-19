@@ -61,19 +61,27 @@ describe("isContained", () => {
   });
 
   test("returns false for a symlink inside the directory pointing outside", () => {
-    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(false);
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(
+      false,
+    );
   });
 
   test("returns true for a symlink inside the directory pointing inside", () => {
-    expect(isContained(staticDir, resolve(staticDir, "ok-link.txt"))).toBe(true);
+    expect(isContained(staticDir, resolve(staticDir, "ok-link.txt"))).toBe(
+      true,
+    );
   });
 
   test("returns false for a file in a directory with the same prefix", () => {
-    expect(isContained(staticDir, resolve(prefixDir, "sneaky.txt"))).toBe(false);
+    expect(isContained(staticDir, resolve(prefixDir, "sneaky.txt"))).toBe(
+      false,
+    );
   });
 
   test("throws an error for a non-existent file", () => {
-    expect(() => isContained(staticDir, resolve(staticDir, "missing.txt"))).toThrow();
+    expect(() =>
+      isContained(staticDir, resolve(staticDir, "missing.txt")),
+    ).toThrow();
   });
 
   test("caches the real root on successive calls", () => {
