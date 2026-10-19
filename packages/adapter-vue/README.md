@@ -20,19 +20,19 @@ import { fromMoonshineSignal } from "@tschk/moonshine-vue";
 import { ref } from "@tschk/moonshine-vue/reactive";
 ```
 
-| Subpath          | Provides                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                |
-| `./vue`          | `vue` runtime re-exports                                                                                                              |
-| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                         |
-| `./reactive`     | native refs/`shallowRef`/`useTemplateRef`, `toRef`/`toRefs`/`unref`/`isRef`, `reactive`/`isReactive`, `computed`, synchronous `watch` |
-| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                           |
-| `./text`         | native DOM and SSR interpolation conversion                                                                                           |
-| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                       |
-| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                             |
-| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                 |
-| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                |
-| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                           |
+| Subpath          | Provides                                                                                                                                                                                                                                                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`              | signal bridges, lazy native SSR compatibility renderer                                                                                                                                                                                                                                                                                 |
+| `./vue`          | `vue` runtime re-exports                                                                                                                                                                                                                                                                                                               |
+| `./compiler-sfc` | `vue/compiler-sfc` re-exports                                                                                                                                                                                                                                                                                                          |
+| `./reactive`     | native `ref`/`shallowRef`/`customRef`/`triggerRef`/`useTemplateRef`, `toRef`/`toRefs`/`unref`/`toValue`/`isRef`, `reactive`/`shallowReactive`/`readonly`/`shallowReadonly`, `isReactive`/`isReadonly`/`isShallow`/`isProxy`/`toRaw`/`markRaw`, `computed`, `watch`/`watchSyncEffect`, `effectScope`/`getCurrentScope`/`onScopeDispose` |
+| `./context`      | native component `provide`, `inject`, `hasInjectionContext`                                                                                                                                                                                                                                                                            |
+| `./text`         | native DOM and SSR interpolation conversion                                                                                                                                                                                                                                                                                            |
+| `./props`        | compiler-facing shallow declared props and owned parent refresh                                                                                                                                                                                                                                                                        |
+| `./events`       | compiler-facing typed component callbacks, callback arrays and per-instance once delivery                                                                                                                                                                                                                                              |
+| `./normalize`    | native class/style normalization and compiler-facing DOM/SSR policies                                                                                                                                                                                                                                                                  |
+| `./expose`       | compiler-facing `exposeRefs`, `bindRef`, `bindComponentRef`, and `useTemplateRef` for `defineExpose` and template refs                                                                                                                                                                                                                 |
+| `./app`          | native `createApp` returning `{ mount, unmount }` where `mount(target)` returns the root's exposed instance                                                                                                                                                                                                                            |
 
 `./framework` exports the same lazy `crepusRenderer` compatibility name as the
 root. Its optional `@tschk/moonshine-framework` peer is needed only when rendering.
@@ -44,7 +44,7 @@ The compatibility root renderer loads source files under Bun. Bundled deployment
 Legacy peer: `vue` >= 3, needed only for `/vue` and `/compiler-sfc`.
 
 Native `watch` requires `{ flush: "sync" }`; component scheduling, deep watches,
-and Vue collection proxies are not implemented by this entry. Plain objects and
+and Vue Map/WeakMap/WeakSet collection proxies are not implemented by this entry. Plain objects and
 arrays are reactive; nested refs unwrap on object properties and retain their
 identity at integer array entries.
 Each watcher run can register multiple cleanup callbacks. Reruns and stops drain
@@ -53,14 +53,14 @@ the first error. A cleanup that stops its watcher prevents another callback run.
 
 ### Native Set tracking
 
-`reactive(new Set())`, deep refs containing Sets and Sets nested in plain state
+`reactive(new Set())`, `shallowReactive(new Set())`, `readonly(new Set())`,
+`shallowReadonly(new Set())`, deep refs containing Sets and Sets nested in plain state
 use the independent native graph. Membership reads track individual keys;
 size, iteration and `forEach` track membership changes. Duplicate additions,
 missing deletions and empty clears do not notify. Object entries retain
-raw/proxy membership identity and wrap on iteration; stored native refs retain
+raw/proxy membership identity and wrap on iteration in deep `reactive`/`readonly`; stored native refs retain
 their identity. `shallowRef` keeps external Sets raw and tracks replacement only.
-Map/WeakMap/WeakSet reactivity, Set algebra methods and readonly collection
-runtime views remain unsupported. Mutating an original raw Set bypasses notification.
+Map/WeakMap/WeakSet reactivity and Set algebra methods remain unsupported. Mutating an original raw Set bypasses notification.
 
 The local compiler accepts unshadowed global `Set<T>` prop values. Local `Set`
 bindings, including conservative checks in nested scopes, remain rejected until
@@ -94,15 +94,37 @@ configuration or `onErrorCaptured`, and adds no watcher or component frame.
 and wraps getters in readonly refs without caching their results. Its optional
 property default applies only to `undefined`; an alias does not make a plain
 source object reactive. Function-valued properties and
-defaults stay literal. `unref` unwraps native refs once and never calls functions.
-`isRef` recognizes only this entry's native refs, including computed/getter refs;
+defaults stay literal. `unref` unwraps native refs once and never calls functions;
+`toValue` unwraps native refs and invokes zero-argument getter functions while
+keeping `ref(fn)` function values literal.
+`isRef` recognizes only this entry's native refs, including computed/getter/custom refs;
 it does not accept Vue host refs or objects with a spoofed `__v_isRef` flag.
 
 `shallowRef` stores raw values unchanged and tracks replacement of `.value` using
 `Object.is` equality. It preserves existing native refs, existing reactive proxies,
-and literal function values. Nested raw mutations do not notify; an already
-reactive proxy keeps its own tracking. This supports external snapshots without
-deep conversion. `triggerRef` is not implemented.
+and literal function values. Nested raw mutations do not notify automatically;
+calling `triggerRef(ref)` forces subscribers (including `computed`, `watchSyncEffect`,
+and synchronous `watch`) to re-evaluate after in-place mutations. `customRef((track, trigger) => ({ get, set }))`
+creates a native ref with explicit dependency tracking and notification control.
+
+`shallowReactive` tracks root-level object properties, array indices/length/mutations,
+and `Set` membership without deep wrapping or nested ref unwrapping. `readonly`
+creates a deep read-only view over plain objects, arrays, `Set`s, reactive proxies,
+and refs (forwarding reactive tracking when wrapping a reactive target while throwing
+`TypeError` on writes, deletes, `defineProperty`, or `Set` mutations); `shallowReadonly`
+enforces read-only access only at the root level. `markRaw` marks an object or `Set`
+so `reactive`, `shallowReactive`, `readonly`, `shallowReadonly`, and `ref` return it
+unwrapped (both at root and nested positions), and `toRaw` unwraps any native proxy
+layer back to the underlying raw object. `isReactive`, `isReadonly`, `isShallow`,
+and `isProxy` inspect native proxy and ref flags.
+
+`effectScope(detached?)`, `EffectScope`, `getCurrentScope()`, and `onScopeDispose(fn, failSilently?)`
+manage grouped reactive ownership (`watch`, `watchSyncEffect`, `computed`, nested
+non-detached `effectScope`s, and `onScopeDispose` callbacks). Non-detached scopes
+attach to the enclosing active `EffectScope` or native component/root owner;
+detached scopes (`effectScope(true)`) remain active until their own `.stop()` is called.
+Inside native component initialization, `getCurrentScope()` and `onScopeDispose()`
+bind to the component's scope and clean up on component unmount.
 
 Native computed refs are lazy and cached, propagate previous successful values,
 and keep writable setters. Stopping an owner releases its watchers without

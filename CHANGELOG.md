@@ -1,3 +1,39 @@
+# Moonshine 0.4.46
+
+- Add Vue 3.5 reactivity inspection, shallow/readonly/raw proxy helpers, ref
+  utilities, and `effectScope` ownership primitives in
+  `@tschk/moonshine-vue/reactive`: `toValue` (`MaybeRef`, `MaybeRefOrGetter`),
+  `triggerRef`, `customRef` (`CustomRefFactory`), `markRaw`, `toRaw`,
+  `isReadonly`, `isShallow`, `isProxy`, `shallowReactive`, `readonly`
+  (`DeepReadonly`), `shallowReadonly`, `effectScope` (`EffectScope`),
+  `getCurrentScope`, and `onScopeDispose`.
+- `triggerRef` and `customRef` `trigger()` increment a per-ref trigger epoch so
+  synchronous `watch(refSource, cb, { flush: "sync" })`, `watchSyncEffect`, and
+  `computed` re-evaluate even when an underlying object reference is mutated in
+  place.
+- `shallowReactive` tracks root-level properties, array indices/length/mutation
+  methods, `in`, `Object.keys`, `delete`, and `Set` membership without deep
+  wrapping or ref unwrapping. `readonly` and `shallowReadonly` enforce
+  immutability on plain objects, arrays, `Set`s, reactive proxies, and refs while
+  forwarding reactive tracking from wrapped reactive targets. `markRaw` prevents
+  wrapping at root and nested object/array/`Set` positions, and `toRaw` unwraps
+  native proxies in O(1).
+- `effectScope(detached?)`, `getCurrentScope()`, and
+  `onScopeDispose(fn, failSilently?)` manage grouped reactive ownership (`watch`,
+  `watchSyncEffect`, `computed`, nested non-detached `effectScope`s, and disposal
+  callbacks) and bind automatically to the active component scope during native
+  `<script setup>` initialization.
+- Local unpublished Crepuscularity lowering admits all new reactivity and scope
+  helpers (plus `hasInjectionContext`, `InjectionKey`, `isRef`, `isReactive`,
+  and `watchSyncEffect`) in `'vue'` imports, and recognizes `customRef` and
+  `shallowReactive` in `defineExpose` and `v-model` target analysis.
+- Validation: 2,547 SDK tests pass (with all five optional compiler-gated
+  standalone tests passing when `MOONSHINE_CREPUS_COMPILER` is set); 876
+  source-gate modules (`scripts/check-native-sfc.ts`), Crepuscularity Vue
+  compiler tests, Clippy (`-D warnings`), and both 25-project typecheck lanes
+  (`tsc` and `tsgo`) pass. The signal kernel stays at 4,041 raw bytes. Source
+  compiler changes remain local and unpublished; npm publication stays manual.
+
 # Moonshine 0.4.45
 
 - Add `useTemplateRef` and `TemplateRef<T>` in `@tschk/moonshine-vue/reactive`
