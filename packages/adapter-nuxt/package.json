@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-nuxt",
-  "version": "0.4.65",
+  "version": "0.4.66",
   "description": "Native signal bridges and rendering with optional legacy nuxt entries",
   "license": "ISC",
   "type": "module",

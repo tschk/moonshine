@@ -17,6 +17,8 @@ modules retaining a Solid runtime import.
   `ErrorBoundary`, `Suspense`, `SuspenseList`, and getter-based `For`, `Index`, `Show`, `Match`, `Switch`.
 - `/web`: native `solid-js/web` runtime surface (`isServer`, `isDev`, `DEV`, `render`, `renderToString`, `Portal`, `Dynamic`, `createDynamic`, `Show`, `For`, `Index`, `Switch`, `Match`, `ErrorBoundary`, `Suspense`, `SuspenseList`, `mergeProps`, `splitProps`, `setAttribute`, `setAttributeNS`, `classList`, `style`, `addEventListener`, `assign`, `spread`, `insert`, `delegateEvents`, `clearDelegatedEvents`, `generateHydrationScript`, `HydrationScript`, `NoHydration`, `Assets`).
 - `/store`: independent `createStore`, `produce`, `reconcile` on the same graph.
+- `/router`: host-free `@solidjs/router` replacement (`Router`, `MemoryRouter`, `HashRouter`, `Route`, `A`, `Navigate`, `createMemoryHistory`, `useNavigate`, `useLocation`, `useParams`, `useSearchParams`, `useIsRouting`, `useMatch`, `useCurrentMatches`, `useBeforeLeave`, `usePreloadRoute`, `query`, `createAsync`, `createAsyncStore`, `revalidate`, `action`, `useAction`, `useSubmission`, `useSubmissions`, `redirect`, `reload`, `json`).
+- `/meta`: host-free `@solidjs/meta` replacement (`MetaProvider`, `Title`, `Meta`, `Link`, `Style`, `Base`, `useHead`, `renderTags`).
 - `/h`: the native browser `h` factory, exported as default. Use explicit tag
   names and props; Solid hyperscript selector shorthand is unsupported.
 - `/portal`: opt-in `Portal` and browser `h` with logical delegated events.

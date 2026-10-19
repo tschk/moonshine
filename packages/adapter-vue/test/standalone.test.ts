@@ -186,8 +186,57 @@ const reactiveMod=await import('@tschk/moonshine-vue/reactive');
 assert.equal(reactiveMod.version,'3.5.13');
 assert.equal(reactiveMod.mergeProps({class:'a'},{class:'b'}).class,'a b');
 assert.equal(await reactiveMod.nextTick(()=>42),42);
+const storeMod=await import('@tschk/moonshine-vue/store');
+const routerMod=await import('@tschk/moonshine-vue/router');
+storeMod.setActivePinia(storeMod.createPinia());
+const useCounter=storeMod.defineStore('standalone-counter',()=>{const c=ref(5);return{c};});
+assert.equal(useCounter().c,5);
+const router=routerMod.createRouter({history:routerMod.createMemoryHistory(),routes:[{path:'/',component:()=>h('span',null,'home')}]});
+assert.equal(router.currentRoute.value.path,'/');
 `);
 });
+
+test.skipIf(!sourceCompiler)(
+  "vue-router and pinia imports in .vue SFCs lower and render without host packages",
+  async () => {
+    const storeFile = `import { ref, computed } from '@tschk/moonshine-vue/reactive';
+import { defineStore } from '@tschk/moonshine-vue/store';
+export const useCounterStore = defineStore('counter', () => {
+  const count = ref(4);
+  const double = computed(() => count.value * 2);
+  return { count, double };
+});
+`;
+    const page = `<script setup lang="ts">
+import { useRoute, RouterLink } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { useCounterStore } from './store';
+const route = useRoute();
+const store = useCounterStore();
+const { count, double } = storeToRefs(store);
+</script><template><section><h1>{{ route.path }}</h1><p>{{ count }}/{{ double }}</p><RouterLink to="/next">Next</RouterLink></section></template>`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/store.ts',${JSON.stringify(storeFile)});
+await Bun.write('source/Page.vue',${JSON.stringify(page)});
+for(const[target,out]of[['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
+ const proc=Bun.spawn([compiler,'web','build','--site','source','--entry','Page.vue','--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
+ const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+ assert.equal(code,0,stdout+stderr);
+}
+const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
+const {createPinia,setActivePinia}=await import('@tschk/moonshine-vue/store');
+const {createRouter,createMemoryHistory}=await import('@tschk/moonshine-vue/router');
+const {default:Page}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+setActivePinia(createPinia());
+const router=createRouter({history:createMemoryHistory(),routes:[{path:'/items',component:Page},{path:'/next',component:Page}]});
+await router.push('/items');
+const html=renderToString(()=>h(()=>{router.install();return h(Page,{});},null));
+assert.equal(html,'<section><h1>/items</h1><p>4/8</p><a href="/next">Next</a></section>');
+`);
+  },
+);
 
 test("optional framework compatibility renderer serves native SSR, API and SPA", async () => {
   await standalone(
