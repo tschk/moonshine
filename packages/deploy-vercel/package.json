@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-deploy-vercel",
-  "version": "0.4.51",
+  "version": "0.4.52",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",

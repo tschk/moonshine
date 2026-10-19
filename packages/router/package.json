@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-router",
-  "version": "0.4.51",
+  "version": "0.4.52",
   "description": "Renderer-neutral route graph and matcher with optional React navigation",
   "license": "ISC",
   "type": "module",
