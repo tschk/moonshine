@@ -32,11 +32,17 @@ describe("parseSearch", () => {
   });
 
   test("parses url-encoded JSON", () => {
-    expect(parseSearch("?data=%7B%22foo%22%3A%22bar%22%7D")).toEqual({ data: { foo: "bar" } });
+    expect(parseSearch("?data=%7B%22foo%22%3A%22bar%22%7D")).toEqual({
+      data: { foo: "bar" },
+    });
   });
 
   test("decodes null and boolean literals correctly", () => {
-    expect(parseSearch("?a=null&b=true&c=false")).toEqual({ a: null, b: true, c: false });
+    expect(parseSearch("?a=null&b=true&c=false")).toEqual({
+      a: null,
+      b: true,
+      c: false,
+    });
   });
 });
 
