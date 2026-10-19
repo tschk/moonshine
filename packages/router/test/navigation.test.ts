@@ -44,10 +44,23 @@ describe("safeHref", () => {
   test("strips control characters to prevent evasion", () => {
     expect(safeHref("java\x09script:alert(1)")).toBe("#");
     expect(safeHref("java\nscript:alert(1)")).toBe("#");
+    expect(safeHref("java\rscript:alert(1)")).toBe("#");
+    expect(safeHref("\u0000javascript:alert(1)")).toBe("#");
+    expect(safeHref("javascript\u007F:alert(1)")).toBe("#");
+    expect(safeHref("java\u001Fscript:alert(1)")).toBe("#");
   });
   test("handles empty string and spaces", () => {
     expect(safeHref("")).toBe("#");
     expect(safeHref("   ")).toBe("#");
+  });
+  test("handles mixed case schemes", () => {
+    expect(safeHref("JaVaScRiPt:alert(1)")).toBe("#");
+    expect(safeHref("HtTp://example.com")).toBe("HtTp://example.com");
+  });
+  test("blocks unknown or unrecognized valid URL schemes", () => {
+    expect(safeHref("ws://example.com")).toBe("#");
+    expect(safeHref("custom-scheme+1.0://test")).toBe("#");
+    expect(safeHref("invalid_scheme:test")).toBe("invalid_scheme:test");
   });
 });
 
