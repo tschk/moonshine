@@ -1,3 +1,25 @@
+# Moonshine 0.4.50
+
+- Add native Solid secondary reactive primitives (`createUniqueId`,
+  `createSelector`, `createReaction`, `createRenderEffect`, `observable`, and
+  `from`, plus `EqualityCheckerFunction`, `Observable`, and `ObservableObserver`
+  types) in `@tschk/moonshine-solid/solid` and `@tschk/moonshine-solid/ssr`,
+  together with local unpublished Crepuscularity `solid-js` import routing under
+  explicit `/** @jsxImportSource solid-js */` provenance.
+- `createUniqueId()` generates deterministic tree-scoped IDs (`cl-0`, `cl-1`,
+  ...) keyed by the root `Owner` via `WeakMap<Owner, { next: number }>` so DOM
+  and SSR renders match without leaking counter state across requests or mounted
+  roots.
+- `createSelector(source, fn?)` provides $O(2)$ key-targeted subscriptions for
+  default strict equality (notifying only the deselected and newly selected key
+  computations) and custom comparator support, automatically cleaning up key
+  listeners when row scopes dispose.
+- `createReaction(onInvalidate)` separates one-shot dependency tracking from
+  untracked invalidation (and runs tracking once without subscriptions in SSR),
+  while `observable(accessor)` and `from(producer, initialValue?)` bridge Solid
+  accessors with TC39 / `Symbol.observable` streams with automatic owner
+  unsubscription.
+
 # Moonshine 0.4.49
 
 - Add deterministic tree-scoped `useId()` in `@tschk/moonshine-vue/context`

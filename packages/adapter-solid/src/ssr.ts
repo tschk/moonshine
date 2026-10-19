@@ -73,6 +73,27 @@ export function Index<T, U, F = U>(props: {
 export { getOwner, runWithOwner } from "./owner";
 export type { Owner } from "./owner";
 
+export function createRenderEffect<T>(
+  _fn: (previous: T) => T,
+  _initial: T,
+): void;
+export function createRenderEffect(_fn: (previous: undefined) => unknown): void;
+export function createRenderEffect<T>(
+  _fn: (previous: T) => T,
+  _initial?: T,
+): void {}
+
+export {
+  createUniqueId,
+  createSelector,
+  createServerReaction as createReaction,
+  observable,
+  from,
+  type EqualityCheckerFunction,
+  type Observable,
+  type ObservableObserver,
+} from "./primitives";
+
 /** Synchronous resource snapshots never invoke the fetcher. */
 export { createResource } from "@tschk/moonshine-dom/resource/ssr";
 export type {

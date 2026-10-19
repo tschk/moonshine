@@ -21,6 +21,7 @@ export {
   batch,
   createEffect,
   createComputed,
+  createRenderEffect,
   createMemo,
   createSignal,
   on,
@@ -29,6 +30,16 @@ export {
   untrack,
 } from "@tschk/moonshine-dom/reactive";
 export type { Accessor, Setter } from "@tschk/moonshine-dom/reactive";
+export {
+  createUniqueId,
+  createSelector,
+  createReaction,
+  observable,
+  from,
+  type EqualityCheckerFunction,
+  type Observable,
+  type ObservableObserver,
+} from "./primitives";
 export { createResource } from "@tschk/moonshine-dom/resource";
 export type { Resource } from "@tschk/moonshine-dom/resource";
 

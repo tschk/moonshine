@@ -11,7 +11,8 @@ implement Solid's compiled DOM instructions and cannot be aliased over arbitrary
 the native graph; unsupported APIs reject. Moonshine rejects generated native
 modules retaining a Solid runtime import.
 
-- `/solid`: native signals, memos, effects, synchronous `createComputed`, roots, lifecycle, batching, `on`,
+- `/solid`: native signals, memos, effects, synchronous `createComputed` and `createRenderEffect`, `createUniqueId`,
+  `createSelector`, `createReaction`, `observable`/`from`, roots, lifecycle, batching, `on`,
   context providers, memoized `children`, `mergeProps`/`splitProps`, client resources, `catchError`, DOM
   `ErrorBoundary`, and getter-based `For`, `Index`, `Show`, `Match`, `Switch`.
 - `/store`: independent `createStore`, `produce`, `reconcile` on the same graph.
@@ -20,7 +21,8 @@ modules retaining a Solid runtime import.
 - `/portal`: opt-in `Portal` and browser `h` with logical delegated events.
 - `/reactive`, `/control`, `/dom`: direct native APIs. `/control` takes explicit
   accessors, while `/solid` adapts Solid-style prop getters.
-- `/ssr`: escaped server factories, suppressed effects/mount callbacks and
+- `/ssr`: escaped server factories, suppressed effects/mount callbacks, server-safe
+  `createUniqueId`/`createSelector`/`createReaction`/`observable`/`from`, and
   explicit server IR rendering. Author server modules against this entry.
 - `/framework-native`: the bundled native framework renderer, requiring the
   optional framework peer.
@@ -402,3 +404,25 @@ can rerun them during the callback, unlike Solid's deferred effect flush; failed
 callbacks also retain native cleanup/error scheduling. Transition/Suspense
 scheduling is unsupported. The generic DOM `runWithOwner` keeps its original
 owner-swap contract; only the adapter uses the untracked callback boundary.
+
+### Secondary reactive primitives
+
+`/solid` and `/ssr` export `createUniqueId`, `createSelector`, `createReaction`,
+`createRenderEffect`, `observable`, and `from` (`EqualityCheckerFunction`,
+`Observable`, `ObservableObserver`), and the local unpublished Crepus compiler
+routes them from `solid-js` when a module has a leading
+`/** @jsxImportSource solid-js */` directive:
+
+- `createUniqueId()` generates deterministic `cl-0`, `cl-1`, ... IDs scoped to the
+  root `Owner` so client and SSR trees produce identical IDs without cross-request
+  or cross-root counter drift.
+- `createSelector(source, fn?)` maintains $O(2)$ conditional key subscriptions for
+  default `===` equality (notifying only the previous and next matching keys) and
+  cleans up per-row subscriptions when row scopes dispose.
+- `createReaction(onInvalidate)` separates one-shot dependency tracking from
+  untracked invalidation callbacks; on `/ssr`, the returned tracker executes the
+  tracking function untracked once.
+- `observable(accessor)` exposes a `Symbol.observable` / `"@@observable"` stream
+  compatible with RxJS and TC39 observables, and `from(producer, initialValue?)`
+  converts a subscribe function or observable into a Solid accessor that unsubscribes
+  when its owning scope disposes.

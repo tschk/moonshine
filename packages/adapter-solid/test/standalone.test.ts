@@ -108,8 +108,17 @@ solid.createRoot(dispose=>{
  const [resource,actions]=solid.createResource(()=>7);
  assert.equal(resource(),7);assert.equal(resource.state,'ready');actions.mutate(8);assert.equal(resource.latest,8);
  const kernelResource=root.createResource(async()=>9,{immediate:false});assert.equal(kernelResource.status(),'pending');
+ assert.equal(solid.createUniqueId(),'cl-0');assert.equal(solid.createUniqueId(),'cl-1');
+ const [selected,setSelected]=solid.createSignal(1);const isSelected=solid.createSelector(selected);
+ const selHits=[];solid.createComputed(()=>selHits.push('a:'+isSelected(1)));solid.createComputed(()=>selHits.push('b:'+isSelected(2)));
+ setSelected(2);assert.deepEqual(selHits,['a:true','b:false','a:false','b:true']);
+ const [rxVal,setRxVal]=solid.createSignal(10);let rxRuns=0;
+ const track=solid.createReaction(()=>rxRuns++);track(()=>rxVal());setRxVal(20);setRxVal(30);assert.equal(rxRuns,1);
+ let renderEff=0;solid.createRenderEffect(()=>{renderEff=rxVal()});assert.equal(renderEff,30);
+ const mirrored=solid.from(solid.observable(rxVal));assert.equal(mirrored(),30);setRxVal(40);assert.equal(mirrored(),40);
 });
 stop();
+assert.equal(ssr.renderToString(()=>ssr.h('div',{id:ssr.createUniqueId()},String(ssr.createSelector(()=>2)(2)))),'<div id="cl-0">true</div>');
 assert.equal(ssr.renderToString(()=>ssr.renderCrepusIrSolid({version:1,root:[{kind:'text',content:'<native>&'}]})),'<div data-crepus-root="true" data-crepus-target="solid" data-crepus-ir-version="1"><span>&lt;native&gt;&amp;</span></div>');
 `);
 });
