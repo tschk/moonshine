@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-adapter-conformance",
-  "version": "0.4.49",
+  "version": "0.4.50",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",

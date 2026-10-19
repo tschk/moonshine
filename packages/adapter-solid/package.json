@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-solid",
-  "version": "0.4.49",
+  "version": "0.4.50",
   "description": "Independent Moonshine replacement for supported Solid APIs and Crepus IR",
   "license": "ISC",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-astro",
-  "version": "0.4.49",
+  "version": "0.4.50",
   "description": "Native signal bridges and rendering with optional legacy astro entries",
   "license": "ISC",
   "type": "module",
