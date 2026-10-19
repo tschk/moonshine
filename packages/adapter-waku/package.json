@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-waku",
-  "version": "0.4.45",
+  "version": "0.4.46",
   "description": "Waku client router API reimplemented on moonshine \u2014 drop waku, keep the imports",
   "license": "ISC",
   "type": "module",
@@ -15,8 +15,8 @@
     "./aliases": "./src/aliases.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.45",
-    "@tschk/moonshine-router": "^0.4.45"
+    "@tschk/moonshine": "^0.4.46",
+    "@tschk/moonshine-router": "^0.4.46"
   },
   "peerDependencies": {
     "react": ">=18",

@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-astro",
-  "version": "0.4.45",
+  "version": "0.4.46",
   "description": "Native signal bridges and rendering with optional legacy astro entries",
   "license": "ISC",
   "type": "module",
@@ -12,15 +12,15 @@
     "./ssr": "./src/ssr.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.45",
-    "@tschk/moonshine-dom": "^0.4.45"
+    "@tschk/moonshine": "^0.4.46",
+    "@tschk/moonshine-dom": "^0.4.46"
   },
   "devDependencies": {
     "typescript": "7.0.2"
   },
   "peerDependencies": {
     "astro": ">=4",
-    "@tschk/moonshine-framework": "^0.4.45"
+    "@tschk/moonshine-framework": "^0.4.46"
   },
   "peerDependenciesMeta": {
     "astro": {
