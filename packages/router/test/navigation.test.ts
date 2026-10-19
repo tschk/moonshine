@@ -49,6 +49,21 @@ describe("safeHref", () => {
     expect(safeHref("")).toBe("#");
     expect(safeHref("   ")).toBe("#");
   });
+  test("handles uppercase unsafe schemes", () => {
+    expect(safeHref("JavaScript:alert(1)")).toBe("#");
+    expect(safeHref("VbScript:alert(1)")).toBe("#");
+  });
+  test("strips control characters at the beginning", () => {
+    expect(safeHref("\u0000javascript:alert(1)")).toBe("#");
+    expect(safeHref("\u001fjavascript:alert(1)")).toBe("#");
+  });
+  test("strips embedded control characters", () => {
+    expect(safeHref("j\u0000avascript:alert(1)")).toBe("#");
+    expect(safeHref("java\tscript:alert(1)")).toBe("#");
+  });
+  test("handles spaces before the scheme", () => {
+    expect(safeHref("   javascript:alert(1)")).toBe("#");
+  });
 });
 
 describe("isExternal", () => {
