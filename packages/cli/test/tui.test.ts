@@ -1,5 +1,63 @@
-import { describe, expect, test } from "bun:test";
-import { clampColumns, truncate, warningBar } from "../src/tui";
+import { describe, expect, test, spyOn } from "bun:test";
+import { clampColumns, terminalTui, truncate, warningBar } from "../src/tui";
+
+describe("terminalTui", () => {
+  test("returns a Tui object with correct properties", () => {
+    const tui = terminalTui();
+    expect(typeof tui.isTTY).toBe("boolean");
+    expect(typeof tui.columns).toBe("number");
+    expect(typeof tui.write).toBe("function");
+    expect(typeof tui.prompt).toBe("function");
+  });
+
+  test("write calls process.stdout.write", () => {
+    const tui = terminalTui();
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    tui.write("test write");
+    expect(writeSpy).toHaveBeenCalledWith("test write");
+
+    writeSpy.mockRestore();
+  });
+
+  test("prompt writes question and reads from console", async () => {
+    const tui = terminalTui();
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    // Create an async generator to mock console[Symbol.asyncIterator]
+    const mockConsole = async function* () {
+      yield "user input line";
+    };
+
+    const consoleSpy = spyOn(console, Symbol.asyncIterator).mockImplementation(mockConsole);
+
+    const result = await tui.prompt("Question?");
+
+    expect(writeSpy).toHaveBeenCalledWith("Question?");
+    expect(result).toBe("user input line");
+
+    writeSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  test("prompt returns empty string if console iterator is empty", async () => {
+    const tui = terminalTui();
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    // Create an empty async generator
+    const mockConsole = async function* () {};
+
+    const consoleSpy = spyOn(console, Symbol.asyncIterator).mockImplementation(mockConsole);
+
+    const result = await tui.prompt("Question?");
+
+    expect(writeSpy).toHaveBeenCalledWith("Question?");
+    expect(result).toBe("");
+
+    writeSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+});
 
 describe("clampColumns", () => {
   test("returns 80 for undefined or non-finite values", () => {
@@ -32,6 +90,14 @@ describe("truncate", () => {
   test("returns the original text if length is within width", () => {
     expect(truncate("hello", 5)).toBe("hello");
     expect(truncate("hello", 10)).toBe("hello");
+    expect(truncate("", 5)).toBe("");
+  });
+
+  test("handles strings with emoji and unicode", () => {
+    expect(truncate("👋🌍", 1)).toBe("\ud83d");
+    expect(truncate("👋🌍", 2)).toBe("\ud83d…");
+    expect(truncate("👋🌍", 3)).toBe("👋…");
+    expect(truncate("👋🌍", 4)).toBe("👋🌍");
   });
 
   test("truncates with an ellipsis if width is greater than 1", () => {
