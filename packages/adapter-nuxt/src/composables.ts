@@ -87,6 +87,7 @@ export interface NuxtRuntimeConfig {
 export interface NuxtRequestEvent {
   request: Request;
   url: URL;
+  path?: string;
   headers: Headers;
   responseHeaders: Headers;
   responseStatus: number;
@@ -97,6 +98,9 @@ export interface NuxtRequestEvent {
 export interface NuxtRequestInit {
   request?: Request;
   url?: URL | string;
+  path?: string;
+  method?: string;
+  body?: BodyInit | null;
   headers?: HeadersInit;
   responseHeaders?: HeadersInit;
   responseStatus?: number;
@@ -811,9 +815,11 @@ export function createNuxtRequestEvent(
     return init;
   }
   if (init instanceof Request) {
+    const url = new URL(init.url);
     return {
       request: init,
-      url: new URL(init.url),
+      url,
+      path: `${url.pathname}${url.search}`,
       headers: new Headers(init.headers),
       responseHeaders: new Headers(),
       responseStatus: 200,
@@ -829,11 +835,18 @@ export function createNuxtRequestEvent(
           ? new URL(init.request.url)
           : new URL("http://localhost/");
   const headers = new Headers(init?.headers ?? init?.request?.headers);
-  const request = init?.request ?? new Request(resolvedUrl.href, { headers });
+  const request =
+    init?.request ??
+    new Request(resolvedUrl.href, {
+      method: init?.method,
+      headers,
+      body: init?.body,
+    });
   const responseHeaders = new Headers(init?.responseHeaders);
   return {
     request,
     url: resolvedUrl,
+    path: init?.path ?? `${resolvedUrl.pathname}${resolvedUrl.search}`,
     headers,
     responseHeaders,
     responseStatus: init?.responseStatus ?? 200,
@@ -4244,7 +4257,7 @@ export function NuxtIsland(props: NuxtIslandProps): unknown {
     const islandName = String(resolveReactive(props.name) ?? "");
     const islandComp = store.islands.get(islandName);
     const islandProps = {
-      ...(resolveReactive(props.props) ?? {}),
+      ...resolveReactive(props.props),
       ...(props.context ? { context: resolveReactive(props.context) } : {}),
     };
 

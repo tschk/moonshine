@@ -103,6 +103,17 @@ test("root bridges load without hosts, React, parser WASM or the optional framew
     const handler=srv.defineEventHandler((ev)=>({q:srv.getQuery(ev).hello,id:srv.getRouterParam(ev,'id')}));
     const srvRes=await handler({url:'https://example.com/api?hello=world',context:{params:{id:'7'}}});
     assert.deepEqual(srvRes,{q:'world',id:'7'});
+    const store=srv.useStorage('demo');
+    await store.setItem('k',{v:9});
+    assert.deepEqual(await store.getItem('k'),{v:9});
+    await srv.clearStorage();
+    let cachedRuns=0;
+    const cached=srv.defineCachedFunction(async(x:number)=>{cachedRuns++;return x+1;},{name:'inc',maxAge:60});
+    assert.equal(await cached(4),5);
+    assert.equal(await cached(4),5);
+    assert.equal(cachedRuns,1);
+    const rtr=srv.createRouter().get('/items/:slug',(ev)=>({slug:srv.getRouterParam(ev,'slug')}));
+    assert.deepEqual(await rtr.handler({url:'https://example.com/items/moon'}),{slug:'moon'});
   `);
 });
 

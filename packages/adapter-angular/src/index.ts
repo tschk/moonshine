@@ -227,6 +227,7 @@ export {
   ValueChangeEvent,
   bindAngularFormControl,
   bindAngularFormGroup,
+  bindAngularNgModel,
   getAngularControlStatusClasses,
   isFormArray,
   isFormControl,
@@ -237,6 +238,7 @@ export {
 } from "./forms";
 export type {
   AbstractControlOptions,
+  AngularNgModelBindingConfig,
   AsyncValidator,
   AsyncValidatorFn,
   ControlConfig,
@@ -267,6 +269,7 @@ export {
   NavigationStart,
   PRIMARY_OUTLET,
   ROUTER_CONFIGURATION,
+  ROUTER_DIRECTIVES,
   ROUTER_ROUTES,
   RedirectCommand,
   ResolveEnd,
@@ -276,6 +279,7 @@ export {
   RouterFeatureKind,
   RouterLink,
   RouterLinkActive,
+  RouterModule,
   RouterOutlet,
   RouterState,
   RouterStateSnapshot,
@@ -284,8 +288,10 @@ export {
   UrlSegmentGroup,
   UrlSerializer,
   UrlTree,
+  bindAngularRouterLink,
   convertToParamMap,
   provideRouter,
+  renderRouterOutlet,
   withComponentInputBinding,
   withDebugTracing,
   withDisabledInitialNavigation,
@@ -296,6 +302,7 @@ export {
   withViewTransitions,
 } from "./router";
 export type {
+  AngularRouterLinkBindingConfig,
   CanActivateChildFn,
   CanActivateFn,
   CanDeactivateFn,
@@ -316,6 +323,7 @@ export type {
   ResolveFn,
   Route,
   RouterFeature,
+  RouterOutletInitOptions,
   Routes,
   UrlCreationOptions,
 } from "./router";
@@ -402,6 +410,7 @@ export {
   defaultKeyValueDiffersCompare,
   enableProdMode,
   forwardRef,
+  getAngularInstanceInjector,
   instantiateAngularComponent,
   isDevMode,
   isPlatformBrowser,

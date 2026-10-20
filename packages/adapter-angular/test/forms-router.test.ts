@@ -13,32 +13,43 @@ import {
   NavigationCancel,
   NavigationEnd,
   NavigationStart,
+  NgForm,
+  NgModel,
   NonNullableFormBuilder,
   PristineChangeEvent,
+  ROUTER_DIRECTIVES,
   RedirectCommand,
   ResolveEnd,
   ResolveStart,
   Router,
+  RouterModule,
   RoutesRecognized,
   StatusChangeEvent,
   TouchedChangeEvent,
   UrlTree,
   Validators,
   ValueChangeEvent,
+  bindAngularFormGroup,
+  bindAngularNgModel,
+  bindAngularRouterLink,
   convertToParamMap,
   createEnvironmentInjector,
   inject,
+  instantiateAngularComponent,
   isFormArray,
   isFormControl,
   isFormGroup,
   isFormRecord,
   provideForms,
   provideRouter,
+  renderRouterOutlet,
   runInInjectionContext,
+  signal,
   toSignal,
   withComponentInputBinding,
   withRouterConfig,
 } from "../src/index.ts";
+import { h, renderToString } from "@tschk/moonshine-dom/ssr";
 
 describe("adapter-angular host-free reactive forms", () => {
   test("supports FormControl value, signals, validators, touched/dirty state, and reset", () => {
@@ -395,5 +406,158 @@ describe("adapter-angular host-free router", () => {
     expect(redirected).toBe(true);
     expect(router.url).toBe("/denied?reason=role");
     expect(route.queryParamMapSignal().get("reason")).toBe("role");
+  });
+
+  test("supports template-driven NgModel, NgForm, HTML validator inference, and exportAs references", () => {
+    const ngForm = new NgForm();
+    let submittedForm: NgForm | undefined;
+    const exportedRefs: Record<string, unknown> = {};
+
+    const formProps = bindAngularFormGroup(
+      ngForm,
+      {},
+      (ev) => {
+        ngForm.onSubmit(ev);
+        submittedForm = ngForm;
+      },
+      (ref) => {
+        exportedRefs.f = ref;
+      },
+    );
+    expect(exportedRefs.f).toBe(ngForm);
+    expect(String((formProps.class as () => string)())).toContain(
+      "ng-pristine",
+    );
+
+    const email = signal("ab");
+    const changedValues: unknown[] = [];
+    const inputProps = bindAngularNgModel(
+      {
+        getValue: () => email(),
+        setValue: (next) => email.set(String(next ?? "")),
+        onModelChange: (next) => changedValues.push(next),
+        parentGroup: () => ngForm,
+        onRegisterNgModel: (model) => {
+          exportedRefs.emailCtrl = model;
+        },
+      },
+      {
+        name: "email",
+        required: true,
+        minlength: 3,
+      },
+    );
+
+    const emailModel = exportedRefs.emailCtrl as NgModel;
+    expect(emailModel).toBeInstanceOf(NgModel);
+    // Initial value "ab" fails minlength=3
+    expect(emailModel.invalid).toBe(true);
+    expect(emailModel.errors).toEqual({
+      minlength: { requiredLength: 3, actualLength: 2 },
+    });
+    expect(ngForm.invalid).toBe(true);
+    expect(String((inputProps.class as () => string)())).toContain(
+      "ng-invalid",
+    );
+
+    // Simulate user input event updating to valid value
+    const onInput = inputProps["on:input"] as (ev: unknown) => void;
+    onInput({ currentTarget: { type: "text", value: "ada@example.com" } });
+
+    expect(email()).toBe("ada@example.com");
+    expect(changedValues).toEqual(["ada@example.com"]);
+    expect(emailModel.valid).toBe(true);
+    expect(emailModel.dirty).toBe(true);
+    expect(ngForm.valid).toBe(true);
+    expect(ngForm.value).toEqual({ email: "ada@example.com" });
+
+    // Simulate blur event
+    const onBlur = inputProps["on:blur"] as (ev: unknown) => void;
+    onBlur({});
+    expect(emailModel.touched).toBe(true);
+
+    // Simulate submit
+    const onSubmit = formProps["on:submit"] as (ev: unknown) => void;
+    onSubmit({ preventDefault() {} });
+    expect(ngForm.submitted).toBe(true);
+    expect(submittedForm).toBe(ngForm);
+
+    // Reset form
+    ngForm.reset({ email: "grace@example.com" });
+    expect(ngForm.submitted).toBe(false);
+    expect(emailModel.pristine).toBe(true);
+    expect(emailModel.untouched).toBe(true);
+  });
+
+  test("supports RouterModule.forRoot, renderRouterOutlet with route-scoped ActivatedRoute + withComponentInputBinding, and bindAngularRouterLink", async () => {
+    expect(ROUTER_DIRECTIVES.length).toBe(3);
+
+    function UserDetailComponent(props: Record<string, unknown>) {
+      const route = inject(ActivatedRoute);
+      return h(
+        "article",
+        { "data-user-id": String(props.id ?? route.snapshot.params.id ?? "") },
+        `User ${String(props.id ?? "")} (${String(route.snapshot.data.role ?? "")})`,
+      );
+    }
+
+    const rootModule = RouterModule.forRoot(
+      [
+        {
+          path: "users/:id",
+          component: UserDetailComponent,
+          data: { role: "admin" },
+        },
+      ],
+      { bindToComponentInputs: true },
+    );
+    const injector = createEnvironmentInjector(rootModule.providers);
+
+    const router = injector.get(Router);
+    await router.navigateByUrl("/users/42?tab=bio#profile");
+
+    class HostShell {
+      title = "shell";
+    }
+    const hostInstance = instantiateAngularComponent(HostShell, {}, injector);
+
+    const activatedComponents: unknown[] = [];
+    let outletRef: unknown;
+    const outletHtml = renderToString(() =>
+      renderRouterOutlet(hostInstance, {
+        "on:activate": (comp: unknown) => activatedComponents.push(comp),
+        __ngRef: (outlet: unknown) => {
+          outletRef = outlet;
+        },
+      })(),
+    );
+
+    expect(outletHtml).toContain('data-user-id="42"');
+    expect(outletHtml).toContain("User 42 (admin)");
+    expect(activatedComponents).toEqual([UserDetailComponent]);
+    expect(outletRef).toBeDefined();
+
+    let rlaRef: { isActive: boolean } | undefined;
+    const activeChanges: boolean[] = [];
+    const linkProps = bindAngularRouterLink(hostInstance, {
+      commands: () => ["/users", 42],
+      queryParams: () => ({ tab: "bio" }),
+      fragment: () => "profile",
+      activeClass: () => "is-active-route",
+      activeOptions: () => ({ exact: true }),
+      ariaCurrentWhenActive: () => "page",
+      onActiveChange: (active) => activeChanges.push(active),
+      onRegisterRouterLinkActive: (rla) => {
+        rlaRef = rla;
+      },
+    });
+
+    expect((linkProps.href as () => string)()).toBe(
+      "/users/42?tab=bio#profile",
+    );
+    expect((linkProps.class as () => string)()).toBe("is-active-route");
+    expect((linkProps["aria-current"] as () => string)()).toBe("page");
+    expect(rlaRef?.isActive).toBe(true);
+    expect(activeChanges).toEqual([true]);
   });
 });

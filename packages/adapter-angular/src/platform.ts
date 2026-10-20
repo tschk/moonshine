@@ -2467,6 +2467,13 @@ export function normalizeNgStyle(
 
 const VIEW_REF_MAP = Symbol.for("moonshine.angular.viewRefMap");
 const DEFERRED_VIEW_INIT = Symbol.for("moonshine.angular.deferredViewInit");
+const INSTANCE_INJECTOR = Symbol.for("moonshine.angular.instanceInjector");
+
+export function getAngularInstanceInjector(
+  instance: any,
+): Injector | undefined {
+  return instance?.[INSTANCE_INJECTOR] as Injector | undefined;
+}
 
 /**
  * Registers a template reference variable (`#ref`) or child component on `instance`,
@@ -2805,12 +2812,13 @@ export function instantiateAngularComponent<T extends object>(
     ComponentClass) as Type<T>;
   const cmpMeta = ((ResolvedClass as any).ɵcmp ??
     (ComponentClass as any).ɵcmp) as ComponentOptions | undefined;
-  const parentInjector = getCurrentInjector();
+  const isHostInjector = hostElement instanceof Injector;
+  const parentInjector = isHostInjector ? hostElement : getCurrentInjector();
   const componentProviders: Array<Provider | EnvironmentProviders> = [
     ...(cmpMeta?.providers ?? []),
     ...(cmpMeta?.viewProviders ?? []),
   ];
-  if (hostElement !== undefined) {
+  if (hostElement !== undefined && !isHostInjector) {
     componentProviders.push({
       provide: ElementRef,
       useValue: new ElementRef(hostElement),
@@ -2839,6 +2847,15 @@ export function instantiateAngularComponent<T extends object>(
       : parentInjector;
 
   const instance = runInInjectionContext(injector, () => new ResolvedClass());
+  try {
+    Object.defineProperty(instance, INSTANCE_INJECTOR, {
+      value: injector,
+      configurable: true,
+      enumerable: false,
+    });
+  } catch {
+    // Ignore frozen instances
+  }
   if (typeof props?.__onInstance === "function") {
     props.__onInstance(instance);
   }

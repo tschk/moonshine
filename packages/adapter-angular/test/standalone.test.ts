@@ -207,11 +207,21 @@ test.skipIf(!sourceCompiler)(
   async () => {
     const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, HostBinding, ViewChild, signal, computed, input, model, viewChild } from "@angular/core";
 import { CommonModule, UpperCasePipe } from "@angular/common";
-import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
+import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { RouterModule } from "@angular/router";
 
 @Injectable({ providedIn: "root" })
 export class StepService {
   step = 3;
+}
+
+@Component({
+  selector: "app-route-leaf",
+  standalone: true,
+  template: \`<section class="route-leaf">Route Leaf: {{ section() }}</section>\`,
+})
+export class RouteLeafComponent {
+  section = input("overview");
 }
 
 @Component({
@@ -229,7 +239,7 @@ export class BadgeBoxComponent {
 @Component({
   selector: "app-counter",
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, UpperCasePipe, BadgeBoxComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, UpperCasePipe, BadgeBoxComponent, RouteLeafComponent],
   styles: [".counter { color: navy; }"],
   host: {
     "role": "region",
@@ -238,11 +248,22 @@ export class BadgeBoxComponent {
   template: \`
     @let summaryLabel = (title() | uppercase) + ': ' + doubled();
     <div class="counter" [attr.data-step]="step" [style.color]="accent()" [style.padding.px]="12" [ngStyle]="{ border: '1px solid' }" [ngClass]="{ highlighted: count() > 0 }">
+      <nav>
+        <a
+          routerLink="/items"
+          routerLinkActive="nav-active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          [queryParams]="{ section: 'catalog' }"
+          fragment="list"
+          ariaCurrentWhenActive="page"
+          #rla="routerLinkActive"
+        >Catalog ({{ rla.isActive }})</a>
+      </nav>
       <input #noteInput [value]="note()" />
       <small>{{ noteInput.value }}</small>
       <span>{{ summaryLabel }}</span>
-      @if (count() > 0) {
-        <em>Active</em>
+      @if (doubled(); as dbl) {
+        <em>Active ({{ dbl }})</em>
       } @else {
         <em>Idle</em>
       }
@@ -255,8 +276,8 @@ export class BadgeBoxComponent {
         }
       }
       <ul>
-        @for (item of items(); track item) {
-          <li>{{ $index }}:{{ item }}</li>
+        @for (item of items(); track item; let idx = $index, total = $count, isFirst = $first, isLast = $last) {
+          <li [class.first-row]="isFirst" [class.last-row]="isLast">{{ idx }}/{{ total }}:{{ item }}</li>
         }
       </ul>
       <div class="empty-check">
@@ -272,9 +293,19 @@ export class BadgeBoxComponent {
           <input formControlName="city" />
         </div>
       </form>
+      <form #tplForm="ngForm">
+        <input name="email" required minlength="3" [(ngModel)]="emailModel" #emailCtrl="ngModel" />
+        <u class="tpl-status">{{ emailCtrl.valid }}:{{ tplForm.valid }}</u>
+      </form>
+      @defer (when count() > 0) {
+        <mark class="deferred-ready">Deferred Ready</mark>
+      } @placeholder {
+        <mark class="deferred-wait">Waiting</mark>
+      }
       <ng-container>
         <app-badge-box [(val)]="syncedCount">Projected Content</app-badge-box>
       </ng-container>
+      <router-outlet></router-outlet>
       <button (click)="increment()">+</button>
     </div>
   \`,
@@ -289,6 +320,7 @@ export class CounterComponent {
   accent = signal("teal");
   mode = signal("edit");
   note = signal("ready");
+  emailModel = signal("ada@example.com");
   items = signal(["x", "y"]);
   emptyRows = signal<string[]>([]);
   doubled = computed(() => this.count() * 2);
@@ -318,29 +350,55 @@ export class CounterComponent {
 }
 `;
     const check = `import assert from 'node:assert/strict';
-import CounterComponent, { CounterComponent as NamedCounter, StepService } from './ssr/CrepusEmit.moonshine-ssr.ts';
+import CounterComponent, { CounterComponent as NamedCounter, RouteLeafComponent, StepService } from './ssr/CrepusEmit.moonshine-ssr.ts';
 import { h, renderToString } from '@tschk/moonshine-dom/ssr';
-import { bootstrapApplication } from '@tschk/moonshine-angular';
+import { Router, bootstrapApplication, createEnvironmentInjector, provideRouter, runInInjectionContext, withComponentInputBinding } from '@tschk/moonshine-angular';
 
-const html = renderToString(() => h(CounterComponent, { title: 'score', step: 5 }));
+const routeInjector = createEnvironmentInjector([
+  provideRouter(
+    [{ path: 'items', component: RouteLeafComponent }],
+    withComponentInputBinding(),
+  ),
+]);
+const router = routeInjector.get(Router);
+await router.navigateByUrl('/items?section=catalog#list');
+
+const html = runInInjectionContext(routeInjector, () =>
+  renderToString(() => h(CounterComponent, { title: 'score', step: 5 }))
+);
 assert.ok(html.includes('role="region"'), html);
 assert.ok(html.includes('data-mode="live"'), html);
 assert.ok(html.includes('is-positive'), html);
 assert.ok(html.includes('highlighted'), html);
 assert.ok(html.includes('border: 1px solid; color: teal; padding: 12px'), html);
 assert.ok(html.includes('data-step="5"'), html);
+assert.ok(html.includes('href="/items?section=catalog#list"'), html);
+assert.ok(html.includes('nav-active'), html);
+assert.ok(html.includes('aria-current="page"'), html);
+assert.ok(html.includes('Catalog (true)'), html);
 assert.ok(html.includes('<small>ready</small>'), html);
 assert.ok(html.includes('SCORE: 8'), html);
-assert.ok(html.includes('<em>Active</em>'), html);
+assert.ok(html.includes('<em>Active (8)</em>'), html);
 assert.ok(html.includes('<strong>Editing</strong>'), html);
-assert.ok(html.includes('<li>0:x</li><li>1:y</li>'), html);
+assert.ok(html.includes('<li class="first-row">0/2:x</li><li class="last-row">1/2:y</li>'), html);
 assert.ok(html.includes('<i>No rows</i>'), html);
 assert.ok(html.includes('value="ada"'), html);
 assert.ok(html.includes('value="London"'), html);
+assert.ok(html.includes('value="ada@example.com"'), html);
+assert.ok(html.includes('<u class="tpl-status">true:true</u>'), html);
+assert.ok(html.includes('<mark class="deferred-ready">Deferred Ready</mark>'), html);
 assert.ok(html.includes('ng-untouched ng-pristine ng-valid'), html);
 assert.ok(html.includes('<b>25</b>Projected Content'), html);
+assert.ok(html.includes('Route Leaf: catalog'), html);
 
-const appRef = await bootstrapApplication(NamedCounter);
+const appRef = await bootstrapApplication(NamedCounter, {
+  providers: [
+    provideRouter(
+      [{ path: 'items', component: RouteLeafComponent }],
+      withComponentInputBinding(),
+    ),
+  ],
+});
 assert.equal(appRef.components.length, 1);
 const inst = appRef.components[0].instance;
 assert.equal(inst.doubled(), 8);

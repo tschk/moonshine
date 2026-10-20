@@ -1891,20 +1891,81 @@ export class NgModel<T = any> {
   static readonly ɵdir = {
     selector: "[ngModel]:not([formControlName]):not([formControl])",
     standalone: true,
-    inputs: ["ngModel", "name", "disabled"],
+    inputs: ["ngModel", "name", "disabled", "ngModelOptions"],
     outputs: ["ngModelChange"],
     exportAs: ["ngModel"],
   };
   name = "";
   model!: T;
   disabled = false;
-  readonly control = new FormControl<T>(undefined as unknown as T);
+  options?: {
+    name?: string;
+    standalone?: boolean;
+    updateOn?: "change" | "blur" | "submit";
+  };
+  readonly control: FormControl<T>;
   readonly update = new OutputEmitterRef<T>();
+
+  constructor(
+    initialValue: T = undefined as unknown as T,
+    validators?: ValidatorFn | ValidatorFn[] | null,
+  ) {
+    this.model = initialValue;
+    this.control = new FormControl<T>(initialValue, validators ?? null);
+  }
+
+  get value(): T {
+    return this.control.valueSignal();
+  }
+
+  get valid(): boolean {
+    return this.control.validSignal();
+  }
+
+  get invalid(): boolean {
+    return !this.control.validSignal();
+  }
+
+  get pending(): boolean {
+    return this.control.statusSignal() === "PENDING";
+  }
+
+  get status(): FormControlStatus {
+    return this.control.statusSignal();
+  }
+
+  get errors(): ValidationErrors | null {
+    return this.control.errorsSignal();
+  }
+
+  get pristine(): boolean {
+    return this.control.pristineSignal();
+  }
+
+  get dirty(): boolean {
+    return !this.control.pristineSignal();
+  }
+
+  get touched(): boolean {
+    return this.control.touchedSignal();
+  }
+
+  get untouched(): boolean {
+    return !this.control.touchedSignal();
+  }
 
   viewToModelUpdate(newValue: T): void {
     this.model = newValue;
     this.control.setValue(newValue);
+    this.control.markAsDirty();
     this.update.emit(newValue);
+  }
+
+  reset(value?: T): void {
+    if (value !== undefined) {
+      this.model = value;
+    }
+    this.control.reset(value);
   }
 }
 
@@ -1915,23 +1976,85 @@ export class NgForm {
     outputs: ["ngSubmit"],
     exportAs: ["ngForm"],
   };
-  submitted = false;
   form = new FormGroup({});
   readonly ngSubmit = new OutputEmitterRef<Event | undefined>();
+  readonly #submittedSignal = signal(false);
+
+  get submitted(): boolean {
+    return this.#submittedSignal();
+  }
+
+  set submitted(val: boolean) {
+    this.#submittedSignal.set(val);
+    if (val) {
+      this.form.markAsSubmitted();
+    } else {
+      this.form.reset(this.form.getRawValue());
+    }
+  }
 
   get control(): FormGroup {
     return this.form;
   }
 
+  get controls(): { [key: string]: AbstractControl<any, any> } {
+    return this.form.controls;
+  }
+
+  get value(): any {
+    return this.form.valueSignal();
+  }
+
+  get valid(): boolean {
+    return this.form.validSignal();
+  }
+
+  get invalid(): boolean {
+    return !this.form.validSignal();
+  }
+
+  get pending(): boolean {
+    return this.form.statusSignal() === "PENDING";
+  }
+
+  get status(): FormControlStatus {
+    return this.form.statusSignal();
+  }
+
+  get errors(): ValidationErrors | null {
+    return this.form.errorsSignal();
+  }
+
+  get pristine(): boolean {
+    return this.form.pristineSignal();
+  }
+
+  get dirty(): boolean {
+    return !this.form.pristineSignal();
+  }
+
+  get touched(): boolean {
+    return this.form.touchedSignal();
+  }
+
+  get untouched(): boolean {
+    return !this.form.touchedSignal();
+  }
+
   onSubmit($event?: Event): boolean {
-    this.submitted = true;
+    this.#submittedSignal.set(true);
     this.form.markAsSubmitted();
     this.ngSubmit.emit($event);
     return false;
   }
 
   resetForm(value?: any): void {
-    this.submitted = false;
+    this.#submittedSignal.set(false);
+    this.form.reset(value);
+  }
+
+  reset(value?: any): void {
+    this.#submittedSignal.set(false);
     this.form.reset(value);
   }
 }
@@ -2140,19 +2263,42 @@ export function bindAngularFormControl(
 }
 
 /**
- * Binds a `FormGroup` or `FormArray` (`[formGroup]`, `formGroupName`, `formArrayName`) and optional `(ngSubmit)` onto a container/form props object.
+ * Binds a `FormGroup`, `FormArray`, or `NgForm` (`[formGroup]`, `formGroupName`, `formArrayName`, `#f="ngForm"`)
+ * and optional `(ngSubmit)` onto a container/form props object.
  */
 export function bindAngularFormGroup(
   groupOrGetter:
     | AbstractControl
-    | (() => AbstractControl | null | undefined)
+    | NgForm
+    | (() => AbstractControl | NgForm | null | undefined)
     | null
     | undefined,
   baseProps?: Record<string, any> | null,
   onNgSubmit?: ($event: any) => void,
+  onRegisterNgForm?: (form: NgForm) => void,
 ): Record<string, any> {
-  const getGrp = (): AbstractControl | null | undefined =>
-    typeof groupOrGetter === "function" ? groupOrGetter() : groupOrGetter;
+  const initialRaw =
+    typeof groupOrGetter === "function"
+      ? untrack(groupOrGetter)
+      : groupOrGetter;
+  const fallbackNgForm =
+    initialRaw instanceof NgForm
+      ? initialRaw
+      : onRegisterNgForm
+        ? new NgForm()
+        : null;
+  if (fallbackNgForm && onRegisterNgForm) {
+    onRegisterNgForm(fallbackNgForm);
+  }
+  const getRaw = (): AbstractControl | NgForm | null | undefined => {
+    const resolved =
+      typeof groupOrGetter === "function" ? groupOrGetter() : groupOrGetter;
+    return resolved ?? fallbackNgForm;
+  };
+  const getGrp = (): AbstractControl | null | undefined => {
+    const raw = getRaw();
+    return raw instanceof NgForm ? raw.form : raw;
+  };
 
   const out: Record<string, any> = { ...baseProps };
   const baseClass = out.class;
@@ -2163,18 +2309,211 @@ export function bindAngularFormGroup(
     return [existing, statusClasses].filter(Boolean).join(" ");
   };
 
-  if (onNgSubmit || out["on:submit"]) {
+  if (onNgSubmit || out["on:submit"] || fallbackNgForm) {
     const prevSubmit = out["on:submit"];
     out["on:submit"] = ($event: any) => {
       if (typeof $event?.preventDefault === "function") {
         $event.preventDefault();
       }
-      const grp = getGrp();
-      grp?.markAsSubmitted();
+      const raw = getRaw();
+      if (raw instanceof NgForm) {
+        raw.onSubmit($event);
+      } else {
+        raw?.markAsSubmitted();
+      }
       if (typeof prevSubmit === "function") prevSubmit($event);
       if (typeof onNgSubmit === "function") onNgSubmit($event);
     };
   }
+
+  return out;
+}
+
+export interface AngularNgModelBindingConfig<T = any> {
+  getValue: () => T;
+  setValue?: (value: T) => void;
+  onModelChange?: (value: T) => void;
+  options?: () =>
+    | {
+        name?: string;
+        standalone?: boolean;
+        updateOn?: "change" | "blur" | "submit";
+      }
+    | undefined;
+  parentGroup?: () => AbstractControl | NgForm | null | undefined;
+  onRegisterNgModel?: (dir: NgModel<T>) => void;
+}
+
+/**
+ * Binds template-driven `[(ngModel)]`, `[ngModel]`, `(ngModelChange)`, and `#ctrl="ngModel"`
+ * onto an `<input>`, `<textarea>`, or `<select>` props object with HTML validator inference
+ * and reactive Angular form status classes.
+ */
+export function bindAngularNgModel<T = any>(
+  config: AngularNgModelBindingConfig<T>,
+  baseProps?: Record<string, any> | null,
+  kind: "text" | "checkbox" | "number" | "select" = "text",
+): Record<string, any> {
+  const validators: ValidatorFn[] = [];
+  if (baseProps) {
+    const reqProp = baseProps.required;
+    if (reqProp !== undefined && reqProp !== false && reqProp !== "false") {
+      validators.push(
+        kind === "checkbox" ? Validators.requiredTrue : Validators.required,
+      );
+    }
+    const minLenProp = baseProps.minlength ?? baseProps.minLength;
+    if (minLenProp !== undefined) {
+      const n = Number(
+        typeof minLenProp === "function" ? minLenProp() : minLenProp,
+      );
+      if (!Number.isNaN(n)) validators.push(Validators.minLength(n));
+    }
+    const maxLenProp = baseProps.maxlength ?? baseProps.maxLength;
+    if (maxLenProp !== undefined) {
+      const n = Number(
+        typeof maxLenProp === "function" ? maxLenProp() : maxLenProp,
+      );
+      if (!Number.isNaN(n)) validators.push(Validators.maxLength(n));
+    }
+    if (baseProps.min !== undefined) {
+      const n = Number(
+        typeof baseProps.min === "function" ? baseProps.min() : baseProps.min,
+      );
+      if (!Number.isNaN(n)) validators.push(Validators.min(n));
+    }
+    if (baseProps.max !== undefined) {
+      const n = Number(
+        typeof baseProps.max === "function" ? baseProps.max() : baseProps.max,
+      );
+      if (!Number.isNaN(n)) validators.push(Validators.max(n));
+    }
+    if (baseProps.pattern !== undefined) {
+      const pat =
+        typeof baseProps.pattern === "function"
+          ? baseProps.pattern()
+          : baseProps.pattern;
+      if (pat) validators.push(Validators.pattern(pat));
+    }
+    const emailProp = baseProps.email;
+    if (
+      emailProp !== undefined &&
+      emailProp !== false &&
+      emailProp !== "false"
+    ) {
+      validators.push(Validators.email);
+    }
+  }
+
+  const initialVal = untrack(() => config.getValue());
+  const ngModelDir = new NgModel<T>(initialVal, validators);
+  const opts = untrack(() => config.options?.());
+  const rawName =
+    opts?.name ??
+    (typeof baseProps?.name === "function"
+      ? untrack(() => baseProps.name())
+      : baseProps?.name);
+  if (typeof rawName === "string" && rawName.length > 0) {
+    ngModelDir.name = rawName;
+    if (!opts?.standalone) {
+      const parent = untrack(() => config.parentGroup?.());
+      const grp = parent instanceof NgForm ? parent.form : parent;
+      if (grp instanceof FormGroup) {
+        grp.addControl(rawName, ngModelDir.control, { emitEvent: false });
+      }
+    }
+  }
+
+  if (config.onRegisterNgModel) {
+    config.onRegisterNgModel(ngModelDir);
+  }
+
+  const syncControlFromModel = (): T => {
+    const currentModelVal = config.getValue();
+    const ctrlVal = untrack(() => ngModelDir.control.valueSignal());
+    if (!Object.is(currentModelVal, ctrlVal)) {
+      untrack(() => {
+        ngModelDir.model = currentModelVal;
+        ngModelDir.control.setValue(currentModelVal, { emitEvent: false });
+      });
+    }
+    return ngModelDir.control.valueSignal();
+  };
+
+  const out: Record<string, any> = { ...baseProps };
+  const baseClass = out.class;
+  out.class = () => {
+    syncControlFromModel();
+    const existing =
+      typeof baseClass === "function" ? baseClass() : (baseClass ?? "");
+    const statusClasses = getAngularControlStatusClasses(ngModelDir.control);
+    return [existing, statusClasses].filter(Boolean).join(" ");
+  };
+
+  const baseDisabled = out.disabled;
+  out.disabled = () => {
+    if (ngModelDir.control.statusSignal() === "DISABLED") return true;
+    const rawDisabled =
+      typeof baseDisabled === "function" ? baseDisabled() : baseDisabled;
+    return Boolean(rawDisabled);
+  };
+
+  const applyViewUpdate = (nextVal: T) => {
+    if (ngModelDir.control.statusSignal() === "DISABLED") return;
+    ngModelDir.viewToModelUpdate(nextVal);
+    config.setValue?.(nextVal);
+    config.onModelChange?.(nextVal);
+  };
+
+  if (kind === "checkbox") {
+    out.checked = () => Boolean(syncControlFromModel());
+    const prevChange = out["on:change"];
+    out["on:change"] = ($event: any) => {
+      const next = Boolean(
+        ($event?.currentTarget as any)?.checked,
+      ) as unknown as T;
+      applyViewUpdate(next);
+      if (typeof prevChange === "function") prevChange($event);
+    };
+  } else if (kind === "number") {
+    out.value = () => {
+      const val = syncControlFromModel();
+      return val === null || val === undefined ? "" : String(val);
+    };
+    const prevInput = out["on:input"];
+    out["on:input"] = ($event: any) => {
+      const raw = String(($event?.currentTarget as any)?.value ?? "");
+      const next = (raw === "" ? null : Number(raw)) as unknown as T;
+      applyViewUpdate(next);
+      if (typeof prevInput === "function") prevInput($event);
+    };
+  } else if (kind === "select") {
+    out.value = () => String(syncControlFromModel() ?? "");
+    const prevChange = out["on:change"];
+    out["on:change"] = ($event: any) => {
+      const next = String(
+        ($event?.currentTarget as any)?.value ?? "",
+      ) as unknown as T;
+      applyViewUpdate(next);
+      if (typeof prevChange === "function") prevChange($event);
+    };
+  } else {
+    out.value = () => String(syncControlFromModel() ?? "");
+    const prevInput = out["on:input"];
+    out["on:input"] = ($event: any) => {
+      const next = String(
+        ($event?.currentTarget as any)?.value ?? "",
+      ) as unknown as T;
+      applyViewUpdate(next);
+      if (typeof prevInput === "function") prevInput($event);
+    };
+  }
+
+  const prevBlur = out["on:blur"];
+  out["on:blur"] = ($event: any) => {
+    ngModelDir.control.markAsTouched();
+    if (typeof prevBlur === "function") prevBlur($event);
+  };
 
   return out;
 }
