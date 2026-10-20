@@ -205,7 +205,7 @@ const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
 test.skipIf(!sourceCompiler)(
   "authored Angular .component.ts compiles via crepus web build to moonshine-dom and moonshine-ssr without Angular host runtime",
   async () => {
-    const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, HostBinding, ViewChild, inject, signal, computed, input, model, viewChild } from "@angular/core";
+    const componentSource = `import { Component, Directive, ElementRef, Injectable, Input, Output, EventEmitter, HostBinding, HostListener, Pipe, ViewChild, ContentChild, ContentChildren, inject, signal, computed, input, model, viewChild, contentChild, contentChildren } from "@angular/core";
 import { CommonModule, NgOptimizedImage, UpperCasePipe, provideImgixLoader } from "@angular/common";
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { RouterModule } from "@angular/router";
@@ -215,6 +215,35 @@ import { provideServerRendering } from "@angular/platform-server";
 @Injectable({ providedIn: "root" })
 export class StepService {
   step = 3;
+}
+
+@Pipe({ name: "stepBadge", standalone: true })
+export class StepBadgePipe {
+  svc = inject(StepService);
+  transform(value: unknown) {
+    return \`\${String(value)}#\${this.svc.step}\`;
+  }
+}
+
+@Directive({
+  selector: "[appHighlight]",
+  exportAs: "highlighter",
+  standalone: true,
+  host: {
+    "[attr.data-hl]": "color + ':' + (active ? 'on' : 'off')",
+  },
+})
+export class HighlightDirective {
+  el = inject(ElementRef);
+  @Input("appHighlight") color = "gold";
+  @Output() toggled = new EventEmitter<boolean>();
+  active = false;
+
+  @HostListener("click")
+  toggle() {
+    this.active = !this.active;
+    this.toggled.emit(this.active);
+  }
 }
 
 @Component({
@@ -229,10 +258,16 @@ export class RouteLeafComponent {
 @Component({
   selector: "app-badge-box",
   standalone: true,
-  template: \`<aside class="badge-box"><ng-content select="[badge-header]">Fallback Header</ng-content><b (click)="bump()">{{ val() }}</b><ng-content>Default Slot</ng-content></aside>\`,
+  template: \`<aside class="badge-box" [attr.data-has-hdr]="hasHeader"><ng-content select="[badge-header]">Fallback Header</ng-content><b (click)="bump()">{{ val() }}</b><ng-content>Default Slot</ng-content></aside>\`,
 })
 export class BadgeBoxComponent {
   val = model(10);
+  hdr = contentChild<ElementRef>("boxHdr");
+  @ContentChildren(HighlightDirective, { descendants: true }) highlights: HighlightDirective[] = [];
+  hasHeader = false;
+  ngAfterContentInit() {
+    this.hasHeader = Boolean(this.hdr()) && this.highlights.length === 1;
+  }
   bump() {
     this.val.update((n) => n + 1);
   }
@@ -241,7 +276,7 @@ export class BadgeBoxComponent {
 @Component({
   selector: "app-counter",
   standalone: true,
-  imports: [CommonModule, NgOptimizedImage, FormsModule, ReactiveFormsModule, RouterModule, UpperCasePipe, BadgeBoxComponent, RouteLeafComponent],
+  imports: [CommonModule, NgOptimizedImage, FormsModule, ReactiveFormsModule, RouterModule, UpperCasePipe, StepBadgePipe, HighlightDirective, BadgeBoxComponent, RouteLeafComponent],
   providers: [provideImgixLoader("https://cdn.example.com")],
   styles: [".counter { color: navy; }"],
   host: {
@@ -249,7 +284,7 @@ export class BadgeBoxComponent {
     "[class.is-positive]": "count() > 0",
   },
   template: \`
-    @let summaryLabel = (title() | uppercase) + ': ' + doubled();
+    @let summaryLabel = ((title() | uppercase) | stepBadge) + ': ' + doubled();
     <div class="counter" [attr.data-step]="step" [attr.data-req]="reqPath" [style.color]="accent()" [style.padding.px]="12" [ngStyle]="{ border: '1px solid' }" [ngClass]="{ highlighted: count() > 0 }">
       <img [ngSrc]="heroImg()" ngSrcset="400w, 800w" width="800" height="400" priority [loaderParams]="{ fit: 'crop' }" alt="Hero" />
       <nav>
@@ -322,7 +357,7 @@ export class BadgeBoxComponent {
         <span *ngSwitchDefault>Switch:Default</span>
       </div>
       <ng-container>
-        <app-badge-box [(val)]="syncedCount"><h4 badge-header>Custom Header</h4>Projected Content</app-badge-box>
+        <app-badge-box [(val)]="syncedCount"><h4 #boxHdr badge-header>Custom Header</h4><samp [appHighlight]="'amber'" #hl="highlighter">Projected ({{ hl.color }})</samp></app-badge-box>
       </ng-container>
       <router-outlet></router-outlet>
       <button (click)="increment()">+</button>
@@ -357,6 +392,7 @@ export class CounterComponent {
   submittedCount = 0;
   noteRef = viewChild("noteInput");
   badgeTplRef = viewChild("customBadge");
+  hlDirRef = viewChild(HighlightDirective);
   @ViewChild("noteInput") decoratedNoteRef?: any;
   viewReady = false;
 
@@ -365,7 +401,7 @@ export class CounterComponent {
   }
 
   ngAfterViewInit() {
-    this.viewReady = Boolean(this.noteRef() && this.decoratedNoteRef);
+    this.viewReady = Boolean(this.noteRef() && this.decoratedNoteRef && this.hlDirRef());
   }
 
   submitProfile() {
@@ -413,7 +449,7 @@ assert.ok(html.includes('nav-active'), html);
 assert.ok(html.includes('aria-current="page"'), html);
 assert.ok(html.includes('Catalog (true)'), html);
 assert.ok(html.includes('<small>ready</small>'), html);
-assert.ok(html.includes('SCORE: 8'), html);
+assert.ok(html.includes('SCORE#3: 8'), html);
 assert.ok(html.includes('<em>Active (8)</em>'), html);
 assert.ok(html.includes('<strong>Editing</strong>'), html);
 assert.ok(html.includes('<li class="first-row">0/2:x</li><li class="last-row">1/2:y</li>'), html);
@@ -428,7 +464,8 @@ assert.ok(html.includes('<q class="legacy-if">Legacy:8</q>'), html);
 assert.ok(html.includes('<li>0-x</li><li>1-y</li>'), html);
 assert.ok(html.includes('<span>Switch:Edit</span>'), html);
 assert.ok(html.includes('ng-untouched ng-pristine ng-valid'), html);
-assert.ok(html.includes('<h4 badge-header="true">Custom Header</h4><b>25</b>Projected Content'), html);
+assert.ok(html.includes('data-has-hdr="true"'), html);
+assert.ok(html.includes('<h4 badge-header="true">Custom Header</h4><b>25</b><samp data-hl="amber:off">Projected (amber)</samp>'), html);
 assert.ok(html.includes('Route Leaf: catalog'), html);
 
 const engine = new AngularAppEngine({
@@ -453,6 +490,7 @@ assert.equal(appRef.components.length, 1);
 const inst = appRef.components[0].instance;
 assert.equal(inst.doubled(), 8);
 assert.equal(inst.viewReady, true);
+assert.equal(inst.hlDirRef()?.color, 'amber');
 assert.equal(inst.noteRef()?.nativeElement?.value, 'ready');
 assert.equal(inst.profileForm.get('address.city')?.value, 'London');
 const emitted: number[] = [];

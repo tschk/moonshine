@@ -1,5 +1,6 @@
 /**
- * Host-free `@solidjs/start`, `@solidjs/start/server`, and `@solidjs/start/client`
+ * Host-free `@solidjs/start`, `@solidjs/start/server`, `@solidjs/start/client`,
+ * `@solidjs/start/middleware`, `@solidjs/start/router`, and `@solidjs/start/config`
  * replacement backed by the Moonshine reactive graph and DOM/SSR renderers.
  */
 import { peekComponentContext } from "@tschk/moonshine-dom/component";
@@ -29,6 +30,7 @@ import {
   type ResponseStub,
   type SolidRequestEventInit,
 } from "./request-event";
+import { Route, type RouteDefinition } from "./router";
 import { Assets, HydrationScript } from "./ssr";
 
 export {
@@ -145,7 +147,7 @@ export function clientOnly<
 }
 
 // ============================================================================
-// Server Function Metadata & `GET` (`@solidjs/start` / `@solidjs/start/server`)
+// Server Function Metadata, `GET`, & `POST` (`@solidjs/start` / `@solidjs/start/server`)
 // ============================================================================
 
 export interface ServerFunctionMeta {
@@ -191,6 +193,12 @@ export type GetServerFunction<T extends (...args: any[]) => any> = T & {
   readonly id: string;
 };
 
+export type PostServerFunction<T extends (...args: any[]) => any> = T & {
+  readonly url: string;
+  readonly POST: true;
+  readonly id: string;
+};
+
 let serverFunctionCounter = 0;
 const serverFunctionRegistry = new Map<string, (...args: any[]) => any>();
 
@@ -217,6 +225,32 @@ export function GET<T extends (...args: any[]) => any>(
   Object.defineProperties(wrapped, {
     url: { value: baseUrl, enumerable: true, writable: false },
     GET: { value: true, enumerable: true, writable: false },
+    id: { value: id, enumerable: true, writable: false },
+  });
+
+  serverFunctionRegistry.set(id, wrapped);
+  return wrapped;
+}
+
+export function POST<T extends (...args: any[]) => any>(
+  fn: T,
+  options?: string | { id?: string },
+): PostServerFunction<T> {
+  const explicitId = typeof options === "string" ? options : options?.id;
+  const id =
+    explicitId ??
+    (fn.name
+      ? `${fn.name}_${++serverFunctionCounter}`
+      : `post_${++serverFunctionCounter}`);
+  const baseUrl = `/_server?id=${encodeURIComponent(id)}`;
+
+  const wrapped = ((...args: Parameters<T>): ReturnType<T> => {
+    return withServerFunctionMeta({ id }, () => fn(...args));
+  }) as unknown as PostServerFunction<T>;
+
+  Object.defineProperties(wrapped, {
+    url: { value: baseUrl, enumerable: true, writable: false },
+    POST: { value: true, enumerable: true, writable: false },
     id: { value: id, enumerable: true, writable: false },
   });
 
@@ -262,6 +296,54 @@ export async function handleServerFunction(
       } catch {
         args = [rawArgs];
       }
+    } else if (
+      event.request.method !== "GET" &&
+      event.request.method !== "HEAD"
+    ) {
+      const contentType = (
+        event.request.headers.get("content-type") ?? ""
+      ).toLowerCase();
+      if (contentType.includes("application/json")) {
+        try {
+          const parsed = await event.request.clone().json();
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            !Array.isArray(parsed) &&
+            Array.isArray((parsed as { args?: unknown }).args)
+          ) {
+            args = (parsed as { args: any[] }).args;
+          } else {
+            args = Array.isArray(parsed) ? parsed : [parsed];
+          }
+        } catch {
+          args = [];
+        }
+      } else if (
+        contentType.includes("multipart/form-data") ||
+        contentType.includes("application/x-www-form-urlencoded")
+      ) {
+        try {
+          const formData = await event.request.clone().formData();
+          args = [formData];
+        } catch {
+          args = [];
+        }
+      } else {
+        try {
+          const rawText = await event.request.clone().text();
+          if (rawText) {
+            try {
+              const parsed = JSON.parse(rawText);
+              args = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+              args = [rawText];
+            }
+          }
+        } catch {
+          args = [];
+        }
+      }
     }
     const result = await handler(...args);
     if (result instanceof Response) {
@@ -283,6 +365,300 @@ export async function handleServerFunction(
       headers,
     });
   });
+}
+
+// ============================================================================
+// `<HttpStatusCode>` & `<HttpHeader>` (`@solidjs/start` / `@solidjs/start/server`)
+// ============================================================================
+
+export interface HttpStatusCodeProps {
+  code: number | (() => number);
+  text?: string | (() => string | undefined);
+}
+
+export function HttpStatusCode(props: HttpStatusCodeProps): null {
+  const event = getRequestEvent();
+  if (event && props) {
+    const code =
+      typeof props.code === "function" ? props.code() : Number(props.code);
+    if (Number.isFinite(code)) {
+      event.response.status = code;
+    }
+    const text = typeof props.text === "function" ? props.text() : props.text;
+    if (text !== undefined) {
+      event.response.statusText = String(text);
+    }
+  }
+  return null;
+}
+
+export interface HttpHeaderProps {
+  name: string | (() => string);
+  value: string | (() => string);
+  append?: boolean | (() => boolean | undefined);
+}
+
+export function HttpHeader(props: HttpHeaderProps): null {
+  const event = getRequestEvent();
+  if (event && props) {
+    const name = typeof props.name === "function" ? props.name() : props.name;
+    const value =
+      typeof props.value === "function" ? props.value() : props.value;
+    const append =
+      typeof props.append === "function" ? props.append() : props.append;
+    if (name && value !== undefined && value !== null) {
+      if (append) {
+        event.response.headers.append(String(name), String(value));
+      } else {
+        event.response.headers.set(String(name), String(value));
+      }
+    }
+  }
+  return null;
+}
+
+// ============================================================================
+// `@solidjs/start/middleware` (`createMiddleware`)
+// ============================================================================
+
+export type RequestMiddlewareResponse =
+  Response | void | undefined | Promise<Response | void | undefined>;
+
+export type RequestMiddleware = (event: PageEvent) => RequestMiddlewareResponse;
+
+export interface ResponseMiddlewareBody {
+  body?: unknown;
+}
+
+export type ResponseMiddleware = (
+  event: PageEvent,
+  response: ResponseMiddlewareBody,
+) => Response | void | undefined | Promise<Response | void | undefined>;
+
+export interface MiddlewareOptions {
+  onRequest?: RequestMiddleware | readonly RequestMiddleware[];
+  onBeforeResponse?: ResponseMiddleware | readonly ResponseMiddleware[];
+}
+
+export interface SolidMiddleware {
+  readonly onRequest: readonly RequestMiddleware[];
+  readonly onBeforeResponse: readonly ResponseMiddleware[];
+  handle: (
+    requestOrInit: Request | SolidRequestEventInit,
+    next: (event: PageEvent) => Response | Promise<Response>,
+  ) => Promise<Response>;
+}
+
+function normalizeMiddlewareArray<T>(input: T | readonly T[] | undefined): T[] {
+  if (!input) return [];
+  return Array.isArray(input) ? [...input] : [input as T];
+}
+
+function mergeEventIntoResponse(
+  event: PageEvent,
+  response: Response,
+): Response {
+  const mergedHeaders = new Headers(event.response.headers);
+  response.headers.forEach((v, k) => mergedHeaders.set(k, v));
+  const status =
+    event.response.status && event.response.status !== 200
+      ? event.response.status
+      : response.status || 200;
+  const statusText = event.response.statusText || response.statusText;
+  return new Response(response.body, {
+    status,
+    statusText,
+    headers: mergedHeaders,
+  });
+}
+
+export function createMiddleware(
+  options: MiddlewareOptions = {},
+): SolidMiddleware {
+  const onRequest = normalizeMiddlewareArray(options.onRequest);
+  const onBeforeResponse = normalizeMiddlewareArray(options.onBeforeResponse);
+
+  const handle = async (
+    requestOrInit: Request | SolidRequestEventInit,
+    next: (event: PageEvent) => Response | Promise<Response>,
+  ): Promise<Response> => {
+    const event =
+      requestOrInit instanceof Request
+        ? createSolidRequestEvent({ request: requestOrInit })
+        : createSolidRequestEvent(requestOrInit);
+
+    return withSolidRequestEvent(event, async () => {
+      let response: Response | undefined;
+      for (const mw of onRequest) {
+        const res = await mw(event);
+        if (res instanceof Response) {
+          response = mergeEventIntoResponse(event, res);
+          break;
+        }
+      }
+
+      if (!response) {
+        const downstream = await next(event);
+        response = mergeEventIntoResponse(event, downstream);
+      }
+
+      for (const mw of onBeforeResponse) {
+        const res = await mw(event, { body: response.body });
+        if (res instanceof Response) {
+          response = mergeEventIntoResponse(event, res);
+        } else {
+          response = mergeEventIntoResponse(event, response);
+        }
+      }
+
+      return response;
+    });
+  };
+
+  return {
+    onRequest,
+    onBeforeResponse,
+    handle,
+  };
+}
+
+const registeredMiddlewares: SolidMiddleware[] = [];
+
+export function registerSolidMiddleware(
+  middleware: MiddlewareOptions | SolidMiddleware,
+): () => void {
+  const instance =
+    "handle" in middleware && typeof middleware.handle === "function"
+      ? middleware
+      : createMiddleware(middleware);
+  registeredMiddlewares.push(instance);
+  return () => {
+    const idx = registeredMiddlewares.indexOf(instance);
+    if (idx !== -1) registeredMiddlewares.splice(idx, 1);
+  };
+}
+
+export function clearSolidMiddleware(): void {
+  registeredMiddlewares.length = 0;
+}
+
+export async function executeSolidMiddleware(
+  requestOrInit: Request | SolidRequestEventInit,
+  next: (event: PageEvent) => Response | Promise<Response>,
+  extraMiddleware?: MiddlewareOptions | SolidMiddleware,
+): Promise<Response> {
+  const all: SolidMiddleware[] = [...registeredMiddlewares];
+  if (extraMiddleware) {
+    all.push(
+      "handle" in extraMiddleware &&
+        typeof extraMiddleware.handle === "function"
+        ? extraMiddleware
+        : createMiddleware(extraMiddleware),
+    );
+  }
+  if (all.length === 0) {
+    const event =
+      requestOrInit instanceof Request
+        ? createSolidRequestEvent({ request: requestOrInit })
+        : createSolidRequestEvent(requestOrInit);
+    return withSolidRequestEvent(event, async () => next(event));
+  }
+  const combined = createMiddleware({
+    onRequest: all.flatMap((m) => m.onRequest),
+    onBeforeResponse: all.flatMap((m) => m.onBeforeResponse),
+  });
+  return combined.handle(requestOrInit, next);
+}
+
+// ============================================================================
+// `@solidjs/start/router` (`FileRoutes`)
+// ============================================================================
+
+let registeredFileRoutes: RouteDefinition[] = [];
+
+function normalizeFileRouteDef(def: RouteDefinition): RouteDefinition {
+  const normalizedChildren = def.children
+    ? Array.isArray(def.children)
+      ? def.children.map(normalizeFileRouteDef)
+      : normalizeFileRouteDef(def.children)
+    : undefined;
+  return Route({
+    ...def,
+    ...(normalizedChildren ? { children: normalizedChildren } : {}),
+  });
+}
+
+export function registerSolidFileRoutes(
+  routes: RouteDefinition | readonly RouteDefinition[],
+): () => void {
+  const list = (Array.isArray(routes) ? routes : [routes]).map(
+    normalizeFileRouteDef,
+  );
+  registeredFileRoutes.push(...list);
+  return () => {
+    for (const item of list) {
+      const idx = registeredFileRoutes.indexOf(item);
+      if (idx !== -1) registeredFileRoutes.splice(idx, 1);
+    }
+  };
+}
+
+export function getSolidFileRoutes(): RouteDefinition[] {
+  return [...registeredFileRoutes];
+}
+
+export function clearSolidFileRoutes(): void {
+  registeredFileRoutes = [];
+}
+
+export interface FileRoutesProps {
+  routes?: RouteDefinition | readonly RouteDefinition[];
+}
+
+export function FileRoutes(props?: FileRoutesProps): RouteDefinition[] {
+  if (props?.routes) {
+    const list = Array.isArray(props.routes) ? props.routes : [props.routes];
+    return list.map(normalizeFileRouteDef);
+  }
+  return getSolidFileRoutes();
+}
+
+// ============================================================================
+// `@solidjs/start/config` (`defineConfig`)
+// ============================================================================
+
+export interface SolidStartServerConfig {
+  preset?: string;
+  baseURL?: string;
+  prerender?: {
+    routes?: string[];
+    crawlLinks?: boolean;
+  };
+  [key: string]: unknown;
+}
+
+export interface SolidStartConfig {
+  middleware?: string;
+  ssr?: boolean;
+  islands?: boolean;
+  routeDir?: string;
+  extensions?: string[];
+  server?: SolidStartServerConfig;
+  vite?:
+    | Record<string, unknown>
+    | ((options: { router: string }) => Record<string, unknown>);
+  [key: string]: unknown;
+}
+
+export function defineConfig<T extends SolidStartConfig = SolidStartConfig>(
+  config: T | (() => T) = {} as T,
+): T {
+  const resolved = typeof config === "function" ? config() : config;
+  return {
+    ssr: true,
+    routeDir: "./routes",
+    ...resolved,
+  };
 }
 
 // ============================================================================
@@ -338,6 +714,7 @@ export interface HandlerOptions {
   mode?: "sync" | "async" | "stream";
   nonce?: string;
   renderId?: string;
+  middleware?: MiddlewareOptions | SolidMiddleware;
 }
 
 export type StartAppHandler = ((
@@ -348,65 +725,64 @@ export type StartAppHandler = ((
 
 export function createHandler(
   fn?: (event: PageEvent) => any,
-  _options?: HandlerOptions,
+  options?: HandlerOptions,
 ): StartAppHandler {
   const handler = async (
     requestOrInit: Request | SolidRequestEventInit,
   ): Promise<Response> => {
-    const event =
-      requestOrInit instanceof Request
-        ? createSolidRequestEvent({ request: requestOrInit })
-        : createSolidRequestEvent(requestOrInit);
-
-    const serverFnResponse = await handleServerFunction({
-      request: event.request,
-      responseHeaders: event.response.headers,
-      status: event.response.status,
-      statusText: event.response.statusText,
-      clientAddress: event.clientAddress,
-      locals: event.locals,
-      fetch: event.fetch,
-      prevUrl: event.prevUrl,
-      mutation: event.mutation,
-      nativeEvent: event.nativeEvent,
-    });
-    if (serverFnResponse) {
-      return serverFnResponse;
-    }
-
-    return withSolidRequestEvent(event, async () => {
-      const result = fn ? await fn(event) : "";
-      if (result instanceof Response) {
-        const mergedHeaders = new Headers(event.response.headers);
-        result.headers.forEach((v, k) => mergedHeaders.set(k, v));
-        return new Response(result.body, {
-          status: result.status || event.response.status || 200,
-          statusText: result.statusText || event.response.statusText,
-          headers: mergedHeaders,
+    return executeSolidMiddleware(
+      requestOrInit,
+      async (event) => {
+        const serverFnResponse = await handleServerFunction({
+          request: event.request,
+          responseHeaders: event.response.headers,
+          status: event.response.status,
+          statusText: event.response.statusText,
+          clientAddress: event.clientAddress,
+          locals: event.locals,
+          fetch: event.fetch,
+          prevUrl: event.prevUrl,
+          mutation: event.mutation,
+          nativeEvent: event.nativeEvent,
         });
-      }
+        if (serverFnResponse) {
+          return serverFnResponse;
+        }
 
-      const rawHtml =
-        typeof result === "string"
-          ? result
-          : typeof result === "function"
-            ? renderToString(result as () => SSRChild)
-            : renderToString(() => result as SSRChild);
-      const html =
-        /^\s*<html[\s>]/i.test(rawHtml) && !/^\s*<!doctype/i.test(rawHtml)
-          ? `<!DOCTYPE html>${rawHtml}`
-          : rawHtml;
+        const result = fn ? await fn(event) : "";
+        if (result instanceof Response) {
+          const mergedHeaders = new Headers(event.response.headers);
+          result.headers.forEach((v, k) => mergedHeaders.set(k, v));
+          return new Response(result.body, {
+            status: result.status || event.response.status || 200,
+            statusText: result.statusText || event.response.statusText,
+            headers: mergedHeaders,
+          });
+        }
 
-      const headers = new Headers(event.response.headers);
-      if (!headers.has("content-type")) {
-        headers.set("content-type", "text/html; charset=utf-8");
-      }
-      return new Response(html, {
-        status: event.response.status ?? 200,
-        statusText: event.response.statusText,
-        headers,
-      });
-    });
+        const rawHtml =
+          typeof result === "string"
+            ? result
+            : typeof result === "function"
+              ? renderToString(result as () => SSRChild)
+              : renderToString(() => result as SSRChild);
+        const html =
+          /^\s*<html[\s>]/i.test(rawHtml) && !/^\s*<!doctype/i.test(rawHtml)
+            ? `<!DOCTYPE html>${rawHtml}`
+            : rawHtml;
+
+        const headers = new Headers(event.response.headers);
+        if (!headers.has("content-type")) {
+          headers.set("content-type", "text/html; charset=utf-8");
+        }
+        return new Response(html, {
+          status: event.response.status ?? 200,
+          statusText: event.response.statusText,
+          headers,
+        });
+      },
+      options?.middleware,
+    );
   };
   return Object.assign(handler, { fetch: handler });
 }

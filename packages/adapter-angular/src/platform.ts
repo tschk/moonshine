@@ -1272,6 +1272,8 @@ const BUILTIN_PIPES: Record<string, PipeTransform> = {
   async: new AsyncPipe(),
 };
 
+let lastActiveAngularInjector: Injector | null = null;
+
 const customPipeRegistry = new Map<
   string,
   Type<PipeTransform> | PipeTransform
@@ -1288,7 +1290,21 @@ export function applyPipe(value: any, name: string, ...args: any[]): any {
   const custom = customPipeRegistry.get(name);
   if (custom) {
     if (typeof custom === "function") {
-      const inj = getCurrentInjector();
+      const currentInj = getCurrentInjector();
+      const fallbackInj =
+        lastActiveAngularInjector &&
+        !(
+          lastActiveAngularInjector instanceof EnvironmentInjector &&
+          lastActiveAngularInjector.destroyed
+        )
+          ? lastActiveAngularInjector
+          : null;
+      const inj = currentInj ?? fallbackInj;
+      const pipeMeta = (custom as any).ɵpipe;
+      if (inj && pipeMeta?.pure !== false && (custom as any).ɵprov) {
+        const instance = inj.get(custom as Type<PipeTransform>);
+        return instance.transform(value, ...args);
+      }
       const instance = inj
         ? runInInjectionContext(inj, () => new custom())
         : new custom();
@@ -1481,46 +1497,75 @@ export function Injectable(options?: InjectableOptions) {
   };
 }
 
+function attachMemberMetadata(
+  target: any,
+  propertyKey: any,
+  applyToCtor: (ctor: any, propName: string) => void,
+): any {
+  const isStage3 = typeof propertyKey === "object" && propertyKey !== null;
+  const propName = isStage3
+    ? String(propertyKey.name ?? "")
+    : String(propertyKey ?? "");
+  if (!propName) return;
+
+  if (isStage3) {
+    if (typeof propertyKey.addInitializer === "function") {
+      propertyKey.addInitializer(function (this: any) {
+        const instanceCtor =
+          typeof this === "function" ? this : this?.constructor;
+        if (instanceCtor) {
+          applyToCtor(instanceCtor, propName);
+        }
+      });
+    }
+    if (propertyKey.kind === "field") {
+      return function (this: any, initialValue: any) {
+        const instanceCtor =
+          typeof this === "function" ? this : this?.constructor;
+        if (instanceCtor) {
+          applyToCtor(instanceCtor, propName);
+        }
+        return initialValue;
+      };
+    }
+    return;
+  }
+
+  const ctor =
+    typeof target === "function"
+      ? target
+      : typeof target === "object" && target !== null
+        ? target.constructor
+        : null;
+  if (ctor) {
+    applyToCtor(ctor, propName);
+  }
+}
+
 export function Input(aliasOrOptions?: string | InputDecoratorConfig) {
   const cfg: InputDecoratorConfig =
     typeof aliasOrOptions === "string"
       ? { alias: aliasOrOptions }
       : (aliasOrOptions ?? {});
-  return function (target: any, propertyKey?: string | symbol | any): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
-    if (ctor && propName) {
+  return function (target: any, propertyKey?: string | symbol | any): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵinputs ?? {}) as Record<
         string,
         InputDecoratorConfig
       >;
       existing[propName] = cfg;
       ctor.ɵinputs = existing;
-    }
+    });
   };
 }
 
 export function Output(alias?: string) {
-  return function (target: any, propertyKey?: string | symbol | any): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "function"
-        ? target
-        : typeof target === "object" && target !== null
-          ? target.constructor
-          : null;
-    if (ctor && propName) {
+  return function (target: any, propertyKey?: string | symbol | any): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵoutputs ?? {}) as Record<string, string>;
       existing[propName] = alias ?? propName;
       ctor.ɵoutputs = existing;
-    }
+    });
   };
 }
 
@@ -1528,22 +1573,12 @@ export function ViewChild(
   selector: ProviderToken<any> | string,
   opts?: { read?: any; static?: boolean },
 ) {
-  return function (target: any, propertyKey?: string | symbol | any): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "function"
-        ? target
-        : typeof target === "object" && target !== null
-          ? target.constructor
-          : null;
-    if (ctor && propName) {
+  return function (target: any, propertyKey?: string | symbol | any): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵviewQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: true, ...opts };
       ctor.ɵviewQueries = existing;
-    }
+    });
   };
 }
 
@@ -1551,22 +1586,12 @@ export function ViewChildren(
   selector: ProviderToken<any> | string,
   opts?: { read?: any },
 ) {
-  return function (target: any, propertyKey?: string | symbol | any): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "function"
-        ? target
-        : typeof target === "object" && target !== null
-          ? target.constructor
-          : null;
-    if (ctor && propName) {
+  return function (target: any, propertyKey?: string | symbol | any): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵviewQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: false, ...opts };
       ctor.ɵviewQueries = existing;
-    }
+    });
   };
 }
 
@@ -1574,22 +1599,12 @@ export function ContentChild(
   selector: ProviderToken<any> | string,
   opts?: { read?: any; descendants?: boolean; static?: boolean },
 ) {
-  return function (target: any, propertyKey?: string | symbol | any): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "function"
-        ? target
-        : typeof target === "object" && target !== null
-          ? target.constructor
-          : null;
-    if (ctor && propName) {
+  return function (target: any, propertyKey?: string | symbol | any): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵcontentQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: true, ...opts };
       ctor.ɵcontentQueries = existing;
-    }
+    });
   };
 }
 
@@ -1597,42 +1612,22 @@ export function ContentChildren(
   selector: ProviderToken<any> | string,
   opts?: { read?: any; descendants?: boolean },
 ) {
-  return function (target: any, propertyKey?: string | symbol | any): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "function"
-        ? target
-        : typeof target === "object" && target !== null
-          ? target.constructor
-          : null;
-    if (ctor && propName) {
+  return function (target: any, propertyKey?: string | symbol | any): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵcontentQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: false, ...opts };
       ctor.ɵcontentQueries = existing;
-    }
+    });
   };
 }
 
 export function HostBinding(hostPropertyName?: string) {
-  return function (target: any, propertyKey?: string | symbol | any): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "function"
-        ? target
-        : typeof target === "object" && target !== null
-          ? target.constructor
-          : null;
-    if (ctor && propName) {
+  return function (target: any, propertyKey?: string | symbol | any): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵhostBindings ?? {}) as Record<string, string>;
       existing[propName] = hostPropertyName ?? propName;
       ctor.ɵhostBindings = existing;
-    }
+    });
   };
 }
 
@@ -1641,25 +1636,15 @@ export function HostListener(eventName: string, args?: string[]) {
     target: any,
     propertyKey?: string | symbol | any,
     _descriptor?: PropertyDescriptor,
-  ): void {
-    const propName =
-      typeof propertyKey === "object" && propertyKey !== null
-        ? String(propertyKey.name)
-        : String(propertyKey ?? "");
-    const ctor =
-      typeof target === "function"
-        ? target
-        : typeof target === "object" && target !== null
-          ? target.constructor
-          : null;
-    if (ctor && propName) {
+  ): any {
+    return attachMemberMetadata(target, propertyKey, (ctor, propName) => {
       const existing = (ctor.ɵhostListeners ?? {}) as Record<
         string,
         { eventName: string; args?: string[] }
       >;
       existing[propName] = { eventName, args };
       ctor.ɵhostListeners = existing;
-    }
+    });
   };
 }
 
@@ -3017,7 +3002,15 @@ export function normalizeNgStyle(
 
 const VIEW_REF_MAP = Symbol.for("moonshine.angular.viewRefMap");
 const DEFERRED_VIEW_INIT = Symbol.for("moonshine.angular.deferredViewInit");
+const DEFERRED_NG_REF = Symbol.for("moonshine.angular.deferredNgRef");
 const INSTANCE_INJECTOR = Symbol.for("moonshine.angular.instanceInjector");
+const NG_REF_NAMES = Symbol.for("moonshine.angular.refNames");
+const NG_COMPONENT_INSTANCE = Symbol.for("moonshine.angular.componentInstance");
+const NG_DIRECTIVE_INSTANCES = Symbol.for(
+  "moonshine.angular.directiveInstances",
+);
+const NG_HOST_ELEMENT = Symbol.for("moonshine.angular.hostElement");
+const PENDING_DIRECTIVES = Symbol.for("moonshine.angular.pendingDirectives");
 
 export function getAngularInstanceInjector(
   instance: any,
@@ -3025,8 +3018,130 @@ export function getAngularInstanceInjector(
   return instance?.[INSTANCE_INJECTOR] as Injector | undefined;
 }
 
+function addRefNameMeta(target: any, refName: string): void {
+  if (!target || typeof target !== "object" || !refName) return;
+  let refs = target[NG_REF_NAMES] as Set<string> | undefined;
+  if (!refs) {
+    refs = new Set<string>();
+    try {
+      Object.defineProperty(target, NG_REF_NAMES, {
+        value: refs,
+        configurable: true,
+        enumerable: false,
+      });
+    } catch {
+      return;
+    }
+  }
+  refs.add(refName);
+}
+
+function addDirectiveInstanceMeta(target: any, dirInstance: any): void {
+  if (!target || typeof target !== "object" || !dirInstance) return;
+  let dirs = target[NG_DIRECTIVE_INSTANCES] as Set<any> | undefined;
+  if (!dirs) {
+    dirs = new Set<any>();
+    try {
+      Object.defineProperty(target, NG_DIRECTIVE_INSTANCES, {
+        value: dirs,
+        configurable: true,
+        enumerable: false,
+      });
+    } catch {
+      return;
+    }
+  }
+  dirs.add(dirInstance);
+}
+
+function resolveQueryReadValue(
+  matchedTarget: any,
+  hostNode: any,
+  readToken?: any,
+): any {
+  const isTemplateRef = matchedTarget instanceof TemplateRef;
+  const isCompOrDir = Boolean(
+    matchedTarget &&
+    typeof matchedTarget === "object" &&
+    matchedTarget.constructor &&
+    ("ɵcmp" in matchedTarget.constructor ||
+      "ɵdir" in matchedTarget.constructor),
+  );
+  const effectiveNode =
+    hostNode ??
+    (matchedTarget && typeof matchedTarget === "object"
+      ? matchedTarget[NG_HOST_ELEMENT]
+      : undefined) ??
+    matchedTarget;
+
+  if (readToken === TemplateRef) {
+    return isTemplateRef ? matchedTarget : undefined;
+  }
+  if (readToken === ElementRef) {
+    if (isTemplateRef) return matchedTarget.elementRef;
+    if (matchedTarget instanceof ElementRef) return matchedTarget;
+    return effectiveNode instanceof ElementRef
+      ? effectiveNode
+      : new ElementRef(effectiveNode);
+  }
+  if (readToken === ViewContainerRef) {
+    return (
+      getAngularInstanceInjector(matchedTarget)?.get(ViewContainerRef, null, {
+        optional: true,
+      }) ?? new ViewContainerRef()
+    );
+  }
+  if (
+    readToken !== undefined &&
+    (typeof readToken === "function" || readToken instanceof InjectionToken)
+  ) {
+    const ResolvedRead = (readToken as any).ɵClass ?? readToken;
+    if (
+      typeof ResolvedRead === "function" &&
+      (matchedTarget instanceof ResolvedRead ||
+        matchedTarget?.constructor === ResolvedRead)
+    ) {
+      return matchedTarget;
+    }
+    const compInst = effectiveNode?.[NG_COMPONENT_INSTANCE];
+    if (
+      typeof ResolvedRead === "function" &&
+      compInst &&
+      (compInst instanceof ResolvedRead ||
+        compInst.constructor === ResolvedRead)
+    ) {
+      return compInst;
+    }
+    const dirSet = (effectiveNode?.[NG_DIRECTIVE_INSTANCES] ??
+      matchedTarget?.[NG_DIRECTIVE_INSTANCES]) as Set<any> | undefined;
+    if (typeof ResolvedRead === "function" && dirSet) {
+      for (const d of dirSet) {
+        if (d instanceof ResolvedRead || d?.constructor === ResolvedRead) {
+          return d;
+        }
+      }
+    }
+    const inj =
+      getAngularInstanceInjector(matchedTarget) ??
+      getAngularInstanceInjector(compInst);
+    if (inj) {
+      const fromInj = inj.get(readToken, null, { optional: true });
+      if (fromInj !== null && fromInj !== undefined) {
+        return fromInj;
+      }
+    }
+    return undefined;
+  }
+  if (isTemplateRef || isCompOrDir) {
+    return matchedTarget;
+  }
+  return matchedTarget instanceof ElementRef
+    ? matchedTarget
+    : new ElementRef(matchedTarget);
+}
+
 /**
- * Registers a template reference variable (`#ref`) or child component on `instance`,
+ * Registers a template reference variable (`#ref`) or child component/directive on `instance`,
  * updating matching `viewChild()` / `viewChildren()` signal queries and `@ViewChild` / `@ViewChildren` properties.
  */
 export function registerViewChild(
@@ -3036,7 +3151,7 @@ export function registerViewChild(
   elementProps?: Record<string, any> | null,
 ): any {
   if (!instance || typeof instance !== "object" || !target) {
-    return undefined;
+    return target;
   }
   const isTemplateRef = target instanceof TemplateRef;
   const isComponentInstance = Boolean(
@@ -3074,37 +3189,56 @@ export function registerViewChild(
     }
   }
 
-  let refMap = instance[VIEW_REF_MAP] as Map<string, any[]> | undefined;
-  if (!refMap) {
-    refMap = new Map<string, any[]>();
-    Object.defineProperty(instance, VIEW_REF_MAP, {
-      value: refMap,
-      configurable: true,
-      enumerable: false,
-    });
+  if (
+    elementProps &&
+    typeof elementProps === "object" &&
+    PENDING_DIRECTIVES in elementProps
+  ) {
+    const pendingDirs = (elementProps as any)[PENDING_DIRECTIVES] as
+      any[] | undefined;
+    if (Array.isArray(pendingDirs)) {
+      for (const dirInst of pendingDirs) {
+        addDirectiveInstanceMeta(target, dirInst);
+        try {
+          Object.defineProperty(dirInst, NG_HOST_ELEMENT, {
+            value: target,
+            configurable: true,
+            enumerable: false,
+          });
+        } catch {
+          // Ignore frozen directive instances
+        }
+        const dirInj = getAngularInstanceInjector(dirInst);
+        const dirElRef = dirInj?.get(ElementRef, null, { optional: true });
+        if (dirElRef && typeof dirElRef === "object") {
+          (dirElRef as { nativeElement: any }).nativeElement = target;
+        }
+        registerViewChild(instance, "", dirInst);
+      }
+    }
   }
-  const list = refMap.get(refName) ?? [];
-  if (!list.includes(target)) {
-    list.push(target);
-  }
-  refMap.set(refName, list);
 
-  const resolveForRead = (item: any, readToken?: any) => {
-    if (readToken === TemplateRef) {
-      return item instanceof TemplateRef ? item : undefined;
+  if (refName) {
+    addRefNameMeta(target, refName);
+    let refMap = instance[VIEW_REF_MAP] as Map<string, any[]> | undefined;
+    if (!refMap) {
+      refMap = new Map<string, any[]>();
+      Object.defineProperty(instance, VIEW_REF_MAP, {
+        value: refMap,
+        configurable: true,
+        enumerable: false,
+      });
     }
-    if (readToken === ElementRef) {
-      if (item instanceof TemplateRef) return item.elementRef;
-      return item instanceof ElementRef ? item : new ElementRef(item);
+    const list = refMap.get(refName) ?? [];
+    if (!list.includes(target)) {
+      list.push(target);
     }
-    if (isTemplateRef || isComponentInstance) {
-      return item;
-    }
-    return item instanceof ElementRef ? item : new ElementRef(item);
-  };
+    refMap.set(refName, list);
+  }
 
   const matchesLocator = (locator: unknown) => {
     if (typeof locator === "string") {
+      if (!refName) return false;
       return locator
         .split(",")
         .map((s) => s.trim())
@@ -3115,7 +3249,15 @@ export function registerViewChild(
       if (target instanceof Resolved || target?.constructor === Resolved) {
         return true;
       }
-      if (Resolved === ElementRef && !isComponentInstance && !isTemplateRef) {
+      if (
+        Resolved === ElementRef &&
+        !isComponentInstance &&
+        !isTemplateRef &&
+        Boolean(refName)
+      ) {
+        return true;
+      }
+      if (Resolved === TemplateRef && isTemplateRef) {
         return true;
       }
     }
@@ -3128,15 +3270,15 @@ export function registerViewChild(
     if (typeof fieldVal === "function") {
       const meta = getQueryMetadata(fieldVal);
       if (meta && matchesLocator(meta.locator)) {
-        if (meta.kind === "viewChild" || meta.kind === "contentChild") {
-          applyQueryValue(fieldVal, resolveForRead(target, meta.read));
-        } else if (
-          meta.kind === "viewChildren" ||
-          meta.kind === "contentChildren"
-        ) {
+        if (meta.kind === "viewChild") {
+          const resolved = resolveQueryReadValue(target, undefined, meta.read);
+          if (resolved !== undefined) {
+            applyQueryValue(fieldVal, resolved);
+          }
+        } else if (meta.kind === "viewChildren") {
           const current = (fieldVal() as readonly any[]) ?? [];
-          const nextItem = resolveForRead(target, meta.read);
-          if (!current.includes(nextItem)) {
+          const nextItem = resolveQueryReadValue(target, undefined, meta.read);
+          if (nextItem !== undefined && !current.includes(nextItem)) {
             applyQueryValue(fieldVal, [...current, nextItem]);
           }
         }
@@ -3152,7 +3294,8 @@ export function registerViewChild(
   >;
   for (const [propName, q] of Object.entries(viewQueries)) {
     if (matchesLocator(q.selector)) {
-      const resolved = resolveForRead(target, q.read);
+      const resolved = resolveQueryReadValue(target, undefined, q.read);
+      if (resolved === undefined) continue;
       if (q.first) {
         instance[propName] = resolved;
       } else {
@@ -3167,6 +3310,250 @@ export function registerViewChild(
   }
 
   return target;
+}
+
+function collectProjectedQueryNodes(
+  children: unknown,
+  descendants: boolean,
+  out: any[] = [],
+): any[] {
+  if (
+    children === null ||
+    children === undefined ||
+    typeof children === "boolean" ||
+    typeof children === "string" ||
+    typeof children === "number"
+  ) {
+    return out;
+  }
+  if (
+    typeof children === "function" &&
+    !isSignal(children) &&
+    !("ɵcmp" in children) &&
+    !("ɵdir" in children) &&
+    children.length === 0
+  ) {
+    try {
+      return collectProjectedQueryNodes(children(), descendants, out);
+    } catch {
+      return out;
+    }
+  }
+  if (Array.isArray(children)) {
+    for (const item of children) {
+      collectProjectedQueryNodes(item, descendants, out);
+    }
+    return out;
+  }
+  if (typeof children === "object") {
+    out.push(children);
+    if (descendants) {
+      const anyNode = children as any;
+      if (Array.isArray(anyNode.children)) {
+        for (const c of anyNode.children) {
+          collectProjectedQueryNodes(c, true, out);
+        }
+      } else if (
+        anyNode.childNodes &&
+        Symbol.iterator in Object(anyNode.childNodes)
+      ) {
+        for (const c of anyNode.childNodes as Iterable<any>) {
+          collectProjectedQueryNodes(c, true, out);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function matchProjectedNodeForQuery(
+  node: any,
+  locator: unknown,
+  readToken?: any,
+): any[] {
+  if (!node || typeof node !== "object") return [];
+  const results: any[] = [];
+  const compInst =
+    node[NG_COMPONENT_INSTANCE] ??
+    (node.constructor &&
+    ("ɵcmp" in node.constructor || "ɵdir" in node.constructor)
+      ? node
+      : undefined);
+  const dirSet = node[NG_DIRECTIVE_INSTANCES] as Set<any> | undefined;
+  const nodeRefs = node[NG_REF_NAMES] as Set<string> | undefined;
+
+  if (typeof locator === "string") {
+    const names = locator
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (dirSet) {
+      for (const dir of dirSet) {
+        const dirRefs = dir?.[NG_REF_NAMES] as Set<string> | undefined;
+        if (dirRefs && names.some((n) => dirRefs.has(n))) {
+          const resolved = resolveQueryReadValue(dir, node, readToken);
+          if (resolved !== undefined) results.push(resolved);
+        }
+      }
+    }
+    if (
+      results.length === 0 &&
+      nodeRefs &&
+      names.some((n) => nodeRefs.has(n))
+    ) {
+      const primary = compInst ?? node;
+      const resolved = resolveQueryReadValue(primary, node, readToken);
+      if (resolved !== undefined) results.push(resolved);
+    }
+    return results;
+  }
+
+  if (typeof locator === "function") {
+    const Resolved = (locator as any).ɵClass ?? locator;
+    if (
+      compInst &&
+      (compInst instanceof Resolved || compInst.constructor === Resolved)
+    ) {
+      const resolved = resolveQueryReadValue(compInst, node, readToken);
+      if (resolved !== undefined) results.push(resolved);
+    }
+    if (dirSet) {
+      for (const dir of dirSet) {
+        if (dir instanceof Resolved || dir?.constructor === Resolved) {
+          const resolved = resolveQueryReadValue(dir, node, readToken);
+          if (resolved !== undefined && !results.includes(resolved)) {
+            results.push(resolved);
+          }
+        }
+      }
+    }
+    if (
+      results.length === 0 &&
+      Resolved === ElementRef &&
+      !(node instanceof TemplateRef)
+    ) {
+      const resolved = resolveQueryReadValue(
+        node,
+        node,
+        readToken ?? ElementRef,
+      );
+      if (resolved !== undefined) results.push(resolved);
+    }
+    if (
+      results.length === 0 &&
+      Resolved === TemplateRef &&
+      node instanceof TemplateRef
+    ) {
+      const resolved = resolveQueryReadValue(
+        node,
+        node,
+        readToken ?? TemplateRef,
+      );
+      if (resolved !== undefined) results.push(resolved);
+    }
+    if (results.length === 0 && compInst) {
+      const compInj = getAngularInstanceInjector(compInst);
+      const fromInj = compInj?.get(locator as any, null, { optional: true });
+      if (fromInj !== null && fromInj !== undefined) {
+        const resolved =
+          readToken !== undefined
+            ? resolveQueryReadValue(compInst, node, readToken)
+            : fromInj;
+        if (resolved !== undefined) results.push(resolved);
+      }
+    }
+    return results;
+  }
+
+  if (locator instanceof InjectionToken && compInst) {
+    const compInj = getAngularInstanceInjector(compInst);
+    const fromInj = compInj?.get(locator, null, { optional: true });
+    if (fromInj !== null && fromInj !== undefined) {
+      const resolved =
+        readToken !== undefined
+          ? resolveQueryReadValue(compInst, node, readToken)
+          : fromInj;
+      if (resolved !== undefined) results.push(resolved);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Resolves `contentChild`, `contentChild.required`, `contentChildren`, `@ContentChild`,
+ * and `@ContentChildren` queries on `instance` against projected `children` prior to `ngAfterContentInit`.
+ */
+export function resolveAngularContentQueries(
+  instance: any,
+  children: unknown,
+): void {
+  if (!instance || typeof instance !== "object") return;
+
+  for (const key of Object.keys(instance)) {
+    const fieldVal = instance[key];
+    if (typeof fieldVal === "function") {
+      const meta = getQueryMetadata(fieldVal);
+      if (
+        meta &&
+        (meta.kind === "contentChild" || meta.kind === "contentChildren")
+      ) {
+        const descendants =
+          meta.descendants ?? (meta.kind === "contentChild" ? true : false);
+        const nodes = collectProjectedQueryNodes(children, descendants);
+        const matched: any[] = [];
+        for (const node of nodes) {
+          for (const item of matchProjectedNodeForQuery(
+            node,
+            meta.locator,
+            meta.read,
+          )) {
+            if (!matched.includes(item)) {
+              matched.push(item);
+            }
+          }
+          if (meta.kind === "contentChild" && matched.length > 0) {
+            break;
+          }
+        }
+        if (meta.kind === "contentChild") {
+          if (matched.length > 0) {
+            applyQueryValue(fieldVal, matched[0]);
+          }
+        } else {
+          applyQueryValue(fieldVal, matched);
+        }
+      }
+    }
+  }
+
+  const ctor = instance.constructor;
+  const contentQueries = (ctor?.ɵcontentQueries ?? {}) as Record<
+    string,
+    { selector: any; first: boolean; read?: any; descendants?: boolean }
+  >;
+  for (const [propName, q] of Object.entries(contentQueries)) {
+    const descendants = q.descendants ?? (q.first ? true : false);
+    const nodes = collectProjectedQueryNodes(children, descendants);
+    const matched: any[] = [];
+    for (const node of nodes) {
+      for (const item of matchProjectedNodeForQuery(node, q.selector, q.read)) {
+        if (!matched.includes(item)) {
+          matched.push(item);
+        }
+      }
+      if (q.first && matched.length > 0) {
+        break;
+      }
+    }
+    if (q.first) {
+      if (matched.length > 0) {
+        instance[propName] = matched[0];
+      }
+    } else {
+      instance[propName] = matched;
+    }
+  }
 }
 
 export function resolveViewChild(instance: any, refName: string): any {
@@ -3490,6 +3877,60 @@ export function projectAngularContent(
 }
 
 export function completeAngularViewInit<T>(instance: any, root: T): T {
+  if (instance && typeof instance === "object") {
+    try {
+      Object.defineProperty(instance, NG_HOST_ELEMENT, {
+        value: root,
+        configurable: true,
+        enumerable: false,
+      });
+    } catch {
+      // Ignore frozen instances
+    }
+    if (root && typeof root === "object") {
+      try {
+        Object.defineProperty(root, NG_COMPONENT_INSTANCE, {
+          value: instance,
+          configurable: true,
+          enumerable: false,
+        });
+      } catch {
+        // Ignore frozen roots
+      }
+      const instRefs = instance[NG_REF_NAMES] as Set<string> | undefined;
+      if (instRefs) {
+        for (const r of instRefs) {
+          addRefNameMeta(root, r);
+        }
+      }
+      const instDirs = instance[NG_DIRECTIVE_INSTANCES] as Set<any> | undefined;
+      if (instDirs) {
+        for (const d of instDirs) {
+          addDirectiveInstanceMeta(root, d);
+          try {
+            Object.defineProperty(d, NG_HOST_ELEMENT, {
+              value: root,
+              configurable: true,
+              enumerable: false,
+            });
+          } catch {
+            // Ignore frozen directive
+          }
+          const dirInj = getAngularInstanceInjector(d);
+          const dirElRef = dirInj?.get(ElementRef, null, { optional: true });
+          if (dirElRef && typeof dirElRef === "object") {
+            (dirElRef as { nativeElement: any }).nativeElement = root;
+          }
+        }
+      }
+    }
+    const deferredRef = instance[DEFERRED_NG_REF] as
+      ((inst: any) => void) | undefined;
+    if (typeof deferredRef === "function") {
+      delete instance[DEFERRED_NG_REF];
+      deferredRef(instance);
+    }
+  }
   const runner = instance?.[DEFERRED_VIEW_INIT] as (() => void) | undefined;
   if (typeof runner === "function") {
     delete instance[DEFERRED_VIEW_INIT];
@@ -3524,6 +3965,17 @@ export function mergeAngularHostProps(
   }
 
   const out: Record<string, any> = { ...baseProps };
+  if (
+    baseProps &&
+    typeof baseProps === "object" &&
+    PENDING_DIRECTIVES in baseProps
+  ) {
+    Object.defineProperty(out, PENDING_DIRECTIVES, {
+      value: (baseProps as any)[PENDING_DIRECTIVES],
+      configurable: true,
+      enumerable: false,
+    });
+  }
   const classGetters: Array<() => string> = [];
   const styleGetters: Array<() => Record<string, any> | string | null> = [];
 
@@ -3667,11 +4119,213 @@ export function mergeAngularHostProps(
   return out;
 }
 
+const STANDARD_HTML_ATTRIBUTES = new Set([
+  "id",
+  "class",
+  "style",
+  "title",
+  "role",
+  "type",
+  "name",
+  "value",
+  "checked",
+  "disabled",
+  "readonly",
+  "required",
+  "placeholder",
+  "href",
+  "target",
+  "rel",
+  "src",
+  "alt",
+  "width",
+  "height",
+  "tabindex",
+  "hidden",
+  "draggable",
+  "contenteditable",
+  "spellcheck",
+  "dir",
+  "lang",
+  "for",
+  "min",
+  "max",
+  "step",
+  "pattern",
+  "minlength",
+  "maxlength",
+  "multiple",
+  "selected",
+  "rows",
+  "cols",
+  "autocomplete",
+]);
+
+function collectConsumedDirectiveKeys(
+  dirInstance: any,
+  DirectiveClass: Type<any>,
+): Set<string> {
+  const consumed = new Set<string>();
+  const ResolvedClass = ((DirectiveClass as any)?.ɵClass ??
+    DirectiveClass) as any;
+  const dirMeta = (ResolvedClass?.ɵdir ?? (DirectiveClass as any)?.ɵdir) as
+    DirectiveOptions | undefined;
+
+  const maybeAddInput = (propKey: string) => {
+    const lower = propKey.toLowerCase();
+    if (
+      !STANDARD_HTML_ATTRIBUTES.has(lower) &&
+      !lower.startsWith("aria-") &&
+      !lower.startsWith("data-")
+    ) {
+      consumed.add(propKey);
+    }
+  };
+
+  for (const key of Object.keys(dirInstance ?? {})) {
+    const fieldVal = dirInstance[key];
+    if (isInputSignal(fieldVal)) {
+      const alias = getInputAlias(fieldVal) ?? key;
+      maybeAddInput(alias);
+      maybeAddInput(key);
+      if (typeof (fieldVal as any).subscribe === "function") {
+        consumed.add(`${alias}Change`);
+        consumed.add(`on:${alias}Change`);
+        consumed.add(`${key}Change`);
+        consumed.add(`on:${key}Change`);
+      }
+    }
+    if (fieldVal instanceof OutputEmitterRef) {
+      const decoratedOutputs = (ResolvedClass?.ɵoutputs ?? {}) as Record<
+        string,
+        string
+      >;
+      const alias = fieldVal.alias ?? decoratedOutputs[key] ?? key;
+      consumed.add(alias);
+      consumed.add(`on:${alias}`);
+      consumed.add(key);
+      consumed.add(`on:${key}`);
+    }
+  }
+
+  const decoratedInputs = (ResolvedClass?.ɵinputs ?? {}) as Record<
+    string,
+    InputDecoratorConfig
+  >;
+  for (const [propName, cfg] of Object.entries(decoratedInputs)) {
+    maybeAddInput(cfg.alias ?? propName);
+    maybeAddInput(propName);
+  }
+
+  const decoratedOutputs = (ResolvedClass?.ɵoutputs ?? {}) as Record<
+    string,
+    string
+  >;
+  for (const [propName, alias] of Object.entries(decoratedOutputs)) {
+    const eff = alias || propName;
+    consumed.add(eff);
+    consumed.add(`on:${eff}`);
+    consumed.add(propName);
+    consumed.add(`on:${propName}`);
+  }
+
+  if (Array.isArray(dirMeta?.inputs)) {
+    for (const entry of dirMeta.inputs) {
+      if (typeof entry === "string") {
+        maybeAddInput(entry);
+      } else if (entry && typeof entry === "object") {
+        maybeAddInput(entry.alias ?? entry.name);
+        maybeAddInput(entry.name);
+      }
+    }
+  }
+
+  return consumed;
+}
+
 /**
- * Instantiates an Angular `@Component` class within an active `EnvironmentInjector`,
+ * Instantiates an Angular `@Directive` on a host element or component, binds its inputs
+ * and outputs from `baseProps`, merges its `@HostBinding`, `@HostListener`, and `host`
+ * metadata into the element's props, and registers the directive for `#ref="exportAs"`,
+ * `viewChild`, and `contentChild` queries.
+ */
+export function bindAngularDirective<T extends object>(
+  hostComponentInstance: any,
+  DirectiveClass: Type<T>,
+  baseProps?: Record<string, any> | null,
+  extraHostPropsFactory?: ((dirInstance: T) => Record<string, any>) | null,
+  onRegisterDirective?: ((dirInstance: T) => void) | null,
+): Record<string, any> {
+  const parentInj =
+    getAngularInstanceInjector(hostComponentInstance) ?? getCurrentInjector();
+  const placeholderEl = {};
+  const dirInstance = parentInj
+    ? runInInjectionContext(parentInj, () =>
+        instantiateAngularComponent(
+          DirectiveClass,
+          baseProps ?? {},
+          placeholderEl,
+          false,
+        ),
+      )
+    : instantiateAngularComponent(
+        DirectiveClass,
+        baseProps ?? {},
+        placeholderEl,
+        false,
+      );
+
+  if (typeof onRegisterDirective === "function") {
+    onRegisterDirective(dirInstance);
+  } else if (
+    hostComponentInstance &&
+    typeof hostComponentInstance === "object"
+  ) {
+    registerViewChild(hostComponentInstance, "", dirInstance);
+  }
+
+  const consumedKeys = collectConsumedDirectiveKeys(
+    dirInstance,
+    DirectiveClass,
+  );
+  const cleanedBase: Record<string, any> = {};
+  if (baseProps && typeof baseProps === "object") {
+    for (const [k, v] of Object.entries(baseProps)) {
+      if (consumedKeys.has(k) && typeof v === "function") {
+        continue;
+      }
+      cleanedBase[k] = v;
+    }
+  }
+
+  const extraHostProps =
+    typeof extraHostPropsFactory === "function"
+      ? extraHostPropsFactory(dirInstance)
+      : null;
+  const merged =
+    mergeAngularHostProps(dirInstance, cleanedBase, extraHostProps) ??
+    cleanedBase;
+
+  const existingPending =
+    baseProps &&
+    typeof baseProps === "object" &&
+    Array.isArray((baseProps as any)[PENDING_DIRECTIVES])
+      ? ((baseProps as any)[PENDING_DIRECTIVES] as any[])
+      : [];
+  Object.defineProperty(merged, PENDING_DIRECTIVES, {
+    value: [...existingPending, dirInstance],
+    configurable: true,
+    enumerable: false,
+  });
+
+  return merged;
+}
+
+/**
+ * Instantiates an Angular `@Component` or `@Directive` class within an active `EnvironmentInjector`,
  * binds incoming `props` onto `input()`, `model()`, and `@Input()` properties,
  * subscribes `output()`, `model()`, and `@Output()` `OutputEmitterRef` callbacks,
- * and invokes `ngOnChanges`, `ngOnInit`, and `ngOnDestroy`.
+ * and invokes `ngOnChanges`, `ngOnInit`, `ngAfterContentInit`, `ngAfterViewInit`, and `ngOnDestroy`.
  */
 export function instantiateAngularComponent<T extends object>(
   ComponentClass: Type<T> | ((props?: any) => any),
@@ -3682,7 +4336,9 @@ export function instantiateAngularComponent<T extends object>(
   const ResolvedClass = ((ComponentClass as any)?.ɵClass ??
     ComponentClass) as Type<T>;
   const cmpMeta = ((ResolvedClass as any).ɵcmp ??
-    (ComponentClass as any).ɵcmp) as ComponentOptions | undefined;
+    (ComponentClass as any).ɵcmp ??
+    (ResolvedClass as any).ɵdir ??
+    (ComponentClass as any).ɵdir) as ComponentOptions | undefined;
   const isHostInjector = hostElement instanceof Injector;
   const parentInjector = isHostInjector ? hostElement : getCurrentInjector();
   const componentProviders: Array<Provider | EnvironmentProviders> = [
@@ -3717,6 +4373,8 @@ export function instantiateAngularComponent<T extends object>(
         )
       : parentInjector;
 
+  lastActiveAngularInjector = injector;
+
   const instance = runInInjectionContext(injector, () => new ResolvedClass());
   try {
     Object.defineProperty(instance, INSTANCE_INJECTOR, {
@@ -3727,30 +4385,71 @@ export function instantiateAngularComponent<T extends object>(
   } catch {
     // Ignore frozen instances
   }
+  if (
+    props &&
+    typeof props === "object" &&
+    Array.isArray((props as any)[PENDING_DIRECTIVES])
+  ) {
+    for (const dirInst of (props as any)[PENDING_DIRECTIVES]) {
+      addDirectiveInstanceMeta(instance, dirInst);
+    }
+  }
   if (typeof props?.__onInstance === "function") {
     props.__onInstance(instance);
   }
   if (typeof props?.__ngRef === "function") {
-    props.__ngRef(instance);
+    if (deferViewLifecycle) {
+      try {
+        Object.defineProperty(instance, DEFERRED_NG_REF, {
+          value: props.__ngRef,
+          configurable: true,
+          enumerable: false,
+        });
+      } catch {
+        props.__ngRef(instance);
+      }
+    } else {
+      props.__ngRef(instance);
+    }
   }
   const destroyRef = injector.get(DestroyRef, null, { optional: true });
 
   // Bind inputs and outputs from `props`
-  const decoratedInputs = ((ResolvedClass as any).ɵinputs ?? {}) as Record<
-    string,
-    InputDecoratorConfig
-  >;
-  const decoratedOutputs = ((ResolvedClass as any).ɵoutputs ?? {}) as Record<
-    string,
-    string
-  >;
+  const decoratedInputs = {
+    ...(((instance?.constructor as any)?.ɵinputs ?? {}) as Record<
+      string,
+      InputDecoratorConfig
+    >),
+    ...(((ResolvedClass as any)?.ɵinputs ?? {}) as Record<
+      string,
+      InputDecoratorConfig
+    >),
+  };
+  const decoratedOutputs = {
+    ...(((instance?.constructor as any)?.ɵoutputs ?? {}) as Record<
+      string,
+      string
+    >),
+    ...(((ResolvedClass as any)?.ɵoutputs ?? {}) as Record<string, string>),
+  };
 
   const changes: SimpleChanges = {};
   let hasChanges = false;
 
+  const isReactivePropGetter = (val: unknown): val is () => any =>
+    typeof val === "function" &&
+    !isSignal(val) &&
+    !("ɵcmp" in val) &&
+    !("ɵdir" in val) &&
+    !("ɵpipe" in val) &&
+    val.length === 0;
+
   const readPropValue = (raw: unknown) => {
     if (isSignal(raw)) {
       return (raw as Signal<any>)();
+    }
+    if (isReactivePropGetter(raw)) {
+      return raw();
     }
     return raw;
   };
@@ -3774,7 +4473,11 @@ export function instantiateAngularComponent<T extends object>(
         const initial = applyOnce();
         changes[key] = new SimpleChange(undefined, initial, true);
         hasChanges = true;
-        if (descriptor?.get || isSignal(props[propKey])) {
+        if (
+          descriptor?.get ||
+          isSignal(props[propKey]) ||
+          isReactivePropGetter(props[propKey])
+        ) {
           effect(
             () => {
               applyOnce();
@@ -3792,8 +4495,10 @@ export function instantiateAngularComponent<T extends object>(
           keyChange.charAt(0).toUpperCase() + keyChange.slice(1);
         const handler =
           props[changeAlias] ??
+          props[`on:${changeAlias}`] ??
           props[`on${capChangeAlias}`] ??
           props[keyChange] ??
+          props[`on:${keyChange}`] ??
           props[`on${capKeyChange}`];
         if (typeof handler === "function") {
           const sub = (fieldVal as any).subscribe((val: any) => handler(val));
@@ -3807,8 +4512,10 @@ export function instantiateAngularComponent<T extends object>(
       const capitalized = alias.charAt(0).toUpperCase() + alias.slice(1);
       const handler =
         props[alias] ??
+        props[`on:${alias}`] ??
         props[`on${capitalized}`] ??
         props[key] ??
+        props[`on:${key}`] ??
         props[`on${key.charAt(0).toUpperCase() + key.slice(1)}`];
       if (typeof handler === "function") {
         const sub = fieldVal.subscribe((val: any) => handler(val));
@@ -3838,7 +4545,11 @@ export function instantiateAngularComponent<T extends object>(
       const transformed = applyDecorated();
       changes[propName] = new SimpleChange(prev, transformed, true);
       hasChanges = true;
-      if (descriptor?.get || isSignal(props[propKey])) {
+      if (
+        descriptor?.get ||
+        isSignal(props[propKey]) ||
+        isReactivePropGetter(props[propKey])
+      ) {
         effect(
           () => {
             applyDecorated();
@@ -3857,8 +4568,10 @@ export function instantiateAngularComponent<T extends object>(
       const capitalized = alias.charAt(0).toUpperCase() + alias.slice(1);
       const handler =
         props[alias] ??
+        props[`on:${alias}`] ??
         props[`on${capitalized}`] ??
         props[propName] ??
+        props[`on:${propName}`] ??
         props[`on${propName.charAt(0).toUpperCase() + propName.slice(1)}`];
       if (typeof handler === "function") {
         const sub = fieldVal.subscribe((val: any) => handler(val));
@@ -3867,7 +4580,7 @@ export function instantiateAngularComponent<T extends object>(
     }
   }
 
-  // Also bind any remaining plain properties passed in props that correspond to decorated/declared inputs in @Component({ inputs: [...] })
+  // Also bind any remaining plain properties passed in props that correspond to decorated/declared inputs in @Component/@Directive({ inputs: [...] })
   if (Array.isArray(cmpMeta?.inputs)) {
     for (const entry of cmpMeta.inputs) {
       const name = typeof entry === "string" ? entry : entry.name;
@@ -3880,12 +4593,32 @@ export function instantiateAngularComponent<T extends object>(
         !isInputSignal((instance as any)[name]) &&
         !(name in changes)
       ) {
-        const raw = readPropValue(props[propKey]);
-        const nextVal = transform ? transform(raw) : raw;
+        const descriptor = Object.getOwnPropertyDescriptor(props, propKey);
+        const applyDeclared = () => {
+          const raw = descriptor?.get
+            ? descriptor.get.call(props)
+            : props[propKey];
+          const unwrapped = readPropValue(raw);
+          const nextVal = transform ? transform(unwrapped) : unwrapped;
+          (instance as any)[name] = nextVal;
+          return nextVal;
+        };
         const prev = (instance as any)[name];
-        (instance as any)[name] = nextVal;
+        const nextVal = applyDeclared();
         changes[name] = new SimpleChange(prev, nextVal, true);
         hasChanges = true;
+        if (
+          descriptor?.get ||
+          isSignal(props[propKey]) ||
+          isReactivePropGetter(props[propKey])
+        ) {
+          effect(
+            () => {
+              applyDeclared();
+            },
+            { injector, allowSignalWrites: true },
+          );
+        }
       }
     }
   }
@@ -3899,6 +4632,9 @@ export function instantiateAngularComponent<T extends object>(
   }
   if (typeof anyInstance.ngDoCheck === "function") {
     runInInjectionContext(injector, () => anyInstance.ngDoCheck());
+  }
+  if (props && "children" in props) {
+    resolveAngularContentQueries(instance, props.children);
   }
   if (typeof anyInstance.ngAfterContentInit === "function") {
     runInInjectionContext(injector, () => anyInstance.ngAfterContentInit());

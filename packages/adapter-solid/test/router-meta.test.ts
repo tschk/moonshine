@@ -47,15 +47,27 @@ import {
 import { $RAW, createStore, DEV as storeDEV } from "../src/store";
 import {
   clearServerFunctions,
+  clearSolidFileRoutes,
+  clearSolidMiddleware,
   clientOnly,
   createHandler,
+  createMiddleware,
   createSolidRequestEvent,
+  defineConfig,
+  executeSolidMiddleware,
   FETCH_EVENT_TYPE,
+  FileRoutes,
   GET,
   getRequestEvent,
   getServerFunctionMeta,
+  getSolidFileRoutes,
   handleServerFunction,
+  HttpHeader,
+  HttpStatusCode,
   mount,
+  POST,
+  registerSolidFileRoutes,
+  registerSolidMiddleware,
   StartClient,
   StartServer,
   withServerFunctionMeta,
@@ -629,6 +641,157 @@ describe("@tschk/moonshine-solid/start (@solidjs/start replacement)", () => {
       "Client Ready",
     );
     stop();
+    clearServerFunctions();
+  });
+
+  test("POST, HttpStatusCode, HttpHeader, createMiddleware, FileRoutes, and defineConfig work in SSR and DOM", async () => {
+    clearServerFunctions();
+    clearSolidMiddleware();
+    clearSolidFileRoutes();
+
+    // 1. defineConfig (@solidjs/start/config)
+    const cfg = defineConfig(() => ({
+      middleware: "./src/middleware.ts",
+      islands: false,
+      server: { preset: "bun" },
+    }));
+    expect(cfg.ssr).toBe(true);
+    expect(cfg.routeDir).toBe("./routes");
+    expect(cfg.middleware).toBe("./src/middleware.ts");
+    expect(cfg.server?.preset).toBe("bun");
+
+    // 2. POST server functions (JSON and FormData bodies)
+    const createNote = POST(async (title: string, priority: number) => {
+      const ev = getRequestEvent();
+      if (ev) {
+        ev.response.status = 201;
+        ev.response.headers.set("x-note-id", getServerFunctionMeta()?.id ?? "");
+      }
+      return { created: title, priority };
+    }, "create-note");
+
+    expect(createNote.POST).toBe(true);
+    expect(createNote.id).toBe("create-note");
+    expect(createNote.url).toContain("_server?id=create-note");
+
+    const jsonPostRes = await handleServerFunction(
+      new Request(`https://example.com${createNote.url}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ args: ["Ship 0.4.78", 1] }),
+      }),
+    );
+    expect(jsonPostRes?.status).toBe(201);
+    expect(jsonPostRes?.headers.get("x-note-id")).toBe("create-note");
+    expect(await jsonPostRes?.json()).toEqual({
+      created: "Ship 0.4.78",
+      priority: 1,
+    });
+
+    const uploadForm = POST(async (fd: FormData) => {
+      return { name: fd.get("username") };
+    }, "upload-form");
+    const fd = new FormData();
+    fd.set("username", "ada");
+    const formPostRes = await handleServerFunction(
+      new Request(`https://example.com${uploadForm.url}`, {
+        method: "POST",
+        body: fd,
+      }),
+    );
+    expect(await formPostRes?.json()).toEqual({ name: "ada" });
+
+    // 3. createMiddleware, registerSolidMiddleware, executeSolidMiddleware
+    const mwOrder: string[] = [];
+    const unregisterMw = registerSolidMiddleware(
+      createMiddleware({
+        onRequest: [
+          (event) => {
+            mwOrder.push("onRequest");
+            event.locals.user = "ada";
+            event.response.headers.set("x-mw-req", "ok");
+            if (new URL(event.request.url).pathname === "/blocked") {
+              return new Response("Blocked", { status: 403 });
+            }
+          },
+        ],
+        onBeforeResponse: [
+          (event) => {
+            mwOrder.push("onBeforeResponse");
+            event.response.headers.set("x-mw-res", String(event.locals.user));
+          },
+        ],
+      }),
+    );
+
+    // 4. FileRoutes + HttpStatusCode + HttpHeader inside createHandler
+    const unregisterRoutes = registerSolidFileRoutes([
+      {
+        path: "/docs/:slug",
+        component: () => {
+          const params = useParams<{ slug: string }>();
+          return hSSR("article", null, [
+            hSSR(HttpStatusCode as any, { code: 202, text: "AcceptedSlug" }),
+            hSSR(HttpHeader as any, { name: "x-doc-slug", value: params.slug }),
+            hSSR(HttpHeader as any, {
+              name: "x-tag",
+              value: "alpha",
+              append: true,
+            }),
+            hSSR(HttpHeader as any, {
+              name: "x-tag",
+              value: "beta",
+              append: true,
+            }),
+            hSSR("h2", null, `Doc:${params.slug}`),
+          ]);
+        },
+      },
+    ]);
+    expect(getSolidFileRoutes().length).toBe(1);
+
+    const appHandler = createHandler((event) =>
+      hSSR(Router, {
+        url: new URL(event.request.url).pathname,
+        root: (props) =>
+          hSSR(
+            "main",
+            { "data-user": String(event.locals.user ?? "") },
+            props.children,
+          ),
+        children: hSSR(FileRoutes as any, {}),
+      }),
+    );
+
+    const docRes = await appHandler.fetch(
+      new Request("https://example.com/docs/intro"),
+    );
+    expect(docRes.status).toBe(202);
+    expect(docRes.statusText).toBe("AcceptedSlug");
+    expect(docRes.headers.get("x-mw-req")).toBe("ok");
+    expect(docRes.headers.get("x-mw-res")).toBe("ada");
+    expect(docRes.headers.get("x-doc-slug")).toBe("intro");
+    expect(docRes.headers.get("x-tag")).toContain("alpha");
+    expect(docRes.headers.get("x-tag")).toContain("beta");
+    expect(await docRes.text()).toContain(
+      '<main data-user="ada"><article><h2>Doc:intro</h2></article></main>',
+    );
+    expect(mwOrder).toEqual(["onRequest", "onBeforeResponse"]);
+
+    // Short-circuit in onRequest
+    const blockedRes = await executeSolidMiddleware(
+      new Request("https://example.com/blocked"),
+      () => new Response("Unreachable"),
+    );
+    expect(blockedRes.status).toBe(403);
+    expect(blockedRes.headers.get("x-mw-req")).toBe("ok");
+    expect(blockedRes.headers.get("x-mw-res")).toBe("ada");
+    expect(await blockedRes.text()).toBe("Blocked");
+
+    unregisterMw();
+    unregisterRoutes();
+    clearSolidMiddleware();
+    clearSolidFileRoutes();
     clearServerFunctions();
   });
 });

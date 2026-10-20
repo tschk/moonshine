@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
+  contentChild,
+  contentChildren,
   createEnvironmentInjector,
   inject,
   provideEnvironmentInitializer,
   signal,
   toObservable,
+  viewChild,
+  viewChildren,
 } from "../src/signals";
 import {
   APP_ID,
@@ -12,6 +16,7 @@ import {
   applyPipe,
   AsyncPipe,
   Attribute,
+  bindAngularDirective,
   booleanAttribute,
   bootstrapApplication,
   ChangeDetectionStrategy,
@@ -1171,5 +1176,131 @@ describe("@tschk/moonshine-angular/platform", () => {
     expect(
       projectAngularContent(children, "footer", selectors, "Fallback Footer"),
     ).toBe("Fallback Footer");
+  });
+
+  test("bindAngularDirective, contentChild/contentChildren/@ContentChild/@ContentChildren, and DI-backed @Pipe", () => {
+    @Injectable({ providedIn: "root" })
+    class PrefixService {
+      prefix = "TAG:";
+    }
+
+    @Pipe({ name: "tagger", standalone: true })
+    class TaggerPipe {
+      svc = inject(PrefixService);
+      transform(val: unknown, suffix = "!") {
+        return `${this.svc.prefix}${String(val)}${suffix}`;
+      }
+    }
+
+    @Directive({
+      selector: "[appHighlight]",
+      exportAs: "highlighter",
+      standalone: true,
+      inputs: [{ name: "color", alias: "appHighlight" }],
+    })
+    class HighlightDirective {
+      el = inject(ElementRef);
+      @Input("appHighlight") color = "yellow";
+      @Output() toggled = new EventEmitter<boolean>();
+      active = false;
+
+      @HostBinding("attr.data-hl")
+      get hlAttr() {
+        return `${this.color}:${this.active ? "on" : "off"}`;
+      }
+
+      @HostListener("click")
+      onClick() {
+        this.active = !this.active;
+        this.toggled.emit(this.active);
+      }
+    }
+
+    @Component({
+      selector: "app-panel",
+      standalone: true,
+    })
+    class PanelComponent {
+      headerEl = contentChild.required<ElementRef>("panelHeader");
+      highlightDir = contentChild(HighlightDirective);
+      highlightEl = contentChild(HighlightDirective, { read: ElementRef });
+      allHighlights = contentChildren(HighlightDirective);
+      @ContentChild("panelHeader") decoratedHeader?: ElementRef;
+      @ContentChildren(HighlightDirective)
+      decoratedHighlights: HighlightDirective[] = [];
+      contentReady = false;
+
+      ngAfterContentInit() {
+        this.contentReady =
+          Boolean(this.headerEl()) && this.allHighlights().length === 1;
+      }
+    }
+
+    const env = createEnvironmentInjector([PrefixService]);
+    env.runInContext(() => {
+      const hostComp = {
+        toggledEvents: [] as boolean[],
+      };
+
+      let exportedDir: HighlightDirective | undefined;
+      const mergedProps = bindAngularDirective(
+        hostComp,
+        HighlightDirective,
+        {
+          class: "item",
+          appHighlight: () => "gold",
+          "on:toggled": (v: boolean) => hostComp.toggledEvents.push(v),
+        },
+        (dir) => ({
+          "data-hl": () => dir.hlAttr,
+          onClick: () => dir.onClick(),
+        }),
+        (dir) => {
+          exportedDir = dir;
+        },
+      );
+
+      expect(exportedDir).toBeInstanceOf(HighlightDirective);
+      expect(exportedDir!.color).toBe("gold");
+      // Directive input/output props are stripped from DOM attribute props
+      expect("appHighlight" in mergedProps).toBe(false);
+      expect("on:toggled" in mergedProps).toBe(false);
+      expect((mergedProps["data-hl"] as () => string)()).toBe("gold:off");
+
+      // Simulate click listener on directive host
+      (mergedProps.onClick as (e: any) => void)({});
+      expect(exportedDir!.active).toBe(true);
+      expect(hostComp.toggledEvents).toEqual([true]);
+      expect((mergedProps["data-hl"] as () => string)()).toBe("gold:on");
+
+      // Register DOM/SSR node with registerViewChild so ElementRef and NG_DIRECTIVE_INSTANCES attach
+      const pNode = { tag: "p", props: mergedProps };
+      registerViewChild(hostComp, ["hlRef"], pNode, mergedProps);
+      expect(exportedDir!.el.nativeElement).toBe(pNode);
+
+      const h2Node = { tag: "h2", props: {} };
+      registerViewChild(hostComp, "panelHeader", h2Node);
+
+      // Instantiate PanelComponent with projected children and verify content queries + ngAfterContentInit
+      const panel = instantiateAngularComponent(
+        PanelComponent,
+        { children: [h2Node, pNode] },
+        true,
+      );
+      expect(panel.contentReady).toBe(true);
+      expect(panel.headerEl()).toBeInstanceOf(ElementRef);
+      expect(panel.headerEl().nativeElement).toBe(h2Node);
+      expect(panel.decoratedHeader?.nativeElement).toBe(h2Node);
+      expect(panel.highlightDir()).toBe(exportedDir);
+      expect(panel.highlightEl()).toBeInstanceOf(ElementRef);
+      expect(panel.highlightEl()?.nativeElement).toBe(pNode);
+      expect(panel.allHighlights()).toEqual([exportedDir!]);
+      expect(panel.decoratedHighlights).toEqual([exportedDir!]);
+      completeAngularViewInit(panel, { tag: "section", props: {} });
+
+      // DI-backed custom @Pipe via applyPipe
+      expect(applyPipe("hello", "tagger", "?")).toBe("TAG:hello?");
+    });
+    env.destroy();
   });
 });
