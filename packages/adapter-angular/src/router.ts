@@ -5,9 +5,13 @@
  * backed by the Moonshine signal graph and DI system.
  */
 import { batch, untrack } from "@tschk/moonshine";
-import { instantiateAngularComponent } from "./platform";
+import {
+  getAngularInstanceInjector,
+  instantiateAngularComponent,
+} from "./platform";
 import {
   computed,
+  createEnvironmentInjector,
   DestroyRef,
   effect,
   EnvironmentInjector,
@@ -1872,6 +1876,14 @@ export function provideRouter(
  * matched route component for its outlet name and binds route inputs when
  * `withComponentInputBinding()` is enabled.
  */
+export interface RouterOutletInitOptions {
+  name?: string;
+  onActivate?: (instance: any) => void;
+  onDeactivate?: (instance: any) => void;
+  onAttach?: (instance: any) => void;
+  onDetach?: (instance: any) => void;
+}
+
 export class RouterOutlet {
   static readonly ɵcmp = {
     selector: "router-outlet",
@@ -1895,12 +1907,32 @@ export class RouterOutlet {
   readonly #bindToInputs: boolean;
   readonly #activatedInstance = signal<any>(null);
   readonly #activatedRoute = signal<ActivatedRoute | null>(null);
+  readonly #renderedView = signal<any>(null);
   readonly #detachedMap = new Map<
     Route,
-    { instance: any; route: ActivatedRoute }
+    { instance: any; route: ActivatedRoute; view?: any }
   >();
 
-  constructor(router?: Router, injector?: Injector) {
+  constructor(
+    router?: Router,
+    injector?: Injector,
+    options?: RouterOutletInitOptions,
+  ) {
+    if (options?.name) {
+      this.name = options.name;
+    }
+    if (options?.onActivate) {
+      this.activateEvents.subscribe(options.onActivate);
+    }
+    if (options?.onDeactivate) {
+      this.deactivateEvents.subscribe(options.onDeactivate);
+    }
+    if (options?.onAttach) {
+      this.attachEvents.subscribe(options.onAttach);
+    }
+    if (options?.onDetach) {
+      this.detachEvents.subscribe(options.onDetach);
+    }
     this.#injector = injector ?? getCurrentInjector();
     this.#router =
       router ??
@@ -1983,6 +2015,10 @@ export class RouterOutlet {
     return route ? route.snapshot.data : {};
   }
 
+  get renderedView(): any {
+    return this.#renderedView();
+  }
+
   activateWith(
     activatedRoute: ActivatedRoute,
     environmentInjector?: EnvironmentInjector,
@@ -2002,17 +2038,46 @@ export class RouterOutlet {
           ...snap.params,
         }
       : {};
-    const targetInjector =
+    const parentInjector =
       environmentInjector ??
       (this.#injector as EnvironmentInjector | undefined);
-    const createInstance = () =>
-      instantiateAngularComponent(ComponentClass, routeProps);
-    const instance = targetInjector
-      ? runInInjectionContext(targetInjector, createInstance)
-      : createInstance();
+    const routeInjector = createEnvironmentInjector(
+      [{ provide: ActivatedRoute, useValue: activatedRoute }],
+      parentInjector,
+      "RouterOutletInjector",
+    );
+    let instance: any = null;
+    let view: any = null;
+    const isPlainClass =
+      typeof ComponentClass === "function" &&
+      !("ɵClass" in ComponentClass) &&
+      /^class\b/.test(Function.prototype.toString.call(ComponentClass));
+    if (!isPlainClass && typeof ComponentClass === "function") {
+      view = runInInjectionContext(routeInjector, () =>
+        (ComponentClass as any)({
+          ...routeProps,
+          __onInstance: (created: any) => {
+            instance = created;
+          },
+        }),
+      );
+      if (!instance) {
+        instance =
+          "ɵClass" in ComponentClass
+            ? runInInjectionContext(routeInjector, () =>
+                instantiateAngularComponent(ComponentClass, routeProps),
+              )
+            : ComponentClass;
+      }
+    } else {
+      instance = runInInjectionContext(routeInjector, () =>
+        instantiateAngularComponent(ComponentClass, routeProps),
+      );
+    }
     batch(() => {
       this.#activatedRoute.set(activatedRoute);
       this.#activatedInstance.set(instance);
+      this.#renderedView.set(view);
     });
     this.activateEvents.emit(instance);
   }
@@ -2030,6 +2095,7 @@ export class RouterOutlet {
     batch(() => {
       this.#activatedInstance.set(null);
       this.#activatedRoute.set(null);
+      this.#renderedView.set(null);
     });
     this.deactivateEvents.emit(current);
   }
@@ -2037,26 +2103,30 @@ export class RouterOutlet {
   detach(): { instance: any; route: ActivatedRoute } | null {
     const instance = untrack(() => this.#activatedInstance());
     const route = untrack(() => this.#activatedRoute());
+    const view = untrack(() => this.#renderedView());
     if (!instance || !route) return null;
     if (route.routeConfig) {
-      this.#detachedMap.set(route.routeConfig, { instance, route });
+      this.#detachedMap.set(route.routeConfig, { instance, route, view });
     }
     batch(() => {
       this.#activatedInstance.set(null);
       this.#activatedRoute.set(null);
+      this.#renderedView.set(null);
     });
     this.detachEvents.emit(instance);
     return { instance, route };
   }
 
   attach(
-    ref: { instance: any; route?: ActivatedRoute } | any,
+    ref: { instance: any; route?: ActivatedRoute; view?: any } | any,
     activatedRoute: ActivatedRoute,
   ): void {
     const instance = ref && "instance" in ref ? ref.instance : ref;
+    const view = ref && "view" in ref ? ref.view : null;
     batch(() => {
       this.#activatedRoute.set(activatedRoute);
       this.#activatedInstance.set(instance);
+      this.#renderedView.set(view);
     });
     this.attachEvents.emit(instance);
   }
@@ -2226,4 +2296,271 @@ export class RouterLinkActive {
   get isActiveSignal(): Signal<boolean> {
     return this.#isActiveSignal;
   }
+}
+
+export const ROUTER_DIRECTIVES = [
+  RouterOutlet,
+  RouterLink,
+  RouterLinkActive,
+] as const;
+
+export class RouterModule {
+  readonly ɵkind = "NgModule";
+  static readonly ɵmod = {
+    imports: ROUTER_DIRECTIVES,
+    exports: ROUTER_DIRECTIVES,
+  };
+
+  static forRoot(
+    routes: Routes,
+    config?: ExtraOptions,
+  ): {
+    ngModule: typeof RouterModule;
+    providers: Array<Provider | EnvironmentProviders>;
+  } {
+    const features: RouterFeature<any>[] = [];
+    if (config) {
+      features.push(withRouterConfig(config));
+      if (config.bindToComponentInputs) {
+        features.push(withComponentInputBinding());
+      }
+    }
+    return {
+      ngModule: RouterModule,
+      providers: [provideRouter(routes, ...features)],
+    };
+  }
+
+  static forChild(routes: Routes): {
+    ngModule: typeof RouterModule;
+    providers: Array<Provider | EnvironmentProviders>;
+  } {
+    return {
+      ngModule: RouterModule,
+      providers: [{ provide: ROUTER_ROUTES, useValue: routes }],
+    };
+  }
+}
+
+const fallbackUrlSerializer = new DefaultUrlSerializer();
+
+/**
+ * Renders an Angular `<router-outlet>` in a compiled component template, activating the matched
+ * route component reactively and supporting `(activate)`, `(deactivate)`, `(attach)`, `(detach)`,
+ * and `#outlet="outlet"` template reference exports.
+ */
+export function renderRouterOutlet(
+  hostInstance: any,
+  props?: Record<string, any> | null,
+): () => any {
+  const injector =
+    getAngularInstanceInjector(hostInstance) ?? getCurrentInjector();
+  const rawName =
+    typeof props?.name === "function" ? props.name() : props?.name;
+  const outletName =
+    typeof rawName === "string" && rawName.length > 0
+      ? rawName
+      : PRIMARY_OUTLET;
+  const onActivate = props?.["on:activate"] ?? props?.activate;
+  const onDeactivate = props?.["on:deactivate"] ?? props?.deactivate;
+  const onAttach = props?.["on:attach"] ?? props?.attach;
+  const onDetach = props?.["on:detach"] ?? props?.detach;
+
+  const outlet = new RouterOutlet(undefined, injector, {
+    name: outletName,
+    onActivate: typeof onActivate === "function" ? onActivate : undefined,
+    onDeactivate: typeof onDeactivate === "function" ? onDeactivate : undefined,
+    onAttach: typeof onAttach === "function" ? onAttach : undefined,
+    onDetach: typeof onDetach === "function" ? onDetach : undefined,
+  });
+
+  if (typeof props?.__ngRef === "function") {
+    props.__ngRef(outlet);
+  }
+
+  return () => outlet.renderedView;
+}
+
+export interface AngularRouterLinkBindingConfig {
+  commands: () => any[] | string | UrlTree | null | undefined;
+  queryParams?: () => Params | null | undefined;
+  fragment?: () => string | undefined;
+  queryParamsHandling?: () => "merge" | "preserve" | "" | undefined;
+  preserveFragment?: () => boolean | undefined;
+  skipLocationChange?: () => boolean | undefined;
+  replaceUrl?: () => boolean | undefined;
+  state?: () => { [k: string]: any } | undefined;
+  activeClass?: () => string | string[] | null | undefined;
+  activeOptions?: () => { exact: boolean } | IsActiveMatchOptions | undefined;
+  ariaCurrentWhenActive?: () =>
+    "page" | "step" | "location" | "date" | "time" | true | false | undefined;
+  onActiveChange?: ($event: boolean) => void;
+  onRegisterRouterLink?: (link: RouterLink) => void;
+  onRegisterRouterLinkActive?: (rla: RouterLinkActive) => void;
+}
+
+/**
+ * Binds `[routerLink]` / `routerLink`, `[queryParams]`, `[fragment]`, `routerLinkActive` / `[routerLinkActive]`,
+ * `[routerLinkActiveOptions]`, `ariaCurrentWhenActive`, and `#rla="routerLinkActive"` onto an element props object.
+ */
+export function bindAngularRouterLink(
+  hostInstance: any,
+  config: AngularRouterLinkBindingConfig,
+  baseProps?: Record<string, any> | null,
+): Record<string, any> {
+  const injector =
+    getAngularInstanceInjector(hostInstance) ?? getCurrentInjector();
+  const router = injector?.get(Router, null, { optional: true }) ?? null;
+  const route = injector?.get(ActivatedRoute, null, { optional: true }) ?? null;
+
+  const computeUrlTree = (): UrlTree | null => {
+    const cmds = config.commands();
+    if (cmds === null || cmds === undefined) return null;
+    if (cmds instanceof UrlTree) return cmds;
+    const commandsArray = Array.isArray(cmds) ? cmds : [cmds];
+    if (router) {
+      return router.createUrlTree(commandsArray, {
+        relativeTo: route,
+        queryParams: config.queryParams?.(),
+        fragment: config.fragment?.(),
+        queryParamsHandling: config.queryParamsHandling?.(),
+        preserveFragment: config.preserveFragment?.(),
+      });
+    }
+    const rawPath = commandsArray
+      .map((seg) => String(seg ?? "").replace(/^\/+|\/+$/g, ""))
+      .filter(Boolean)
+      .join("/");
+    return fallbackUrlSerializer.parse(`/${rawPath}`);
+  };
+
+  const computeIsActive = (): boolean => {
+    if (!router) return false;
+    router.urlSignal();
+    const tree = computeUrlTree();
+    if (!tree) return false;
+    const opts = config.activeOptions?.() ?? { exact: false };
+    const matchOpts = "exact" in opts ? opts.exact : opts;
+    return router.isActive(tree, matchOpts);
+  };
+
+  if (
+    config.onRegisterRouterLink ||
+    config.onRegisterRouterLinkActive ||
+    config.onActiveChange
+  ) {
+    const effectiveRouter = router ?? new Router();
+    const linkDir = new RouterLink(effectiveRouter, route);
+    const syncLinkDir = () => {
+      linkDir.routerLink = config.commands();
+      linkDir.queryParams = config.queryParams?.();
+      linkDir.fragment = config.fragment?.();
+      linkDir.queryParamsHandling = config.queryParamsHandling?.();
+      linkDir.preserveFragment = config.preserveFragment?.();
+      linkDir.skipLocationChange = config.skipLocationChange?.();
+      linkDir.replaceUrl = config.replaceUrl?.();
+      linkDir.state = config.state?.();
+    };
+    syncLinkDir();
+    config.onRegisterRouterLink?.(linkDir);
+
+    if (config.onRegisterRouterLinkActive || config.onActiveChange) {
+      const rlaDir = new RouterLinkActive(effectiveRouter, [linkDir]);
+      const rawCls = untrack(() => config.activeClass?.());
+      if (rawCls) {
+        rlaDir.routerLinkActive = rawCls;
+      }
+      const rawOpts = untrack(() => config.activeOptions?.());
+      if (rawOpts) {
+        rlaDir.routerLinkActiveOptions = rawOpts;
+      }
+      if (config.onActiveChange) {
+        rlaDir.isActiveChange.subscribe(config.onActiveChange);
+        if (rlaDir.isActive) {
+          config.onActiveChange(true);
+        }
+      }
+      effect(
+        () => {
+          syncLinkDir();
+          const nextOpts = config.activeOptions?.();
+          if (nextOpts) rlaDir.routerLinkActiveOptions = nextOpts;
+        },
+        { injector, allowSignalWrites: true },
+      );
+      config.onRegisterRouterLinkActive?.(rlaDir);
+    }
+  }
+
+  const out: Record<string, any> = { ...baseProps };
+
+  if (out.href === undefined) {
+    out.href = () => {
+      const tree = computeUrlTree();
+      if (!tree) return undefined;
+      return router
+        ? router.serializeUrl(tree)
+        : fallbackUrlSerializer.serialize(tree);
+    };
+  }
+
+  if (config.activeClass) {
+    const baseClass = out.class;
+    out.class = () => {
+      const existing =
+        typeof baseClass === "function" ? baseClass() : (baseClass ?? "");
+      if (!computeIsActive()) {
+        return String(existing ?? "");
+      }
+      const rawActive = config.activeClass?.();
+      const activeList = Array.isArray(rawActive)
+        ? rawActive.join(" ")
+        : String(rawActive ?? "");
+      return [existing, activeList].filter(Boolean).join(" ");
+    };
+  }
+
+  if (config.ariaCurrentWhenActive) {
+    out["aria-current"] = () => {
+      if (!computeIsActive()) return undefined;
+      const ariaVal = config.ariaCurrentWhenActive?.();
+      if (!ariaVal) return undefined;
+      return String(ariaVal);
+    };
+  }
+
+  const prevClick = out["on:click"];
+  out["on:click"] = ($event: any) => {
+    if (typeof prevClick === "function") {
+      prevClick($event);
+    }
+    const button = $event?.button ?? 0;
+    if (
+      button !== 0 ||
+      Boolean($event?.ctrlKey) ||
+      Boolean($event?.shiftKey) ||
+      Boolean($event?.altKey) ||
+      Boolean($event?.metaKey)
+    ) {
+      return;
+    }
+    const targetAttr =
+      typeof out.target === "function" ? out.target() : out.target;
+    if (typeof targetAttr === "string" && targetAttr !== "_self") {
+      return;
+    }
+    if (typeof $event?.preventDefault === "function") {
+      $event.preventDefault();
+    }
+    const tree = computeUrlTree();
+    if (tree && router) {
+      void router.navigateByUrl(tree, {
+        skipLocationChange: config.skipLocationChange?.(),
+        replaceUrl: config.replaceUrl?.(),
+        state: config.state?.(),
+      });
+    }
+  };
+
+  return out;
 }

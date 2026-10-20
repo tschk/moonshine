@@ -205,43 +205,208 @@ const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
 test.skipIf(!sourceCompiler)(
   "authored Angular .component.ts compiles via crepus web build to moonshine-dom and moonshine-ssr without Angular host runtime",
   async () => {
-    const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, signal, computed, input } from "@angular/core";
-import { UpperCasePipe } from "@angular/common";
+    const componentSource = `import { Component, Directive, ElementRef, Injectable, Input, Output, EventEmitter, HostBinding, HostListener, Pipe, ViewChild, ContentChild, ContentChildren, inject, signal, computed, input, model, viewChild, contentChild, contentChildren } from "@angular/core";
+import { CommonModule, NgOptimizedImage, UpperCasePipe, provideImgixLoader } from "@angular/common";
+import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { RouterModule } from "@angular/router";
+import { REQUEST, RenderMode } from "@angular/ssr";
+import { provideServerRendering } from "@angular/platform-server";
 
 @Injectable({ providedIn: "root" })
 export class StepService {
   step = 3;
 }
 
+@Pipe({ name: "stepBadge", standalone: true })
+export class StepBadgePipe {
+  svc = inject(StepService);
+  transform(value: unknown) {
+    return \`\${String(value)}#\${this.svc.step}\`;
+  }
+}
+
+@Directive({
+  selector: "[appHighlight]",
+  exportAs: "highlighter",
+  standalone: true,
+  host: {
+    "[attr.data-hl]": "color + ':' + (active ? 'on' : 'off')",
+  },
+})
+export class HighlightDirective {
+  el = inject(ElementRef);
+  @Input("appHighlight") color = "gold";
+  @Output() toggled = new EventEmitter<boolean>();
+  active = false;
+
+  @HostListener("click")
+  toggle() {
+    this.active = !this.active;
+    this.toggled.emit(this.active);
+  }
+}
+
+@Component({
+  selector: "app-route-leaf",
+  standalone: true,
+  template: \`<section class="route-leaf">Route Leaf: {{ section() }}</section>\`,
+})
+export class RouteLeafComponent {
+  section = input("overview");
+}
+
+@Component({
+  selector: "app-badge-box",
+  standalone: true,
+  template: \`<aside class="badge-box" [attr.data-has-hdr]="hasHeader"><ng-content select="[badge-header]">Fallback Header</ng-content><b (click)="bump()">{{ val() }}</b><ng-content>Default Slot</ng-content></aside>\`,
+})
+export class BadgeBoxComponent {
+  val = model(10);
+  hdr = contentChild<ElementRef>("boxHdr");
+  @ContentChildren(HighlightDirective, { descendants: true }) highlights: HighlightDirective[] = [];
+  hasHeader = false;
+  ngAfterContentInit() {
+    this.hasHeader = Boolean(this.hdr()) && this.highlights.length === 1;
+  }
+  bump() {
+    this.val.update((n) => n + 1);
+  }
+}
+
 @Component({
   selector: "app-counter",
   standalone: true,
-  imports: [UpperCasePipe],
+  imports: [CommonModule, NgOptimizedImage, FormsModule, ReactiveFormsModule, RouterModule, UpperCasePipe, StepBadgePipe, HighlightDirective, BadgeBoxComponent, RouteLeafComponent],
+  providers: [provideImgixLoader("https://cdn.example.com")],
   styles: [".counter { color: navy; }"],
+  host: {
+    "role": "region",
+    "[class.is-positive]": "count() > 0",
+  },
   template: \`
-    <div class="counter" [attr.data-step]="step">
-      <span>{{ title() | uppercase }}: {{ doubled() }}</span>
-      @if (count() > 0) {
-        <em>Active</em>
+    @let summaryLabel = ((title() | uppercase) | stepBadge) + ': ' + doubled();
+    <div class="counter" [attr.data-step]="step" [attr.data-req]="reqPath" [style.color]="accent()" [style.padding.px]="12" [ngStyle]="{ border: '1px solid' }" [ngClass]="{ highlighted: count() > 0 }">
+      <img [ngSrc]="heroImg()" ngSrcset="400w, 800w" width="800" height="400" priority [loaderParams]="{ fit: 'crop' }" alt="Hero" />
+      <nav>
+        <a
+          routerLink="/items"
+          routerLinkActive="nav-active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          [queryParams]="{ section: 'catalog' }"
+          fragment="list"
+          ariaCurrentWhenActive="page"
+          #rla="routerLinkActive"
+        >Catalog ({{ rla.isActive }})</a>
+      </nav>
+      <input #noteInput [value]="note()" />
+      <small>{{ noteInput.value }}</small>
+      <span>{{ summaryLabel }}</span>
+      @if (doubled(); as dbl) {
+        <em>Active ({{ dbl }})</em>
       } @else {
         <em>Idle</em>
       }
+      @switch (mode()) {
+        @case ('edit') {
+          <strong>Editing</strong>
+        }
+        @default {
+          <strong>Viewing</strong>
+        }
+      }
       <ul>
-        @for (item of items(); track item) {
-          <li>{{ item }}</li>
+        @for (item of items(); track item; let idx = $index, total = $count, isFirst = $first, isLast = $last) {
+          <li [class.first-row]="isFirst" [class.last-row]="isLast">{{ idx }}/{{ total }}:{{ item }}</li>
         }
       </ul>
+      <div class="empty-check">
+        @for (row of emptyRows(); track row) {
+          <span>{{ row }}</span>
+        } @empty {
+          <i>No rows</i>
+        }
+      </div>
+      <form [formGroup]="profileForm" (ngSubmit)="submitProfile()">
+        <input formControlName="username" />
+        <div formGroupName="address">
+          <input formControlName="city" />
+        </div>
+      </form>
+      <form #tplForm="ngForm">
+        <input name="email" required minlength="3" [(ngModel)]="emailModel" #emailCtrl="ngModel" />
+        <u class="tpl-status">{{ emailCtrl.valid }}:{{ tplForm.valid }}</u>
+      </form>
+      @defer (when count() > 0) {
+        <mark class="deferred-ready">Deferred Ready</mark>
+      } @placeholder {
+        <mark class="deferred-wait">Waiting</mark>
+      }
+      <ng-template #customBadge let-label let-total="total">
+        <cite class="tpl-badge">{{ label }}={{ total }}</cite>
+      </ng-template>
+      <ng-template #idleTpl>
+        <dfn class="tpl-idle">Idle Legacy</dfn>
+      </ng-template>
+      <ng-container [ngTemplateOutlet]="customBadge" [ngTemplateOutletContext]="{ $implicit: 'Score', total: doubled() }"></ng-container>
+      <q *ngIf="doubled(); else idleTpl; as legacyDbl" class="legacy-if">Legacy:{{ legacyDbl }}</q>
+      <ol class="legacy-for">
+        <li *ngFor="let item of items(); index as i; trackBy: trackItem">{{ i }}-{{ item }}</li>
+      </ol>
+      <div [ngSwitch]="mode()" class="legacy-switch">
+        <span *ngSwitchCase="'edit'">Switch:Edit</span>
+        <span *ngSwitchDefault>Switch:Default</span>
+      </div>
+      <ng-container>
+        <app-badge-box [(val)]="syncedCount"><h4 #boxHdr badge-header>Custom Header</h4><samp [appHighlight]="'amber'" #hl="highlighter">Projected ({{ hl.color }})</samp></app-badge-box>
+      </ng-container>
+      <router-outlet></router-outlet>
       <button (click)="increment()">+</button>
     </div>
   \`,
 })
 export class CounterComponent {
+  req = inject(REQUEST, { optional: true });
+  reqPath = this.req ? new URL(this.req.url).pathname : "no-req";
+  ssrMode = RenderMode.Server;
+  ssrProviders = provideServerRendering();
+  heroImg = signal("banners/main.png");
   title = input("Count");
   @Input() step = 2;
   @Output() changed = new EventEmitter<number>();
+  @HostBinding("attr.data-mode") modeAttr = "live";
   count = signal(4);
+  syncedCount = signal(25);
+  accent = signal("teal");
+  mode = signal("edit");
+  note = signal("ready");
+  emailModel = signal("ada@example.com");
   items = signal(["x", "y"]);
+  emptyRows = signal<string[]>([]);
   doubled = computed(() => this.count() * 2);
+  profileForm = new FormGroup({
+    username: new FormControl("ada"),
+    address: new FormGroup({
+      city: new FormControl("London"),
+    }),
+  });
+  submittedCount = 0;
+  noteRef = viewChild("noteInput");
+  badgeTplRef = viewChild("customBadge");
+  hlDirRef = viewChild(HighlightDirective);
+  @ViewChild("noteInput") decoratedNoteRef?: any;
+  viewReady = false;
+
+  trackItem(index: number, item: string) {
+    return item;
+  }
+
+  ngAfterViewInit() {
+    this.viewReady = Boolean(this.noteRef() && this.decoratedNoteRef && this.hlDirRef());
+  }
+
+  submitProfile() {
+    this.submittedCount += 1;
+  }
 
   increment() {
     this.count.update((n) => n + this.step);
@@ -250,20 +415,84 @@ export class CounterComponent {
 }
 `;
     const check = `import assert from 'node:assert/strict';
-import CounterComponent, { CounterComponent as NamedCounter, StepService } from './ssr/CrepusEmit.moonshine-ssr.ts';
+import CounterComponent, { CounterComponent as NamedCounter, RouteLeafComponent, StepService } from './ssr/CrepusEmit.moonshine-ssr.ts';
 import { h, renderToString } from '@tschk/moonshine-dom/ssr';
-import { bootstrapApplication } from '@tschk/moonshine-angular';
+import { AngularAppEngine, RenderMode, Router, bootstrapApplication, createEnvironmentInjector, provideRouter, runInInjectionContext, withAngularServerContext, withComponentInputBinding } from '@tschk/moonshine-angular';
 
-const html = renderToString(() => h(CounterComponent, { title: 'score', step: 5 }));
+const routeInjector = createEnvironmentInjector([
+  provideRouter(
+    [{ path: 'items', component: RouteLeafComponent }],
+    withComponentInputBinding(),
+  ),
+]);
+const router = routeInjector.get(Router);
+await router.navigateByUrl('/items?section=catalog#list');
+
+const html = withAngularServerContext({ request: new Request('https://example.com/items') }, () =>
+  runInInjectionContext(routeInjector, () =>
+    renderToString(() => h(CounterComponent, { title: 'score', step: 5 }))
+  )
+);
+assert.ok(html.includes('role="region"'), html);
+assert.ok(html.includes('data-mode="live"'), html);
+assert.ok(html.includes('data-req="/items"'), html);
+assert.ok(html.includes('ng-img="true"'), html);
+assert.ok(html.includes('src="https://cdn.example.com/banners/main.png?auto=format&amp;w=800&amp;fit=crop"'), html);
+assert.ok(html.includes('fetchpriority="high"'), html);
+assert.ok(html.includes('loading="eager"'), html);
+assert.ok(html.includes('is-positive'), html);
+assert.ok(html.includes('highlighted'), html);
+assert.ok(html.includes('border: 1px solid; color: teal; padding: 12px'), html);
 assert.ok(html.includes('data-step="5"'), html);
-assert.ok(html.includes('SCORE: 8'), html);
-assert.ok(html.includes('<em>Active</em>'), html);
-assert.ok(html.includes('<li>x</li><li>y</li>'), html);
+assert.ok(html.includes('href="/items?section=catalog#list"'), html);
+assert.ok(html.includes('nav-active'), html);
+assert.ok(html.includes('aria-current="page"'), html);
+assert.ok(html.includes('Catalog (true)'), html);
+assert.ok(html.includes('<small>ready</small>'), html);
+assert.ok(html.includes('SCORE#3: 8'), html);
+assert.ok(html.includes('<em>Active (8)</em>'), html);
+assert.ok(html.includes('<strong>Editing</strong>'), html);
+assert.ok(html.includes('<li class="first-row">0/2:x</li><li class="last-row">1/2:y</li>'), html);
+assert.ok(html.includes('<i>No rows</i>'), html);
+assert.ok(html.includes('value="ada"'), html);
+assert.ok(html.includes('value="London"'), html);
+assert.ok(html.includes('value="ada@example.com"'), html);
+assert.ok(html.includes('<u class="tpl-status">true:true</u>'), html);
+assert.ok(html.includes('<mark class="deferred-ready">Deferred Ready</mark>'), html);
+assert.ok(html.includes('<cite class="tpl-badge">Score=8</cite>'), html);
+assert.ok(html.includes('<q class="legacy-if">Legacy:8</q>'), html);
+assert.ok(html.includes('<li>0-x</li><li>1-y</li>'), html);
+assert.ok(html.includes('<span>Switch:Edit</span>'), html);
+assert.ok(html.includes('ng-untouched ng-pristine ng-valid'), html);
+assert.ok(html.includes('data-has-hdr="true"'), html);
+assert.ok(html.includes('<h4 badge-header="true">Custom Header</h4><b>25</b><samp data-hl="amber:off">Projected (amber)</samp>'), html);
+assert.ok(html.includes('Route Leaf: catalog'), html);
 
-const appRef = await bootstrapApplication(NamedCounter);
+const engine = new AngularAppEngine({
+  bootstrap: NamedCounter,
+  routes: [{ path: '**', renderMode: RenderMode.Server, headers: { 'x-ng-ssr': '1' } }],
+});
+const engineRes = await engine.handle(new Request('https://example.com/ssr-engine-check'));
+assert.equal(engineRes?.status, 200);
+assert.equal(engineRes?.headers.get('x-ng-ssr'), '1');
+const engineHtml = await engineRes!.text();
+assert.ok(engineHtml.includes('data-req="/ssr-engine-check"'), engineHtml);
+
+const appRef = await bootstrapApplication(NamedCounter, {
+  providers: [
+    provideRouter(
+      [{ path: 'items', component: RouteLeafComponent }],
+      withComponentInputBinding(),
+    ),
+  ],
+});
 assert.equal(appRef.components.length, 1);
 const inst = appRef.components[0].instance;
 assert.equal(inst.doubled(), 8);
+assert.equal(inst.viewReady, true);
+assert.equal(inst.hlDirRef()?.color, 'amber');
+assert.equal(inst.noteRef()?.nativeElement?.value, 'ready');
+assert.equal(inst.profileForm.get('address.city')?.value, 'London');
 const emitted: number[] = [];
 inst.changed.subscribe((v: number) => emitted.push(v));
 inst.increment();

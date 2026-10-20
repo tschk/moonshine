@@ -459,3 +459,38 @@ const [out,err,code]=await Promise.all([new Response(child.stdout).text(),new Re
 `);
   },
 );
+
+test.skipIf(!sourceCompiler)(
+  "authored .svelte components using $app/server and @sveltejs/kit load/action helpers compile and run without host packages",
+  async () => {
+    const serverPage = `<script lang="ts">
+import { getRequestEvent, query, prerender, command, form } from '$app/server';
+import { page } from '$app/state';
+const event = getRequestEvent();
+const getGreeting = query((name: string) => \`Hello, \${name}!\`);
+const getStaticBuild = prerender(() => '2026.10');
+const pingCmd = command(async (msg: string) => ({ echoed: msg }));
+const contactForm = form(async (data: { email: string }) => ({ ok: Boolean(data.email) }));
+</script>
+<section data-path={event.url.pathname} data-user={event.locals.user} data-page={page.url.pathname} data-form-method={contactForm.method} data-fn={typeof getGreeting + ':' + typeof getStaticBuild + ':' + typeof pingCmd}>{page.data.headline}</section>
+`;
+    await standalone(`import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/ServerPage.svelte',${JSON.stringify(serverPage)});
+const child=Bun.spawn([compiler,'web','build','--site','source','--entry','ServerPage.svelte','--emit','moonshine-ssr','--out-dir','ssr'],{stdout:'pipe',stderr:'pipe'});
+const [stdout,stderr,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);
+assert.equal(code,0,stdout+stderr);
+const {default:ServerPage}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
+const {withKitRequestEvent,executeKitServerLoad,executeKitUniversalLoad,executeKitAction,fail}=await import('@tschk/moonshine-svelte/kit');
+for(const name of ['svelte','@sveltejs/kit','react','react-dom','@tschk/crepuscularity-wasm'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
+const ssrLoaded=await executeKitServerLoad(async ({params})=>({slug:params.slug}),{url:'http://localhost/blog/intro',params:{slug:'intro'}});
+await executeKitUniversalLoad(async ({data})=>({headline:'Post:'+data.slug}),{url:'http://localhost/blog/intro',params:{slug:'intro'},data:ssrLoaded.data});
+const html=withKitRequestEvent({url:'http://localhost/blog/intro',locals:{user:'ada'}},()=>renderToString(()=>h(ServerPage,{})));
+assert.equal(html,'<section data-path="/blog/intro" data-user="ada" data-page="/blog/intro" data-form-method="POST" data-fn="function:function:function">Post:intro</section>');
+const actionRes=await executeKitAction({default:async ()=>fail(400,{bad:true})},'default',{url:'http://localhost/blog/intro'});
+assert.equal(actionRes.type,'failure');
+assert.equal(actionRes.status,400);
+`);
+  },
+);

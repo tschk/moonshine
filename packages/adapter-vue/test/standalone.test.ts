@@ -237,7 +237,54 @@ setActivePinia(createPinia());
 const router=createRouter({history:createMemoryHistory(),routes:[{path:'/items',component:Page},{path:'/next',component:Page}]});
 await router.push('/items');
 const html=renderToString(()=>h(()=>{router.install();return h(Page,{});},null));
-assert.equal(html,'<section><h1>/items</h1><div><p>4/8/false</p></div><a href="/items" class="nav-link is-active router-link-exact-active" aria-current="page">Items</a></section>');
+assert.equal(html,'<section><h1>/items</h1><div><p>4/8/false</p></div><a href="/items" class="nav-link is-active router-link-exact-active" aria-current="page">Items</section>'.replace('Items</section>','Items</a></section>'));
+`);
+  },
+);
+
+test.skipIf(!sourceCompiler)(
+  "authored .vue SFC with onServerPrefetch, useSSRContext, useAttrs, useSlots, Teleport, createSSRApp, and vue/server-renderer compiles and renders",
+  async () => {
+    const sfc = `<script setup lang="ts">
+import { ref, onServerPrefetch, useSSRContext, useAttrs, useSlots, watchEffect } from 'vue';
+import { ssrInterpolate } from 'vue/server-renderer';
+
+const status = ref('initial');
+const attrs = useAttrs();
+const slots = useSlots();
+let watched = '';
+watchEffect(() => {
+  watched = status.value;
+});
+
+onServerPrefetch(async () => {
+  await Promise.resolve();
+  const ctx = useSSRContext<{ tag?: string }>();
+  status.value = ssrInterpolate(ctx?.tag ?? 'fallback');
+});
+</script>
+<template>
+  <article :data-role="attrs.role" :data-has-slot="Boolean(slots.default)">
+    <h2>{{ status }} ({{ watched }})</h2>
+    <Teleport to="#modals">
+      <div class="teleported-banner">{{ status }}</div>
+    </Teleport>
+  </article>
+</template>`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/PrefetchPage.vue',${JSON.stringify(sfc)});
+const proc=Bun.spawn([compiler,'web','build','--site','source','--entry','PrefetchPage.vue','--emit','moonshine-ssr','--out-dir','ssr'],{stdout:'pipe',stderr:'pipe'});
+const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+assert.equal(code,0,stdout+stderr);
+const {createSSRApp}=await import('@tschk/moonshine-vue/reactive');
+const {renderToString}=await import('@tschk/moonshine-vue/server-renderer');
+const {default:PrefetchPage}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+const ctx={tag:'ssr-ok'};
+const html=await renderToString(createSSRApp(PrefetchPage,{role:'banner'}),ctx);
+assert.equal(html,'<article data-role="banner" data-has-slot="false"><h2>ssr-ok (ssr-ok)</h2><!--teleport start--><!--teleport end--></article>');
+assert.equal(ctx.teleports?.['#modals'],'<div class="teleported-banner">ssr-ok</div>');
 `);
   },
 );

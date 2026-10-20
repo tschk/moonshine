@@ -52,15 +52,14 @@ async function buildBody(
 ): Promise<ReactNode> {
   const { route, params, data } = context;
 
-  const pagePromise = loadComponent(route.file) as Promise<
-    FunctionComponent<PageProps>
-  >;
+  const pagePromise = loadComponent(
+    route.file,
+  ) as Promise<FunctionComponent<PageProps>>;
 
   const layoutsPromise = route.layouts
     ? Promise.all(
-        route.layouts.map(
-          (file) =>
-            loadComponent(file) as Promise<FunctionComponent<LayoutProps>>,
+        route.layouts.map((file) =>
+          loadComponent(file) as Promise<FunctionComponent<LayoutProps>>,
         ),
       )
     : Promise.resolve([]);

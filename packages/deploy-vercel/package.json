@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-deploy-vercel",
-  "version": "0.4.70",
+  "version": "0.4.78",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -15,21 +15,21 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine-framework": "^0.4.70",
-    "@tschk/moonshine-router": "^0.4.70",
-    "@tschk/moonshine-server": "^0.4.70",
-    "@tschk/moonshine-deploy-node": "^0.4.70"
+    "@tschk/moonshine-framework": "^0.4.78",
+    "@tschk/moonshine-router": "^0.4.78",
+    "@tschk/moonshine-server": "^0.4.78",
+    "@tschk/moonshine-deploy-node": "^0.4.78"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
     "typescript": "7.0.2",
-    "@tschk/moonshine-adapter-conformance": "^0.4.70"
+    "@tschk/moonshine-adapter-conformance": "^0.4.78"
   },
   "files": [
     "src"
   ],
   "peerDependencies": {
-    "@tschk/moonshine-react": "^0.4.70"
+    "@tschk/moonshine-react": "^0.4.78"
   },
   "peerDependenciesMeta": {
     "@tschk/moonshine-react": {

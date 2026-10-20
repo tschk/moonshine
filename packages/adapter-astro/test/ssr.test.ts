@@ -1,5 +1,19 @@
 import { expect, test } from "bun:test";
-import { h, renderToString, classList } from "../src/ssr";
+import {
+  classList,
+  h,
+  renderToString,
+  sourceServerIsland,
+  sourceSlot,
+  withAstroContext,
+  type SourceSlots,
+} from "../src/ssr";
+import {
+  clearPrefetchedUrls,
+  getPrefetchedUrls,
+  init,
+  prefetch,
+} from "../src/transitions";
 
 test("Astro source children preserve truthy booleans and omit falsey values except zero", () => {
   expect(
@@ -114,4 +128,128 @@ test("Astro pre and textarea retain literal HTML newline serialization", () => {
       );
     }
   }
+});
+
+test("Astro 5 Server Islands (sourceServerIsland) support both eager SSR and deferred placeholder + resolution", () => {
+  const UserBadge = (props: { user: string }, slots: SourceSlots = {}) =>
+    h(
+      "div",
+      { class: "badge", "data-user": props.user },
+      sourceSlot(slots, "default", "Member"),
+    );
+
+  // Eager mode (default): renders component directly and omits the fallback slot from component slots
+  const eagerHtml = withAstroContext(
+    { url: "https://example.com/" },
+    (astro) => {
+      const out = renderToString(() =>
+        sourceServerIsland(
+          UserBadge,
+          "UserBadge",
+          { user: "ada" },
+          {
+            default: () => h("span", null, "Admin"),
+            fallback: () => h("i", null, "Loading..."),
+          },
+        ),
+      );
+      expect(astro.serverIslands).toHaveLength(1);
+      expect(astro.serverIslands[0]?.componentName).toBe("UserBadge");
+      expect(astro.serverIslands[0]?.hasFallback).toBe(true);
+      expect(astro.serverIslands[0]?.deferred).toBe(false);
+      return out;
+    },
+  );
+  expect(eagerHtml).toBe(
+    '<div class="badge" data-user="ada"><span>Admin</span></div>',
+  );
+
+  // Deferred mode (`deferServerIslands: true`): renders <astro-server-island> fallback shell, then resolves on demand
+  withAstroContext(
+    { url: "https://example.com/", deferServerIslands: true },
+    (astro) => {
+      const shellHtml = renderToString(() =>
+        h(
+          "section",
+          null,
+          sourceServerIsland(
+            UserBadge,
+            "UserBadge",
+            { user: "grace" },
+            {
+              default: () => h("strong", null, "Architect"),
+              fallback: () =>
+                h("span", { class: "skeleton" }, "Loading badge..."),
+            },
+          ),
+        ),
+      );
+      expect(shellHtml).toBe(
+        '<section><astro-server-island data-island-id="island-1" data-component="UserBadge"><span class="skeleton">Loading badge...</span></astro-server-island></section>',
+      );
+      expect(astro.serverIslands).toHaveLength(1);
+      expect(astro.resolveServerIsland("island-1")).toBe(
+        '<div class="badge" data-user="grace"><strong>Architect</strong></div>',
+      );
+      expect(astro.resolveAllServerIslands(shellHtml)).toBe(
+        '<section><div class="badge" data-user="grace"><strong>Architect</strong></div></section>',
+      );
+    },
+  );
+});
+
+test("astro:prefetch records prefetched URLs and supports init()", () => {
+  clearPrefetchedUrls();
+  expect(getPrefetchedUrls()).toEqual([]);
+
+  init({ defaultStrategy: "tap", prefetchAll: false });
+  prefetch("/docs/getting-started");
+  prefetch("/docs/getting-started"); // duplicate is deduplicated
+  prefetch("https://example.com/pricing", { with: "link" });
+
+  const urls = getPrefetchedUrls();
+  expect(urls).toHaveLength(2);
+  expect(new URL(urls[0]!).pathname).toBe("/docs/getting-started");
+  expect(urls[1]).toBe("https://example.com/pricing");
+  clearPrefetchedUrls();
+  expect(getPrefetchedUrls()).toEqual([]);
+});
+
+test("defineStyleVars, mergeDefineVars, and transition:* helpers serialize CSS custom properties and View Transition attributes", async () => {
+  const {
+    defineStyleVars,
+    mergeDefineVars,
+    transitionAnimateValue,
+    transitionPersistValue,
+    transitionPersistPropsValue,
+  } = await import("../src/ssr");
+
+  expect(
+    defineStyleVars({
+      primaryColor: "crimson",
+      "--accent": "#00f",
+      gap: 16,
+      skipped: null,
+      omitted: undefined,
+      off: false,
+    }),
+  ).toBe("--primaryColor:crimson;--accent:#00f;--gap:16");
+
+  expect(
+    mergeDefineVars("padding: 1rem;", { accentColor: "teal" }, "hero-banner"),
+  ).toBe("padding: 1rem;--accentColor:teal;view-transition-name:hero-banner");
+
+  expect(mergeDefineVars(undefined, undefined, undefined)).toBeUndefined();
+
+  expect(transitionAnimateValue(true)).toBe("initial");
+  expect(transitionAnimateValue("slide")).toBe("slide");
+  expect(transitionAnimateValue({ name: "fade", forwards: {} })).toBe("fade");
+  expect(transitionAnimateValue(false)).toBeUndefined();
+
+  expect(transitionPersistValue(true)).toBe("");
+  expect(transitionPersistValue("video-player")).toBe("video-player");
+  expect(transitionPersistValue(false)).toBeUndefined();
+
+  expect(transitionPersistPropsValue(true)).toBe("");
+  expect(transitionPersistPropsValue(false)).toBeUndefined();
 });

@@ -15,22 +15,28 @@ import {
   Link,
   Meta,
   NoScript,
+  NuxtClientFallback,
   NuxtError,
   NuxtErrorBoundary,
+  NuxtIsland,
   NuxtLayout,
   NuxtLink,
   NuxtLoadingIndicator,
   NuxtPage,
   NuxtRouteAnnouncer,
   NuxtTime,
+  NuxtWelcome,
   Style,
   Title,
   abortNavigation,
   callOnce,
   clearError,
   clearNuxtData,
+  clearNuxtIslands,
   clearNuxtLayouts,
   clearNuxtState,
+  clearPrerenderedRoutes,
+  clearRouteRules,
   configureNuxtDevMode,
   createBridgedRef,
   createError,
@@ -39,6 +45,9 @@ import {
   defineNuxtPlugin,
   defineNuxtRouteMiddleware,
   definePageMeta,
+  defineRouteRules,
+  getPrerenderedRoutes,
+  getRouteRules,
   isNuxtError,
   isNuxtRef,
   navigateTo,
@@ -49,8 +58,10 @@ import {
   prefetchComponents,
   preloadComponents,
   preloadRouteComponents,
+  prerenderRoutes,
   refreshCookie,
   refreshNuxtData,
+  registerNuxtIsland,
   registerNuxtLayout,
   reloadNuxtApp,
   resolveHeadTags,
@@ -73,6 +84,7 @@ import {
   useNuxtData,
   useRequestEvent,
   useRequestFetch,
+  useRequestHeader,
   useRequestHeaders,
   useRequestURL,
   useRoute,
@@ -855,12 +867,115 @@ describe("@tschk/moonshine-nuxt composables", () => {
       },
     );
   });
+
+  test("useRequestHeader, prerenderRoutes, defineRouteRules, definePageMeta, NuxtIsland, NuxtClientFallback, and NuxtWelcome", async () => {
+    await withNuxtRequest(
+      {
+        url: "https://example.com/islands/demo",
+        headers: {
+          "X-Custom-Token": "tok-123",
+          Accept: "text/html",
+        },
+      },
+      async () => {
+        expect(useRequestHeader("x-custom-token")).toBe("tok-123");
+        expect(useRequestHeader("ACCEPT")).toBe("text/html");
+        expect(useRequestHeader("x-missing")).toBeUndefined();
+
+        definePageMeta({
+          title: "Island Page",
+          layout: "custom",
+          keepalive: true,
+        });
+        expect(useRoute().meta.title).toBe("Island Page");
+        expect(useRoute().meta.layout).toBe("custom");
+        expect(useRoute().meta.keepalive).toBe(true);
+
+        prerenderRoutes(["/about", "/pricing"]);
+        prerenderRoutes("/contact");
+        expect(getPrerenderedRoutes()).toEqual([
+          "/about",
+          "/pricing",
+          "/contact",
+        ]);
+        const event = useRequestEvent()!;
+        expect(event.responseHeaders.get("x-nitro-prerender")).toBe(
+          "/about, /pricing, /contact",
+        );
+
+        defineRouteRules({
+          prerender: true,
+          cors: true,
+          headers: { "Cache-Control": "public, max-age=3600" },
+        });
+        expect(getRouteRules()?.prerender).toBe(true);
+        expect(getPrerenderedRoutes()).toContain("/islands/demo");
+        expect(event.responseHeaders.get("access-control-allow-origin")).toBe(
+          "*",
+        );
+        expect(event.responseHeaders.get("cache-control")).toBe(
+          "public, max-age=3600",
+        );
+
+        registerNuxtIsland("PromoBanner", (props: { headline?: string }) =>
+          ssrH("aside", { class: "promo" }, props.headline ?? "Default Promo"),
+        );
+
+        let capturedSsrError: unknown = null;
+        const CrashingChild = () => {
+          throw new Error("SSR Render Explosion");
+        };
+
+        const html = renderToString(() =>
+          ssrH(
+            "div",
+            null,
+            ssrH(NuxtIsland, {
+              name: "PromoBanner",
+              props: { headline: "50% Off" },
+              lazy: true,
+            }),
+            ssrH(NuxtClientFallback, {
+              fallbackTag: "section",
+              fallback: "Recovered on client",
+              onSsrError: (err) => {
+                capturedSsrError = err;
+              },
+              children: () => ssrH(CrashingChild, {}),
+            }),
+            ssrH(NuxtWelcome, {
+              title: "Welcome to Moonshine Nuxt",
+              version: "4.0.0",
+            }),
+          ),
+        );
+
+        expect(html).toContain('data-nuxt-island="PromoBanner"');
+        expect(html).toContain('<aside class="promo">50% Off</aside>');
+        expect(html).toContain(
+          '<section data-nuxt-client-fallback="">Recovered on client</section>',
+        );
+        expect(capturedSsrError).toBeInstanceOf(Error);
+        expect((capturedSsrError as Error).message).toBe(
+          "SSR Render Explosion",
+        );
+        expect(html).toContain('data-nuxt-welcome=""');
+        expect(html).toContain("Welcome to Moonshine Nuxt");
+
+        clearNuxtIslands();
+        clearPrerenderedRoutes();
+        clearRouteRules();
+        expect(getPrerenderedRoutes()).toEqual([]);
+        expect(getRouteRules()).toBeUndefined();
+      },
+    );
+  });
 });
 
 const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
 
 test.skipIf(!sourceCompiler)(
-  "Crepus lowers .vue SFCs importing Nuxt composables and components from #imports, #app, and nuxt/app",
+  "Crepus lowers .vue SFCs importing Nuxt composables and components from #imports, #app, #components, and auto-imported built-ins",
   async () => {
     const root = join(import.meta.dir, "..");
     const dir = await mkdtemp(join(tmpdir(), "moonshine-nuxt-sfc-"));
@@ -879,26 +994,48 @@ test.skipIf(!sourceCompiler)(
       }
 
       const nuxtPage = `<script setup lang="ts">
-import { useState, useCookie, useRoute, useRuntimeConfig, NuxtLink, ClientOnly, Title } from "#imports";
+import { useState, useCookie, useRoute, useRuntimeConfig, useRequestHeader } from "#imports";
 import { useAsyncData } from "#app";
 import { useLoadingIndicator } from "nuxt/app";
+import { NuxtWelcome } from "#components";
+import { getRequestHost } from "h3";
+import { useStorage } from "nitropack/runtime";
+
+definePageMeta({
+  title: "Auto-Imported Meta",
+  middleware: "auth",
+});
+
+defineRouteRules({
+  prerender: true,
+  headers: { "x-sfc-rule": "active" },
+});
 
 const count = useState("counter", () => 12);
 const theme = useCookie("theme", { default: () => "emerald" });
 const route = useRoute();
 const config = useRuntimeConfig();
+const token = useRequestHeader("x-auth-token");
+const host = getRequestHost();
+const storage = useStorage("app");
 const { data, status } = useAsyncData("greeting", () => "Hello from Nuxt SFC");
 const { isLoading, progress } = useLoadingIndicator();
+const islandProps = { label: "Server Box" };
 </script>
 <template>
-  <main :data-theme="theme" :data-status="status" :data-loading="String(isLoading)">
+  <main :data-theme="theme" :data-status="status" :data-loading="String(isLoading)" :data-token="token" :data-host="host" :data-storage="String(Boolean(storage))">
     <Title>Nuxt SFC Title</Title>
     <h1>{{ data }} ({{ count }})</h1>
-    <p class="route-info">{{ route.path }} | {{ config.app.baseURL }} | {{ progress }}</p>
+    <p class="route-info">{{ route.path }} | {{ config.app.baseURL }} | {{ progress }} | {{ route.meta.title }}</p>
     <NuxtLink to="/dashboard">Go Dashboard</NuxtLink>
     <ClientOnly fallback="SSR Placeholder">
       <span>Browser Content</span>
     </ClientOnly>
+    <NuxtIsland name="ServerBox" :props="islandProps" />
+    <NuxtClientFallback fallback-tag="div" fallback="Fallback Active">
+      <span class="safe-child">Safe Child</span>
+    </NuxtClientFallback>
+    <NuxtWelcome title="SFC Welcome" />
   </main>
 </template>`;
 
@@ -936,23 +1073,30 @@ const { isLoading, progress } = useLoadingIndicator();
 import assert from "node:assert/strict";
 import PageSSR from "./ssr/CrepusEmit.moonshine-ssr.ts";
 import { h, renderToString } from "@tschk/moonshine-dom/ssr";
-import { withNuxtRequest, resolveHeadTags } from "@tschk/moonshine-nuxt";
+import { withNuxtRequest, resolveHeadTags, registerNuxtIsland, getRouteRules, getPrerenderedRoutes } from "@tschk/moonshine-nuxt";
 
 await withNuxtRequest(
   {
     url: "https://example.com/dashboard?tab=1",
-    headers: { cookie: "theme=obsidian" },
+    headers: { cookie: "theme=obsidian", "x-auth-token": "secret-99" },
     runtimeConfig: { app: { baseURL: "/app/", buildAssetsDir: "/_nuxt/", cdnURL: "" } },
   },
   async () => {
+    registerNuxtIsland("ServerBox", (props) => h("em", null, props.label));
     const html = renderToString(() => h(PageSSR, {}));
     assert.ok(html.includes('data-theme="obsidian"'), html);
     assert.ok(html.includes('data-status="success"'), html);
+    assert.ok(html.includes('data-token="secret-99"'), html);
     assert.ok(html.includes('<h1>Hello from Nuxt SFC (12)</h1>'), html);
-    assert.ok(html.includes('<p class="route-info">/dashboard | /app/ | 0</p>'), html);
+    assert.ok(html.includes('<p class="route-info">/dashboard | /app/ | 0 | Auto-Imported Meta</p>'), html);
     assert.ok(html.includes('<a href="/dashboard" class="router-link-active router-link-exact-active" aria-current="page">Go Dashboard</a>'), html);
     assert.ok(html.includes('SSR Placeholder'), html);
+    assert.ok(html.includes('<em>Server Box</em>'), html);
+    assert.ok(html.includes('<span class="safe-child">Safe Child</span>'), html);
+    assert.ok(html.includes('SFC Welcome'), html);
     assert.equal(resolveHeadTags().title, "Nuxt SFC Title");
+    assert.equal(getRouteRules().prerender, true);
+    assert.ok(getPrerenderedRoutes().includes("/dashboard"));
   }
 );
 `;
@@ -976,3 +1120,396 @@ await withNuxtRequest(
     }
   },
 );
+
+describe("@tschk/moonshine-nuxt/server Nitro & h3 runtime utilities", () => {
+  test("useStorage, createStorage, prefixStorage, and memoryDriver manage keys, raw items, metadata, mounts, and watchers", async () => {
+    const {
+      clearStorage,
+      createStorage,
+      memoryDriver,
+      prefixStorage,
+      useStorage,
+    } = await import("../src/server");
+
+    await clearStorage();
+    const storage = useStorage();
+    const events: Array<{ event: string; key: string }> = [];
+    const unwatch = await storage.watch((event, key) => {
+      events.push({ event, key });
+    });
+
+    await storage.setItem("users/ada", { name: "Ada Lovelace", role: "admin" });
+    expect(await storage.hasItem("users:ada")).toBe(true);
+    expect(await storage.getItem("users:ada")).toEqual({
+      name: "Ada Lovelace",
+      role: "admin",
+    });
+
+    await storage.setMeta("users:ada", { ttl: 120 });
+    expect(await storage.getMeta("users:ada")).toEqual({ ttl: 120 });
+
+    const usersView = prefixStorage<{ name: string; role: string }>(
+      storage,
+      "users",
+    );
+    expect(await usersView.getItem("ada")).toEqual({
+      name: "Ada Lovelace",
+      role: "admin",
+    });
+    expect(await usersView.getKeys()).toEqual(["ada"]);
+
+    await usersView.setItem("grace", {
+      name: "Grace Hopper",
+      role: "pioneer",
+    });
+    const batch = await usersView.getItems(["ada", "grace"]);
+    expect(batch.map((i) => i.key)).toEqual(["users:ada", "users:grace"]);
+
+    const custom = createStorage({ driver: memoryDriver() });
+    const subDriver = memoryDriver();
+    custom.mount("assets", subDriver);
+    await custom.setItemRaw("assets:logo.bin", new Uint8Array([1, 2, 3]));
+    expect(await custom.getItemRaw<Uint8Array>("assets:logo.bin")).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+    expect(custom.getMount("assets:logo.bin").base).toBe("assets:");
+
+    await usersView.removeItem("grace");
+    expect(await storage.hasItem("users:grace")).toBe(false);
+    await unwatch();
+    expect(
+      events.some((e) => e.event === "update" && e.key === "users:ada"),
+    ).toBe(true);
+    expect(
+      events.some((e) => e.event === "remove" && e.key === "users:grace"),
+    ).toBe(true);
+    await clearStorage();
+  });
+
+  test("defineCachedFunction and defineCachedEventHandler cache results, respect varies/shouldBypassCache, and set Cache-Control", async () => {
+    const {
+      clearStorage,
+      defineCachedEventHandler,
+      defineCachedFunction,
+      getQuery,
+      setResponseHeader,
+    } = await import("../src/server");
+    const { createNuxtRequestEvent } = await import("../src/composables");
+
+    await clearStorage();
+    let computeCount = 0;
+    const cachedDouble = defineCachedFunction(
+      async (n: number) => {
+        computeCount += 1;
+        return n * 2;
+      },
+      {
+        name: "double",
+        maxAge: 60,
+        getKey: (n) => String(n),
+      },
+    );
+
+    expect(await cachedDouble(21)).toBe(42);
+    expect(await cachedDouble(21)).toBe(42);
+    expect(computeCount).toBe(1);
+
+    let handlerRuns = 0;
+    const cachedHandler = defineCachedEventHandler(
+      async (ev) => {
+        handlerRuns += 1;
+        setResponseHeader(ev, "x-run", String(handlerRuns));
+        return {
+          lang: ev.headers.get("accept-language") ?? "en",
+          q: getQuery(ev),
+        };
+      },
+      {
+        name: "i18n-endpoint",
+        maxAge: 30,
+        staleMaxAge: 60,
+        varies: ["accept-language"],
+      },
+    );
+
+    const ev1 = createNuxtRequestEvent({
+      url: "https://example.com/api/i18n?page=1",
+      headers: { "accept-language": "en" },
+    });
+    const res1 = await cachedHandler(ev1);
+    expect(res1).toEqual({ lang: "en", q: { page: "1" } });
+    expect(ev1.responseHeaders.get("cache-control")).toBe(
+      "max-age=30, s-maxage=30, stale-while-revalidate=60",
+    );
+
+    const ev2 = createNuxtRequestEvent({
+      url: "https://example.com/api/i18n?page=1",
+      headers: { "accept-language": "en" },
+    });
+    const res2 = await cachedHandler(ev2);
+    expect(res2).toEqual({ lang: "en", q: { page: "1" } });
+    expect(handlerRuns).toBe(1);
+
+    // Varying header triggers fresh execution
+    const evFr = createNuxtRequestEvent({
+      url: "https://example.com/api/i18n?page=1",
+      headers: { "accept-language": "fr" },
+    });
+    const resFr = await cachedHandler(evFr);
+    expect(resFr).toEqual({ lang: "fr", q: { page: "1" } });
+    expect(handlerRuns).toBe(2);
+    await clearStorage();
+  });
+
+  test("useSession, getSession, updateSession, clearSession, sealSession, and unsealSession encrypt and persist session state", async () => {
+    const { clearSession, sealSession, unsealSession, useSession } =
+      await import("../src/server");
+    const { createNuxtRequestEvent } = await import("../src/composables");
+
+    const config = {
+      password: "super-secret-password-at-least-32-chars",
+      name: "moonshine_sid",
+      maxAge: 3600,
+    };
+
+    const ev1 = createNuxtRequestEvent({
+      url: "https://example.com/api/login",
+    });
+    const session1 = await useSession<{ user?: string; role?: string }>(
+      ev1,
+      config,
+    );
+    expect(session1.id).toBeDefined();
+    await session1.update({ user: "ada", role: "engineer" });
+    expect(session1.data).toEqual({ user: "ada", role: "engineer" });
+
+    const setCookieHeader = ev1.responseHeaders.get("set-cookie") ?? "";
+    expect(setCookieHeader).toContain("moonshine_sid=v1.");
+    const cookieVal = setCookieHeader
+      .split(";")[0]!
+      .slice("moonshine_sid=".length);
+
+    const unsealed = await unsealSession<{ user: string; role: string }>(
+      cookieVal,
+      config,
+    );
+    expect(unsealed?.data).toEqual({ user: "ada", role: "engineer" });
+
+    // Roundtrip into a second request via Cookie header
+    const ev2 = createNuxtRequestEvent({
+      url: "https://example.com/api/profile",
+      headers: { cookie: `moonshine_sid=${cookieVal}` },
+    });
+    const session2 = await useSession<{ user?: string; role?: string }>(
+      ev2,
+      config,
+    );
+    expect(session2.data).toEqual({ user: "ada", role: "engineer" });
+
+    await clearSession(ev2, config);
+    expect(ev2.responseHeaders.get("set-cookie")).toContain("Max-Age=0");
+
+    // Tampered or wrong password returns null
+    const sealed = await sealSession(
+      { id: "1", createdAt: Date.now(), data: { ok: true } },
+      config,
+    );
+    expect(
+      await unsealSession(sealed, { ...config, password: "wrong-password" }),
+    ).toBeNull();
+  });
+
+  test("createRouter, useBase, handleCors, readMultipartFormData, createEventStream, proxyRequest, and request metadata helpers", async () => {
+    const {
+      createEventStream,
+      createRouter,
+      getRequestFingerprint,
+      getRequestHost,
+      getRequestIP,
+      getRequestProtocol,
+      getRouterParam,
+      getRouterParams,
+      handleCors,
+      proxyRequest,
+      readMultipartFormData,
+      send,
+      sendError,
+      useBase,
+    } = await import("../src/server");
+    const { createError, createNuxtRequestEvent } =
+      await import("../src/composables");
+
+    const router = createRouter();
+    router
+      .get("/users/:id", (ev) => ({
+        userId: getRouterParam(ev, "id"),
+        host: getRequestHost(ev, { xForwardedHost: true }),
+        proto: getRequestProtocol(ev),
+        ip: getRequestIP(ev, { xForwardedFor: true }),
+      }))
+      .post("/files/**:path", (ev) => ({
+        rest: getRouterParams(ev).path,
+      }));
+
+    const apiHandler = useBase("/api/v1", router.handler);
+    const getEv = createNuxtRequestEvent({
+      url: "http://internal.local/api/v1/users/99",
+      headers: {
+        "x-forwarded-host": "api.example.com",
+        "x-forwarded-proto": "https",
+        "x-forwarded-for": "203.0.113.7, 10.0.0.1",
+        "user-agent": "MoonshineTest/1.0",
+      },
+    });
+    const userRes = await apiHandler(getEv);
+    expect(userRes).toEqual({
+      userId: "99",
+      host: "api.example.com",
+      proto: "https",
+      ip: "203.0.113.7",
+    });
+
+    const fp = await getRequestFingerprint(getEv, {
+      xForwardedFor: true,
+      method: true,
+      path: true,
+      userAgent: true,
+      hash: false,
+    });
+    expect(fp).toBe("203.0.113.7|GET|/api/v1/users/99|MoonshineTest/1.0");
+
+    const postEv = createNuxtRequestEvent({
+      url: "https://example.com/api/v1/files/docs/2026/report.pdf",
+      method: "POST",
+    });
+    expect(await apiHandler(postEv)).toEqual({
+      rest: "docs/2026/report.pdf",
+    });
+
+    // CORS preflight & actual request
+    const preflightEv = createNuxtRequestEvent({
+      url: "https://example.com/api/v1/users/99",
+      method: "OPTIONS",
+      headers: {
+        origin: "https://app.example.com",
+        "access-control-request-method": "DELETE",
+        "access-control-request-headers": "X-Auth",
+      },
+    });
+    const handled = handleCors(preflightEv, {
+      origin: ["https://app.example.com"],
+      credentials: true,
+      maxAge: "600",
+    });
+    expect(handled).toBe(true);
+    expect(preflightEv.responseStatus).toBe(204);
+    expect(preflightEv.responseHeaders.get("access-control-allow-origin")).toBe(
+      "https://app.example.com",
+    );
+    expect(
+      preflightEv.responseHeaders.get("access-control-allow-credentials"),
+    ).toBe("true");
+    expect(
+      preflightEv.responseHeaders.get("access-control-allow-headers"),
+    ).toBe("X-Auth");
+
+    // Multipart form data
+    const form = new FormData();
+    form.append("title", "Quarterly Report");
+    form.append(
+      "attachment",
+      new Blob(["hello file"], { type: "text/plain" }),
+      "note.txt",
+    );
+    const multipartReq = new Request("https://example.com/upload", {
+      method: "POST",
+      body: form,
+    });
+    const parts = await readMultipartFormData(
+      createNuxtRequestEvent(multipartReq),
+    );
+    expect(parts?.length).toBe(2);
+    expect(parts?.[0]?.name).toBe("title");
+    expect(new TextDecoder().decode(parts?.[0]?.data)).toBe("Quarterly Report");
+    expect(parts?.[1]?.filename).toBe("note.txt");
+    expect(parts?.[1]?.type).toContain("text/plain");
+    expect(new TextDecoder().decode(parts?.[1]?.data)).toBe("hello file");
+
+    // SSE EventStream
+    const sseEv = createNuxtRequestEvent({
+      url: "https://example.com/api/stream",
+    });
+    const eventStream = createEventStream(sseEv);
+    let closedCalled = false;
+    eventStream.onClosed(() => {
+      closedCalled = true;
+    });
+    await eventStream.push("welcome");
+    await eventStream.push({
+      id: "42",
+      event: "update",
+      retry: 3000,
+      data: "line1\nline2",
+    });
+    const sseResponse = eventStream.send();
+    await eventStream.close();
+    expect(closedCalled).toBe(true);
+    expect(sseResponse.headers.get("content-type")).toBe("text/event-stream");
+    const sseText = await sseResponse.text();
+    expect(sseText).toBe(
+      "data: welcome\n\nid: 42\nevent: update\nretry: 3000\ndata: line1\ndata: line2\n\n",
+    );
+
+    // proxyRequest with custom fetch
+    const proxyEv = createNuxtRequestEvent({
+      url: "https://example.com/proxy/items",
+      method: "POST",
+      headers: { "content-type": "application/json", "x-trace": "t-1" },
+      body: JSON.stringify({ item: "book" }),
+    });
+    const proxiedRes = await proxyRequest(
+      proxyEv,
+      "https://upstream.internal/items",
+      {
+        headers: { "x-upstream-auth": "secret" },
+        fetch: (async (targetUrl: RequestInfo | URL, init?: RequestInit) => {
+          const h = new Headers(init?.headers);
+          return new Response(
+            JSON.stringify({
+              target: String(targetUrl),
+              trace: h.get("x-trace"),
+              auth: h.get("x-upstream-auth"),
+            }),
+            {
+              status: 201,
+              headers: { "content-type": "application/json", "x-from": "up" },
+            },
+          );
+        }) as unknown as typeof fetch,
+      },
+    );
+    expect(proxiedRes.status).toBe(201);
+    expect(proxiedRes.headers.get("x-from")).toBe("up");
+    expect(await proxiedRes.json()).toEqual({
+      target: "https://upstream.internal/items",
+      trace: "t-1",
+      auth: "secret",
+    });
+
+    // send and sendError
+    const rawResp = send(
+      createNuxtRequestEvent({ url: "https://example.com/raw" }),
+      "plain body",
+      "text/plain",
+    );
+    expect(rawResp.headers.get("content-type")).toBe("text/plain");
+    expect(await rawResp.text()).toBe("plain body");
+
+    const errResp = sendError(
+      createNuxtRequestEvent({ url: "https://example.com/err" }),
+      createError({ statusCode: 422, statusMessage: "Unprocessable" }),
+    );
+    expect(errResp.status).toBe(422);
+    expect((await errResp.json()).statusCode).toBe(422);
+  });
+});

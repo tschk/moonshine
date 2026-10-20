@@ -195,6 +195,168 @@ export class AstroCookies {
   }
 }
 
+export interface AstroSessionOptions {
+  cookie?: string;
+  cookieOptions?: AstroCookieSetOptions;
+  ttl?: number;
+}
+
+interface SessionEntry {
+  value: unknown;
+  expiresAt?: number;
+}
+
+const SESSION_STORE = /* @__PURE__ */ new Map<
+  string,
+  Map<string, SessionEntry>
+>();
+
+let sessionIdCounter = 0;
+
+function generateSessionId(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  return `astro_sess_${Date.now()}_${++sessionIdCounter}`;
+}
+
+export function clearAstroSessions(): void {
+  SESSION_STORE.clear();
+}
+
+export class AstroSession {
+  readonly #cookies: AstroCookies;
+  readonly #cookieName: string;
+  readonly #cookieOptions: AstroCookieSetOptions;
+  readonly #defaultTtl?: number;
+  #sessionID: string;
+  #destroyed = false;
+
+  constructor(cookies: AstroCookies, options: AstroSessionOptions = {}) {
+    this.#cookies = cookies;
+    this.#cookieName = options.cookie ?? "astro-session";
+    this.#cookieOptions = options.cookieOptions ?? {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+    };
+    this.#defaultTtl = options.ttl;
+    const existing = cookies.get(this.#cookieName)?.value;
+    if (existing) {
+      this.#sessionID = existing;
+    } else {
+      this.#sessionID = generateSessionId();
+    }
+  }
+
+  get sessionID(): string {
+    return this.#sessionID;
+  }
+
+  #ensureBucket(): Map<string, SessionEntry> {
+    let bucket = SESSION_STORE.get(this.#sessionID);
+    if (!bucket) {
+      bucket = new Map();
+      SESSION_STORE.set(this.#sessionID, bucket);
+    }
+    return bucket;
+  }
+
+  async get<T = any>(key: string): Promise<T | undefined> {
+    if (this.#destroyed) return undefined;
+    const bucket = SESSION_STORE.get(this.#sessionID);
+    if (!bucket) return undefined;
+    const entry = bucket.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt !== undefined && Date.now() > entry.expiresAt) {
+      bucket.delete(key);
+      return undefined;
+    }
+    return entry.value as T;
+  }
+
+  async has(key: string): Promise<boolean> {
+    return (await this.get(key)) !== undefined;
+  }
+
+  async keys(): Promise<string[]> {
+    if (this.#destroyed) return [];
+    const bucket = SESSION_STORE.get(this.#sessionID);
+    if (!bucket) return [];
+    const now = Date.now();
+    const out: string[] = [];
+    for (const [k, entry] of bucket.entries()) {
+      if (entry.expiresAt !== undefined && now > entry.expiresAt) {
+        bucket.delete(k);
+        continue;
+      }
+      out.push(k);
+    }
+    return out;
+  }
+
+  async entries(): Promise<Record<string, unknown>> {
+    if (this.#destroyed) return {};
+    const bucket = SESSION_STORE.get(this.#sessionID);
+    if (!bucket) return {};
+    const now = Date.now();
+    const out: Record<string, unknown> = {};
+    for (const [k, entry] of bucket.entries()) {
+      if (entry.expiresAt !== undefined && now > entry.expiresAt) {
+        bucket.delete(k);
+        continue;
+      }
+      out[k] = entry.value;
+    }
+    return out;
+  }
+
+  set(key: string, value: any, options?: { ttl?: number }): void {
+    this.#destroyed = false;
+    const bucket = this.#ensureBucket();
+    const ttlSeconds = options?.ttl ?? this.#defaultTtl;
+    const expiresAt =
+      ttlSeconds !== undefined && Number.isFinite(ttlSeconds)
+        ? Date.now() + ttlSeconds * 1000
+        : undefined;
+    bucket.set(key, { value, expiresAt });
+    this.#cookies.set(this.#cookieName, this.#sessionID, this.#cookieOptions);
+  }
+
+  delete(key: string): void {
+    const bucket = SESSION_STORE.get(this.#sessionID);
+    bucket?.delete(key);
+  }
+
+  async regenerate(): Promise<void> {
+    const oldBucket = SESSION_STORE.get(this.#sessionID);
+    const cloned = new Map<string, SessionEntry>(oldBucket ? oldBucket : []);
+    SESSION_STORE.delete(this.#sessionID);
+    this.#sessionID = generateSessionId();
+    SESSION_STORE.set(this.#sessionID, cloned);
+    this.#destroyed = false;
+    this.#cookies.set(this.#cookieName, this.#sessionID, this.#cookieOptions);
+  }
+
+  destroy(): void {
+    SESSION_STORE.delete(this.#sessionID);
+    this.#destroyed = true;
+    this.#cookies.delete(this.#cookieName, {
+      path: this.#cookieOptions.path ?? "/",
+      domain: this.#cookieOptions.domain,
+    });
+  }
+
+  async load(sessionID: string): Promise<void> {
+    this.#sessionID = sessionID;
+    this.#destroyed = false;
+    this.#cookies.set(this.#cookieName, this.#sessionID, this.#cookieOptions);
+  }
+}
+
 export type ValidRedirectStatus =
   300 | 301 | 302 | 303 | 304 | 307 | 308 | number;
 
@@ -212,6 +374,20 @@ export interface AstroSlots {
   render(name: string, args?: unknown[]): Promise<string>;
 }
 
+export interface AstroActionCallable<TInput = any, TResult = any> {
+  (input?: TInput): Promise<TResult>;
+  readonly queryString?: string;
+}
+
+export interface AstroServerIslandEntry {
+  id: string;
+  componentName: string;
+  props: Record<string, unknown>;
+  hasFallback: boolean;
+  deferred: boolean;
+  render: () => string;
+}
+
 export interface AstroGlobal<
   Props extends Record<string, any> = Record<string, any>,
   Params extends Record<string, string | undefined> = Record<
@@ -226,18 +402,31 @@ export interface AstroGlobal<
   params: Params;
   locals: Locals;
   cookies: AstroCookies;
+  session: AstroSession;
   slots: AstroSlots;
   site: URL | undefined;
   generator: string;
   clientAddress: string;
   response: AstroResponseInit;
   originPathname: string;
+  routePattern: string;
   isPrerendered: boolean;
   preferredLocale: string | undefined;
   preferredLocaleList: string[] | undefined;
   currentLocale: string | undefined;
+  deferServerIslands: boolean;
+  serverIslands: AstroServerIslandEntry[];
+  resolveServerIsland(id: string): string | undefined;
+  resolveAllServerIslands(html: string): string;
   redirect(path: string, status?: ValidRedirectStatus): Response;
   rewrite(reroutePayload: string | URL | Request): Promise<Response>;
+  callAction<TAction extends AstroActionCallable<any, any>>(
+    action: TAction,
+    ...args: Parameters<TAction>
+  ): Promise<Awaited<ReturnType<TAction>>>;
+  getActionResult<TAction extends AstroActionCallable<any, any>>(
+    action: TAction | string,
+  ): Awaited<ReturnType<TAction>> | undefined;
 }
 
 export interface AstroContextInit<
@@ -254,20 +443,56 @@ export interface AstroContextInit<
   params?: Params;
   locals?: Locals;
   cookies?: AstroCookies;
+  session?: AstroSession;
+  sessionOptions?: AstroSessionOptions;
   slots?: Record<string, AstroSlotValue>;
   site?: URL | string;
   generator?: string;
   clientAddress?: string;
   response?: Partial<AstroResponseInit>;
   originPathname?: string;
+  routePattern?: string;
   isPrerendered?: boolean;
   preferredLocale?: string;
   preferredLocaleList?: string[];
   currentLocale?: string;
+  deferServerIslands?: boolean;
+  actionResults?: Map<unknown, unknown> | Record<string, unknown>;
   rewriteHandler?: (
     target: URL,
     request: Request,
   ) => Response | Promise<Response>;
+}
+
+const ACTION_RESULTS_SYMBOL = Symbol.for("moonshine.astro.actionResults");
+
+export function recordAstroActionResult(
+  actionKey: unknown,
+  result: unknown,
+  astro?: AstroGlobal<any, any, any>,
+): void {
+  const ctx = astro ?? activeAstroContext;
+  if (!ctx) return;
+  const store = (ctx as any)[ACTION_RESULTS_SYMBOL] as
+    Map<unknown, unknown> | undefined;
+  if (!store) return;
+  store.set(actionKey, result);
+  const queryString =
+    typeof actionKey === "function" ||
+    (typeof actionKey === "object" && actionKey !== null)
+      ? (actionKey as { queryString?: string }).queryString
+      : typeof actionKey === "string"
+        ? actionKey.startsWith("?_action=")
+          ? actionKey
+          : `?_action=${encodeURIComponent(actionKey)}`
+        : undefined;
+  if (queryString) {
+    store.set(queryString, result);
+    const rawName = queryString.startsWith("?_action=")
+      ? decodeURIComponent(queryString.slice("?_action=".length))
+      : queryString;
+    store.set(rawName, result);
+  }
 }
 
 function createAstroSlots(
@@ -315,6 +540,8 @@ export function createAstroGlobal<
           : new URL("http://localhost/");
   const request = init.request ?? new Request(resolvedUrl.href);
   const cookies = init.cookies ?? new AstroCookies(request);
+  const session =
+    init.session ?? new AstroSession(cookies, init.sessionOptions);
   const slots = createAstroSlots(init.slots);
   const site =
     init.site instanceof URL
@@ -332,13 +559,28 @@ export function createAstroGlobal<
     headers: responseHeaders,
   };
 
-  return {
+  const actionResults = new Map<unknown, unknown>();
+  if (init.actionResults instanceof Map) {
+    for (const [k, v] of init.actionResults.entries()) {
+      actionResults.set(k, v);
+    }
+  } else if (init.actionResults && typeof init.actionResults === "object") {
+    for (const [k, v] of Object.entries(init.actionResults)) {
+      actionResults.set(k, v);
+      actionResults.set(`?_action=${encodeURIComponent(k)}`, v);
+    }
+  }
+
+  const serverIslands: AstroServerIslandEntry[] = [];
+
+  const astro: AstroGlobal<Props, Params, Locals> = {
     props: (init.props ?? {}) as Props,
     request,
     url: resolvedUrl,
     params: (init.params ?? {}) as Params,
     locals: (init.locals ?? {}) as Locals,
     cookies,
+    session,
     slots,
     site,
     generator: init.generator ?? "Moonshine Astro",
@@ -348,10 +590,32 @@ export function createAstroGlobal<
       "127.0.0.1",
     response,
     originPathname: init.originPathname ?? resolvedUrl.pathname,
+    routePattern: init.routePattern ?? resolvedUrl.pathname,
     isPrerendered: init.isPrerendered ?? false,
     preferredLocale: init.preferredLocale,
     preferredLocaleList: init.preferredLocaleList,
     currentLocale: init.currentLocale,
+    deferServerIslands: init.deferServerIslands ?? false,
+    serverIslands,
+    resolveServerIsland(id: string): string | undefined {
+      const entry = serverIslands.find((island) => island.id === id);
+      if (!entry) return undefined;
+      return withAstroContext(astro, () => entry.render());
+    },
+    resolveAllServerIslands(html: string): string {
+      let output = html;
+      for (const entry of serverIslands) {
+        const pattern = new RegExp(
+          `<astro-server-island[^>]*data-island-id="${entry.id}"[^>]*>[\\s\\S]*?<\\/astro-server-island>`,
+          "g",
+        );
+        if (pattern.test(output)) {
+          const rendered = withAstroContext(astro, () => entry.render());
+          output = output.replace(pattern, () => rendered);
+        }
+      }
+      return output;
+    },
     redirect(path: string, status: ValidRedirectStatus = 302): Response {
       const headers = new Headers(response.headers);
       headers.set("Location", path);
@@ -382,10 +646,49 @@ export function createAstroGlobal<
         headers,
       });
     },
+    async callAction<TAction extends AstroActionCallable<any, any>>(
+      action: TAction,
+      ...args: Parameters<TAction>
+    ): Promise<Awaited<ReturnType<TAction>>> {
+      const res = await withAstroContext(astro, () =>
+        action(...(args as [any?])),
+      );
+      recordAstroActionResult(action, res, astro);
+      return res as Awaited<ReturnType<TAction>>;
+    },
+    getActionResult<TAction extends AstroActionCallable<any, any>>(
+      action: TAction | string,
+    ): Awaited<ReturnType<TAction>> | undefined {
+      if (actionResults.has(action)) {
+        return actionResults.get(action) as Awaited<ReturnType<TAction>>;
+      }
+      const queryString =
+        typeof action === "function" ||
+        (typeof action === "object" && action !== null)
+          ? (action as { queryString?: string }).queryString
+          : typeof action === "string"
+            ? action
+            : undefined;
+      if (queryString && actionResults.has(queryString)) {
+        return actionResults.get(queryString) as Awaited<ReturnType<TAction>>;
+      }
+      return undefined;
+    },
   };
+
+  Object.defineProperty(astro, ACTION_RESULTS_SYMBOL, {
+    value: actionResults,
+    enumerable: false,
+  });
+
+  return astro;
 }
 
 let activeAstroContext: AstroGlobal<any, any, any> | undefined;
+
+export function peekAstroContext(): AstroGlobal<any, any, any> | undefined {
+  return activeAstroContext;
+}
 
 function isAstroGlobal(value: unknown): value is AstroGlobal<any, any, any> {
   return (

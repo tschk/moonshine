@@ -29,16 +29,23 @@ import {
   type ComponentContext,
 } from "@tschk/moonshine-dom/component";
 import { createEmitter } from "./events";
+import { peekSSRContext } from "./context";
 export {
   hasInjectionContext,
   inject,
+  peekSSRContext,
   provide,
   useAttrs,
   useId,
   useSlots,
+  useSSRContext,
+  type AppConfig,
+  type AppContextState,
   type InjectionKey,
   type Slots,
+  type SSRContext,
 } from "./context";
+import { peekServerPrefetchSession } from "./lifecycle";
 export {
   onActivated,
   onBeforeMount,
@@ -191,12 +198,31 @@ export type DeepReadonly<T> = T extends
 function rawValue<T>(value: T): T {
   return toRaw(value);
 }
+function usePrefetchCell<T>(create: () => T): T {
+  const session = peekServerPrefetchSession();
+  if (
+    session &&
+    !activeEffectScope &&
+    peekComponentContext()?.active &&
+    peekComponentContext()?.mode === "ssr"
+  ) {
+    if (session.phase === "replay" && session.cursor < session.cells.length) {
+      return session.cells[session.cursor++] as T;
+    }
+    if (session.phase === "collect") {
+      const cell = create();
+      session.cells.push(cell);
+      return cell;
+    }
+  }
+  return create();
+}
 function wrapValue<T>(value: T): T {
   if (value === null || typeof value !== "object") return value;
   const raw: object = unwrapStore(value);
   if (rawMarked.has(value) || rawMarked.has(raw)) return raw as T;
   return plain(raw) || raw instanceof Set || raw instanceof Map
-    ? (reactive(value) as T)
+    ? (createReactive(value) as T)
     : value;
 }
 function wrapReadonly<T>(value: T): T {
@@ -208,6 +234,9 @@ function wrapReadonly<T>(value: T): T {
     : value;
 }
 export function reactive<T extends object>(value: T): Unwrap<T> {
+  return usePrefetchCell(() => createReactive(value));
+}
+function createReactive<T extends object>(value: T): Unwrap<T> {
   if (readonlyProxies.has(value)) return value as Unwrap<T>;
   const existing = proxies.get(value);
   if (existing) return existing as Unwrap<T>;
@@ -314,6 +343,9 @@ function notifyShallow(cell: ShallowCell | undefined): void {
 }
 
 export function shallowReactive<T extends object>(value: T): T {
+  return usePrefetchCell(() => createShallowReactive(value));
+}
+function createShallowReactive<T extends object>(value: T): T {
   if (readonlyProxies.has(value)) return value;
   if (shallowProxies.has(value) && reactiveProxies.has(value)) return value;
   const rawTarget = toRaw(value);
@@ -746,6 +778,9 @@ export function ref<T>(value: Ref<T>): Ref<T>;
 export function ref<T>(value: T): Ref<Unwrap<T>>;
 export function ref<T = any>(): Ref<T | undefined>;
 export function ref<T>(value?: T | Ref<T>): Ref<any> {
+  return usePrefetchCell(() => createRef(value));
+}
+function createRef<T>(value?: T | Ref<T>): Ref<any> {
   if (isRef(value)) return value;
   const convert = wrapValue<T>;
   let forceTrigger = false;
@@ -772,6 +807,9 @@ export function shallowRef<T extends Readonly<Ref<any>>>(value: T): T;
 export function shallowRef<T>(value: T): Ref<T>;
 export function shallowRef<T = any>(): Ref<T | undefined>;
 export function shallowRef(value?: unknown): Ref<any> {
+  return usePrefetchCell(() => createShallowRef(value));
+}
+function createShallowRef(value?: unknown): Ref<any> {
   if (isRef(value)) return value;
   let forceTrigger = false;
   const [read, write] = createSignal<unknown>(value, {
@@ -874,7 +912,7 @@ export function toRef(
       },
     );
   }
-  return ref(source);
+  return createRef(source);
 }
 /** Link the currently enumerable string properties, preserving array holes. */
 export type ToRefs<T = any> = { [K in keyof T]: ToRef<T[K]> };
@@ -2310,7 +2348,12 @@ import {
   insertionRangeEnd,
   prepareInsertionRange,
 } from "@tschk/moonshine-dom";
-import { h as hSSR } from "@tschk/moonshine-dom/ssr";
+import {
+  escapeHtml,
+  h as hSSR,
+  rawHTML,
+  renderToString as renderSSRToString,
+} from "@tschk/moonshine-dom/ssr";
 import { isSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import { getDefaultSlotFactory } from "./slots";
 
@@ -2356,7 +2399,25 @@ export interface TeleportProps {
 export function Teleport(props: TeleportProps = {}): any {
   const frame = peekComponentContext();
   if (frame?.mode === "ssr" || isSSRRendering()) {
-    return resolveBuiltinSlot(props);
+    const content = resolveBuiltinSlot(props);
+    if (!props.disabled && typeof props.to === "string" && props.to) {
+      const ssrCtx = peekSSRContext();
+      if (ssrCtx) {
+        const htmlStr =
+          content === null ||
+          content === undefined ||
+          typeof content === "boolean"
+            ? ""
+            : typeof content === "string" || typeof content === "number"
+              ? escapeHtml(String(content))
+              : renderSSRToString(() => content);
+        ssrCtx.teleports ??= {};
+        ssrCtx.teleports[props.to] =
+          (ssrCtx.teleports[props.to] ?? "") + htmlStr;
+        return rawHTML("<!--teleport start--><!--teleport end-->");
+      }
+    }
+    return content;
   }
   const renderTeleport = () => {
     const content = resolveBuiltinSlot(props);
@@ -2607,5 +2668,26 @@ export function Suspense(props: SuspenseProps = {}): any {
   }
   return () => resolveSuspense();
 }
+
+export {
+  createApp,
+  createSSRApp,
+  definePlugin,
+  resolveComponent,
+  resolveDirective,
+  warn,
+  withDirectives,
+  type App,
+  type Directive,
+  type DirectiveArguments,
+  type DirectiveBinding,
+  type DirectiveHook,
+  type FunctionDirective,
+  type FunctionPlugin,
+  type NativeApplication,
+  type ObjectDirective,
+  type ObjectPlugin,
+  type Plugin,
+} from "./app";
 
 export const version = "3.5.13";
