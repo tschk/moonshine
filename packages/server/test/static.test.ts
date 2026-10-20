@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { isContained, resolveStaticPath, tryServeStatic } from "../src/static";
+import {
+  isContained,
+  resolveStaticPath,
+  tryServeStatic,
+  staticFileHeaders,
+} from "../src/static";
 import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
@@ -62,6 +67,37 @@ describe("isContained", () => {
     isContained(staticDir, resolve(staticDir, "ok.txt"));
     // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
     realpathSpy.mockRestore();
+  });
+});
+
+describe("staticFileHeaders", () => {
+  test("sets correct content-type and default security headers when no custom headers are passed", () => {
+    const headers = staticFileHeaders("text/html");
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-content-type-options")).toBe("nosniff");
+    expect(headers.get("x-frame-options")).toBe("DENY");
+    expect(headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  test("allows overriding default security headers if provided in customHeaders", () => {
+    const headers = staticFileHeaders("text/html", {
+      "x-content-type-options": "custom",
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "strict-origin",
+    });
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-content-type-options")).toBe("custom");
+    expect(headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(headers.get("referrer-policy")).toBe("strict-origin");
+  });
+
+  test("always overwrites content-type but includes other custom headers", () => {
+    const headers = staticFileHeaders("text/html", {
+      "content-type": "application/json",
+      "x-custom-header": "test-value",
+    });
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-custom-header")).toBe("test-value");
   });
 });
 
