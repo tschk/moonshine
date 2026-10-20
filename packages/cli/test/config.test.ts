@@ -50,8 +50,7 @@ describe("findConfig", () => {
     try {
       expect(findConfig(jsTmp)).toBe(jsConfigPath);
     } finally {
-      if (existsSync(jsTmp))
-        rmSync(jsTmp, { recursive: true, force: true });
+      if (existsSync(jsTmp)) rmSync(jsTmp, { recursive: true, force: true });
     }
   });
 
