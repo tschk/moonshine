@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode, type RefObject } from "react";
 
 /** Paints one frame into a canvas already scaled to CSS pixels. */
 export type DitherPaint = (
@@ -21,6 +21,60 @@ export type DitherCanvasProps = {
   square?: boolean;
 };
 
+function paintCanvas(
+  canvas: HTMLCanvasElement | null,
+  wrap: HTMLDivElement | null,
+  enabled: boolean,
+  square: boolean,
+  height: number,
+  paint: DitherPaint,
+) {
+  if (!canvas || !wrap || !enabled) return;
+
+  const clientWidth = wrap.clientWidth;
+  if (clientWidth <= 0) return;
+  const width = square ? Math.min(clientWidth, height) : clientWidth;
+  const paintHeight = square ? width : height;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.floor(width * dpr));
+  canvas.height = Math.max(1, Math.floor(paintHeight * dpr));
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${paintHeight}px`;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  paint(ctx, width, paintHeight);
+}
+
+function useDepsRedraw(deps: readonly unknown[], draw: () => void) {
+  const depsRef = useRef(deps);
+  useEffect(() => {
+    if (
+      deps.length !== depsRef.current.length ||
+      deps.some((d, i) => d !== depsRef.current[i])
+    ) {
+      depsRef.current = deps;
+      draw();
+    }
+  }, [deps, draw]);
+}
+
+function useResizeRedraw(
+  wrapRef: RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+  draw: () => void,
+) {
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !enabled) return;
+
+    draw();
+    const ro = new ResizeObserver(draw);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [draw, enabled, wrapRef]);
+}
+
 /**
  * Owns the device-pixel-ratio sizing and resize handling every dither chart
  * needs, so each chart only supplies its paint body.
@@ -39,47 +93,19 @@ export function DitherCanvas({
   const paintRef = useRef(paint);
   paintRef.current = paint;
 
-  const depsRef = useRef(deps);
-
   const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const wrap = wrapRef.current;
-    if (!canvas || !wrap || !enabled) return;
-
-    const clientWidth = wrap.clientWidth;
-    if (clientWidth <= 0) return;
-    const width = square ? Math.min(clientWidth, height) : clientWidth;
-    const paintHeight = square ? width : height;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(width * dpr));
-    canvas.height = Math.max(1, Math.floor(paintHeight * dpr));
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${paintHeight}px`;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    paintRef.current(ctx, width, paintHeight);
+    paintCanvas(
+      canvasRef.current,
+      wrapRef.current,
+      enabled,
+      square,
+      height,
+      paintRef.current,
+    );
   }, [enabled, height, square]);
 
-  useEffect(() => {
-    if (
-      deps.length !== depsRef.current.length ||
-      deps.some((d, i) => d !== depsRef.current[i])
-    ) {
-      depsRef.current = deps;
-      draw();
-    }
-  }, [deps, draw]);
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap || !enabled) return;
-
-    draw();
-    const ro = new ResizeObserver(draw);
-    ro.observe(wrap);
-    return () => ro.disconnect();
-  }, [draw, enabled]);
+  useDepsRedraw(deps, draw);
+  useResizeRedraw(wrapRef, enabled, draw);
 
   const a11y =
     label === undefined
