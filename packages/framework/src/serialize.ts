@@ -1,4 +1,4 @@
-const ESCAPE_PATTERN = /[<>&\u2028\u2029]/g;
+const ESCAPE_PATTERN = /[<>&/\u2028\u2029]/g;
 
 function escapeJsonChar(char: string): string {
   return `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`;
