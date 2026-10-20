@@ -37,6 +37,14 @@ describe("stringifySearch", () => {
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
   });
+
+  test("keeps string values as-is", () => {
+    expect(stringifySearch({ q: "hello" })).toBe("?q=hello");
+  });
+
+  test("stringifies non-string values as JSON", () => {
+    expect(stringifySearch({ page: 2, open: true })).toBe("?page=2&open=true");
+  });
 });
 
 describe("interpolatePath", () => {
