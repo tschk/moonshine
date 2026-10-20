@@ -40,7 +40,10 @@ describe("parseSearch", () => {
   });
 
   test("handles URL encoded strings and spaces", () => {
-    expect(parseSearch("?a=hello%20world&b=hello+world")).toEqual({ a: "hello world", b: "hello world" });
+    expect(parseSearch("?a=hello%20world&b=hello+world")).toEqual({
+      a: "hello world",
+      b: "hello world",
+    });
   });
 
   test("overwrites previous values on duplicate keys", () => {
