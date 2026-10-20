@@ -37,6 +37,12 @@ describe("stringifySearch", () => {
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
   });
+
+  test("stringifies non-string values using JSON.stringify", () => {
+    expect(stringifySearch({ filter: { active: true }, count: 5 })).toBe(
+      "?filter=%7B%22active%22%3Atrue%7D&count=5",
+    );
+  });
 });
 
 describe("interpolatePath", () => {
