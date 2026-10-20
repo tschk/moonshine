@@ -25,6 +25,18 @@ describe("parseSearch", () => {
 });
 
 describe("stringifySearch", () => {
+  test("stringifies numbers, booleans, and nested objects as JSON", () => {
+    expect(
+      stringifySearch({
+        str: "hi",
+        num: 1,
+        bool: true,
+        arr: [1, 2],
+        obj: { k: "v" },
+      }),
+    ).toBe("?str=hi&num=1&bool=true&arr=%5B1%2C2%5D&obj=%7B%22k%22%3A%22v%22%7D");
+  });
+
   test("round-trips through parseSearch", () => {
     const search = { page: 2, q: "hi", open: false };
     expect(parseSearch(stringifySearch(search))).toEqual(search);
