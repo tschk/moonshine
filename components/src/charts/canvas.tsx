@@ -25,15 +25,13 @@ export type DitherCanvasProps = {
  * Owns the device-pixel-ratio sizing and resize handling every dither chart
  * needs, so each chart only supplies its paint body.
  */
-export function DitherCanvas({
-  paint,
-  deps,
-  height,
-  className,
-  enabled = true,
-  label,
-  square = false,
-}: DitherCanvasProps): ReactNode {
+export function useDitherCanvas(
+  paint: DitherPaint,
+  deps: readonly unknown[],
+  height: number,
+  enabled: boolean,
+  square: boolean,
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const paintRef = useRef(paint);
@@ -80,6 +78,26 @@ export function DitherCanvas({
     ro.observe(wrap);
     return () => ro.disconnect();
   }, [draw, enabled]);
+
+  return { canvasRef, wrapRef };
+}
+
+export function DitherCanvas({
+  paint,
+  deps,
+  height,
+  className,
+  enabled = true,
+  label,
+  square = false,
+}: DitherCanvasProps): ReactNode {
+  const { canvasRef, wrapRef } = useDitherCanvas(
+    paint,
+    deps,
+    height,
+    enabled,
+    square,
+  );
 
   const a11y =
     label === undefined
