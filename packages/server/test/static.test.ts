@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { isContained, resolveStaticPath, tryServeStatic } from "../src/static";
+import {
+  isContained,
+  resolveStaticPath,
+  tryServeStatic,
+  staticFileHeaders,
+} from "../src/static";
 import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
@@ -44,6 +49,37 @@ describe("resolveStaticPath", () => {
 
   test("returns null if the path contains null bytes", () => {
     expect(resolveStaticPath(staticDir, "/ok%00.txt")).toBeNull();
+  });
+});
+
+describe("staticFileHeaders", () => {
+  test("sets basic headers including type", () => {
+    const headers = staticFileHeaders("text/html");
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-content-type-options")).toBe("nosniff");
+    expect(headers.get("x-frame-options")).toBe("DENY");
+    expect(headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  test("allows customHeaders to override security headers", () => {
+    const headers = staticFileHeaders("text/html", {
+      "x-frame-options": "SAMEORIGIN",
+      "x-content-type-options": "foo",
+      "referrer-policy": "strict-origin",
+      "custom-header": "custom-value",
+    });
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(headers.get("x-content-type-options")).toBe("foo");
+    expect(headers.get("referrer-policy")).toBe("strict-origin");
+    expect(headers.get("custom-header")).toBe("custom-value");
+  });
+
+  test("overrides content-type provided in customHeaders with the type parameter", () => {
+    const headers = staticFileHeaders("text/html", {
+      "content-type": "application/json",
+    });
+    expect(headers.get("content-type")).toBe("text/html");
   });
 });
 
