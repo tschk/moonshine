@@ -96,7 +96,9 @@ export function island<P>(
           "data-moonshine-island-props": id,
         },
         // Ensure any stray < or > characters are properly escaped to prevent XSS
-        serializeIslandProps(props).replace(/</g, "\\u003c").replace(/>/g, "\\u003e"),
+        serializeIslandProps(props)
+          .replace(/</g, "\\u003c")
+          .replace(/>/g, "\\u003e"),
       ),
     );
   };
