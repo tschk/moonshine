@@ -99,7 +99,6 @@ import {
 import {
   provideRouter,
   ROUTER_CONFIGURATION,
-  Router,
   RouterLink,
   RouterLinkActive,
   RouterOutlet,
@@ -435,7 +434,11 @@ describe("@tschk/moonshine-angular/platform", () => {
       "step",
     );
     Output("stepChanged")(WidgetComponent.prototype, "changed");
-    Directive({ selector: "[appDir]" })(class Dir {});
+    Directive({ selector: "[appDir]" })(
+      class Dir {
+        _ = 1;
+      },
+    );
     ViewChild("box")(WidgetComponent.prototype, "box");
     ViewChildren("items")(WidgetComponent.prototype, "items");
     ContentChild("projected")(WidgetComponent.prototype, "projected");
