@@ -52,8 +52,26 @@ describe("isContained", () => {
     expect(isContained(staticDir, resolve(staticDir, "ok.txt"))).toBe(true);
   });
 
+  test("returns true for the root directory itself", () => {
+    expect(isContained(staticDir, staticDir)).toBe(true);
+  });
+
   test("returns false for a file outside the directory", () => {
     expect(isContained(staticDir, resolve(tmpDir, "secret.txt"))).toBe(false);
+  });
+
+  test("returns false for a symlink escaping the directory", () => {
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(false);
+  });
+
+  test("returns false for a directory having root as a prefix", () => {
+    const fakeRoot = resolve(tmpDir, "public-other");
+    mkdirSync(fakeRoot, { recursive: true });
+    expect(isContained(staticDir, fakeRoot)).toBe(false);
+  });
+
+  test("throws error if file does not exist", () => {
+    expect(() => isContained(staticDir, resolve(staticDir, "missing.txt"))).toThrow();
   });
 
   test("caches the real root on successive calls", () => {
