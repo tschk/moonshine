@@ -37,6 +37,22 @@ describe("stringifySearch", () => {
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
   });
+
+  test("stringifies and encodes numbers, booleans, and null", () => {
+    expect(stringifySearch({ num: 42, bool: true, nil: null })).toBe("?num=42&bool=true&nil=null");
+  });
+
+  test("JSON stringifies and encodes complex objects", () => {
+    expect(stringifySearch({ arr: [1, 2], obj: { k: "v" } })).toBe("?arr=%5B1%2C2%5D&obj=%7B%22k%22%3A%22v%22%7D");
+  });
+
+  test("does not JSON stringify primitive strings", () => {
+    expect(stringifySearch({ str: "hello", empty: "" })).toBe("?str=hello&empty=");
+  });
+
+  test("encodes special characters in strings", () => {
+    expect(stringifySearch({ special: "hello world&?%" })).toBe("?special=hello+world%26%3F%25");
+  });
 });
 
 describe("interpolatePath", () => {
