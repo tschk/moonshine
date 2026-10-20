@@ -8,11 +8,13 @@ async function load(context: RenderContext): Promise<Renderer> {
   const modules: Parameters<typeof createNativeRenderer>[0] =
     Object.create(null);
   if (context.route.mode !== "api" && context.route.mode !== "spa") {
-    for (const file of new Set([
-      context.route.file,
-      ...(context.route.layouts ?? []),
-    ]))
-      modules[file] = await import(file);
+    const files = Array.from(
+      new Set([context.route.file, ...(context.route.layouts ?? [])]),
+    );
+    const imported = await Promise.all(files.map((file) => import(file)));
+    for (let i = 0; i < files.length; i++) {
+      modules[files[i]!] = imported[i]!;
+    }
   }
   return createNativeRenderer(modules);
 }
