@@ -49,6 +49,26 @@ describe("safeHref", () => {
     expect(safeHref("")).toBe("#");
     expect(safeHref("   ")).toBe("#");
   });
+  test("handles case-insensitive schemes", () => {
+    expect(safeHref("HTTP://example.com")).toBe("HTTP://example.com");
+    expect(safeHref("JaVaScRiPt:alert(1)")).toBe("#");
+  });
+  test("handles schemes with special characters (+, -, .)", () => {
+    expect(safeHref("git+ssh://example.com")).toBe("#");
+    expect(safeHref("my-app:123")).toBe("#");
+    expect(safeHref("my.app:123")).toBe("#");
+  });
+  test("treats strings starting with numbers as relative paths", () => {
+    expect(safeHref("1scheme:123")).toBe("1scheme:123");
+  });
+  test("allows protocol-relative URLs", () => {
+    expect(safeHref("//example.com")).toBe("//example.com");
+  });
+  test("strips extensive control characters", () => {
+    expect(safeHref("\u0000javascript:alert(1)")).toBe("#");
+    expect(safeHref("java\u000Bscript:alert(1)")).toBe("#");
+    expect(safeHref("java\rscript:alert(1)")).toBe("#");
+  });
 });
 
 describe("isExternal", () => {
