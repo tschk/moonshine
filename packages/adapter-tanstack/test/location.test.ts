@@ -37,6 +37,18 @@ describe("stringifySearch", () => {
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
   });
+
+  test("stringifies null, boolean, and number primitives", () => {
+    expect(stringifySearch({ n: null, b: true, num: 42 })).toBe(
+      "?n=null&b=true&num=42",
+    );
+  });
+
+  test("stringifies complex nested structures", () => {
+    expect(stringifySearch({ arr: [1, 2], obj: { k: "v" } })).toBe(
+      "?arr=%5B1%2C2%5D&obj=%7B%22k%22%3A%22v%22%7D",
+    );
+  });
 });
 
 describe("interpolatePath", () => {
