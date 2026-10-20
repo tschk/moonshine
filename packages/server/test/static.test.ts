@@ -13,12 +13,16 @@ import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
 const staticDir = resolve(tmpDir, "public");
+const siblingDir = resolve(tmpDir, "public_secret");
 
 beforeAll(() => {
   mkdirSync(staticDir, { recursive: true });
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
+
+  mkdirSync(siblingDir, { recursive: true });
+  writeFileSync(resolve(siblingDir, "ok.txt"), "sibling-ok");
 });
 
 afterAll(() => {
@@ -56,11 +60,33 @@ describe("isContained", () => {
     expect(isContained(staticDir, resolve(tmpDir, "secret.txt"))).toBe(false);
   });
 
+  test("returns false for a symlink escaping the directory", () => {
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(false);
+  });
+
+  test("returns false for a sibling directory sharing a prefix", () => {
+    expect(isContained(staticDir, resolve(siblingDir, "ok.txt"))).toBe(false);
+  });
+
+  test("returns true for the exact root directory", () => {
+    expect(isContained(staticDir, staticDir)).toBe(true);
+  });
+
   test("caches the real root on successive calls", () => {
     const realpathSpy = spyOn(fs.realpathSync, "native");
-    isContained(staticDir, resolve(staticDir, "ok.txt"));
-    isContained(staticDir, resolve(staticDir, "ok.txt"));
-    // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
+
+    const newDir = resolve(tmpDir, "newdir");
+    mkdirSync(newDir, { recursive: true });
+    writeFileSync(resolve(newDir, "a.txt"), "a");
+
+    realpathSpy.mockClear();
+    isContained(newDir, resolve(newDir, "a.txt"));
+    expect(realpathSpy).toHaveBeenCalledTimes(2); // root + file
+
+    realpathSpy.mockClear();
+    isContained(newDir, resolve(newDir, "a.txt"));
+    expect(realpathSpy).toHaveBeenCalledTimes(1); // only file, root is cached
+
     realpathSpy.mockRestore();
   });
 });
