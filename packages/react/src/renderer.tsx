@@ -51,17 +51,19 @@ async function buildBody(
   registry: IslandRegistry,
 ): Promise<ReactNode> {
   const { route, params, data } = context;
-  const Page = (await loadComponent(
-    route.file,
-  )) as FunctionComponent<PageProps>;
+  const [Page, ...LayoutComponents] = await Promise.all([
+    loadComponent(route.file),
+    ...(route.layouts
+      ? route.layouts.map((layout) => loadComponent(layout!))
+      : []),
+  ]);
+
   const pageProps = { params, data };
-  let body = createElement(Page, pageProps);
+  let body = createElement(Page as FunctionComponent<PageProps>, pageProps);
 
   if (route.layouts) {
     for (let i = route.layouts.length - 1; i >= 0; i--) {
-      const Layout = (await loadComponent(
-        route.layouts[i]!,
-      )) as FunctionComponent<LayoutProps>;
+      const Layout = LayoutComponents[i] as FunctionComponent<LayoutProps>;
       body = createElement(Layout, { ...pageProps, children: body });
     }
   }
