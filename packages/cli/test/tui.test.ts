@@ -13,20 +13,32 @@ describe("terminalTui", () => {
 
   afterEach(() => {
     if (originalIsTTY !== undefined) {
-      Object.defineProperty(process.stdout, "isTTY", { value: originalIsTTY, configurable: true });
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: originalIsTTY,
+        configurable: true,
+      });
     } else {
       delete (process.stdout as any).isTTY;
     }
     if (originalColumns !== undefined) {
-      Object.defineProperty(process.stdout, "columns", { value: originalColumns, configurable: true });
+      Object.defineProperty(process.stdout, "columns", {
+        value: originalColumns,
+        configurable: true,
+      });
     } else {
       delete (process.stdout as any).columns;
     }
   });
 
   test("initializes Tui correctly based on process.stdout", () => {
-    Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
-    Object.defineProperty(process.stdout, "columns", { value: 120, configurable: true });
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, "columns", {
+      value: 120,
+      configurable: true,
+    });
 
     const tui = terminalTui();
     expect(tui.isTTY).toBe(true);
@@ -34,7 +46,9 @@ describe("terminalTui", () => {
   });
 
   test("write delegates to process.stdout.write", () => {
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
     const tui = terminalTui();
     tui.write("hello");
     expect(writeSpy).toHaveBeenCalledWith("hello");
@@ -42,8 +56,13 @@ describe("terminalTui", () => {
   });
 
   test("prompt writes question and awaits console iterator", async () => {
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
-    const iteratorSpy = spyOn(console as any, Symbol.asyncIterator as any).mockImplementation(async function* () {
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+    const iteratorSpy = spyOn(
+      console as any,
+      Symbol.asyncIterator as any,
+    ).mockImplementation(async function* () {
       yield "user input";
     });
 
@@ -58,8 +77,13 @@ describe("terminalTui", () => {
   });
 
   test("prompt returns empty string if iterator yields nothing", async () => {
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
-    const iteratorSpy = spyOn(console as any, Symbol.asyncIterator as any).mockImplementation(async function* () {});
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+    const iteratorSpy = spyOn(
+      console as any,
+      Symbol.asyncIterator as any,
+    ).mockImplementation(async function* () {});
 
     const tui = terminalTui();
     const answer = await tui.prompt("Age? ");
