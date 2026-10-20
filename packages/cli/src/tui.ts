@@ -20,7 +20,7 @@ const MIN_COLUMNS = 20;
 const MAX_COLUMNS = 100;
 
 export function clampColumns(raw: number | undefined): number {
-  if (!raw || !Number.isFinite(raw)) return 80;
+  if (raw === undefined || !Number.isFinite(raw)) return 80;
   return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, Math.floor(raw)));
 }
 

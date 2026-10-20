@@ -1,5 +1,12 @@
-import { describe, expect, test } from "bun:test";
-import { clampColumns, truncate, warningBar } from "../src/tui";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from "bun:test";
+import { clampColumns, terminalTui, truncate, warningBar } from "../src/tui";
 
 describe("clampColumns", () => {
   test("returns 80 for undefined or non-finite values", () => {
@@ -10,6 +17,7 @@ describe("clampColumns", () => {
   });
 
   test("clamps to a minimum of 20", () => {
+    expect(clampColumns(0)).toBe(20);
     expect(clampColumns(10)).toBe(20);
     expect(clampColumns(19)).toBe(20);
     expect(clampColumns(20)).toBe(20);
@@ -19,6 +27,7 @@ describe("clampColumns", () => {
     expect(clampColumns(100)).toBe(100);
     expect(clampColumns(101)).toBe(100);
     expect(clampColumns(150)).toBe(100);
+    expect(clampColumns(1000)).toBe(100);
   });
 
   test("returns the exact value if within range, rounding down floats", () => {
@@ -44,6 +53,115 @@ describe("truncate", () => {
     expect(truncate("hello", 1)).toBe("h");
     expect(truncate("hello", 0)).toBe("");
     expect(truncate("hello", -5)).toBe("");
+  });
+});
+
+describe("terminalTui", () => {
+  let originalIsTTY: boolean | undefined;
+  let originalColumns: number | undefined;
+
+  beforeEach(() => {
+    originalIsTTY = process.stdout.isTTY;
+    originalColumns = process.stdout.columns;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: originalIsTTY,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, "columns", {
+      value: originalColumns,
+      configurable: true,
+    });
+  });
+
+  test("creates a TUI instance correctly configured for TTY", () => {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: true,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, "columns", {
+      value: 50,
+      configurable: true,
+    });
+
+    const tui = terminalTui();
+    expect(tui.isTTY).toBe(true);
+    expect(tui.columns).toBe(50);
+  });
+
+  test("creates a TUI instance correctly configured for non-TTY", () => {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: false,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, "columns", {
+      value: undefined,
+      configurable: true,
+    });
+
+    const tui = terminalTui();
+    expect(tui.isTTY).toBe(false);
+    expect(tui.columns).toBe(80); // undefined clamps to 80
+  });
+
+  test("write() delegates to process.stdout.write", () => {
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+    const tui = terminalTui();
+
+    tui.write("hello world");
+    expect(writeSpy).toHaveBeenCalledWith("hello world");
+
+    writeSpy.mockRestore();
+  });
+
+  test("prompt() writes the question and reads from console", async () => {
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+
+    const mockIterator = async function* () {
+      yield "user input";
+      yield "ignored second line";
+    };
+
+    const originalConsoleIterator = console[Symbol.asyncIterator];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    console[Symbol.asyncIterator] = mockIterator as any;
+
+    const tui = terminalTui();
+    const result = await tui.prompt("Question? ");
+
+    expect(writeSpy).toHaveBeenCalledWith("Question? ");
+    expect(result).toBe("user input");
+
+    writeSpy.mockRestore();
+    console[Symbol.asyncIterator] = originalConsoleIterator;
+  });
+
+  test("prompt() returns empty string if no input is provided", async () => {
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      () => true,
+    );
+
+    // eslint-disable-next-line require-yield
+    const mockIterator = async function* () {};
+
+    const originalConsoleIterator = console[Symbol.asyncIterator];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    console[Symbol.asyncIterator] = mockIterator as any;
+
+    const tui = terminalTui();
+    const result = await tui.prompt("Question? ");
+
+    expect(writeSpy).toHaveBeenCalledWith("Question? ");
+    expect(result).toBe("");
+
+    writeSpy.mockRestore();
+    console[Symbol.asyncIterator] = originalConsoleIterator;
   });
 });
 
