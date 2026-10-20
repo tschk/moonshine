@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-svelte",
-  "version": "0.4.76",
+  "version": "0.4.77",
   "description": "Independent Svelte store and native lifecycle APIs with Moonshine signal bridges",
   "license": "ISC",
   "type": "module",
@@ -39,14 +39,14 @@
     "./kit": "./src/kit.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "0.4.73",
-    "@tschk/moonshine-dom": "0.4.73"
+    "@tschk/moonshine": "^0.4.77",
+    "@tschk/moonshine-dom": "^0.4.77"
   },
   "devDependencies": {
     "typescript": "7.0.2"
   },
   "peerDependencies": {
-    "@tschk/moonshine-framework": "0.4.73"
+    "@tschk/moonshine-framework": "^0.4.77"
   },
   "peerDependenciesMeta": {
     "@tschk/moonshine-framework": {

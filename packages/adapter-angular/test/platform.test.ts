@@ -144,6 +144,10 @@ import {
   withAngularServerContext,
   withAppShell,
   withRoutes,
+  createAngularTemplateRef,
+  matchesNgContentSelector,
+  projectAngularContent,
+  renderNgTemplateOutlet,
 } from "../src/platform";
 import {
   provideRouter,
@@ -1096,5 +1100,76 @@ describe("@tschk/moonshine-angular/platform", () => {
     );
     expect(syncUrl).toBe("https://example.com/ctx-test");
     expect(INITIAL_CONFIG).toBeDefined();
+  });
+
+  test("TemplateRef, ViewContainerRef.createEmbeddedView, createAngularTemplateRef, renderNgTemplateOutlet, matchesNgContentSelector, and projectAngularContent", () => {
+    const hostInst = { prefix: "Item:" };
+    const tpl = createAngularTemplateRef<{ $implicit: string; count: number }>(
+      hostInst,
+      ["refA", "refB"],
+      (ctx) => `${hostInst.prefix} ${ctx.$implicit} (${ctx.count})`,
+    );
+    expect(tpl).toBeInstanceOf(TemplateRef);
+    expect(resolveViewChild(hostInst, "refA")).toBe(tpl);
+    expect(resolveViewChild(hostInst, "refB")).toBe(tpl);
+
+    expect(renderNgTemplateOutlet(tpl, { $implicit: "Alpha", count: 3 })).toBe(
+      "Item: Alpha (3)",
+    );
+    expect(renderNgTemplateOutlet(null, { $implicit: "Alpha", count: 3 })).toBe(
+      null,
+    );
+
+    const vcr = new ViewContainerRef();
+    const viewRef = vcr.createEmbeddedView(tpl, {
+      $implicit: "Beta",
+      count: 7,
+    });
+    expect(vcr.length).toBe(1);
+    expect(viewRef.rootNodes).toEqual(["Item: Beta (7)"]);
+    expect(viewRef.destroyed).toBe(false);
+    vcr.clear();
+    expect(vcr.length).toBe(0);
+    expect(viewRef.destroyed).toBe(true);
+
+    // Multi-slot <ng-content select="..."> selector matching and projection
+    const headerNode = {
+      tag: "header",
+      props: { class: "card-header primary", "data-slot": "top" },
+    };
+    const actionNode = {
+      tag: "button",
+      props: { "card-action": "", id: "save-btn" },
+    };
+    const bodyText = "Main card body";
+
+    expect(
+      matchesNgContentSelector(headerNode, "header.card-header[data-slot=top]"),
+    ).toBe(true);
+    expect(matchesNgContentSelector(actionNode, "[card-action]")).toBe(true);
+    expect(matchesNgContentSelector(actionNode, "#save-btn")).toBe(true);
+    expect(matchesNgContentSelector(bodyText, "[card-action]")).toBe(false);
+
+    const children = [headerNode, bodyText, actionNode];
+    const selectors = ["header.card-header", "[card-action]"];
+    expect(
+      projectAngularContent(
+        children,
+        "header.card-header",
+        selectors,
+        "no-hdr",
+      ),
+    ).toEqual([headerNode]);
+    expect(
+      projectAngularContent(children, "[card-action]", selectors, "no-act"),
+    ).toEqual([actionNode]);
+    // Default slot receives only nodes not claimed by named selectors
+    expect(projectAngularContent(children, null, selectors, "no-body")).toEqual(
+      [bodyText],
+    );
+    // Unmatched selector falls back
+    expect(
+      projectAngularContent(children, "footer", selectors, "Fallback Footer"),
+    ).toBe("Fallback Footer");
   });
 });

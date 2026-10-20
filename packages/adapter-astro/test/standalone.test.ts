@@ -480,3 +480,65 @@ assert.ok(html.includes('data-astro-transition-persist-props=""'), html);
 `);
   },
 );
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro Astro.slots.render(name, args?), is:raw directive, and <Fragment> slot/content directives compile and render via AstroContainer",
+  async () => {
+    const cardSource = `---
+const hasHeader = Astro.slots.has("header");
+const headerHtml = hasHeader ? Astro.slots.render("header") : "";
+const rowHtml = Astro.slots.has("row") ? Astro.slots.render("row", ["Ada", 1]) : "";
+const defaultHtml = Astro.slots.render("default");
+---
+<article class="card">
+  {hasHeader && <header class="card-header" set:html={headerHtml.toUpperCase()} />}
+  {rowHtml && <ul class="card-rows" set:html={rowHtml} />}
+  <div class="card-body" set:html={defaultHtml} />
+  <code is:raw class="raw-snippet">{unparsed} &amp; <span>{literal}</span></code>
+  <Fragment is:raw><pre class="raw-frag">{rawFrag}</pre></Fragment>
+</article>
+`;
+    const pageSource = `---
+import Card from "./Card.astro";
+const badgeMarkup = "<em>Rich Slot</em>";
+---
+<Card>
+  <Fragment slot="header" set:html={badgeMarkup} />
+  <p>Default slot paragraph</p>
+</Card>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Card.astro', ${JSON.stringify(cardSource)});
+await Bun.write('source/Page.astro', ${JSON.stringify(pageSource)});
+for (const [entry, out] of [['Card.astro', 'card-out'], ['Page.astro', 'page-out']]) {
+  const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', entry, '--out-dir', out], { stdout: 'pipe', stderr: 'pipe' });
+  const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  assert.equal(code, 0, stdout + stderr);
+}
+const { default: Card } = await import(process.cwd() + '/card-out/CrepusEmit.moonshine-ssr.ts');
+const { default: Page } = await import(process.cwd() + '/page-out/CrepusEmit.moonshine-ssr.ts');
+const { AstroContainer } = await import('@tschk/moonshine-astro/container');
+const { h, renderToString } = await import('@tschk/moonshine-astro/ssr');
+
+const pageHtml = renderToString(() => h(Page, {}));
+assert.ok(pageHtml.includes('<header class="card-header"><EM>RICH SLOT</EM></header>'), pageHtml);
+assert.ok(pageHtml.includes('<div class="card-body"><p>Default slot paragraph</p></div>'), pageHtml);
+assert.ok(pageHtml.includes('<code class="raw-snippet">{unparsed} &amp; <span>{literal}</span></code>'), pageHtml);
+assert.ok(pageHtml.includes('<pre class="raw-frag">{rawFrag}</pre>'), pageHtml);
+
+const container = await AstroContainer.create();
+const cardHtml = await container.renderToString(Card, {
+  slots: {
+    header: '<span>Custom</span>',
+    row: (name: unknown, idx: unknown) => \`<li data-idx="\${idx}">\${name}</li>\`,
+    default: '<b>Body</b>',
+  },
+});
+assert.ok(cardHtml.includes('<header class="card-header"><SPAN>CUSTOM</SPAN></header>'), cardHtml);
+assert.ok(cardHtml.includes('<ul class="card-rows"><li data-idx="1">Ada</li></ul>'), cardHtml);
+assert.ok(cardHtml.includes('<div class="card-body"><b>Body</b></div>'), cardHtml);
+`);
+  },
+);

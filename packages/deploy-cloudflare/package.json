@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-deploy-cloudflare",
-  "version": "0.4.76",
+  "version": "0.4.77",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -15,20 +15,20 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine-framework": "0.4.73",
-    "@tschk/moonshine-router": "0.4.73",
-    "@tschk/moonshine-server": "0.4.73"
+    "@tschk/moonshine-framework": "^0.4.77",
+    "@tschk/moonshine-router": "^0.4.77",
+    "@tschk/moonshine-server": "^0.4.77"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
     "typescript": "7.0.2",
-    "@tschk/moonshine-adapter-conformance": "0.4.73"
+    "@tschk/moonshine-adapter-conformance": "^0.4.77"
   },
   "files": [
     "src"
   ],
   "peerDependencies": {
-    "@tschk/moonshine-react": "0.4.73"
+    "@tschk/moonshine-react": "^0.4.77"
   },
   "peerDependenciesMeta": {
     "@tschk/moonshine-react": {

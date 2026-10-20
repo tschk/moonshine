@@ -229,7 +229,7 @@ export class RouteLeafComponent {
 @Component({
   selector: "app-badge-box",
   standalone: true,
-  template: \`<aside class="badge-box"><b (click)="bump()">{{ val() }}</b><ng-content>Default Slot</ng-content></aside>\`,
+  template: \`<aside class="badge-box"><ng-content select="[badge-header]">Fallback Header</ng-content><b (click)="bump()">{{ val() }}</b><ng-content>Default Slot</ng-content></aside>\`,
 })
 export class BadgeBoxComponent {
   val = model(10);
@@ -306,8 +306,23 @@ export class BadgeBoxComponent {
       } @placeholder {
         <mark class="deferred-wait">Waiting</mark>
       }
+      <ng-template #customBadge let-label let-total="total">
+        <cite class="tpl-badge">{{ label }}={{ total }}</cite>
+      </ng-template>
+      <ng-template #idleTpl>
+        <dfn class="tpl-idle">Idle Legacy</dfn>
+      </ng-template>
+      <ng-container [ngTemplateOutlet]="customBadge" [ngTemplateOutletContext]="{ $implicit: 'Score', total: doubled() }"></ng-container>
+      <q *ngIf="doubled(); else idleTpl; as legacyDbl" class="legacy-if">Legacy:{{ legacyDbl }}</q>
+      <ol class="legacy-for">
+        <li *ngFor="let item of items(); index as i; trackBy: trackItem">{{ i }}-{{ item }}</li>
+      </ol>
+      <div [ngSwitch]="mode()" class="legacy-switch">
+        <span *ngSwitchCase="'edit'">Switch:Edit</span>
+        <span *ngSwitchDefault>Switch:Default</span>
+      </div>
       <ng-container>
-        <app-badge-box [(val)]="syncedCount">Projected Content</app-badge-box>
+        <app-badge-box [(val)]="syncedCount"><h4 badge-header>Custom Header</h4>Projected Content</app-badge-box>
       </ng-container>
       <router-outlet></router-outlet>
       <button (click)="increment()">+</button>
@@ -341,8 +356,13 @@ export class CounterComponent {
   });
   submittedCount = 0;
   noteRef = viewChild("noteInput");
+  badgeTplRef = viewChild("customBadge");
   @ViewChild("noteInput") decoratedNoteRef?: any;
   viewReady = false;
+
+  trackItem(index: number, item: string) {
+    return item;
+  }
 
   ngAfterViewInit() {
     this.viewReady = Boolean(this.noteRef() && this.decoratedNoteRef);
@@ -403,8 +423,12 @@ assert.ok(html.includes('value="London"'), html);
 assert.ok(html.includes('value="ada@example.com"'), html);
 assert.ok(html.includes('<u class="tpl-status">true:true</u>'), html);
 assert.ok(html.includes('<mark class="deferred-ready">Deferred Ready</mark>'), html);
+assert.ok(html.includes('<cite class="tpl-badge">Score=8</cite>'), html);
+assert.ok(html.includes('<q class="legacy-if">Legacy:8</q>'), html);
+assert.ok(html.includes('<li>0-x</li><li>1-y</li>'), html);
+assert.ok(html.includes('<span>Switch:Edit</span>'), html);
 assert.ok(html.includes('ng-untouched ng-pristine ng-valid'), html);
-assert.ok(html.includes('<b>25</b>Projected Content'), html);
+assert.ok(html.includes('<h4 badge-header="true">Custom Header</h4><b>25</b>Projected Content'), html);
 assert.ok(html.includes('Route Leaf: catalog'), html);
 
 const engine = new AngularAppEngine({

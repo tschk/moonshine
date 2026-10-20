@@ -293,6 +293,7 @@ export {
 export {
   defineStyleVars,
   mergeDefineVars,
+  sourceRenderSlot,
   transitionAnimateValue,
   transitionPersistValue,
   transitionPersistPropsValue,

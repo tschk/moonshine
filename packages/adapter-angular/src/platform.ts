@@ -2218,6 +2218,16 @@ export class RendererFactory2 {
   }
 }
 
+export interface EmbeddedViewRef<C = any> {
+  context: C;
+  rootNodes: any[];
+  readonly destroyed: boolean;
+  destroy(): void;
+  detectChanges(): void;
+  markForCheck(): void;
+  onDestroy(callback: () => void): void;
+}
+
 export class TemplateRef<C = any> {
   static readonly ɵprov = {
     providedIn: "root" as const,
@@ -2225,23 +2235,111 @@ export class TemplateRef<C = any> {
   };
 
   readonly elementRef: ElementRef;
+  readonly #renderFn?: (context: C, injector?: Injector) => any;
 
-  constructor(elementRef: ElementRef = new ElementRef(null)) {
-    this.elementRef = elementRef;
+  constructor(
+    elementRefOrRenderFn:
+      ElementRef | ((context: C, injector?: Injector) => any) = new ElementRef(
+      null,
+    ),
+    renderFn?: (context: C, injector?: Injector) => any,
+  ) {
+    if (typeof elementRefOrRenderFn === "function") {
+      this.elementRef = new ElementRef(null);
+      this.#renderFn = elementRefOrRenderFn;
+    } else {
+      this.elementRef = elementRefOrRenderFn;
+      this.#renderFn = renderFn;
+    }
   }
 
-  createEmbeddedView(context: C, _injector?: Injector): any {
+  render(context: C = {} as C, injector?: Injector): any {
+    if (!this.#renderFn) return null;
+    const effectiveInjector = injector ?? getCurrentInjector();
+    if (effectiveInjector) {
+      return runInInjectionContext(effectiveInjector, () =>
+        this.#renderFn!(context, effectiveInjector),
+      );
+    }
+    return this.#renderFn(context, effectiveInjector);
+  }
+
+  createEmbeddedView(
+    context: C = {} as C,
+    injector?: Injector,
+  ): EmbeddedViewRef<C> {
+    const rendered = this.render(context, injector);
+    const rootNodes =
+      rendered === null || rendered === undefined
+        ? []
+        : Array.isArray(rendered)
+          ? rendered
+          : [rendered];
+    const destroyCallbacks: Array<() => void> = [];
+    let isDestroyed = false;
     return {
       context,
-      rootNodes: [],
-      destroyed: false,
+      rootNodes,
+      get destroyed() {
+        return isDestroyed;
+      },
       destroy() {
-        this.destroyed = true;
+        if (isDestroyed) return;
+        isDestroyed = true;
+        for (const cb of destroyCallbacks.splice(0)) {
+          try {
+            cb();
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
       },
       detectChanges() {},
       markForCheck() {},
+      onDestroy(callback: () => void) {
+        if (isDestroyed) {
+          callback();
+        } else {
+          destroyCallbacks.push(callback);
+        }
+      },
     };
   }
+}
+
+export function createAngularTemplateRef<C = any>(
+  renderFn: (context: C, injector?: Injector) => any,
+): TemplateRef<C>;
+export function createAngularTemplateRef<C = any>(
+  instance: unknown,
+  refNames: string | readonly string[],
+  renderFn: (context: C, injector?: Injector) => any,
+): TemplateRef<C>;
+export function createAngularTemplateRef<C = any>(
+  renderFnOrInstance: ((context: C, injector?: Injector) => any) | unknown,
+  refNames?: string | readonly string[],
+  renderFn?: (context: C, injector?: Injector) => any,
+): TemplateRef<C> {
+  if (typeof renderFnOrInstance === "function" && renderFn === undefined) {
+    return new TemplateRef<C>(
+      new ElementRef(null),
+      renderFnOrInstance as (context: C, injector?: Injector) => any,
+    );
+  }
+  const tpl = new TemplateRef<C>(new ElementRef(null), renderFn);
+  if (
+    renderFnOrInstance &&
+    typeof renderFnOrInstance === "object" &&
+    refNames
+  ) {
+    const list = Array.isArray(refNames) ? refNames : [refNames];
+    for (const name of list) {
+      if (name) {
+        registerViewChild(renderFnOrInstance, name, tpl);
+      }
+    }
+  }
+  return tpl;
 }
 
 export class ViewContainerRef {
@@ -2264,6 +2362,21 @@ export class ViewContainerRef {
 
   get(index: number): any {
     return this.#views[index] ?? null;
+  }
+
+  createEmbeddedView<C = any>(
+    templateRef: TemplateRef<C>,
+    context?: C,
+    options?: { index?: number; injector?: Injector } | number,
+  ): EmbeddedViewRef<C> {
+    const idx = typeof options === "number" ? options : options?.index;
+    const inj = typeof options === "object" ? options?.injector : undefined;
+    const viewRef = templateRef.createEmbeddedView(
+      (context ?? ({} as C)) as C,
+      inj,
+    );
+    this.insert(viewRef, idx);
+    return viewRef;
   }
 
   insert(viewRef: any, index?: number): any {
@@ -2925,6 +3038,7 @@ export function registerViewChild(
   if (!instance || typeof instance !== "object" || !target) {
     return undefined;
   }
+  const isTemplateRef = target instanceof TemplateRef;
   const isComponentInstance = Boolean(
     target &&
     typeof target === "object" &&
@@ -2934,6 +3048,7 @@ export function registerViewChild(
   if (
     typeof target === "object" &&
     !isComponentInstance &&
+    !isTemplateRef &&
     !("nativeElement" in target)
   ) {
     try {
@@ -2975,10 +3090,14 @@ export function registerViewChild(
   refMap.set(refName, list);
 
   const resolveForRead = (item: any, readToken?: any) => {
+    if (readToken === TemplateRef) {
+      return item instanceof TemplateRef ? item : undefined;
+    }
     if (readToken === ElementRef) {
+      if (item instanceof TemplateRef) return item.elementRef;
       return item instanceof ElementRef ? item : new ElementRef(item);
     }
-    if (isComponentInstance) {
+    if (isTemplateRef || isComponentInstance) {
       return item;
     }
     return item instanceof ElementRef ? item : new ElementRef(item);
@@ -2996,7 +3115,7 @@ export function registerViewChild(
       if (target instanceof Resolved || target?.constructor === Resolved) {
         return true;
       }
-      if (Resolved === ElementRef && !isComponentInstance) {
+      if (Resolved === ElementRef && !isComponentInstance && !isTemplateRef) {
         return true;
       }
     }
@@ -3053,6 +3172,321 @@ export function registerViewChild(
 export function resolveViewChild(instance: any, refName: string): any {
   const refMap = instance?.[VIEW_REF_MAP] as Map<string, any[]> | undefined;
   return refMap?.get(refName)?.[0];
+}
+
+function readMaybeGetterOrSignal(value: unknown): any {
+  if (typeof value === "function") {
+    return (value as () => any)();
+  }
+  return readMaybeSignal(value);
+}
+
+/**
+ * Renders a `TemplateRef` (or resolves a `#ref` name on `instance`) with optional
+ * `$implicit` / named context variables and custom `Injector` for `[ngTemplateOutlet]` and `*ngTemplateOutlet`.
+ */
+export function renderNgTemplateOutlet(
+  instanceOrTemplate: any,
+  templateRefOrContext?: unknown,
+  contextOrInjector?: Record<string, any> | Injector | null,
+  maybeInjector?: Injector | null,
+): any {
+  let instance: any;
+  let templateRefOrName: unknown;
+  let context: unknown;
+  let injector: unknown;
+
+  if (
+    instanceOrTemplate === null ||
+    instanceOrTemplate === undefined ||
+    instanceOrTemplate instanceof TemplateRef ||
+    typeof instanceOrTemplate === "function"
+  ) {
+    instance = null;
+    templateRefOrName = instanceOrTemplate;
+    context = templateRefOrContext;
+    injector = contextOrInjector;
+  } else {
+    instance = instanceOrTemplate;
+    templateRefOrName = templateRefOrContext;
+    context = contextOrInjector;
+    injector = maybeInjector;
+  }
+
+  let rawTpl = readMaybeGetterOrSignal(templateRefOrName);
+  const tpl =
+    typeof rawTpl === "string" ? resolveViewChild(instance, rawTpl) : rawTpl;
+  if (!tpl) return null;
+  const rawCtx = (readMaybeGetterOrSignal(context) ?? {}) as Record<
+    string,
+    any
+  >;
+  const rawInj =
+    (readMaybeGetterOrSignal(injector) as Injector | null | undefined) ??
+    getAngularInstanceInjector(instance) ??
+    getCurrentInjector();
+  if (tpl instanceof TemplateRef) {
+    return tpl.render(rawCtx, rawInj);
+  }
+  if (typeof tpl === "function") {
+    const res = rawInj
+      ? runInInjectionContext(rawInj, () => tpl(rawCtx, rawInj))
+      : tpl(rawCtx, rawInj);
+    if (res instanceof TemplateRef) {
+      return res.render(rawCtx, rawInj);
+    }
+    return res;
+  }
+  return null;
+}
+
+interface ParsedElementDescriptor {
+  tagName: string;
+  attributes: Map<string, string>;
+  classes: Set<string>;
+}
+
+function inspectProjectedNode(node: unknown): ParsedElementDescriptor | null {
+  const resolved =
+    typeof node === "function" ? (node as () => unknown)() : node;
+  if (!resolved || typeof resolved !== "object") return null;
+
+  // DOM Element or virtual { tag / tagName, props / attributes } check
+  const rawTag =
+    typeof (resolved as any).tagName === "string"
+      ? (resolved as any).tagName
+      : typeof (resolved as any).tag === "string"
+        ? (resolved as any).tag
+        : null;
+  if (rawTag) {
+    const el = resolved as any;
+    const tagName = String(rawTag).toLowerCase();
+    const attributes = new Map<string, string>();
+    const classes = new Set<string>();
+    const applyAttrObj = (obj: Record<string, any>) => {
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === false || v === null || v === undefined) continue;
+        const lowerKey = k.toLowerCase();
+        const strVal = v === true ? "" : String(v);
+        attributes.set(lowerKey, strVal);
+        if (lowerKey === "class" || lowerKey === "classname") {
+          for (const c of strVal.split(/\s+/).filter(Boolean)) {
+            classes.add(c);
+          }
+        }
+      }
+    };
+    if (el.props && typeof el.props === "object") {
+      applyAttrObj(el.props);
+    }
+    if (el.attributes) {
+      if (typeof el.getAttributeNames === "function") {
+        for (const name of el.getAttributeNames()) {
+          attributes.set(
+            String(name).toLowerCase(),
+            String(el.getAttribute(name) ?? ""),
+          );
+        }
+      } else if (
+        Array.isArray(el.attributes) ||
+        Symbol.iterator in Object(el.attributes)
+      ) {
+        for (const attr of el.attributes as Iterable<any>) {
+          if (attr && typeof attr.name === "string") {
+            attributes.set(attr.name.toLowerCase(), String(attr.value ?? ""));
+          }
+        }
+      } else if (typeof el.attributes === "object") {
+        applyAttrObj(el.attributes);
+      }
+    }
+    if (typeof el.id === "string" && el.id) {
+      attributes.set("id", el.id);
+    }
+    const clsAttr =
+      typeof el.className === "string"
+        ? el.className
+        : (attributes.get("class") ?? "");
+    for (const c of clsAttr.split(/\s+/).filter(Boolean)) {
+      classes.add(c);
+    }
+    if (el.classList && Symbol.iterator in Object(el.classList)) {
+      for (const c of el.classList as Iterable<string>) {
+        if (c) classes.add(c);
+      }
+    }
+    return { tagName, attributes, classes };
+  }
+
+  // SSR HTML object check
+  const html = serializeAngularRenderedOutput(resolved, false).trimStart();
+  if (
+    !html.startsWith("<") ||
+    html.startsWith("<!--") ||
+    html.startsWith("</")
+  ) {
+    return null;
+  }
+  const openEnd = html.indexOf(">");
+  if (openEnd < 0) return null;
+  const openTag = html.slice(1, openEnd).replace(/\/$/, "").trim();
+  const spaceIdx = openTag.search(/\s/);
+  const tagName = (
+    spaceIdx < 0 ? openTag : openTag.slice(0, spaceIdx)
+  ).toLowerCase();
+  if (!tagName) return null;
+
+  const attributes = new Map<string, string>();
+  const classes = new Set<string>();
+  const attrStr = spaceIdx < 0 ? "" : openTag.slice(spaceIdx + 1);
+  const attrRegex =
+    /([A-Za-z0-9_:@.-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = attrRegex.exec(attrStr)) !== null) {
+    const key = match[1]!.toLowerCase();
+    const val = match[2] ?? match[3] ?? match[4] ?? "";
+    attributes.set(key, val);
+    if (key === "class") {
+      for (const c of val.split(/\s+/).filter(Boolean)) {
+        classes.add(c);
+      }
+    }
+  }
+  return { tagName, attributes, classes };
+}
+
+function matchesSingleCompoundSelector(
+  desc: ParsedElementDescriptor,
+  compound: string,
+): boolean {
+  let rem = compound.trim();
+  if (!rem) return false;
+  if (rem === "*") return true;
+
+  // Match attribute selectors `[attr]` or `[attr=val]`
+  const attrPattern =
+    /\[\s*([A-Za-z0-9_:@.-]+)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\]]*?))\s*)?\]/g;
+  let attrMatch: RegExpExecArray | null;
+  while ((attrMatch = attrPattern.exec(rem)) !== null) {
+    const attrName = attrMatch[1]!.toLowerCase();
+    const expectedVal = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4]?.trim();
+    if (!desc.attributes.has(attrName)) return false;
+    if (
+      expectedVal !== undefined &&
+      desc.attributes.get(attrName) !== expectedVal
+    ) {
+      return false;
+    }
+  }
+  rem = rem.replace(attrPattern, "").trim();
+
+  // Match ID selectors `#id`
+  const idPattern = /#([A-Za-z0-9_-]+)/g;
+  let idMatch: RegExpExecArray | null;
+  while ((idMatch = idPattern.exec(rem)) !== null) {
+    const expectedId = idMatch[1]!;
+    if (desc.attributes.get("id") !== expectedId) return false;
+  }
+  rem = rem.replace(idPattern, "").trim();
+
+  // Match class selectors `.class`
+  const classPattern = /\.([A-Za-z0-9_-]+)/g;
+  let classMatch: RegExpExecArray | null;
+  while ((classMatch = classPattern.exec(rem)) !== null) {
+    const expectedClass = classMatch[1]!;
+    if (!desc.classes.has(expectedClass)) return false;
+  }
+  rem = rem.replace(classPattern, "").trim();
+
+  // Remaining token, if any, is a tag name selector
+  if (rem) {
+    if (desc.tagName !== rem.toLowerCase()) return false;
+  }
+  return true;
+}
+
+export function matchesNgContentSelector(
+  node: unknown,
+  selectorList: string,
+): boolean {
+  const desc = inspectProjectedNode(node);
+  if (!desc) return false;
+  const parts = selectorList
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.some((part) => matchesSingleCompoundSelector(desc, part));
+}
+
+function flattenProjectedChildren(
+  children: unknown,
+  out: unknown[] = [],
+): unknown[] {
+  if (
+    children === null ||
+    children === undefined ||
+    typeof children === "boolean"
+  ) {
+    return out;
+  }
+  if (Array.isArray(children)) {
+    for (const item of children) {
+      flattenProjectedChildren(item, out);
+    }
+    return out;
+  }
+  out.push(children);
+  return out;
+}
+
+/**
+ * Partitions `children` across `<ng-content select="...">` and default `<ng-content>` slots
+ * using Angular's first-matching-slot rule in both DOM and SSR targets.
+ */
+export function projectAngularContent(
+  children: unknown,
+  select: string | null | undefined,
+  allSelectors: readonly string[] = [],
+  fallbackFactory?: (() => any) | any,
+): any {
+  const items = flattenProjectedChildren(children);
+  const normalizedSelect = select?.trim() || null;
+
+  const matched: unknown[] = [];
+  for (const item of items) {
+    // Ignore pure whitespace text nodes when matching named slots
+    if (
+      typeof item === "string" &&
+      item.trim() === "" &&
+      normalizedSelect !== null
+    ) {
+      continue;
+    }
+    const firstMatchingSelector = allSelectors.find((sel) =>
+      matchesNgContentSelector(item, sel),
+    );
+    if (normalizedSelect !== null) {
+      if (
+        firstMatchingSelector === normalizedSelect ||
+        (!firstMatchingSelector &&
+          matchesNgContentSelector(item, normalizedSelect))
+      ) {
+        matched.push(item);
+      }
+    } else if (!firstMatchingSelector) {
+      matched.push(item);
+    }
+  }
+
+  const hasMeaningfulContent = matched.some(
+    (item) => !(typeof item === "string" && item.trim() === ""),
+  );
+  if (!hasMeaningfulContent) {
+    return typeof fallbackFactory === "function"
+      ? fallbackFactory()
+      : (fallbackFactory ?? null);
+  }
+  return matched;
 }
 
 export function completeAngularViewInit<T>(instance: any, root: T): T {

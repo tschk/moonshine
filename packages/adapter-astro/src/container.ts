@@ -246,8 +246,16 @@ export class AstroContainer {
       if (slotVal === undefined || slotVal === null || slotVal === false) {
         continue;
       }
-      const resolved =
-        typeof slotVal === "function" ? await slotVal() : await slotVal;
+      let resolved: unknown;
+      if (typeof slotVal === "function") {
+        try {
+          resolved = await slotVal();
+        } catch {
+          resolved = "";
+        }
+      } else {
+        resolved = await slotVal;
+      }
       if (resolved === undefined || resolved === null || resolved === false) {
         out[name] = "";
       } else if (isSsrSymbolObject(resolved)) {
@@ -397,9 +405,26 @@ export class AstroContainer {
 
     if (typeof target === "function") {
       const ssr = await getSsrModule();
-      const slotThunks: Record<string, () => any> = {};
+      const slotThunks: Record<string, (...args: unknown[]) => any> = {};
       for (const [slotName, slotHtml] of Object.entries(evaluatedSlots)) {
-        slotThunks[slotName] = () => ssr.rawHTML(slotHtml);
+        const rawSlot = rawSlots[slotName];
+        if (typeof rawSlot === "function") {
+          slotThunks[slotName] = (...args: unknown[]) => {
+            if (args.length > 0) {
+              const out = rawSlot(...args);
+              if (out === undefined || out === null || out === false) {
+                return "";
+              }
+              if (isSsrSymbolObject(out)) {
+                return out as any;
+              }
+              return ssr.rawHTML(String(out));
+            }
+            return ssr.rawHTML(slotHtml);
+          };
+        } else {
+          slotThunks[slotName] = () => ssr.rawHTML(slotHtml);
+        }
       }
 
       let directResult: unknown;

@@ -315,6 +315,35 @@ export function sourceHasSlot(slots: SourceSlots, name: string): boolean {
   return Object.hasOwn(slots, name);
 }
 
+/** Render a named slot synchronously to an HTML string (`Astro.slots.render(name, args?)`). */
+export function sourceRenderSlot(
+  slots: SourceSlots,
+  name = "default",
+  args?: readonly unknown[],
+): string {
+  if (Object.hasOwn(slots, name)) {
+    const slotEntry = slots[name];
+    if (
+      typeof slotEntry === "function" &&
+      Array.isArray(args) &&
+      args.length > 0
+    ) {
+      return renderToString(() =>
+        sourceChild((slotEntry as (...a: unknown[]) => unknown)(...args)),
+      );
+    }
+    return renderToString(() => sourceChild(slotEntry));
+  }
+  const ctx = peekAstroContext();
+  if (ctx?.slots.has(name)) {
+    const rendered = ctx.slots.render(name, args ? [...args] : []);
+    if (typeof rendered === "string") {
+      return rendered;
+    }
+  }
+  return "";
+}
+
 export function h<P extends object>(
   component: (props: P & { children?: SSRChild }) => SSRChild,
   props: P | null,
