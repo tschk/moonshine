@@ -39,7 +39,9 @@ describe("stringifySearch", () => {
   });
 
   test("serializes nested objects and arrays as JSON strings", () => {
-    expect(stringifySearch({ filter: { a: 1, b: "2" }, sort: ["id", "desc"] })).toBe(
+    expect(
+      stringifySearch({ filter: { a: 1, b: "2" }, sort: ["id", "desc"] }),
+    ).toBe(
       "?filter=%7B%22a%22%3A1%2C%22b%22%3A%222%22%7D&sort=%5B%22id%22%2C%22desc%22%5D",
     );
   });
