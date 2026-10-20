@@ -95,6 +95,23 @@ import {
   withI18nSupport,
   withIncrementalHydration,
   withNoHttpTransferCache,
+  COMMON_DIRECTIVES,
+  CommonModule,
+  completeAngularViewInit,
+  mergeAngularHostProps,
+  NgClass,
+  NgFor,
+  NgForOf,
+  NgIf,
+  NgStyle,
+  NgSwitch,
+  NgSwitchCase,
+  NgSwitchDefault,
+  NgTemplateOutlet,
+  normalizeNgClass,
+  normalizeNgStyle,
+  registerViewChild,
+  resolveViewChild,
 } from "../src/platform";
 import {
   provideRouter,
@@ -106,7 +123,7 @@ import {
   withComponentInputBinding,
   withRouterConfig,
 } from "../src/router";
-import { input, model, output } from "../src/signals";
+import { input, model, output, viewChild, viewChildren } from "../src/signals";
 
 describe("@tschk/moonshine-angular/platform", () => {
   test("PLATFORM_ID, isPlatformBrowser, isPlatformServer, APP_ID, and DOCUMENT work via DI", () => {
@@ -526,5 +543,108 @@ describe("@tschk/moonshine-angular/platform", () => {
     const rla = env.runInContext(() => new RouterLinkActive());
     expect(rla.isActive).toBe(false);
     env.destroy();
+  });
+
+  test("CommonModule, COMMON_DIRECTIVES, normalizeNgClass, and normalizeNgStyle", () => {
+    expect(COMMON_DIRECTIVES).toEqual([
+      NgClass,
+      NgForOf,
+      NgIf,
+      NgTemplateOutlet,
+      NgStyle,
+      NgSwitch,
+      NgSwitchCase,
+      NgSwitchDefault,
+    ]);
+    expect(NgFor).toBe(NgForOf);
+    expect(CommonModule.ɵmod.exports.length).toBe(
+      COMMON_DIRECTIVES.length + COMMON_PIPES.length,
+    );
+
+    expect(
+      normalizeNgClass([
+        "card",
+        { active: true, disabled: false, "badge pill": 1 },
+        new Set(["featured"]),
+      ]),
+    ).toBe("card active badge pill featured");
+
+    expect(
+      normalizeNgStyle("color: red", {
+        fontSize: "14px",
+        "padding.px": 8,
+        margin: null,
+      }),
+    ).toBe("color: red; font-size: 14px; padding: 8px");
+  });
+
+  test("registerViewChild, resolveViewChild, completeAngularViewInit, and mergeAngularHostProps", () => {
+    const lifecycleOrder: string[] = [];
+    class HostPanelComponent {
+      open = signal(true);
+      accent = signal("teal");
+      clicks = 0;
+      boxSignal = viewChild("boxRef");
+      itemsSignal = viewChildren("itemRef");
+      boxDecorator?: ElementRef;
+      ngOnInit() {
+        lifecycleOrder.push(
+          `onInit:${Boolean(this.boxDecorator)}:${Boolean(this.boxSignal())}`,
+        );
+      }
+      ngAfterViewInit() {
+        lifecycleOrder.push(
+          `afterViewInit:${Boolean(this.boxDecorator)}:${Boolean(this.boxSignal())}`,
+        );
+      }
+      handleClick(target: string) {
+        this.clicks += 1;
+        lifecycleOrder.push(`click:${target}`);
+      }
+    }
+    Component({ selector: "app-host-panel", standalone: true })(
+      HostPanelComponent,
+    );
+    ViewChild("boxRef")(HostPanelComponent, "boxDecorator");
+    HostBinding("class.is-open")(HostPanelComponent, "open");
+    HostBinding("style.color")(HostPanelComponent, "accent");
+    HostListener("click", ["$event.type"])(HostPanelComponent, "handleClick");
+
+    const inst = instantiateAngularComponent(
+      HostPanelComponent,
+      {},
+      undefined,
+      true,
+    );
+    expect(lifecycleOrder).toEqual(["onInit:false:false"]);
+
+    const fakeEl = { id: "box-1", value: "typed" };
+    const returned = registerViewChild(inst, "boxRef", fakeEl);
+    expect(returned).toBe(fakeEl);
+    registerViewChild(inst, "itemRef", { id: "i1" });
+    registerViewChild(inst, "itemRef", { id: "i2" });
+    expect(resolveViewChild(inst, "boxRef")).toBe(fakeEl);
+    expect(inst.boxSignal()?.nativeElement).toBe(fakeEl);
+    expect(inst.boxDecorator?.nativeElement).toBe(fakeEl);
+    expect(inst.itemsSignal().length).toBe(2);
+
+    completeAngularViewInit(inst, fakeEl);
+    expect(lifecycleOrder).toEqual([
+      "onInit:false:false",
+      "afterViewInit:true:true",
+    ]);
+
+    const merged = mergeAngularHostProps(
+      inst,
+      { class: "base-panel", style: "display: block" },
+      { role: "region", "[attr.data-open]": () => String(inst.open()) },
+    )!;
+    expect(merged.role()).toBe("region");
+    expect(merged["data-open"]()).toBe("true");
+    expect(merged.class()).toBe("base-panel is-open");
+    expect(merged.style()).toBe("display: block; color: teal");
+    merged["on:click"]({ type: "click" });
+    expect(inst.clicks).toBe(1);
+    expect(lifecycleOrder[2]).toBe("click:click");
   });
 });

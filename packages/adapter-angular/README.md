@@ -44,16 +44,16 @@ import {
 } from "@tschk/moonshine-angular";
 ```
 
-| Entry        | Provides                                                                                                                                                                                                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`          | Native Angular signals, signal queries, DI (`inject`, `EnvironmentInjector`), `@Component`/`@Injectable`/`@Pipe` decorators, `EventEmitter`, async `resource`/`rxResource`/`httpResource`, `HttpClient`, `toObservable`/`toSignal`, bridges, and lazy SSR renderer                                |
-| `./signals`  | Host-free Angular signal primitives, signal inputs/models/outputs/queries, DI (`InjectionToken`, `Injector`, `EnvironmentInjector`, `inject`), `resource`/`rxResource`, `toObservable`/`toSignal`                                                                                                 |
-| `./http`     | Host-free `HttpClient`, `httpResource` (`.text`, `.blob`, `.arrayBuffer`), `HttpHeaders`, `HttpParams`, `HttpContext`, `HttpRequest`, `HttpResponse`, `provideHttpClient`, `withInterceptors`, `withFetch`                                                                                        |
-| `./forms`    | Host-free `FormControl`, `FormGroup`, `FormArray`, `FormRecord`, `FormBuilder`, `NonNullableFormBuilder`, `Validators`, `ControlEvent` streams, signal accessors (`valueSignal`, `statusSignal`, `validSignal`, `errorsSignal`), and `provideForms`                                               |
-| `./router`   | Host-free `Router`, `ActivatedRoute`, `ActivatedRouteSnapshot`, `RouterState`, `UrlTree`, `DefaultUrlSerializer`, `RedirectCommand`, router events, functional guards/resolvers, `provideRouter`, `RouterOutlet`, `RouterLink`, and `RouterLinkActive`                                            |
-| `./platform` | Host-free `Component`, `Directive`, `Pipe`, `Injectable`, `Input`, `Output`, `EventEmitter`, `Title`, `Meta`, `DomSanitizer`, `TransferState`, `PLATFORM_ID`, `ElementRef`, `ChangeDetectorRef`, `NgZone`, `Renderer2`, `bootstrapApplication`, `instantiateAngularComponent`, and built-in pipes |
-| `./core`     | Legacy Angular core re-exports                                                                                                                                                                                                                                                                    |
-| `./common`   | Legacy Angular common re-exports                                                                                                                                                                                                                                                                  |
+| Entry        | Provides                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.`          | Native Angular signals, signal queries, DI (`inject`, `EnvironmentInjector`), `@Component`/`@Injectable`/`@Pipe` decorators, `CommonModule`, `EventEmitter`, async `resource`/`rxResource`/`httpResource`, `HttpClient`, `toObservable`/`toSignal`, bridges, and lazy SSR renderer                                                                                             |
+| `./signals`  | Host-free Angular signal primitives, signal inputs/models/outputs/queries, DI (`InjectionToken`, `Injector`, `EnvironmentInjector`, `inject`), `resource`/`rxResource`, `toObservable`/`toSignal`                                                                                                                                                                              |
+| `./http`     | Host-free `HttpClient`, `httpResource` (`.text`, `.blob`, `.arrayBuffer`), `HttpHeaders`, `HttpParams`, `HttpContext`, `HttpRequest`, `HttpResponse`, `provideHttpClient`, `withInterceptors`, `withFetch`                                                                                                                                                                     |
+| `./forms`    | Host-free `FormControl`, `FormGroup`, `FormArray`, `FormRecord`, `FormBuilder`, `NonNullableFormBuilder`, `Validators`, `ControlEvent` streams, signal accessors (`valueSignal`, `statusSignal`, `validSignal`, `errorsSignal`), and `provideForms`                                                                                                                            |
+| `./router`   | Host-free `Router`, `ActivatedRoute`, `ActivatedRouteSnapshot`, `RouterState`, `UrlTree`, `DefaultUrlSerializer`, `RedirectCommand`, router events, functional guards/resolvers, `provideRouter`, `RouterOutlet`, `RouterLink`, and `RouterLinkActive`                                                                                                                         |
+| `./platform` | Host-free `Component`, `Directive`, `Pipe`, `Injectable`, `Input`, `Output`, `ViewChild`, `ViewChildren`, `HostBinding`, `HostListener`, `CommonModule`, `COMMON_DIRECTIVES`, `EventEmitter`, `Title`, `Meta`, `DomSanitizer`, `TransferState`, `PLATFORM_ID`, `ElementRef`, `ChangeDetectorRef`, `NgZone`, `Renderer2`, `bootstrapApplication`, `instantiateAngularComponent` |
+| `./core`     | Legacy Angular core re-exports                                                                                                                                                                                                                                                                                                                                                 |
+| `./common`   | Legacy Angular common re-exports                                                                                                                                                                                                                                                                                                                                               |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install
@@ -70,8 +70,8 @@ aliased over arbitrary host-compiled output to remove the host.
 ## Native `@Component` module & template compilation
 
 The locally verified Crepus compiler accepts both standalone `.component.html` templates
-and authored `.component.ts` / `.ng.ts` `@Component` modules (with inline `template` and
-optional inline `styles`) via `crepus web build --emit moonshine-dom` and `--emit moonshine-ssr`
+and authored `.component.ts` / `.ng.ts` `@Component` modules (with inline `template`,
+optional inline `styles`, and `host` metadata) via `crepus web build --emit moonshine-dom` and `--emit moonshine-ssr`
 without the Angular runtime or Ivy compiler instructions. Compiler publication is separate
 from the Moonshine SDK.
 
@@ -111,5 +111,11 @@ reordering with retained row identity, removal, append and disposal. The
 and escaped values on Bun and Node. When compiling `.component.ts` / `.ng.ts`
 modules, `@angular/*` imports are rewritten to `@tschk/moonshine-angular*` and
 `@Component` classes lower to Moonshine DOM/SSR component functions backed by
-`instantiateAngularComponent` and `applyPipe` while preserving `ɵClass` for
-`bootstrapApplication`.
+`instantiateAngularComponent`, `applyPipe`, `normalizeNgStyle`,
+`normalizeNgClass`, `mergeAngularHostProps`, `registerViewChild`,
+`resolveViewChild`, and `completeAngularViewInit` (supporting `@if`/`@else`,
+`@for ... @empty`, `@switch`/`@case`/`@default`, `<ng-content>`,
+`<ng-container>`, `[(prop)]` two-way binding, `[style.x]`/`[ngStyle]`,
+`[class.x]`/`[ngClass]`, `#ref` template references with `viewChild()` /
+`@ViewChild()`, and `@HostBinding` / `@HostListener` / `host: {...}`) while
+preserving `ɵClass` for `bootstrapApplication`.

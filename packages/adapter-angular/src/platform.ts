@@ -8,6 +8,7 @@ import {
 } from "@tschk/moonshine-dom/reactive";
 import {
   applyInputValue,
+  applyQueryValue,
   createEnvironmentInjector,
   DestroyRef,
   effect,
@@ -16,6 +17,7 @@ import {
   type EnvironmentProviders,
   getCurrentInjector,
   getInputAlias,
+  getQueryMetadata,
   HostAttributeToken,
   inject,
   InjectionToken,
@@ -671,10 +673,27 @@ export class ApplicationRef {
     }
     const ResolvedClass = ((componentOrFactory as any)?.ɵClass ??
       componentOrFactory) as Type<C>;
-    const instance = runInInjectionContext(
-      this.injector,
-      () => new ResolvedClass(),
-    );
+    let instance!: C;
+    runInInjectionContext(this.injector, () => {
+      if (
+        typeof componentOrFactory === "function" &&
+        "ɵClass" in componentOrFactory
+      ) {
+        try {
+          (componentOrFactory as any)({
+            __onInstance: (inst: C) => {
+              instance = inst;
+            },
+          });
+        } catch {
+          if (!instance) {
+            instance = instantiateAngularComponent(ResolvedClass as any) as C;
+          }
+        }
+      } else {
+        instance = instantiateAngularComponent(ResolvedClass as any) as C;
+      }
+    });
     const destroyRef = this.injector.get(DestroyRef);
     const ref: ComponentRef<C> = {
       instance,
@@ -1464,7 +1483,11 @@ export function Output(alias?: string) {
         ? String(propertyKey.name)
         : String(propertyKey ?? "");
     const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
+      typeof target === "function"
+        ? target
+        : typeof target === "object" && target !== null
+          ? target.constructor
+          : null;
     if (ctor && propName) {
       const existing = (ctor.ɵoutputs ?? {}) as Record<string, string>;
       existing[propName] = alias ?? propName;
@@ -1483,7 +1506,11 @@ export function ViewChild(
         ? String(propertyKey.name)
         : String(propertyKey ?? "");
     const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
+      typeof target === "function"
+        ? target
+        : typeof target === "object" && target !== null
+          ? target.constructor
+          : null;
     if (ctor && propName) {
       const existing = (ctor.ɵviewQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: true, ...opts };
@@ -1502,7 +1529,11 @@ export function ViewChildren(
         ? String(propertyKey.name)
         : String(propertyKey ?? "");
     const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
+      typeof target === "function"
+        ? target
+        : typeof target === "object" && target !== null
+          ? target.constructor
+          : null;
     if (ctor && propName) {
       const existing = (ctor.ɵviewQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: false, ...opts };
@@ -1521,7 +1552,11 @@ export function ContentChild(
         ? String(propertyKey.name)
         : String(propertyKey ?? "");
     const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
+      typeof target === "function"
+        ? target
+        : typeof target === "object" && target !== null
+          ? target.constructor
+          : null;
     if (ctor && propName) {
       const existing = (ctor.ɵcontentQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: true, ...opts };
@@ -1540,7 +1575,11 @@ export function ContentChildren(
         ? String(propertyKey.name)
         : String(propertyKey ?? "");
     const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
+      typeof target === "function"
+        ? target
+        : typeof target === "object" && target !== null
+          ? target.constructor
+          : null;
     if (ctor && propName) {
       const existing = (ctor.ɵcontentQueries ?? {}) as Record<string, any>;
       existing[propName] = { selector, first: false, ...opts };
@@ -1556,7 +1595,11 @@ export function HostBinding(hostPropertyName?: string) {
         ? String(propertyKey.name)
         : String(propertyKey ?? "");
     const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
+      typeof target === "function"
+        ? target
+        : typeof target === "object" && target !== null
+          ? target.constructor
+          : null;
     if (ctor && propName) {
       const existing = (ctor.ɵhostBindings ?? {}) as Record<string, string>;
       existing[propName] = hostPropertyName ?? propName;
@@ -1576,7 +1619,11 @@ export function HostListener(eventName: string, args?: string[]) {
         ? String(propertyKey.name)
         : String(propertyKey ?? "");
     const ctor =
-      typeof target === "object" && target !== null ? target.constructor : null;
+      typeof target === "function"
+        ? target
+        : typeof target === "object" && target !== null
+          ? target.constructor
+          : null;
     if (ctor && propName) {
       const existing = (ctor.ɵhostListeners ?? {}) as Record<
         string,
@@ -2210,8 +2257,535 @@ export class ViewContainerRef {
 }
 
 // ============================================================================
-// Component Instantiation & Lifecycle Binding (`instantiateAngularComponent`)
 // ============================================================================
+// Common Directives & `CommonModule` (`@angular/common`)
+// ============================================================================
+
+export class NgIf<T = unknown> {
+  static readonly ɵdir = {
+    selector: "[ngIf]",
+    standalone: true,
+    inputs: ["ngIf", "ngIfThen", "ngIfElse"],
+  };
+  ngIf: T = undefined as unknown as T;
+  ngIfThen: TemplateRef<any> | null = null;
+  ngIfElse: TemplateRef<any> | null = null;
+}
+
+export class NgForOf<T = unknown, U extends Iterable<T> = Iterable<T>> {
+  static readonly ɵdir = {
+    selector: "[ngFor][ngForOf]",
+    standalone: true,
+    inputs: ["ngForOf", "ngForTrackBy", "ngForTemplate"],
+  };
+  ngForOf: U | undefined | null = null;
+  ngForTrackBy?: (index: number, item: T) => any;
+  ngForTemplate?: TemplateRef<any>;
+}
+
+export { NgForOf as NgFor };
+
+export class NgSwitch<T = unknown> {
+  static readonly ɵdir = {
+    selector: "[ngSwitch]",
+    standalone: true,
+    inputs: ["ngSwitch"],
+  };
+  ngSwitch: T = undefined as unknown as T;
+}
+
+export class NgSwitchCase<T = unknown> {
+  static readonly ɵdir = {
+    selector: "[ngSwitchCase]",
+    standalone: true,
+    inputs: ["ngSwitchCase"],
+  };
+  ngSwitchCase: T = undefined as unknown as T;
+}
+
+export class NgSwitchDefault {
+  static readonly ɵdir = {
+    selector: "[ngSwitchDefault]",
+    standalone: true,
+  };
+}
+
+export class NgClass {
+  static readonly ɵdir = {
+    selector: "[ngClass]",
+    standalone: true,
+    inputs: ["klass", "ngClass"],
+  };
+  klass = "";
+  ngClass:
+    | string
+    | string[]
+    | Set<string>
+    | { [klass: string]: any }
+    | null
+    | undefined = null;
+}
+
+export class NgStyle {
+  static readonly ɵdir = {
+    selector: "[ngStyle]",
+    standalone: true,
+    inputs: ["ngStyle"],
+  };
+  ngStyle: { [styleKlim: string]: any } | null | undefined = null;
+}
+
+export class NgTemplateOutlet<C = unknown> {
+  static readonly ɵdir = {
+    selector: "[ngTemplateOutlet]",
+    standalone: true,
+    inputs: [
+      "ngTemplateOutlet",
+      "ngTemplateOutletContext",
+      "ngTemplateOutletInjector",
+    ],
+  };
+  ngTemplateOutlet: TemplateRef<C> | null = null;
+  ngTemplateOutletContext: C | null = null;
+  ngTemplateOutletInjector: Injector | null = null;
+}
+
+export const COMMON_DIRECTIVES = [
+  NgClass,
+  NgForOf,
+  NgIf,
+  NgTemplateOutlet,
+  NgStyle,
+  NgSwitch,
+  NgSwitchCase,
+  NgSwitchDefault,
+] as const;
+
+export class CommonModule {
+  static readonly ɵmod = {
+    id: "CommonModule",
+    declarations: [],
+    imports: [...COMMON_DIRECTIVES, ...COMMON_PIPES],
+    exports: [...COMMON_DIRECTIVES, ...COMMON_PIPES],
+  };
+  static readonly exports = [...COMMON_DIRECTIVES, ...COMMON_PIPES];
+}
+
+function camelToKebabCss(prop: string): string {
+  if (prop.startsWith("--")) return prop;
+  return prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+}
+
+export function normalizeNgClass(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeNgClass(item))
+      .filter(Boolean)
+      .join(" ");
+  }
+  if (value instanceof Set) {
+    return Array.from(value)
+      .map((item) => normalizeNgClass(item))
+      .filter(Boolean)
+      .join(" ");
+  }
+  if (typeof value === "object") {
+    const out: string[] = [];
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const resolved = isSignal(v) ? (v as Signal<any>)() : v;
+      if (resolved) {
+        out.push(k.trim());
+      }
+    }
+    return out.filter(Boolean).join(" ");
+  }
+  return "";
+}
+
+export function normalizeNgStyle(
+  baseStyle?: Record<string, any> | string | null,
+  extraEntries?: Record<string, any> | null,
+): string {
+  const declarations = new Map<string, string>();
+  const applyRawString = (cssText: string) => {
+    for (const chunk of cssText.split(";")) {
+      const idx = chunk.indexOf(":");
+      if (idx > 0) {
+        const key = chunk.slice(0, idx).trim();
+        const val = chunk.slice(idx + 1).trim();
+        if (key && val) declarations.set(key, val);
+      }
+    }
+  };
+  const applyEntry = (rawKey: string, rawVal: unknown) => {
+    const val = isSignal(rawVal) ? (rawVal as Signal<any>)() : rawVal;
+    let propName = rawKey;
+    let unit = "";
+    const dotIdx = rawKey.indexOf(".");
+    if (dotIdx > 0) {
+      propName = rawKey.slice(0, dotIdx);
+      unit = rawKey.slice(dotIdx + 1);
+    }
+    const cssProp = camelToKebabCss(propName);
+    if (val === null || val === undefined || val === false || val === "") {
+      declarations.delete(cssProp);
+      return;
+    }
+    const formatted =
+      unit &&
+      (typeof val === "number" || /^[-+]?\d+(\.\d+)?$/.test(String(val)))
+        ? `${val}${unit}`
+        : String(val);
+    declarations.set(cssProp, formatted);
+  };
+
+  if (typeof baseStyle === "string") {
+    applyRawString(baseStyle);
+  } else if (baseStyle && typeof baseStyle === "object") {
+    for (const [k, v] of Object.entries(baseStyle)) {
+      applyEntry(k, v);
+    }
+  }
+  if (extraEntries && typeof extraEntries === "object") {
+    for (const [k, v] of Object.entries(extraEntries)) {
+      applyEntry(k, v);
+    }
+  }
+  if (declarations.size === 0) return "";
+  return Array.from(declarations.entries())
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("; ");
+}
+
+// ============================================================================
+// Component Instantiation, Host Bindings, View Queries & Lifecycle Binding
+// ============================================================================
+
+const VIEW_REF_MAP = Symbol.for("moonshine.angular.viewRefMap");
+const DEFERRED_VIEW_INIT = Symbol.for("moonshine.angular.deferredViewInit");
+
+/**
+ * Registers a template reference variable (`#ref`) or child component on `instance`,
+ * updating matching `viewChild()` / `viewChildren()` signal queries and `@ViewChild` / `@ViewChildren` properties.
+ */
+export function registerViewChild(
+  instance: any,
+  refName: string,
+  target: any,
+  elementProps?: Record<string, any> | null,
+): any {
+  if (!instance || typeof instance !== "object" || !target) {
+    return undefined;
+  }
+  const isComponentInstance = Boolean(
+    target &&
+    typeof target === "object" &&
+    target.constructor &&
+    ("ɵcmp" in target.constructor || "ɵdir" in target.constructor),
+  );
+  if (
+    typeof target === "object" &&
+    !isComponentInstance &&
+    !("nativeElement" in target)
+  ) {
+    try {
+      Object.defineProperty(target, "nativeElement", {
+        value: target,
+        configurable: true,
+        enumerable: false,
+      });
+      const propsSource = elementProps ?? target.props;
+      if (propsSource && typeof propsSource === "object") {
+        for (const [pk, pv] of Object.entries(propsSource)) {
+          if (!(pk in target) && !pk.startsWith("on:")) {
+            Object.defineProperty(target, pk, {
+              get: () => (typeof pv === "function" ? pv() : pv),
+              configurable: true,
+              enumerable: false,
+            });
+          }
+        }
+      }
+    } catch {
+      // Ignore frozen targets
+    }
+  }
+
+  let refMap = instance[VIEW_REF_MAP] as Map<string, any[]> | undefined;
+  if (!refMap) {
+    refMap = new Map<string, any[]>();
+    Object.defineProperty(instance, VIEW_REF_MAP, {
+      value: refMap,
+      configurable: true,
+      enumerable: false,
+    });
+  }
+  const list = refMap.get(refName) ?? [];
+  if (!list.includes(target)) {
+    list.push(target);
+  }
+  refMap.set(refName, list);
+
+  const resolveForRead = (item: any, readToken?: any) => {
+    if (readToken === ElementRef) {
+      return item instanceof ElementRef ? item : new ElementRef(item);
+    }
+    if (isComponentInstance) {
+      return item;
+    }
+    return item instanceof ElementRef ? item : new ElementRef(item);
+  };
+
+  const matchesLocator = (locator: unknown) => {
+    if (typeof locator === "string") {
+      return locator
+        .split(",")
+        .map((s) => s.trim())
+        .includes(refName);
+    }
+    if (typeof locator === "function") {
+      const Resolved = (locator as any).ɵClass ?? locator;
+      if (target instanceof Resolved || target?.constructor === Resolved) {
+        return true;
+      }
+      if (Resolved === ElementRef && !isComponentInstance) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Update signal queries (`viewChild` / `viewChildren`)
+  for (const key of Object.keys(instance)) {
+    const fieldVal = instance[key];
+    if (typeof fieldVal === "function") {
+      const meta = getQueryMetadata(fieldVal);
+      if (meta && matchesLocator(meta.locator)) {
+        if (meta.kind === "viewChild" || meta.kind === "contentChild") {
+          applyQueryValue(fieldVal, resolveForRead(target, meta.read));
+        } else if (
+          meta.kind === "viewChildren" ||
+          meta.kind === "contentChildren"
+        ) {
+          const current = (fieldVal() as readonly any[]) ?? [];
+          const nextItem = resolveForRead(target, meta.read);
+          if (!current.includes(nextItem)) {
+            applyQueryValue(fieldVal, [...current, nextItem]);
+          }
+        }
+      }
+    }
+  }
+
+  // Update decorator queries (`@ViewChild` / `@ViewChildren`)
+  const ctor = instance.constructor;
+  const viewQueries = (ctor?.ɵviewQueries ?? {}) as Record<
+    string,
+    { selector: any; first: boolean; read?: any }
+  >;
+  for (const [propName, q] of Object.entries(viewQueries)) {
+    if (matchesLocator(q.selector)) {
+      const resolved = resolveForRead(target, q.read);
+      if (q.first) {
+        instance[propName] = resolved;
+      } else {
+        const prev = Array.isArray(instance[propName])
+          ? instance[propName]
+          : [];
+        if (!prev.includes(resolved)) {
+          instance[propName] = [...prev, resolved];
+        }
+      }
+    }
+  }
+
+  return target;
+}
+
+export function resolveViewChild(instance: any, refName: string): any {
+  const refMap = instance?.[VIEW_REF_MAP] as Map<string, any[]> | undefined;
+  return refMap?.get(refName)?.[0];
+}
+
+export function completeAngularViewInit<T>(instance: any, root: T): T {
+  const runner = instance?.[DEFERRED_VIEW_INIT] as (() => void) | undefined;
+  if (typeof runner === "function") {
+    delete instance[DEFERRED_VIEW_INIT];
+    runner();
+  }
+  return root;
+}
+
+/**
+ * Merges component root template props with `@HostBinding`, `@HostListener`, and `@Component({ host })` bindings.
+ */
+export function mergeAngularHostProps(
+  instance: any,
+  baseProps?: Record<string, any> | null,
+  extraHostProps?: Record<string, any> | null,
+): Record<string, any> | null {
+  const ctor = instance?.constructor;
+  const hostBindings = (ctor?.ɵhostBindings ?? {}) as Record<string, string>;
+  const hostListeners = (ctor?.ɵhostListeners ?? {}) as Record<
+    string,
+    { eventName: string; args?: string[] }
+  >;
+  const hasHostBindings = Object.keys(hostBindings).length > 0;
+  const hasHostListeners = Object.keys(hostListeners).length > 0;
+  const hasExtraHost =
+    extraHostProps !== null &&
+    extraHostProps !== undefined &&
+    Object.keys(extraHostProps).length > 0;
+
+  if (!hasHostBindings && !hasHostListeners && !hasExtraHost) {
+    return baseProps ?? null;
+  }
+
+  const out: Record<string, any> = { ...(baseProps ?? {}) };
+  const classGetters: Array<() => string> = [];
+  const styleGetters: Array<() => Record<string, any> | string | null> = [];
+
+  if (out.class !== undefined) {
+    const existingClass = out.class;
+    classGetters.push(() =>
+      normalizeNgClass(
+        typeof existingClass === "function" ? existingClass() : existingClass,
+      ),
+    );
+  }
+  if (out.style !== undefined) {
+    const existingStyle = out.style;
+    styleGetters.push(() =>
+      typeof existingStyle === "function" ? existingStyle() : existingStyle,
+    );
+  }
+
+  const readMemberValue = (propKey: string) => {
+    const raw = instance?.[propKey];
+    if (isSignal(raw)) return (raw as Signal<any>)();
+    return raw;
+  };
+
+  const applyHostEntry = (hostTarget: string, readFn: () => any) => {
+    const cleaned =
+      hostTarget.startsWith("[") && hostTarget.endsWith("]")
+        ? hostTarget.slice(1, -1)
+        : hostTarget;
+    if (cleaned === "class" || cleaned === "ngClass") {
+      classGetters.push(() => normalizeNgClass(readFn()));
+      return;
+    }
+    if (cleaned.startsWith("class.")) {
+      const clsName = cleaned.slice("class.".length);
+      if (clsName) {
+        classGetters.push(() => (readFn() ? clsName : ""));
+      }
+      return;
+    }
+    if (cleaned === "style" || cleaned === "ngStyle") {
+      styleGetters.push(() => readFn());
+      return;
+    }
+    if (cleaned.startsWith("style.")) {
+      const styleKey = cleaned.slice("style.".length);
+      if (styleKey) {
+        styleGetters.push(() => ({ [styleKey]: readFn() }));
+      }
+      return;
+    }
+    const attrName = cleaned.startsWith("attr.")
+      ? cleaned.slice("attr.".length)
+      : cleaned;
+    out[attrName] = () => readFn();
+  };
+
+  const attachHostListener = (
+    eventName: string,
+    handler: ($event: any) => any,
+  ) => {
+    const key = eventName.startsWith("on:") ? eventName : `on:${eventName}`;
+    const prev = out[key];
+    if (typeof prev === "function") {
+      out[key] = ($event: any) => {
+        prev($event);
+        return handler($event);
+      };
+    } else {
+      out[key] = handler;
+    }
+  };
+
+  if (hasExtraHost && extraHostProps) {
+    for (const [k, v] of Object.entries(extraHostProps)) {
+      if (k.startsWith("on:")) {
+        if (typeof v === "function") {
+          attachHostListener(k, v);
+        }
+      } else {
+        applyHostEntry(k, typeof v === "function" ? v : () => v);
+      }
+    }
+  }
+
+  for (const [propKey, hostProp] of Object.entries(hostBindings)) {
+    applyHostEntry(hostProp, () => readMemberValue(propKey));
+  }
+
+  for (const [methodKey, listenerMeta] of Object.entries(hostListeners)) {
+    const rawEvent = listenerMeta.eventName.includes(":")
+      ? listenerMeta.eventName.split(":").slice(1).join(":")
+      : listenerMeta.eventName;
+    attachHostListener(rawEvent, ($event: any) => {
+      const fn = instance?.[methodKey];
+      if (typeof fn !== "function") return undefined;
+      const argExprs = listenerMeta.args ?? [];
+      if (argExprs.length === 0) {
+        return fn.call(instance, $event);
+      }
+      const resolvedArgs = argExprs.map((expr) => {
+        const trimmed = expr.trim();
+        if (trimmed === "$event") return $event;
+        if (trimmed.startsWith("$event.")) {
+          const path = trimmed.slice("$event.".length).split(".");
+          let cur: any = $event;
+          for (const seg of path) cur = cur?.[seg];
+          return cur;
+        }
+        return instance?.[trimmed];
+      });
+      return fn.apply(instance, resolvedArgs);
+    });
+  }
+
+  if (classGetters.length > 0) {
+    out.class = () =>
+      classGetters
+        .map((fn) => fn())
+        .filter(Boolean)
+        .join(" ");
+  }
+
+  if (styleGetters.length > 0) {
+    out.style = () => {
+      let combined = "";
+      for (const fn of styleGetters) {
+        const piece = fn();
+        if (typeof piece === "string") {
+          combined = normalizeNgStyle(combined, null);
+          const next = normalizeNgStyle(piece, null);
+          combined = [combined, next].filter(Boolean).join("; ");
+        } else if (piece && typeof piece === "object") {
+          combined = normalizeNgStyle(combined, piece);
+        }
+      }
+      return combined;
+    };
+  }
+
+  return out;
+}
 
 /**
  * Instantiates an Angular `@Component` class within an active `EnvironmentInjector`,
@@ -2223,6 +2797,7 @@ export function instantiateAngularComponent<T extends object>(
   ComponentClass: Type<T> | ((props?: any) => any),
   props: Record<string, any> = {},
   hostElement?: any,
+  deferViewLifecycle = false,
 ): T {
   const ResolvedClass = ((ComponentClass as any)?.ɵClass ??
     ComponentClass) as Type<T>;
@@ -2262,6 +2837,12 @@ export function instantiateAngularComponent<T extends object>(
       : parentInjector;
 
   const instance = runInInjectionContext(injector, () => new ResolvedClass());
+  if (typeof props?.__onInstance === "function") {
+    props.__onInstance(instance);
+  }
+  if (typeof props?.__ngRef === "function") {
+    props.__ngRef(instance);
+  }
   const destroyRef = injector.get(DestroyRef, null, { optional: true });
 
   // Bind inputs and outputs from `props`
@@ -2351,12 +2932,48 @@ export function instantiateAngularComponent<T extends object>(
     const propKey =
       alias in props ? alias : propName in props ? propName : undefined;
     if (propKey !== undefined && !isInputSignal((instance as any)[propName])) {
-      const raw = readPropValue(props[propKey]);
-      const transformed = inputCfg.transform ? inputCfg.transform(raw) : raw;
+      const descriptor = Object.getOwnPropertyDescriptor(props, propKey);
+      const applyDecorated = () => {
+        const raw = descriptor?.get
+          ? descriptor.get.call(props)
+          : props[propKey];
+        const unwrapped = readPropValue(raw);
+        const transformed = inputCfg.transform
+          ? inputCfg.transform(unwrapped)
+          : unwrapped;
+        (instance as any)[propName] = transformed;
+        return transformed;
+      };
       const prev = (instance as any)[propName];
-      (instance as any)[propName] = transformed;
+      const transformed = applyDecorated();
       changes[propName] = new SimpleChange(prev, transformed, true);
       hasChanges = true;
+      if (descriptor?.get || isSignal(props[propKey])) {
+        effect(
+          () => {
+            applyDecorated();
+          },
+          { injector, allowSignalWrites: true },
+        );
+      }
+    }
+  }
+
+  for (const [propName, outputAlias] of Object.entries(decoratedOutputs)) {
+    const fieldVal = (instance as any)[propName];
+    if (fieldVal instanceof OutputEmitterRef) continue;
+    if (fieldVal && typeof fieldVal.subscribe === "function") {
+      const alias = outputAlias || propName;
+      const capitalized = alias.charAt(0).toUpperCase() + alias.slice(1);
+      const handler =
+        props[alias] ??
+        props[`on${capitalized}`] ??
+        props[propName] ??
+        props[`on${propName.charAt(0).toUpperCase() + propName.slice(1)}`];
+      if (typeof handler === "function") {
+        const sub = fieldVal.subscribe((val: any) => handler(val));
+        destroyRef?.onDestroy(() => sub?.unsubscribe?.());
+      }
     }
   }
 
@@ -2399,11 +3016,24 @@ export function instantiateAngularComponent<T extends object>(
   if (typeof anyInstance.ngAfterContentChecked === "function") {
     runInInjectionContext(injector, () => anyInstance.ngAfterContentChecked());
   }
-  if (typeof anyInstance.ngAfterViewInit === "function") {
-    runInInjectionContext(injector, () => anyInstance.ngAfterViewInit());
-  }
-  if (typeof anyInstance.ngAfterViewChecked === "function") {
-    runInInjectionContext(injector, () => anyInstance.ngAfterViewChecked());
+
+  const runViewInit = () => {
+    if (typeof anyInstance.ngAfterViewInit === "function") {
+      runInInjectionContext(injector, () => anyInstance.ngAfterViewInit());
+    }
+    if (typeof anyInstance.ngAfterViewChecked === "function") {
+      runInInjectionContext(injector, () => anyInstance.ngAfterViewChecked());
+    }
+  };
+
+  if (deferViewLifecycle) {
+    Object.defineProperty(instance, DEFERRED_VIEW_INIT, {
+      value: runViewInit,
+      configurable: true,
+      enumerable: false,
+    });
+  } else {
+    runViewInit();
   }
 
   const cleanup = () => {

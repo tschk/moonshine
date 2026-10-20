@@ -9,14 +9,16 @@ Nitro/`h3` server utilities
 (`useState`, `clearNuxtState`, `useAsyncData`, `useLazyAsyncData`,
 `useNuxtData`, `refreshNuxtData`, `clearNuxtData`, `useFetch`, `useLazyFetch`,
 `useCookie`, `refreshCookie`, `withNuxtRequest`, `useRequestEvent`,
-`useRequestHeaders`, `useRequestURL`, `useRequestFetch`, `useRuntimeConfig`,
-`useAppConfig`, `updateAppConfig`, `defineAppConfig`, `createError`,
-`showError`, `clearError`, `useError`, `isNuxtError`, `callOnce`, `useRoute`,
-`useRouter`, `addRouteMiddleware`, `navigateTo`, `abortNavigation`,
+`useRequestHeaders`, `useRequestHeader`, `useRequestURL`, `useRequestFetch`,
+`useRuntimeConfig`, `useAppConfig`, `updateAppConfig`, `defineAppConfig`,
+`createError`, `showError`, `clearError`, `useError`, `isNuxtError`, `callOnce`,
+`useRoute`, `useRouter`, `addRouteMiddleware`, `navigateTo`, `abortNavigation`,
 `onBeforeRouteLeave`, `onBeforeRouteUpdate`, `setResponseStatus`,
 `useResponseHeader`, `setPageLayout`, `useHead`, `useHeadSafe`,
 `resolveHeadTags`, `useSeoMeta`, `useServerSeoMeta`, `preloadComponents`,
-`prefetchComponents`, `preloadRouteComponents`, `useNuxtApp`, `tryUseNuxtApp`,
+`prefetchComponents`, `preloadRouteComponents`, `prerenderRoutes`,
+`getPrerenderedRoutes`, `clearPrerenderedRoutes`, `defineRouteRules`,
+`getRouteRules`, `clearRouteRules`, `useNuxtApp`, `tryUseNuxtApp`,
 `useLoadingIndicator`, `useRouteAnnouncer`, `usePreviewMode`, `useHydration`,
 `definePayloadReducer`, `definePayloadReviver`, `serializeNuxtPayload`,
 `reviveNuxtPayload`, `onNuxtReady`, `onPrehydrate`, `reloadNuxtApp`,
@@ -24,8 +26,9 @@ Nitro/`h3` server utilities
 `defineNuxtRouteMiddleware`, `NuxtLink`, `defineNuxtLink`, `NuxtPage`,
 `NuxtLayout`, `registerNuxtLayout`, `clearNuxtLayouts`, `ClientOnly`,
 `DevOnly`, `configureNuxtDevMode`, `NuxtErrorBoundary`,
-`NuxtLoadingIndicator`, `NuxtRouteAnnouncer`, `NuxtTime`, `Head`, `Title`,
-`Meta`, `Link`, `Style`, `Base`, `NoScript`, `Body`, `Html`,
+`NuxtLoadingIndicator`, `NuxtRouteAnnouncer`, `NuxtTime`, `NuxtIsland`,
+`registerNuxtIsland`, `clearNuxtIslands`, `NuxtClientFallback`, `NuxtWelcome`,
+`Head`, `Title`, `Meta`, `Link`, `Style`, `Base`, `NoScript`, `Body`, `Html`,
 `defineEventHandler`, `eventHandler`,
 `defineLazyEventHandler`, `getQuery`, `getValidatedQuery`, `getRouterParams`,
 `getRouterParam`, `getValidatedRouterParams`, `readBody`, `readValidatedBody`,
@@ -33,9 +36,11 @@ Nitro/`h3` server utilities
 `setHeader`, `appendHeader`, `removeResponseHeader`, `parseCookies`,
 `getCookie`, `setCookie`, `deleteCookie`, `sendRedirect`, `sendNoContent`,
 `handleCacheHeaders`), and a lazy native renderer. The local Crepus compiler
-lowers `#imports`, `#app`, and `nuxt/app` imports inside `.vue` `<script setup>`
-blocks directly to `@tschk/moonshine-nuxt/composables` with automatic template
-and destructuring ref unwrapping. At runtime, root,
+lowers `#imports`, `#app`, `#components`, `#build/components`, `#head`, and
+`nuxt/app` imports plus auto-imported `<Nuxt*>` / head tags and `definePageMeta` /
+`defineRouteRules` macros inside `.vue` `<script setup>` blocks directly to
+`@tschk/moonshine-nuxt/composables` with automatic template and destructuring ref
+unwrapping. At runtime, root,
 `./composables`, and `./server` imports need neither Nuxt, `h3`, React, parser
 WASM nor the optional framework peer. Legacy host APIs remain explicit on their
 existing subpaths.

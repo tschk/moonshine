@@ -205,8 +205,8 @@ const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
 test.skipIf(!sourceCompiler)(
   "authored Angular .component.ts compiles via crepus web build to moonshine-dom and moonshine-ssr without Angular host runtime",
   async () => {
-    const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, signal, computed, input } from "@angular/core";
-import { UpperCasePipe } from "@angular/common";
+    const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, HostBinding, ViewChild, signal, computed, input, model, viewChild } from "@angular/core";
+import { CommonModule, UpperCasePipe } from "@angular/common";
 
 @Injectable({ providedIn: "root" })
 export class StepService {
@@ -214,23 +214,59 @@ export class StepService {
 }
 
 @Component({
+  selector: "app-badge-box",
+  standalone: true,
+  template: \`<aside class="badge-box"><b (click)="bump()">{{ val() }}</b><ng-content>Default Slot</ng-content></aside>\`,
+})
+export class BadgeBoxComponent {
+  val = model(10);
+  bump() {
+    this.val.update((n) => n + 1);
+  }
+}
+
+@Component({
   selector: "app-counter",
   standalone: true,
-  imports: [UpperCasePipe],
+  imports: [CommonModule, UpperCasePipe, BadgeBoxComponent],
   styles: [".counter { color: navy; }"],
+  host: {
+    "role": "region",
+    "[class.is-positive]": "count() > 0",
+  },
   template: \`
-    <div class="counter" [attr.data-step]="step">
+    <div class="counter" [attr.data-step]="step" [style.color]="accent()" [style.padding.px]="12" [ngStyle]="{ border: '1px solid' }" [ngClass]="{ highlighted: count() > 0 }">
+      <input #noteInput [value]="note()" />
+      <small>{{ noteInput.value }}</small>
       <span>{{ title() | uppercase }}: {{ doubled() }}</span>
       @if (count() > 0) {
         <em>Active</em>
       } @else {
         <em>Idle</em>
       }
+      @switch (mode()) {
+        @case ('edit') {
+          <strong>Editing</strong>
+        }
+        @default {
+          <strong>Viewing</strong>
+        }
+      }
       <ul>
         @for (item of items(); track item) {
           <li>{{ item }}</li>
         }
       </ul>
+      <div class="empty-check">
+        @for (row of emptyRows(); track row) {
+          <span>{{ row }}</span>
+        } @empty {
+          <i>No rows</i>
+        }
+      </div>
+      <ng-container>
+        <app-badge-box [(val)]="syncedCount">Projected Content</app-badge-box>
+      </ng-container>
       <button (click)="increment()">+</button>
     </div>
   \`,
@@ -239,9 +275,22 @@ export class CounterComponent {
   title = input("Count");
   @Input() step = 2;
   @Output() changed = new EventEmitter<number>();
+  @HostBinding("attr.data-mode") modeAttr = "live";
   count = signal(4);
+  syncedCount = signal(25);
+  accent = signal("teal");
+  mode = signal("edit");
+  note = signal("ready");
   items = signal(["x", "y"]);
+  emptyRows = signal<string[]>([]);
   doubled = computed(() => this.count() * 2);
+  noteRef = viewChild("noteInput");
+  @ViewChild("noteInput") decoratedNoteRef?: any;
+  viewReady = false;
+
+  ngAfterViewInit() {
+    this.viewReady = Boolean(this.noteRef() && this.decoratedNoteRef);
+  }
 
   increment() {
     this.count.update((n) => n + this.step);
@@ -255,15 +304,26 @@ import { h, renderToString } from '@tschk/moonshine-dom/ssr';
 import { bootstrapApplication } from '@tschk/moonshine-angular';
 
 const html = renderToString(() => h(CounterComponent, { title: 'score', step: 5 }));
+assert.ok(html.includes('role="region"'), html);
+assert.ok(html.includes('data-mode="live"'), html);
+assert.ok(html.includes('is-positive'), html);
+assert.ok(html.includes('highlighted'), html);
+assert.ok(html.includes('border: 1px solid; color: teal; padding: 12px'), html);
 assert.ok(html.includes('data-step="5"'), html);
+assert.ok(html.includes('<small>ready</small>'), html);
 assert.ok(html.includes('SCORE: 8'), html);
 assert.ok(html.includes('<em>Active</em>'), html);
+assert.ok(html.includes('<strong>Editing</strong>'), html);
 assert.ok(html.includes('<li>x</li><li>y</li>'), html);
+assert.ok(html.includes('<i>No rows</i>'), html);
+assert.ok(html.includes('<b>25</b>Projected Content'), html);
 
 const appRef = await bootstrapApplication(NamedCounter);
 assert.equal(appRef.components.length, 1);
 const inst = appRef.components[0].instance;
 assert.equal(inst.doubled(), 8);
+assert.equal(inst.viewReady, true);
+assert.equal(inst.noteRef()?.nativeElement?.value, 'ready');
 const emitted: number[] = [];
 inst.changed.subscribe((v: number) => emitted.push(v));
 inst.increment();

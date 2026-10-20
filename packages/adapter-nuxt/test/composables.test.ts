@@ -15,22 +15,28 @@ import {
   Link,
   Meta,
   NoScript,
+  NuxtClientFallback,
   NuxtError,
   NuxtErrorBoundary,
+  NuxtIsland,
   NuxtLayout,
   NuxtLink,
   NuxtLoadingIndicator,
   NuxtPage,
   NuxtRouteAnnouncer,
   NuxtTime,
+  NuxtWelcome,
   Style,
   Title,
   abortNavigation,
   callOnce,
   clearError,
   clearNuxtData,
+  clearNuxtIslands,
   clearNuxtLayouts,
   clearNuxtState,
+  clearPrerenderedRoutes,
+  clearRouteRules,
   configureNuxtDevMode,
   createBridgedRef,
   createError,
@@ -39,6 +45,9 @@ import {
   defineNuxtPlugin,
   defineNuxtRouteMiddleware,
   definePageMeta,
+  defineRouteRules,
+  getPrerenderedRoutes,
+  getRouteRules,
   isNuxtError,
   isNuxtRef,
   navigateTo,
@@ -49,8 +58,10 @@ import {
   prefetchComponents,
   preloadComponents,
   preloadRouteComponents,
+  prerenderRoutes,
   refreshCookie,
   refreshNuxtData,
+  registerNuxtIsland,
   registerNuxtLayout,
   reloadNuxtApp,
   resolveHeadTags,
@@ -73,6 +84,7 @@ import {
   useNuxtData,
   useRequestEvent,
   useRequestFetch,
+  useRequestHeader,
   useRequestHeaders,
   useRequestURL,
   useRoute,
@@ -855,12 +867,115 @@ describe("@tschk/moonshine-nuxt composables", () => {
       },
     );
   });
+
+  test("useRequestHeader, prerenderRoutes, defineRouteRules, definePageMeta, NuxtIsland, NuxtClientFallback, and NuxtWelcome", async () => {
+    await withNuxtRequest(
+      {
+        url: "https://example.com/islands/demo",
+        headers: {
+          "X-Custom-Token": "tok-123",
+          Accept: "text/html",
+        },
+      },
+      async () => {
+        expect(useRequestHeader("x-custom-token")).toBe("tok-123");
+        expect(useRequestHeader("ACCEPT")).toBe("text/html");
+        expect(useRequestHeader("x-missing")).toBeUndefined();
+
+        definePageMeta({
+          title: "Island Page",
+          layout: "custom",
+          keepalive: true,
+        });
+        expect(useRoute().meta.title).toBe("Island Page");
+        expect(useRoute().meta.layout).toBe("custom");
+        expect(useRoute().meta.keepalive).toBe(true);
+
+        prerenderRoutes(["/about", "/pricing"]);
+        prerenderRoutes("/contact");
+        expect(getPrerenderedRoutes()).toEqual([
+          "/about",
+          "/pricing",
+          "/contact",
+        ]);
+        const event = useRequestEvent()!;
+        expect(event.responseHeaders.get("x-nitro-prerender")).toBe(
+          "/about, /pricing, /contact",
+        );
+
+        defineRouteRules({
+          prerender: true,
+          cors: true,
+          headers: { "Cache-Control": "public, max-age=3600" },
+        });
+        expect(getRouteRules()?.prerender).toBe(true);
+        expect(getPrerenderedRoutes()).toContain("/islands/demo");
+        expect(event.responseHeaders.get("access-control-allow-origin")).toBe(
+          "*",
+        );
+        expect(event.responseHeaders.get("cache-control")).toBe(
+          "public, max-age=3600",
+        );
+
+        registerNuxtIsland("PromoBanner", (props: { headline?: string }) =>
+          ssrH("aside", { class: "promo" }, props.headline ?? "Default Promo"),
+        );
+
+        let capturedSsrError: unknown = null;
+        const CrashingChild = () => {
+          throw new Error("SSR Render Explosion");
+        };
+
+        const html = renderToString(() =>
+          ssrH(
+            "div",
+            null,
+            ssrH(NuxtIsland, {
+              name: "PromoBanner",
+              props: { headline: "50% Off" },
+              lazy: true,
+            }),
+            ssrH(NuxtClientFallback, {
+              fallbackTag: "section",
+              fallback: "Recovered on client",
+              onSsrError: (err) => {
+                capturedSsrError = err;
+              },
+              children: () => ssrH(CrashingChild, {}),
+            }),
+            ssrH(NuxtWelcome, {
+              title: "Welcome to Moonshine Nuxt",
+              version: "4.0.0",
+            }),
+          ),
+        );
+
+        expect(html).toContain('data-nuxt-island="PromoBanner"');
+        expect(html).toContain('<aside class="promo">50% Off</aside>');
+        expect(html).toContain(
+          '<section data-nuxt-client-fallback="">Recovered on client</section>',
+        );
+        expect(capturedSsrError).toBeInstanceOf(Error);
+        expect((capturedSsrError as Error).message).toBe(
+          "SSR Render Explosion",
+        );
+        expect(html).toContain('data-nuxt-welcome=""');
+        expect(html).toContain("Welcome to Moonshine Nuxt");
+
+        clearNuxtIslands();
+        clearPrerenderedRoutes();
+        clearRouteRules();
+        expect(getPrerenderedRoutes()).toEqual([]);
+        expect(getRouteRules()).toBeUndefined();
+      },
+    );
+  });
 });
 
 const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
 
 test.skipIf(!sourceCompiler)(
-  "Crepus lowers .vue SFCs importing Nuxt composables and components from #imports, #app, and nuxt/app",
+  "Crepus lowers .vue SFCs importing Nuxt composables and components from #imports, #app, #components, and auto-imported built-ins",
   async () => {
     const root = join(import.meta.dir, "..");
     const dir = await mkdtemp(join(tmpdir(), "moonshine-nuxt-sfc-"));
@@ -879,26 +994,44 @@ test.skipIf(!sourceCompiler)(
       }
 
       const nuxtPage = `<script setup lang="ts">
-import { useState, useCookie, useRoute, useRuntimeConfig, NuxtLink, ClientOnly, Title } from "#imports";
+import { useState, useCookie, useRoute, useRuntimeConfig, useRequestHeader } from "#imports";
 import { useAsyncData } from "#app";
 import { useLoadingIndicator } from "nuxt/app";
+import { NuxtWelcome } from "#components";
+
+definePageMeta({
+  title: "Auto-Imported Meta",
+  middleware: "auth",
+});
+
+defineRouteRules({
+  prerender: true,
+  headers: { "x-sfc-rule": "active" },
+});
 
 const count = useState("counter", () => 12);
 const theme = useCookie("theme", { default: () => "emerald" });
 const route = useRoute();
 const config = useRuntimeConfig();
+const token = useRequestHeader("x-auth-token");
 const { data, status } = useAsyncData("greeting", () => "Hello from Nuxt SFC");
 const { isLoading, progress } = useLoadingIndicator();
+const islandProps = { label: "Server Box" };
 </script>
 <template>
-  <main :data-theme="theme" :data-status="status" :data-loading="String(isLoading)">
+  <main :data-theme="theme" :data-status="status" :data-loading="String(isLoading)" :data-token="token">
     <Title>Nuxt SFC Title</Title>
     <h1>{{ data }} ({{ count }})</h1>
-    <p class="route-info">{{ route.path }} | {{ config.app.baseURL }} | {{ progress }}</p>
+    <p class="route-info">{{ route.path }} | {{ config.app.baseURL }} | {{ progress }} | {{ route.meta.title }}</p>
     <NuxtLink to="/dashboard">Go Dashboard</NuxtLink>
     <ClientOnly fallback="SSR Placeholder">
       <span>Browser Content</span>
     </ClientOnly>
+    <NuxtIsland name="ServerBox" :props="islandProps" />
+    <NuxtClientFallback fallback-tag="div" fallback="Fallback Active">
+      <span class="safe-child">Safe Child</span>
+    </NuxtClientFallback>
+    <NuxtWelcome title="SFC Welcome" />
   </main>
 </template>`;
 
@@ -936,23 +1069,30 @@ const { isLoading, progress } = useLoadingIndicator();
 import assert from "node:assert/strict";
 import PageSSR from "./ssr/CrepusEmit.moonshine-ssr.ts";
 import { h, renderToString } from "@tschk/moonshine-dom/ssr";
-import { withNuxtRequest, resolveHeadTags } from "@tschk/moonshine-nuxt";
+import { withNuxtRequest, resolveHeadTags, registerNuxtIsland, getRouteRules, getPrerenderedRoutes } from "@tschk/moonshine-nuxt";
 
 await withNuxtRequest(
   {
     url: "https://example.com/dashboard?tab=1",
-    headers: { cookie: "theme=obsidian" },
+    headers: { cookie: "theme=obsidian", "x-auth-token": "secret-99" },
     runtimeConfig: { app: { baseURL: "/app/", buildAssetsDir: "/_nuxt/", cdnURL: "" } },
   },
   async () => {
+    registerNuxtIsland("ServerBox", (props) => h("em", null, props.label));
     const html = renderToString(() => h(PageSSR, {}));
     assert.ok(html.includes('data-theme="obsidian"'), html);
     assert.ok(html.includes('data-status="success"'), html);
+    assert.ok(html.includes('data-token="secret-99"'), html);
     assert.ok(html.includes('<h1>Hello from Nuxt SFC (12)</h1>'), html);
-    assert.ok(html.includes('<p class="route-info">/dashboard | /app/ | 0</p>'), html);
+    assert.ok(html.includes('<p class="route-info">/dashboard | /app/ | 0 | Auto-Imported Meta</p>'), html);
     assert.ok(html.includes('<a href="/dashboard" class="router-link-active router-link-exact-active" aria-current="page">Go Dashboard</a>'), html);
     assert.ok(html.includes('SSR Placeholder'), html);
+    assert.ok(html.includes('<em>Server Box</em>'), html);
+    assert.ok(html.includes('<span class="safe-child">Safe Child</span>'), html);
+    assert.ok(html.includes('SFC Welcome'), html);
     assert.equal(resolveHeadTags().title, "Nuxt SFC Title");
+    assert.equal(getRouteRules().prerender, true);
+    assert.ok(getPrerenderedRoutes().includes("/dashboard"));
   }
 );
 `;

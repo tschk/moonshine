@@ -152,6 +152,9 @@ type NuxtScopeStore = {
   payloadReducers: Map<string, (data: any) => any>;
   payloadRevivers: Map<string, (data: any) => any>;
   layouts: Map<string, (props: any) => unknown>;
+  islands: Map<string, (props: any) => unknown>;
+  prerenderedRoutes: Set<string>;
+  routeRules: Map<string, NuxtRouteRules>;
   devMode: boolean;
   event?: NuxtRequestEvent;
 };
@@ -206,6 +209,9 @@ function createScopeStore(
     payloadReducers: new Map(),
     payloadRevivers: new Map(),
     layouts: new Map(),
+    islands: new Map(),
+    prerenderedRoutes: new Set(),
+    routeRules: new Map(),
     devMode: true,
     event,
   };
@@ -640,8 +646,97 @@ export function clearNuxtData(
   }
 }
 
+export interface NuxtRouteRules {
+  prerender?: boolean;
+  ssr?: boolean;
+  experimentalNoScripts?: boolean;
+  redirect?: string | { to: string; statusCode?: number };
+  cors?: boolean;
+  headers?: Record<string, string>;
+  swr?: number | boolean;
+  isr?: number | boolean;
+  cache?: false | Record<string, any>;
+  index?: boolean;
+  [key: string]: any;
+}
+
 export function definePageMeta<T extends Record<string, any>>(meta: T): T {
+  if (meta && typeof meta === "object") {
+    const route = useRoute();
+    route.meta = { ...route.meta, ...meta };
+  }
   return meta;
+}
+
+export function prerenderRoutes(routes: string | string[]): void {
+  const store = resolveScopeStore();
+  const list = Array.isArray(routes) ? routes : [routes];
+  const added: string[] = [];
+  for (const r of list) {
+    if (typeof r === "string" && r.trim()) {
+      const cleaned = r.trim();
+      store.prerenderedRoutes.add(cleaned);
+      added.push(cleaned);
+    }
+  }
+  if (store.event && added.length > 0) {
+    const existing = store.event.responseHeaders.get("X-Nitro-Prerender");
+    const combined = existing
+      ? Array.from(
+          new Set([
+            ...existing
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+            ...added,
+          ]),
+        ).join(", ")
+      : added.join(", ");
+    store.event.responseHeaders.set("X-Nitro-Prerender", combined);
+  }
+}
+
+export function getPrerenderedRoutes(): string[] {
+  return Array.from(resolveScopeStore().prerenderedRoutes);
+}
+
+export function clearPrerenderedRoutes(): void {
+  resolveScopeStore().prerenderedRoutes.clear();
+}
+
+export function defineRouteRules(
+  rules: NuxtRouteRules,
+  path?: string,
+): NuxtRouteRules {
+  const store = resolveScopeStore();
+  const targetPath = path ?? useRoute().path ?? "/";
+  const prev = store.routeRules.get(targetPath) ?? {};
+  const merged: NuxtRouteRules = { ...prev, ...rules };
+  store.routeRules.set(targetPath, merged);
+  if (merged.prerender) {
+    prerenderRoutes(targetPath);
+  }
+  if (merged.headers && store.event) {
+    for (const [k, v] of Object.entries(merged.headers)) {
+      if (v !== undefined && v !== null) {
+        store.event.responseHeaders.set(k, String(v));
+      }
+    }
+  }
+  if (merged.cors && store.event) {
+    store.event.responseHeaders.set("Access-Control-Allow-Origin", "*");
+  }
+  return merged;
+}
+
+export function getRouteRules(path?: string): NuxtRouteRules | undefined {
+  const store = resolveScopeStore();
+  const targetPath = path ?? useRoute().path ?? "/";
+  return store.routeRules.get(targetPath);
+}
+
+export function clearRouteRules(): void {
+  resolveScopeStore().routeRules.clear();
 }
 
 export function defineAppConfig<T extends Record<string, any>>(config: T): T {
@@ -782,6 +877,12 @@ export function withNuxtRequest<T>(
 
 export function useRequestEvent(): NuxtRequestEvent | undefined {
   return resolveScopeStore().event;
+}
+
+export function useRequestHeader(name: string): string | undefined {
+  const event = resolveScopeStore().event;
+  if (!event) return undefined;
+  return event.headers.get(name) ?? undefined;
 }
 
 export function useRequestHeaders<K extends string = string>(
@@ -4109,4 +4210,191 @@ export function Body(props: Record<string, any> = {}): unknown {
   }));
   const content = readDefaultSlotContent(props);
   return renderFragment(content);
+}
+
+export function registerNuxtIsland(
+  name: string,
+  component: (props: any) => unknown,
+): void {
+  resolveScopeStore().islands.set(name, component);
+}
+
+export function clearNuxtIslands(): void {
+  resolveScopeStore().islands.clear();
+}
+
+export interface NuxtIslandProps {
+  name: MaybeReactive<string>;
+  lazy?: boolean;
+  props?: Record<string, any>;
+  context?: Record<string, any>;
+  source?: string;
+  dangerouslyLoadClientComponents?: boolean;
+  fallback?: unknown;
+  children?: unknown;
+  default?: () => unknown;
+  onError?: (error: unknown) => void;
+  [key: string]: any;
+}
+
+export function NuxtIsland(props: NuxtIslandProps): unknown {
+  const slotFactory = resolveDefaultSlotFactory(props);
+  return () => {
+    const store = resolveScopeStore();
+    const islandName = String(resolveReactive(props.name) ?? "");
+    const islandComp = store.islands.get(islandName);
+    const islandProps = {
+      ...(resolveReactive(props.props) ?? {}),
+      ...(props.context ? { context: resolveReactive(props.context) } : {}),
+    };
+
+    if (typeof islandComp === "function") {
+      try {
+        const rendered = createComponent(
+          islandComp,
+          islandProps,
+          isSSRRendering() ? "ssr" : "dom",
+        );
+        return renderElement(
+          "div",
+          {
+            "data-nuxt-island": islandName,
+            ...(props.source ? { "data-island-source": props.source } : {}),
+            class: props.class,
+            style: props.style,
+          },
+          rendered,
+        );
+      } catch (err) {
+        props.onError?.(err);
+        const fallbackContent = props.fallback ?? slotFactory?.() ?? null;
+        return renderElement(
+          "div",
+          {
+            "data-nuxt-island": islandName,
+            "data-island-error": "true",
+            class: props.class,
+            style: props.style,
+          },
+          fallbackContent,
+        );
+      }
+    }
+
+    const fallbackContent = props.fallback ?? slotFactory?.() ?? null;
+    return renderElement(
+      "div",
+      {
+        "data-nuxt-island": islandName,
+        ...(props.lazy ? { "data-island-lazy": "true" } : {}),
+        ...(props.source ? { "data-island-source": props.source } : {}),
+        class: props.class,
+        style: props.style,
+      },
+      fallbackContent,
+    );
+  };
+}
+
+export interface NuxtClientFallbackProps {
+  uid?: string;
+  fallbackTag?: string;
+  fallback?: unknown;
+  placeholderTag?: string;
+  placeholder?: unknown;
+  keepFallback?: boolean;
+  children?: unknown;
+  default?: () => unknown;
+  onSsrError?: (error: unknown) => void;
+  "onSsr-error"?: (error: unknown) => void;
+  [key: string]: any;
+}
+
+export function NuxtClientFallback(
+  props: NuxtClientFallbackProps = {},
+): unknown {
+  const ssrFailed = createBridgedRef(false);
+  const slotFactory = resolveDefaultSlotFactory(props);
+  const renderSlot = () => slotFactory?.();
+  const notifyError = (err: unknown) => {
+    ssrFailed.value = true;
+    props.onSsrError?.(err);
+    const kebabHandler = props["onSsr-error"];
+    if (typeof kebabHandler === "function") {
+      kebabHandler(err);
+    }
+  };
+  const renderFallbackNode = () => {
+    const tag = props.fallbackTag ?? props.placeholderTag ?? "div";
+    const text = props.fallback ?? props.placeholder ?? "";
+    return renderElement(
+      tag,
+      {
+        "data-nuxt-client-fallback": props.uid ?? "",
+        class: props.class,
+        style: props.style,
+      },
+      text,
+    );
+  };
+
+  if (isSSRRendering()) {
+    return ssrBoundary(
+      () => renderSlot() as SSRChild,
+      (err) => {
+        notifyError(err);
+        return renderFallbackNode() as SSRChild;
+      },
+    );
+  }
+
+  return () => {
+    if (ssrFailed.value && props.keepFallback) {
+      return renderFallbackNode();
+    }
+    const parentOwner = getOwner();
+    try {
+      if (parentOwner) {
+        return runWithOwner(parentOwner, () =>
+          createRoot((dispose) => {
+            const scope = getOwner()!;
+            onCleanup(dispose);
+            (scope.context ??= new Map()).set(
+              errorHandlerKey,
+              (err: unknown) => {
+                notifyError(err);
+              },
+            );
+            return renderSlot();
+          }),
+        );
+      }
+      return renderSlot();
+    } catch (err) {
+      notifyError(err);
+      return renderFallbackNode();
+    }
+  };
+}
+
+export interface NuxtWelcomeProps {
+  title?: MaybeReactive<string>;
+  version?: string;
+  [key: string]: any;
+}
+
+export function NuxtWelcome(props: NuxtWelcomeProps = {}): unknown {
+  return renderElement(
+    "div",
+    {
+      "data-nuxt-welcome": "",
+      class: props.class ?? "nuxt-welcome",
+      style: props.style,
+    },
+    renderElement(
+      "h1",
+      null,
+      () => resolveReactive(props.title) ?? "Welcome to Nuxt!",
+    ),
+  );
 }
