@@ -37,6 +37,20 @@ describe("stringifySearch", () => {
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
   });
+
+  test("stringifies arrays as JSON", () => {
+    expect(stringifySearch({ ids: [1, 2, 3] })).toBe("?ids=%5B1%2C2%2C3%5D");
+  });
+
+  test("stringifies null as JSON", () => {
+    expect(stringifySearch({ empty: null })).toBe("?empty=null");
+  });
+
+  test("stringifies nested objects as JSON", () => {
+    expect(stringifySearch({ user: { name: "Alice" } })).toBe(
+      "?user=%7B%22name%22%3A%22Alice%22%7D",
+    );
+  });
 });
 
 describe("interpolatePath", () => {
