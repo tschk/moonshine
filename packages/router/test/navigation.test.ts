@@ -44,10 +44,30 @@ describe("safeHref", () => {
   test("strips control characters to prevent evasion", () => {
     expect(safeHref("java\x09script:alert(1)")).toBe("#");
     expect(safeHref("java\nscript:alert(1)")).toBe("#");
+    expect(safeHref("java\u0000script:alert(1)")).toBe("#");
+    expect(safeHref("java\u001Fscript:alert(1)")).toBe("#");
+    expect(safeHref("java\u007Fscript:alert(1)")).toBe("#");
   });
   test("handles empty string and spaces", () => {
     expect(safeHref("")).toBe("#");
     expect(safeHref("   ")).toBe("#");
+    expect(safeHref("  javascript:alert(1)  ")).toBe("#");
+  });
+  test("handles mixed case schemes", () => {
+    expect(safeHref("HTTP://example.com")).toBe("HTTP://example.com");
+    expect(safeHref("jAvAsCrIpT:alert(1)")).toBe("#");
+  });
+  test("blocks unknown schemes", () => {
+    expect(safeHref("unknown:thing")).toBe("#");
+  });
+  test("allows relative paths containing colons", () => {
+    expect(safeHref("./path:thing")).toBe("./path:thing");
+    expect(safeHref("path/thing:with-colon")).toBe("path/thing:with-colon");
+    // "path:thing" matches the scheme regex so it is blocked as an unknown scheme
+    expect(safeHref("path:thing")).toBe("#");
+  });
+  test("handles valid schemes containing +, -, or .", () => {
+    expect(safeHref("a+b.c-d:thing")).toBe("#");
   });
 });
 
