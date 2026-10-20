@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-compiler",
-  "version": "0.4.69",
+  "version": "0.4.70",
   "license": "ISC",
   "type": "module",
   "main": "./src/index.ts",
@@ -19,8 +19,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tschk/moonshine-framework": "^0.4.48",
-    "@tschk/moonshine-router": "^0.4.48",
+    "@tschk/moonshine-framework": "^0.4.70",
+    "@tschk/moonshine-router": "^0.4.70",
     "typescript": "^5.8.2"
   },
   "devDependencies": {

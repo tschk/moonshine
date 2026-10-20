@@ -115,31 +115,51 @@ for(const source of ['<script>let open=$state(false);</script><div bind:open/>',
 );
 
 test.skipIf(!sourceCompiler)(
-  "authored SvelteKit $app/state, $app/stores, $app/navigation, $app/paths and @sveltejs/kit compile and render in SSR",
+  "authored SvelteKit $app/*, $env/*, $service-worker, @sveltejs/kit and @sveltejs/kit/hooks compile and render in SSR",
   async () => {
     const kitPage = `<script lang="ts">
 import { page as pageState } from '$app/state';
 import { page as pageStore } from '$app/stores';
 import { goto } from '$app/navigation';
 import { resolveRoute } from '$app/paths';
+import { env } from '$env/dynamic/public';
+import { files } from '$service-worker';
 import { VERSION } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
 const href = resolveRoute('/posts/[slug]', { slug: 'intro' });
-</script><a {href} onclick={() => goto(href)}>{pageState.url.pathname}|{$pageStore.params.slug ?? 'none'}|{VERSION}</a>`;
+const hasSequence = typeof sequence === 'function';
+</script><a {href} onclick={() => goto(href)}>{pageState.url.pathname}|{$pageStore.params.slug ?? 'none'}|{env.PUBLIC_SITE ?? 'unset'}|{files.length}|{hasSequence}|{VERSION}</a>`;
+    const privatePage = `<script lang="ts">
+import { env as secretEnv } from '$env/dynamic/private';
+</script><span>{secretEnv.SECRET_KEY ?? 'missing'}</span>`;
     await standalone(`
 import assert from 'node:assert/strict';
 const compiler=${JSON.stringify(sourceCompiler)};
 await Bun.write('source/KitPage.svelte',${JSON.stringify(kitPage)});
+await Bun.write('source/PrivatePage.svelte',${JSON.stringify(privatePage)});
 for(const [target,out] of [['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
  const proc=Bun.spawn([compiler,'web','build','--site','source','--entry','KitPage.svelte','--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
  const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
  assert.equal(code,0,stdout+stderr);
 }
+const badDom=Bun.spawn([compiler,'web','build','--site','source','--entry','PrivatePage.svelte','--emit','moonshine-dom','--out-dir','bad-dom'],{stdout:'pipe',stderr:'pipe'});
+assert.notEqual(await badDom.exited,0);
+const okSsr=Bun.spawn([compiler,'web','build','--site','source','--entry','PrivatePage.svelte','--emit','moonshine-ssr','--out-dir','priv-ssr'],{stdout:'pipe',stderr:'pipe'});
+assert.equal(await okSsr.exited,0);
 const {setKitPage,version}=await import('@tschk/moonshine-svelte/navigation');
+const {configureKitEnv,configureKitServiceWorker,resetKitEnv,resetKitServiceWorker}=await import('@tschk/moonshine-svelte/kit');
 const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
 const {default:KitPage}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+const {default:PrivatePage}=await import(process.cwd()+'/priv-ssr/CrepusEmit.moonshine-ssr.ts');
+configureKitEnv({env:{PUBLIC_SITE:'moonshine',SECRET_KEY:'top-secret'}});
+configureKitServiceWorker({files:['/icon.png','/sw.js']});
 setKitPage({url:'http://localhost/posts/intro',params:{slug:'intro'}});
 const html=renderToString(()=>h(KitPage,{}));
-assert.equal(html,'<a href="/posts/intro">/posts/intro|intro|'+version+'</a>');
+assert.equal(html,'<a href="/posts/intro">/posts/intro|intro|moonshine|2|true|'+version+'</a>');
+const privHtml=renderToString(()=>h(PrivatePage,{}));
+assert.equal(privHtml,'<span>top-secret</span>');
+resetKitEnv();
+resetKitServiceWorker();
 `);
   },
 );

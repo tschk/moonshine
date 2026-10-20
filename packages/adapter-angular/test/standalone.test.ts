@@ -200,3 +200,102 @@ const payload=spa.split('data-moonshine-props>')[1].split('</script>')[0];assert
     true,
   );
 });
+
+const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
+test.skipIf(!sourceCompiler)(
+  "authored Angular .component.ts compiles via crepus web build to moonshine-dom and moonshine-ssr without Angular host runtime",
+  async () => {
+    const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, signal, computed, input } from "@angular/core";
+import { UpperCasePipe } from "@angular/common";
+
+@Injectable({ providedIn: "root" })
+export class StepService {
+  step = 3;
+}
+
+@Component({
+  selector: "app-counter",
+  standalone: true,
+  imports: [UpperCasePipe],
+  styles: [".counter { color: navy; }"],
+  template: \`
+    <div class="counter" [attr.data-step]="step">
+      <span>{{ title() | uppercase }}: {{ doubled() }}</span>
+      @if (count() > 0) {
+        <em>Active</em>
+      } @else {
+        <em>Idle</em>
+      }
+      <ul>
+        @for (item of items(); track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+      <button (click)="increment()">+</button>
+    </div>
+  \`,
+})
+export class CounterComponent {
+  title = input("Count");
+  @Input() step = 2;
+  @Output() changed = new EventEmitter<number>();
+  count = signal(4);
+  items = signal(["x", "y"]);
+  doubled = computed(() => this.count() * 2);
+
+  increment() {
+    this.count.update((n) => n + this.step);
+    this.changed.emit(this.count());
+  }
+}
+`;
+    const check = `import assert from 'node:assert/strict';
+import CounterComponent, { CounterComponent as NamedCounter, StepService } from './ssr/CrepusEmit.moonshine-ssr.ts';
+import { h, renderToString } from '@tschk/moonshine-dom/ssr';
+import { bootstrapApplication } from '@tschk/moonshine-angular';
+
+const html = renderToString(() => h(CounterComponent, { title: 'score', step: 5 }));
+assert.ok(html.includes('data-step="5"'), html);
+assert.ok(html.includes('SCORE: 8'), html);
+assert.ok(html.includes('<em>Active</em>'), html);
+assert.ok(html.includes('<li>x</li><li>y</li>'), html);
+
+const appRef = await bootstrapApplication(NamedCounter);
+assert.equal(appRef.components.length, 1);
+const inst = appRef.components[0].instance;
+assert.equal(inst.doubled(), 8);
+const emitted: number[] = [];
+inst.changed.subscribe((v: number) => emitted.push(v));
+inst.increment();
+assert.equal(inst.count(), 6);
+assert.equal(inst.doubled(), 12);
+assert.deepEqual(emitted, [6]);
+assert.equal(appRef.injector.get(StepService).step, 3);
+appRef.destroy();
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+async function compile(entry, target, out) {
+  const proc = Bun.spawn([compiler, 'web', 'build', '--site', 'source', '--entry', entry, '--emit', target, '--out-dir', out], { stdout: 'pipe', stderr: 'pipe' });
+  const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  return { code, log: stdout + stderr };
+}
+await Bun.write('source/Counter.component.ts', ${JSON.stringify(componentSource)});
+for (const [target, out] of [['moonshine-dom', 'dom'], ['moonshine-ssr', 'ssr']]) {
+  const result = await compile('Counter.component.ts', target, out);
+  assert.equal(result.code, 0, result.log);
+  const built = await Bun.build({
+    entrypoints: [out + '/CrepusEmit.' + target + '.ts'],
+    target: target === 'moonshine-dom' ? 'browser' : 'node',
+    minify: true,
+    metafile: true,
+  });
+  assert.ok(built.success, String(built.logs));
+  assert.ok(!Object.keys(built.metafile.inputs).some(path => ['@angular/core', '@angular/common', 'react', 'react-dom'].some(name => path.includes('node_modules/' + name + '/')) || path.endsWith('.wasm')));
+}
+await Bun.write('check.ts', ${JSON.stringify(check)});
+await import(process.cwd() + '/check.ts');
+`);
+  },
+);

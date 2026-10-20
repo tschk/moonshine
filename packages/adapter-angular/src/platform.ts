@@ -1,23 +1,38 @@
 /**
  * Host-free Angular platform, browser, transfer-state, sanitizer, bootstrap,
- * and common pipe primitives backed by the Moonshine reactive and DI graph.
+ * decorators, lifecycle, and common pipe primitives backed by the Moonshine reactive and DI graph.
  */
 import {
+  getOwner,
+  onCleanup as domOnCleanup,
+} from "@tschk/moonshine-dom/reactive";
+import {
+  applyInputValue,
   createEnvironmentInjector,
   DestroyRef,
+  effect,
   ENVIRONMENT_INITIALIZER,
   EnvironmentInjector,
   type EnvironmentProviders,
+  getCurrentInjector,
+  getInputAlias,
+  HostAttributeToken,
   inject,
   InjectionToken,
+  Injector,
+  isInputSignal,
+  isSignal,
   makeEnvironmentProviders,
+  OutputEmitterRef,
   provideEnvironmentInitializer,
   type Provider,
+  type ProviderToken,
   runInInjectionContext,
   type Signal,
   signal,
   type Subscribable,
   type Type,
+  type Unsubscribable,
   type WritableSignal,
 } from "./signals";
 
@@ -648,18 +663,22 @@ export class ApplicationRef {
     return this.#destroyed;
   }
 
-  bootstrap<C>(componentOrFactory: Type<C>): ComponentRef<C> {
+  bootstrap<C>(
+    componentOrFactory: Type<C> | ((props?: any) => any),
+  ): ComponentRef<C> {
     if (this.#destroyed) {
       throw new Error("Cannot bootstrap on a destroyed ApplicationRef");
     }
+    const ResolvedClass = ((componentOrFactory as any)?.ɵClass ??
+      componentOrFactory) as Type<C>;
     const instance = runInInjectionContext(
       this.injector,
-      () => new componentOrFactory(),
+      () => new ResolvedClass(),
     );
     const destroyRef = this.injector.get(DestroyRef);
     const ref: ComponentRef<C> = {
       instance,
-      componentType: componentOrFactory,
+      componentType: ResolvedClass,
       injector: this.injector,
       destroyRef,
       destroy: () => {
@@ -1184,3 +1203,1230 @@ export const COMMON_PIPES = [
   I18nPluralPipe,
   I18nSelectPipe,
 ] as const;
+
+// ============================================================================
+// Pipe Registry & `applyPipe` Helper
+// ============================================================================
+
+const BUILTIN_PIPES: Record<string, PipeTransform> = {
+  uppercase: new UpperCasePipe(),
+  lowercase: new LowerCasePipe(),
+  titlecase: new TitleCasePipe(),
+  slice: new SlicePipe(),
+  json: new JsonPipe(),
+  keyvalue: new KeyValuePipe(),
+  number: new DecimalPipe(),
+  decimal: new DecimalPipe(),
+  percent: new PercentPipe(),
+  currency: new CurrencyPipe(),
+  date: new DatePipe(),
+  i18nPlural: new I18nPluralPipe(),
+  i18nSelect: new I18nSelectPipe(),
+  async: new AsyncPipe(),
+};
+
+const customPipeRegistry = new Map<
+  string,
+  Type<PipeTransform> | PipeTransform
+>();
+
+export function registerPipe(
+  name: string,
+  pipeClassOrInstance: Type<PipeTransform> | PipeTransform,
+): void {
+  customPipeRegistry.set(name, pipeClassOrInstance);
+}
+
+export function applyPipe(value: any, name: string, ...args: any[]): any {
+  const custom = customPipeRegistry.get(name);
+  if (custom) {
+    if (typeof custom === "function") {
+      const inj = getCurrentInjector();
+      const instance = inj
+        ? runInInjectionContext(inj, () => new custom())
+        : new custom();
+      return instance.transform(value, ...args);
+    }
+    return custom.transform(value, ...args);
+  }
+  const builtin = BUILTIN_PIPES[name];
+  if (builtin) {
+    return builtin.transform(value, ...args);
+  }
+  throw new Error(`NG0302: The pipe '${name}' could not be found.`);
+}
+
+// ============================================================================
+// Decorators, Metadata & Lifecycle Contracts (`@angular/core`)
+// ============================================================================
+
+export enum ChangeDetectionStrategy {
+  OnPush = 0,
+  Default = 1,
+}
+
+export enum ViewEncapsulation {
+  Emulated = 0,
+  None = 2,
+  ShadowDom = 3,
+}
+
+export interface InputDecoratorConfig {
+  alias?: string;
+  required?: boolean;
+  transform?: (value: any) => any;
+}
+
+export interface ComponentInputConfig extends InputDecoratorConfig {
+  name: string;
+}
+
+export interface ComponentOptions {
+  selector?: string;
+  template?: string;
+  templateUrl?: string;
+  styles?: string | string[];
+  styleUrl?: string;
+  styleUrls?: string[];
+  standalone?: boolean;
+  imports?: Array<Type<any> | ReadonlyArray<any>>;
+  providers?: Array<Provider | EnvironmentProviders>;
+  viewProviders?: Array<Provider | EnvironmentProviders>;
+  changeDetection?: ChangeDetectionStrategy;
+  encapsulation?: ViewEncapsulation;
+  inputs?: Array<string | ComponentInputConfig>;
+  outputs?: string[];
+  host?: Record<string, string>;
+  exportAs?: string;
+  schemas?: any[];
+  preserveWhitespaces?: boolean;
+}
+
+export interface DirectiveOptions {
+  selector?: string;
+  standalone?: boolean;
+  inputs?: Array<string | ComponentInputConfig>;
+  outputs?: string[];
+  providers?: Array<Provider | EnvironmentProviders>;
+  host?: Record<string, string>;
+  exportAs?: string;
+}
+
+export interface PipeOptions {
+  name: string;
+  standalone?: boolean;
+  pure?: boolean;
+}
+
+export interface InjectableOptions {
+  providedIn?: "root" | "platform" | "any" | Type<any> | null;
+  useClass?: Type<any>;
+  useFactory?: (...deps: any[]) => any;
+  useExisting?: ProviderToken<any>;
+  useValue?: any;
+  deps?: any[];
+}
+
+export function Component(options: ComponentOptions = {}) {
+  return function <T extends Type<any>>(target: T, _context?: unknown): T {
+    if (Array.isArray(options.imports)) {
+      for (const imp of options.imports.flat()) {
+        const pipeMeta = (imp as any)?.ɵpipe;
+        if (pipeMeta?.name) {
+          registerPipe(pipeMeta.name, imp as Type<PipeTransform>);
+        }
+      }
+    }
+    Object.defineProperty(target, "ɵcmp", {
+      value: {
+        ...options,
+        standalone: options.standalone ?? true,
+        changeDetection:
+          options.changeDetection ?? ChangeDetectionStrategy.Default,
+        encapsulation: options.encapsulation ?? ViewEncapsulation.Emulated,
+        type: target,
+      },
+      configurable: true,
+      writable: true,
+    });
+    return target;
+  };
+}
+
+export function Directive(options: DirectiveOptions = {}) {
+  return function <T extends Type<any>>(target: T, _context?: unknown): T {
+    Object.defineProperty(target, "ɵdir", {
+      value: {
+        ...options,
+        standalone: options.standalone ?? true,
+        type: target,
+      },
+      configurable: true,
+      writable: true,
+    });
+    return target;
+  };
+}
+
+export function Pipe(options: PipeOptions) {
+  return function <T extends Type<PipeTransform>>(
+    target: T,
+    _context?: unknown,
+  ): T {
+    const meta = {
+      name: options.name,
+      standalone: options.standalone ?? true,
+      pure: options.pure ?? true,
+      type: target,
+    };
+    Object.defineProperty(target, "ɵpipe", {
+      value: meta,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(target, "ɵprov", {
+      value: {
+        providedIn: "root" as const,
+        factory: () => new target(),
+      },
+      configurable: true,
+      writable: true,
+    });
+    registerPipe(options.name, target);
+    return target;
+  };
+}
+
+export function Injectable(options?: InjectableOptions) {
+  return function <T extends Type<any>>(target: T, _context?: unknown): T {
+    const providedIn =
+      options?.providedIn === undefined ? null : options.providedIn;
+    const factory = () => {
+      if (options && "useValue" in options) {
+        return options.useValue;
+      }
+      if (options?.useFactory) {
+        const deps = (options.deps ?? []).map((d) => inject(d));
+        return options.useFactory(...deps);
+      }
+      if (options?.useExisting) {
+        return inject(options.useExisting);
+      }
+      if (options?.useClass) {
+        const Ctor = options.useClass;
+        const deps = (options.deps ?? []).map((d) => inject(d));
+        return new Ctor(...deps);
+      }
+      return new target();
+    };
+    Object.defineProperty(target, "ɵprov", {
+      value: {
+        providedIn:
+          typeof providedIn === "string" || providedIn === null
+            ? providedIn
+            : "root",
+        factory,
+      },
+      configurable: true,
+      writable: true,
+    });
+    return target;
+  };
+}
+
+export function Input(aliasOrOptions?: string | InputDecoratorConfig) {
+  const cfg: InputDecoratorConfig =
+    typeof aliasOrOptions === "string"
+      ? { alias: aliasOrOptions }
+      : (aliasOrOptions ?? {});
+  return function (target: any, propertyKey?: string | symbol | any): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵinputs ?? {}) as Record<
+        string,
+        InputDecoratorConfig
+      >;
+      existing[propName] = cfg;
+      ctor.ɵinputs = existing;
+    }
+  };
+}
+
+export function Output(alias?: string) {
+  return function (target: any, propertyKey?: string | symbol | any): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵoutputs ?? {}) as Record<string, string>;
+      existing[propName] = alias ?? propName;
+      ctor.ɵoutputs = existing;
+    }
+  };
+}
+
+export function ViewChild(
+  selector: ProviderToken<any> | string,
+  opts?: { read?: any; static?: boolean },
+) {
+  return function (target: any, propertyKey?: string | symbol | any): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵviewQueries ?? {}) as Record<string, any>;
+      existing[propName] = { selector, first: true, ...opts };
+      ctor.ɵviewQueries = existing;
+    }
+  };
+}
+
+export function ViewChildren(
+  selector: ProviderToken<any> | string,
+  opts?: { read?: any },
+) {
+  return function (target: any, propertyKey?: string | symbol | any): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵviewQueries ?? {}) as Record<string, any>;
+      existing[propName] = { selector, first: false, ...opts };
+      ctor.ɵviewQueries = existing;
+    }
+  };
+}
+
+export function ContentChild(
+  selector: ProviderToken<any> | string,
+  opts?: { read?: any; descendants?: boolean; static?: boolean },
+) {
+  return function (target: any, propertyKey?: string | symbol | any): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵcontentQueries ?? {}) as Record<string, any>;
+      existing[propName] = { selector, first: true, ...opts };
+      ctor.ɵcontentQueries = existing;
+    }
+  };
+}
+
+export function ContentChildren(
+  selector: ProviderToken<any> | string,
+  opts?: { read?: any; descendants?: boolean },
+) {
+  return function (target: any, propertyKey?: string | symbol | any): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵcontentQueries ?? {}) as Record<string, any>;
+      existing[propName] = { selector, first: false, ...opts };
+      ctor.ɵcontentQueries = existing;
+    }
+  };
+}
+
+export function HostBinding(hostPropertyName?: string) {
+  return function (target: any, propertyKey?: string | symbol | any): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵhostBindings ?? {}) as Record<string, string>;
+      existing[propName] = hostPropertyName ?? propName;
+      ctor.ɵhostBindings = existing;
+    }
+  };
+}
+
+export function HostListener(eventName: string, args?: string[]) {
+  return function (
+    target: any,
+    propertyKey?: string | symbol | any,
+    _descriptor?: PropertyDescriptor,
+  ): void {
+    const propName =
+      typeof propertyKey === "object" && propertyKey !== null
+        ? String(propertyKey.name)
+        : String(propertyKey ?? "");
+    const ctor =
+      typeof target === "object" && target !== null ? target.constructor : null;
+    if (ctor && propName) {
+      const existing = (ctor.ɵhostListeners ?? {}) as Record<
+        string,
+        { eventName: string; args?: string[] }
+      >;
+      existing[propName] = { eventName, args };
+      ctor.ɵhostListeners = existing;
+    }
+  };
+}
+
+export function Optional() {
+  return function (
+    _target: any,
+    _propertyKey?: string | symbol,
+    _parameterIndex?: number,
+  ): void {};
+}
+
+export function Self() {
+  return function (
+    _target: any,
+    _propertyKey?: string | symbol,
+    _parameterIndex?: number,
+  ): void {};
+}
+
+export function SkipSelf() {
+  return function (
+    _target: any,
+    _propertyKey?: string | symbol,
+    _parameterIndex?: number,
+  ): void {};
+}
+
+export function Host() {
+  return function (
+    _target: any,
+    _propertyKey?: string | symbol,
+    _parameterIndex?: number,
+  ): void {};
+}
+
+export function Inject(_token: any) {
+  return function (
+    _target: any,
+    _propertyKey?: string | symbol,
+    _parameterIndex?: number,
+  ): void {};
+}
+
+export function Attribute(_attributeName: string) {
+  return function (
+    _target: any,
+    _propertyKey?: string | symbol,
+    _parameterIndex?: number,
+  ): void {};
+}
+
+export class EventEmitter<T = any> extends OutputEmitterRef<T> {
+  readonly isAsync: boolean;
+
+  constructor(isAsync = false) {
+    super();
+    this.isAsync = isAsync;
+  }
+
+  override emit(value?: T): void {
+    if (this.isAsync) {
+      queueMicrotask(() => {
+        if (!this.destroyed) {
+          super.emit(value as T);
+        }
+      });
+    } else {
+      super.emit(value as T);
+    }
+  }
+
+  override subscribe(
+    nextOrObserver?:
+      | ((value: T) => void)
+      | {
+          next?: (value: T) => void;
+          error?: (err: any) => void;
+          complete?: () => void;
+        },
+    _error?: (error: any) => void,
+    _complete?: () => void,
+  ): Unsubscribable {
+    const callback =
+      typeof nextOrObserver === "function"
+        ? nextOrObserver
+        : (value: T) => nextOrObserver?.next?.(value);
+    return super.subscribe(callback);
+  }
+}
+
+export class SimpleChange<T = any> {
+  constructor(
+    public previousValue: T,
+    public currentValue: T,
+    public firstChange: boolean,
+  ) {}
+
+  isFirstChange(): boolean {
+    return this.firstChange;
+  }
+}
+
+export type SimpleChanges = Record<string, SimpleChange<any>>;
+
+export interface OnInit {
+  ngOnInit(): void;
+}
+
+export interface OnDestroy {
+  ngOnDestroy(): void;
+}
+
+export interface OnChanges {
+  ngOnChanges(changes: SimpleChanges): void;
+}
+
+export interface DoCheck {
+  ngDoCheck(): void;
+}
+
+export interface AfterContentInit {
+  ngAfterContentInit(): void;
+}
+
+export interface AfterContentChecked {
+  ngAfterContentChecked(): void;
+}
+
+export interface AfterViewInit {
+  ngAfterViewInit(): void;
+}
+
+export interface AfterViewChecked {
+  ngAfterViewChecked(): void;
+}
+
+export function booleanAttribute(value: unknown): boolean {
+  return typeof value === "boolean"
+    ? value
+    : value !== null && value !== undefined && value !== "false";
+}
+
+export function numberAttribute(value: unknown, fallbackValue = NaN): number {
+  const isEmpty = value === null || value === undefined || value === "";
+  const num = isEmpty ? NaN : Number(value);
+  return Number.isNaN(num) ? fallbackValue : num;
+}
+
+const FORWARD_REF_BRAND = Symbol.for("moonshine.angular.forwardRef");
+
+export function forwardRef<T>(forwardRefFn: () => T): Type<any> {
+  (forwardRefFn as any)[FORWARD_REF_BRAND] = true;
+  return forwardRefFn as unknown as Type<any>;
+}
+
+export function resolveForwardRef<T>(type: T): T {
+  if (typeof type === "function" && (type as any)[FORWARD_REF_BRAND]) {
+    return (type as unknown as () => T)();
+  }
+  return type;
+}
+
+export class Version {
+  readonly full: string;
+  readonly major: string;
+  readonly minor: string;
+  readonly patch: string;
+
+  constructor(full: string) {
+    this.full = full;
+    const parts = full.split("-")[0]!.split(".");
+    this.major = parts[0] ?? "0";
+    this.minor = parts[1] ?? "0";
+    this.patch = parts[2] ?? "0";
+  }
+}
+
+export const VERSION = new Version("19.0.0-moonshine");
+
+let devModeFlag = true;
+
+export function isDevMode(): boolean {
+  return devModeFlag;
+}
+
+export function enableProdMode(): void {
+  devModeFlag = false;
+}
+
+// ============================================================================
+// Core Runtime Services (`ElementRef`, `ChangeDetectorRef`, `NgZone`, `ErrorHandler`, `Renderer2`)
+// ============================================================================
+
+export class ElementRef<T = any> {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new ElementRef(null),
+  };
+
+  nativeElement: T;
+
+  constructor(nativeElement: T = null as unknown as T) {
+    this.nativeElement = nativeElement;
+  }
+}
+
+export class ChangeDetectorRef {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new ChangeDetectorRef(),
+  };
+
+  #detached = false;
+
+  markForCheck(): void {}
+
+  detach(): void {
+    this.#detached = true;
+  }
+
+  reattach(): void {
+    this.#detached = false;
+  }
+
+  detectChanges(): void {}
+
+  checkNoChanges(): void {}
+
+  get detached(): boolean {
+    return this.#detached;
+  }
+}
+
+export class NgZone {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new NgZone(),
+  };
+
+  static isInAngularZone(): boolean {
+    return true;
+  }
+
+  static assertInAngularZone(): void {}
+
+  static assertNotInAngularZone(): void {}
+
+  readonly hasPendingMicrotasks = false;
+  readonly hasPendingMacrotasks = false;
+  readonly isStable = true;
+  readonly onUnstable = new EventEmitter<any>();
+  readonly onMicrotaskEmpty = new EventEmitter<any>();
+  readonly onStable = new EventEmitter<any>();
+  readonly onError = new EventEmitter<any>();
+
+  run<T>(fn: (...args: any[]) => T, applyThis?: any, applyArgs?: any[]): T {
+    return fn.apply(applyThis, applyArgs ?? []);
+  }
+
+  runTask<T>(fn: (...args: any[]) => T, applyThis?: any, applyArgs?: any[]): T {
+    return fn.apply(applyThis, applyArgs ?? []);
+  }
+
+  runGuarded<T>(
+    fn: (...args: any[]) => T,
+    applyThis?: any,
+    applyArgs?: any[],
+  ): T {
+    try {
+      return fn.apply(applyThis, applyArgs ?? []);
+    } catch (err) {
+      this.onError.emit(err);
+      throw err;
+    }
+  }
+
+  runOutsideAngular<T>(fn: (...args: any[]) => T): T {
+    return fn();
+  }
+}
+
+export class ErrorHandler {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new ErrorHandler(),
+  };
+
+  handleError(error: any): void {
+    console.error("ERROR", error);
+  }
+}
+
+export class ApplicationInitStatus {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () =>
+      new ApplicationInitStatus(
+        inject(APP_INITIALIZER, { optional: true }) ?? [],
+      ),
+  };
+
+  #done = false;
+  readonly donePromise: Promise<any>;
+
+  constructor(
+    initializers: ReadonlyArray<() => unknown | Promise<unknown>> = [],
+  ) {
+    if (initializers.length === 0) {
+      this.#done = true;
+      this.donePromise = Promise.resolve();
+    } else {
+      this.donePromise = Promise.all(initializers.map((fn) => fn())).then(
+        () => {
+          this.#done = true;
+        },
+      );
+    }
+  }
+
+  get done(): boolean {
+    return this.#done;
+  }
+}
+
+export enum RendererStyleFlags2 {
+  Important = 1,
+  DashCase = 2,
+}
+
+export class Renderer2 {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new Renderer2(),
+  };
+
+  readonly data: { [key: string]: any } = Object.create(null);
+  destroyNode: ((node: any) => void) | null = null;
+
+  destroy(): void {}
+
+  createElement(name: string, namespace?: string | null): any {
+    if (typeof document !== "undefined") {
+      return namespace
+        ? document.createElementNS(namespace, name)
+        : document.createElement(name);
+    }
+    return {
+      tagName: name.toUpperCase(),
+      namespaceURI: namespace ?? null,
+      attributes: {} as Record<string, string>,
+      style: {} as Record<string, string>,
+      classList: new Set<string>(),
+      children: [] as any[],
+      parentNode: null as any,
+    };
+  }
+
+  createComment(value: string): any {
+    if (typeof document !== "undefined") {
+      return document.createComment(value);
+    }
+    return { nodeType: 8, data: value, parentNode: null };
+  }
+
+  createText(value: string): any {
+    if (typeof document !== "undefined") {
+      return document.createTextNode(value);
+    }
+    return { nodeType: 3, data: value, parentNode: null };
+  }
+
+  appendChild(parent: any, newChild: any): void {
+    if (!parent || !newChild) return;
+    if (typeof parent.appendChild === "function") {
+      parent.appendChild(newChild);
+    } else if (Array.isArray(parent.children)) {
+      parent.children.push(newChild);
+      newChild.parentNode = parent;
+    }
+  }
+
+  insertBefore(
+    parent: any,
+    newChild: any,
+    refChild: any,
+    _isMove?: boolean,
+  ): void {
+    if (!parent || !newChild) return;
+    if (typeof parent.insertBefore === "function") {
+      parent.insertBefore(newChild, refChild);
+    } else if (Array.isArray(parent.children)) {
+      const idx = parent.children.indexOf(refChild);
+      if (idx >= 0) {
+        parent.children.splice(idx, 0, newChild);
+      } else {
+        parent.children.push(newChild);
+      }
+      newChild.parentNode = parent;
+    }
+  }
+
+  removeChild(parent: any, oldChild: any, _isHostElement?: boolean): void {
+    if (!oldChild) return;
+    const targetParent = parent ?? oldChild.parentNode;
+    if (targetParent && typeof targetParent.removeChild === "function") {
+      targetParent.removeChild(oldChild);
+    } else if (targetParent && Array.isArray(targetParent.children)) {
+      const idx = targetParent.children.indexOf(oldChild);
+      if (idx >= 0) targetParent.children.splice(idx, 1);
+      oldChild.parentNode = null;
+    }
+  }
+
+  selectRootElement(
+    selectorOrNode: string | any,
+    _preserveContent?: boolean,
+  ): any {
+    if (typeof selectorOrNode === "string" && typeof document !== "undefined") {
+      return document.querySelector(selectorOrNode);
+    }
+    return selectorOrNode;
+  }
+
+  parentNode(node: any): any {
+    return node?.parentNode ?? null;
+  }
+
+  nextSibling(node: any): any {
+    return node?.nextSibling ?? null;
+  }
+
+  setAttribute(
+    el: any,
+    name: string,
+    value: string,
+    namespace?: string | null,
+  ): void {
+    if (!el) return;
+    if (typeof el.setAttribute === "function") {
+      if (namespace) {
+        el.setAttributeNS(namespace, name, value);
+      } else {
+        el.setAttribute(name, value);
+      }
+    } else if (el.attributes) {
+      el.attributes[name] = String(value);
+    }
+  }
+
+  removeAttribute(el: any, name: string, namespace?: string | null): void {
+    if (!el) return;
+    if (typeof el.removeAttribute === "function") {
+      if (namespace) {
+        el.removeAttributeNS(namespace, name);
+      } else {
+        el.removeAttribute(name);
+      }
+    } else if (el.attributes) {
+      delete el.attributes[name];
+    }
+  }
+
+  addClass(el: any, name: string): void {
+    if (!el) return;
+    if (el.classList && typeof el.classList.add === "function") {
+      el.classList.add(name);
+    }
+  }
+
+  removeClass(el: any, name: string): void {
+    if (!el) return;
+    if (el.classList && typeof el.classList.remove === "function") {
+      el.classList.remove(name);
+    } else if (el.classList && typeof el.classList.delete === "function") {
+      el.classList.delete(name);
+    }
+  }
+
+  setStyle(
+    el: any,
+    style: string,
+    value: any,
+    _flags?: RendererStyleFlags2,
+  ): void {
+    if (!el?.style) return;
+    if (typeof el.style.setProperty === "function") {
+      el.style.setProperty(style, String(value));
+    } else {
+      el.style[style] = String(value);
+    }
+  }
+
+  removeStyle(el: any, style: string, _flags?: RendererStyleFlags2): void {
+    if (!el?.style) return;
+    if (typeof el.style.removeProperty === "function") {
+      el.style.removeProperty(style);
+    } else {
+      delete el.style[style];
+    }
+  }
+
+  setProperty(el: any, name: string, value: any): void {
+    if (!el) return;
+    el[name] = value;
+  }
+
+  setValue(node: any, value: string): void {
+    if (!node) return;
+    if ("nodeValue" in node) {
+      node.nodeValue = value;
+    } else {
+      node.data = value;
+    }
+  }
+
+  listen(
+    target: "window" | "document" | "body" | any,
+    eventName: string,
+    callback: (event: any) => boolean | void,
+  ): () => void {
+    const resolvedTarget =
+      target === "window" && typeof window !== "undefined"
+        ? window
+        : target === "document" && typeof document !== "undefined"
+          ? document
+          : target === "body" && typeof document !== "undefined"
+            ? document.body
+            : target;
+    if (
+      resolvedTarget &&
+      typeof resolvedTarget.addEventListener === "function"
+    ) {
+      const handler = (event: any) => {
+        const res = callback(event);
+        if (res === false && typeof event?.preventDefault === "function") {
+          event.preventDefault();
+        }
+      };
+      resolvedTarget.addEventListener(eventName, handler);
+      return () => {
+        resolvedTarget.removeEventListener(eventName, handler);
+      };
+    }
+    return () => {};
+  }
+}
+
+export class RendererFactory2 {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new RendererFactory2(),
+  };
+
+  createRenderer(_hostElement: any, _type: any): Renderer2 {
+    return new Renderer2();
+  }
+}
+
+export class TemplateRef<C = any> {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new TemplateRef(),
+  };
+
+  readonly elementRef: ElementRef;
+
+  constructor(elementRef: ElementRef = new ElementRef(null)) {
+    this.elementRef = elementRef;
+  }
+
+  createEmbeddedView(context: C, _injector?: Injector): any {
+    return {
+      context,
+      rootNodes: [],
+      destroyed: false,
+      destroy() {
+        this.destroyed = true;
+      },
+      detectChanges() {},
+      markForCheck() {},
+    };
+  }
+}
+
+export class ViewContainerRef {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: () => new ViewContainerRef(),
+  };
+
+  readonly #views: any[] = [];
+
+  get length(): number {
+    return this.#views.length;
+  }
+
+  clear(): void {
+    for (const v of this.#views.splice(0)) {
+      v?.destroy?.();
+    }
+  }
+
+  get(index: number): any {
+    return this.#views[index] ?? null;
+  }
+
+  insert(viewRef: any, index?: number): any {
+    if (index === undefined || index >= this.#views.length) {
+      this.#views.push(viewRef);
+    } else {
+      this.#views.splice(index, 0, viewRef);
+    }
+    return viewRef;
+  }
+
+  remove(index?: number): void {
+    const targetIdx = index ?? this.#views.length - 1;
+    if (targetIdx >= 0 && targetIdx < this.#views.length) {
+      const [removed] = this.#views.splice(targetIdx, 1);
+      removed?.destroy?.();
+    }
+  }
+}
+
+// ============================================================================
+// Component Instantiation & Lifecycle Binding (`instantiateAngularComponent`)
+// ============================================================================
+
+/**
+ * Instantiates an Angular `@Component` class within an active `EnvironmentInjector`,
+ * binds incoming `props` onto `input()`, `model()`, and `@Input()` properties,
+ * subscribes `output()`, `model()`, and `@Output()` `OutputEmitterRef` callbacks,
+ * and invokes `ngOnChanges`, `ngOnInit`, and `ngOnDestroy`.
+ */
+export function instantiateAngularComponent<T extends object>(
+  ComponentClass: Type<T> | ((props?: any) => any),
+  props: Record<string, any> = {},
+  hostElement?: any,
+): T {
+  const ResolvedClass = ((ComponentClass as any)?.ɵClass ??
+    ComponentClass) as Type<T>;
+  const cmpMeta = ((ResolvedClass as any).ɵcmp ??
+    (ComponentClass as any).ɵcmp) as ComponentOptions | undefined;
+  const parentInjector = getCurrentInjector();
+  const componentProviders: Array<Provider | EnvironmentProviders> = [
+    ...(cmpMeta?.providers ?? []),
+    ...(cmpMeta?.viewProviders ?? []),
+  ];
+  if (hostElement !== undefined) {
+    componentProviders.push({
+      provide: ElementRef,
+      useValue: new ElementRef(hostElement),
+    });
+  }
+  for (const [k, v] of Object.entries(props ?? {})) {
+    if (
+      typeof v === "string" ||
+      typeof v === "number" ||
+      typeof v === "boolean"
+    ) {
+      componentProviders.push({
+        provide: new HostAttributeToken(k),
+        useValue: String(v),
+      });
+    }
+  }
+
+  const injector =
+    componentProviders.length > 0 || !parentInjector
+      ? createEnvironmentInjector(
+          componentProviders,
+          parentInjector,
+          ResolvedClass.name || "ComponentInjector",
+        )
+      : parentInjector;
+
+  const instance = runInInjectionContext(injector, () => new ResolvedClass());
+  const destroyRef = injector.get(DestroyRef, null, { optional: true });
+
+  // Bind inputs and outputs from `props`
+  const decoratedInputs = ((ResolvedClass as any).ɵinputs ?? {}) as Record<
+    string,
+    InputDecoratorConfig
+  >;
+  const decoratedOutputs = ((ResolvedClass as any).ɵoutputs ?? {}) as Record<
+    string,
+    string
+  >;
+
+  const changes: SimpleChanges = {};
+  let hasChanges = false;
+
+  const readPropValue = (raw: unknown) => {
+    if (isSignal(raw)) {
+      return (raw as Signal<any>)();
+    }
+    return raw;
+  };
+
+  for (const key of Object.keys(instance as Record<string, any>)) {
+    const fieldVal = (instance as Record<string, any>)[key];
+
+    if (isInputSignal(fieldVal)) {
+      const alias = getInputAlias(fieldVal) ?? key;
+      const propKey = alias in props ? alias : key in props ? key : undefined;
+      if (propKey !== undefined) {
+        const descriptor = Object.getOwnPropertyDescriptor(props, propKey);
+        const applyOnce = () => {
+          const raw = descriptor?.get
+            ? descriptor.get.call(props)
+            : props[propKey];
+          const unwrapped = readPropValue(raw);
+          applyInputValue(fieldVal, unwrapped);
+          return unwrapped;
+        };
+        const initial = applyOnce();
+        changes[key] = new SimpleChange(undefined, initial, true);
+        hasChanges = true;
+        if (descriptor?.get || isSignal(props[propKey])) {
+          effect(
+            () => {
+              applyOnce();
+            },
+            { injector, allowSignalWrites: true },
+          );
+        }
+      }
+      if (typeof (fieldVal as any).subscribe === "function") {
+        const changeAlias = `${alias}Change`;
+        const capChangeAlias =
+          changeAlias.charAt(0).toUpperCase() + changeAlias.slice(1);
+        const keyChange = `${key}Change`;
+        const capKeyChange =
+          keyChange.charAt(0).toUpperCase() + keyChange.slice(1);
+        const handler =
+          props[changeAlias] ??
+          props[`on${capChangeAlias}`] ??
+          props[keyChange] ??
+          props[`on${capKeyChange}`];
+        if (typeof handler === "function") {
+          const sub = (fieldVal as any).subscribe((val: any) => handler(val));
+          destroyRef?.onDestroy(() => sub.unsubscribe());
+        }
+      }
+    }
+
+    if (fieldVal instanceof OutputEmitterRef) {
+      const alias = fieldVal.alias ?? decoratedOutputs[key] ?? key;
+      const capitalized = alias.charAt(0).toUpperCase() + alias.slice(1);
+      const handler =
+        props[alias] ??
+        props[`on${capitalized}`] ??
+        props[key] ??
+        props[`on${key.charAt(0).toUpperCase() + key.slice(1)}`];
+      if (typeof handler === "function") {
+        const sub = fieldVal.subscribe((val: any) => handler(val));
+        destroyRef?.onDestroy(() => sub.unsubscribe());
+      }
+    }
+  }
+
+  for (const [propName, inputCfg] of Object.entries(decoratedInputs)) {
+    const alias = inputCfg.alias ?? propName;
+    const propKey =
+      alias in props ? alias : propName in props ? propName : undefined;
+    if (propKey !== undefined && !isInputSignal((instance as any)[propName])) {
+      const raw = readPropValue(props[propKey]);
+      const transformed = inputCfg.transform ? inputCfg.transform(raw) : raw;
+      const prev = (instance as any)[propName];
+      (instance as any)[propName] = transformed;
+      changes[propName] = new SimpleChange(prev, transformed, true);
+      hasChanges = true;
+    }
+  }
+
+  // Also bind any remaining plain properties passed in props that correspond to decorated/declared inputs in @Component({ inputs: [...] })
+  if (Array.isArray(cmpMeta?.inputs)) {
+    for (const entry of cmpMeta.inputs) {
+      const name = typeof entry === "string" ? entry : entry.name;
+      const alias =
+        typeof entry === "string" ? entry : (entry.alias ?? entry.name);
+      const transform = typeof entry === "object" ? entry.transform : undefined;
+      const propKey = alias in props ? alias : name in props ? name : undefined;
+      if (
+        propKey !== undefined &&
+        !isInputSignal((instance as any)[name]) &&
+        !(name in changes)
+      ) {
+        const raw = readPropValue(props[propKey]);
+        const nextVal = transform ? transform(raw) : raw;
+        const prev = (instance as any)[name];
+        (instance as any)[name] = nextVal;
+        changes[name] = new SimpleChange(prev, nextVal, true);
+        hasChanges = true;
+      }
+    }
+  }
+
+  const anyInstance = instance as Record<string, any>;
+  if (hasChanges && typeof anyInstance.ngOnChanges === "function") {
+    runInInjectionContext(injector, () => anyInstance.ngOnChanges(changes));
+  }
+  if (typeof anyInstance.ngOnInit === "function") {
+    runInInjectionContext(injector, () => anyInstance.ngOnInit());
+  }
+  if (typeof anyInstance.ngDoCheck === "function") {
+    runInInjectionContext(injector, () => anyInstance.ngDoCheck());
+  }
+  if (typeof anyInstance.ngAfterContentInit === "function") {
+    runInInjectionContext(injector, () => anyInstance.ngAfterContentInit());
+  }
+  if (typeof anyInstance.ngAfterContentChecked === "function") {
+    runInInjectionContext(injector, () => anyInstance.ngAfterContentChecked());
+  }
+  if (typeof anyInstance.ngAfterViewInit === "function") {
+    runInInjectionContext(injector, () => anyInstance.ngAfterViewInit());
+  }
+  if (typeof anyInstance.ngAfterViewChecked === "function") {
+    runInInjectionContext(injector, () => anyInstance.ngAfterViewChecked());
+  }
+
+  const cleanup = () => {
+    if (typeof anyInstance.ngOnDestroy === "function") {
+      try {
+        anyInstance.ngOnDestroy();
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+    if (
+      injector !== parentInjector &&
+      injector instanceof EnvironmentInjector
+    ) {
+      injector.destroy();
+    }
+  };
+
+  if (getOwner()) {
+    domOnCleanup(cleanup);
+  } else {
+    destroyRef?.onDestroy(cleanup);
+  }
+
+  return instance;
+}

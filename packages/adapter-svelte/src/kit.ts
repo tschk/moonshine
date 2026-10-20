@@ -448,3 +448,192 @@ export function sequence(...handlers: Handle[]): Handle {
     return applyHandle(0, event, undefined);
   };
 }
+
+// ============================================================================
+// `$env/dynamic/public`, `$env/dynamic/private`, `$env/static/public`, `$env/static/private`
+// ============================================================================
+
+export interface KitEnvConfig {
+  publicPrefix?: string;
+  privatePrefix?: string;
+  env?: Record<string, string | undefined>;
+  values?: Record<string, string | undefined>;
+}
+
+let envPublicPrefix = "PUBLIC_";
+let envPrivatePrefix = "";
+const customEnvStore = new Map<string, string>();
+
+function readProcessEnv(): Record<string, string | undefined> {
+  if (
+    typeof process !== "undefined" &&
+    process !== null &&
+    typeof process.env === "object" &&
+    process.env !== null
+  ) {
+    return process.env as Record<string, string | undefined>;
+  }
+  return {};
+}
+
+function collectEnvEntries(
+  mode: "all" | "public" | "private",
+): Record<string, string> {
+  const result: Record<string, string> = Object.create(null);
+  const procEnv = readProcessEnv();
+  const assignIfMatch = (key: string, val: string | undefined) => {
+    if (val === undefined) return;
+    const isPub = envPublicPrefix ? key.startsWith(envPublicPrefix) : false;
+    const isPriv = envPrivatePrefix
+      ? !isPub && key.startsWith(envPrivatePrefix)
+      : true;
+    if (
+      mode === "all" ||
+      (mode === "public" && isPub) ||
+      (mode === "private" && isPriv)
+    ) {
+      result[key] = String(val);
+    }
+  };
+  for (const [k, v] of Object.entries(procEnv)) {
+    assignIfMatch(k, v);
+  }
+  for (const [k, v] of customEnvStore.entries()) {
+    assignIfMatch(k, v);
+  }
+  return result;
+}
+
+function createEnvProxy(
+  mode: "all" | "public" | "private",
+): Record<string, string | undefined> {
+  return new Proxy(Object.create(null) as Record<string, string | undefined>, {
+    get(_target, prop) {
+      if (typeof prop !== "string") return undefined;
+      const entries = collectEnvEntries(mode);
+      return entries[prop];
+    },
+    has(_target, prop) {
+      if (typeof prop !== "string") return false;
+      const entries = collectEnvEntries(mode);
+      return prop in entries;
+    },
+    ownKeys() {
+      return Object.keys(collectEnvEntries(mode));
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      if (typeof prop !== "string") return undefined;
+      const entries = collectEnvEntries(mode);
+      if (!(prop in entries)) return undefined;
+      return {
+        value: entries[prop],
+        writable: false,
+        enumerable: true,
+        configurable: true,
+      };
+    },
+    set() {
+      throw new TypeError("Cannot mutate read-only SvelteKit $env object");
+    },
+    deleteProperty() {
+      throw new TypeError("Cannot mutate read-only SvelteKit $env object");
+    },
+  });
+}
+
+export const publicEnv: Record<string, string | undefined> =
+  createEnvProxy("public");
+export const privateEnv: Record<string, string | undefined> =
+  createEnvProxy("private");
+export const env: Record<string, string | undefined> = publicEnv;
+
+export function configureKitEnv(
+  config: KitEnvConfig | Record<string, string | undefined>,
+): void {
+  if (
+    "env" in config ||
+    "values" in config ||
+    "publicPrefix" in config ||
+    "privatePrefix" in config
+  ) {
+    const typed = config as KitEnvConfig;
+    if (typeof typed.publicPrefix === "string") {
+      envPublicPrefix = typed.publicPrefix;
+    }
+    if (typeof typed.privatePrefix === "string") {
+      envPrivatePrefix = typed.privatePrefix;
+    }
+    const sourceMap = typed.env ?? typed.values;
+    if (sourceMap && typeof sourceMap === "object") {
+      for (const [k, v] of Object.entries(sourceMap)) {
+        if (v === undefined) {
+          customEnvStore.delete(k);
+        } else {
+          customEnvStore.set(k, String(v));
+        }
+      }
+    }
+  } else {
+    for (const [k, v] of Object.entries(
+      config as Record<string, string | undefined>,
+    )) {
+      if (v === undefined) {
+        customEnvStore.delete(k);
+      } else {
+        customEnvStore.set(k, String(v));
+      }
+    }
+  }
+}
+
+export function resetKitEnv(): void {
+  envPublicPrefix = "PUBLIC_";
+  envPrivatePrefix = "";
+  customEnvStore.clear();
+}
+
+// ============================================================================
+// `$service-worker`
+// ============================================================================
+
+export interface KitServiceWorkerConfig {
+  build?: string[];
+  files?: string[];
+  prerendered?: string[];
+  version?: string;
+  base?: string;
+}
+
+export let build: string[] = [];
+export let files: string[] = [];
+export let prerendered: string[] = [];
+export let version: string = VERSION;
+export let base = "";
+
+export function configureKitServiceWorker(
+  config: KitServiceWorkerConfig,
+): void {
+  if (Array.isArray(config.build)) {
+    build = [...config.build];
+  }
+  if (Array.isArray(config.files)) {
+    files = [...config.files];
+  }
+  if (Array.isArray(config.prerendered)) {
+    prerendered = [...config.prerendered];
+  }
+  if (typeof config.version === "string") {
+    version = config.version;
+  }
+  if (typeof config.base === "string") {
+    base = config.base === "/" ? "" : config.base.replace(/\/+$/, "");
+  }
+}
+
+export function resetKitServiceWorker(): void {
+  build = [];
+  files = [];
+  prerendered = [];
+  version = VERSION;
+  base = "";
+}

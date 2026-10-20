@@ -1400,9 +1400,11 @@ export interface OutputRef<T> {
 
 export class OutputEmitterRef<T = void> implements OutputRef<T> {
   readonly #listeners = new Set<(value: T) => void>();
+  readonly alias?: string;
   #destroyed = false;
 
-  constructor() {
+  constructor(opts?: OutputOptions) {
+    this.alias = opts?.alias;
     if (getOwner()) {
       domOnCleanup(() => {
         this.destroy();
@@ -1447,8 +1449,8 @@ export class OutputEmitterRef<T = void> implements OutputRef<T> {
   }
 }
 
-export function output<T = void>(_opts?: OutputOptions): OutputEmitterRef<T> {
-  return new OutputEmitterRef<T>();
+export function output<T = void>(opts?: OutputOptions): OutputEmitterRef<T> {
+  return new OutputEmitterRef<T>(opts);
 }
 
 export function outputFromObservable<T>(
@@ -1608,6 +1610,18 @@ export const input: InputFunction = Object.assign(
     },
   },
 ) as InputFunction;
+
+export function isInputSignal(
+  value: unknown,
+): value is InputSignalWithTransform<any, any> | ModelSignal<any> {
+  return typeof value === "function" && inputControllers.has(value);
+}
+
+export function getInputAlias(value: unknown): string | undefined {
+  return typeof value === "function"
+    ? inputControllers.get(value)?.alias
+    : undefined;
+}
 
 export function applyInputValue<ReadT, WriteT>(
   target: InputSignalWithTransform<ReadT, WriteT> | ModelSignal<ReadT>,

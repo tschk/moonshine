@@ -8,20 +8,43 @@ import {
 } from "../src/signals";
 import {
   APP_ID,
+  ApplicationInitStatus,
+  applyPipe,
   AsyncPipe,
+  Attribute,
+  booleanAttribute,
   bootstrapApplication,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
   COMMON_PIPES,
+  Component,
+  ContentChild,
+  ContentChildren,
   createApplication,
   CurrencyPipe,
   DatePipe,
   DecimalPipe,
+  Directive,
   DOCUMENT,
   DomSanitizer,
+  ElementRef,
+  enableProdMode,
+  ErrorHandler,
+  EventEmitter,
+  forwardRef,
+  Host,
+  HostBinding,
+  HostListener,
   HTTP_TRANSFER_CACHE_OPTIONS,
   HYDRATION_FEATURES,
   HydrationFeatureKind,
   I18nPluralPipe,
   I18nSelectPipe,
+  Inject,
+  Injectable,
+  Input,
+  instantiateAngularComponent,
+  isDevMode,
   isPlatformBrowser,
   isPlatformServer,
   JsonPipe,
@@ -30,7 +53,12 @@ import {
   makeStateKey,
   mergeApplicationConfig,
   Meta,
+  NgZone,
+  numberAttribute,
+  Optional,
+  Output,
   PercentPipe,
+  Pipe,
   PLATFORM_BROWSER_ID,
   PLATFORM_ID,
   PLATFORM_SERVER_ID,
@@ -40,19 +68,45 @@ import {
   provideProtractorTestingSupport,
   provideZoneChangeDetection,
   provideZonelessChangeDetection,
+  registerPipe,
+  Renderer2,
+  RendererFactory2,
+  RendererStyleFlags2,
+  resolveForwardRef,
   SecurityContext,
+  Self,
+  SimpleChange,
+  SkipSelf,
   SlicePipe,
+  TemplateRef,
   Title,
   TitleCasePipe,
   TransferState,
   unwrapSafeValue,
   UpperCasePipe,
+  VERSION,
+  Version,
+  ViewChild,
+  ViewChildren,
+  ViewContainerRef,
+  ViewEncapsulation,
   withEventReplay,
   withHttpTransferCacheOptions,
   withI18nSupport,
   withIncrementalHydration,
   withNoHttpTransferCache,
 } from "../src/platform";
+import {
+  provideRouter,
+  ROUTER_CONFIGURATION,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+  withComponentInputBinding,
+  withRouterConfig,
+} from "../src/router";
+import { input, model, output } from "../src/signals";
 
 describe("@tschk/moonshine-angular/platform", () => {
   test("PLATFORM_ID, isPlatformBrowser, isPlatformServer, APP_ID, and DOCUMENT work via DI", () => {
@@ -307,5 +361,170 @@ describe("@tschk/moonshine-angular/platform", () => {
     expect(asyncPipe.transform(p)).toBe("async-done");
 
     app.destroy();
+  });
+
+  test("decorators, EventEmitter, SimpleChange, transforms, forwardRef, services, applyPipe, and instantiateAngularComponent", () => {
+    expect(ChangeDetectionStrategy.OnPush).toBe(0);
+    expect(ViewEncapsulation.Emulated).toBe(0);
+    expect(booleanAttribute("")).toBe(true);
+    expect(booleanAttribute("false")).toBe(false);
+    expect(numberAttribute("42", 0)).toBe(42);
+    expect(numberAttribute("invalid", -1)).toBe(-1);
+
+    const fwd = forwardRef(() => CustomService);
+    class CustomService {
+      readonly tag = "svc";
+    }
+    Injectable({ providedIn: "root" })(CustomService);
+    expect(resolveForwardRef(fwd)).toBe(CustomService);
+
+    expect(VERSION).toBeInstanceOf(Version);
+    expect(VERSION.major).toBe("19");
+    expect(typeof isDevMode()).toBe("boolean");
+    enableProdMode();
+    expect(isDevMode()).toBe(false);
+
+    class ExclaimPipe {
+      transform(v: unknown, suffix = "!") {
+        return `${String(v)}${suffix}`;
+      }
+    }
+    Pipe({ name: "exclaim", standalone: true })(ExclaimPipe);
+    registerPipe("exclaim", ExclaimPipe);
+    expect(applyPipe("moonshine", "uppercase")).toBe("MOONSHINE");
+    expect(applyPipe("hi", "exclaim", "!!")).toBe("hi!!");
+
+    // Decorators & instantiateAngularComponent lifecycle + signal/decorator binding
+    const events: string[] = [];
+    class WidgetComponent {
+      label = input("default", { alias: "widgetLabel" });
+      count = model(1);
+      clicked = output<number>({ alias: "widgetClicked" });
+      step = 2;
+      changed = new EventEmitter<number>();
+
+      ngOnChanges(changes: Record<string, SimpleChange>) {
+        events.push(`changes:${Object.keys(changes).sort().join(",")}`);
+      }
+      ngOnInit() {
+        events.push(`init:${this.label()}:${this.step}`);
+      }
+      ngDoCheck() {
+        events.push("check");
+      }
+      ngAfterContentInit() {
+        events.push("contentInit");
+      }
+      ngAfterContentChecked() {
+        events.push("contentChecked");
+      }
+      ngAfterViewInit() {
+        events.push("viewInit");
+      }
+      ngAfterViewChecked() {
+        events.push("viewChecked");
+      }
+    }
+    Component({
+      selector: "app-widget",
+      standalone: true,
+      template: "<div>{{ label() }}</div>",
+    })(WidgetComponent);
+    Input({ alias: "stepInput", transform: numberAttribute })(
+      WidgetComponent.prototype,
+      "step",
+    );
+    Output("stepChanged")(WidgetComponent.prototype, "changed");
+    Directive({ selector: "[appDir]" })(class Dir {});
+    ViewChild("box")(WidgetComponent.prototype, "box");
+    ViewChildren("items")(WidgetComponent.prototype, "items");
+    ContentChild("projected")(WidgetComponent.prototype, "projected");
+    ContentChildren("projectedAll")(WidgetComponent.prototype, "projectedAll");
+    HostBinding("class.active")(WidgetComponent.prototype, "active");
+    HostListener("click")(WidgetComponent.prototype, "onClick");
+    Optional()(WidgetComponent, undefined, 0);
+    Self()(WidgetComponent, undefined, 0);
+    SkipSelf()(WidgetComponent, undefined, 0);
+    Host()(WidgetComponent, undefined, 0);
+    Inject(PLATFORM_ID)(WidgetComponent, undefined, 0);
+    Attribute("role")(WidgetComponent, undefined, 0);
+
+    const emitted: number[] = [];
+    const stepEmitted: number[] = [];
+    const modelChanges: number[] = [];
+    const instance = instantiateAngularComponent(WidgetComponent, {
+      widgetLabel: "Hello",
+      stepInput: "5",
+      count: 10,
+      countChange: (v: number) => modelChanges.push(v),
+      widgetClicked: (v: number) => emitted.push(v),
+      stepChanged: (v: number) => stepEmitted.push(v),
+    });
+
+    expect(instance.label()).toBe("Hello");
+    expect(instance.step).toBe(5);
+    expect(instance.count()).toBe(10);
+    expect(events).toEqual([
+      "changes:count,label,step",
+      "init:Hello:5",
+      "check",
+      "contentInit",
+      "contentChecked",
+      "viewInit",
+      "viewChecked",
+    ]);
+
+    instance.count.set(20);
+    instance.clicked.emit(42);
+    instance.changed.emit(99);
+    expect(modelChanges).toEqual([20]);
+    expect(emitted).toEqual([42]);
+    expect(stepEmitted).toEqual([99]);
+
+    // DI services: ElementRef, ChangeDetectorRef, NgZone, ErrorHandler, ApplicationInitStatus, Renderer2, TemplateRef, ViewContainerRef
+    const env = createEnvironmentInjector([]);
+    expect(env.get(ElementRef)).toBeInstanceOf(ElementRef);
+    const cdr = env.get(ChangeDetectorRef);
+    cdr.markForCheck();
+    cdr.detectChanges();
+    const zone = env.get(NgZone);
+    expect(zone.run(() => 7)).toBe(7);
+    expect(zone.runOutsideAngular(() => 9)).toBe(9);
+    expect(env.get(ErrorHandler)).toBeInstanceOf(ErrorHandler);
+    expect(env.get(ApplicationInitStatus).done).toBe(true);
+    const renderer = env.get(RendererFactory2).createRenderer(null, null);
+    expect(renderer).toBeInstanceOf(Renderer2);
+    const div = renderer.createElement("div") as Record<string, unknown>;
+    renderer.setAttribute(div, "id", "box");
+    renderer.addClass(div, "card");
+    renderer.setStyle(div, "color", "red", RendererStyleFlags2.Important);
+    expect(env.get(TemplateRef)).toBeInstanceOf(TemplateRef);
+    const vcr = env.get(ViewContainerRef);
+    expect(vcr.length).toBe(0);
+    env.destroy();
+  });
+
+  test("provideRouter merges multiple ROUTER_CONFIGURATION features and exports RouterOutlet, RouterLink, and RouterLinkActive", () => {
+    const env = createEnvironmentInjector([
+      provideRouter(
+        [{ path: "home" }],
+        withComponentInputBinding(),
+        withRouterConfig({
+          paramsInheritanceStrategy: "always",
+          onSameUrlNavigation: "reload",
+        }),
+      ),
+    ]);
+    const cfg = env.get(ROUTER_CONFIGURATION);
+    expect(cfg.bindToComponentInputs).toBe(true);
+    expect(cfg.paramsInheritanceStrategy).toBe("always");
+    expect(cfg.onSameUrlNavigation).toBe("reload");
+
+    expect(typeof RouterOutlet).toBe("function");
+    expect(typeof RouterLink).toBe("function");
+    expect(typeof RouterLinkActive).toBe("function");
+    const rla = env.runInContext(() => new RouterLinkActive());
+    expect(rla.isActive).toBe(false);
+    env.destroy();
   });
 });

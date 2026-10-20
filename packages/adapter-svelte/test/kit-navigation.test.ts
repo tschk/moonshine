@@ -41,18 +41,28 @@ import {
 } from "../src/navigation";
 import {
   ActionFailure,
+  build,
+  configureKitEnv,
+  configureKitServiceWorker,
   createKitCookies,
   createKitRequestEvent,
+  env,
   error,
   fail,
+  files,
   HttpError,
   isActionFailure,
   isHttpError,
   isRedirect,
   json,
   normalizeUrl,
+  prerendered,
+  privateEnv,
+  publicEnv,
   Redirect,
   redirect,
+  resetKitEnv,
+  resetKitServiceWorker,
   resolvePath,
   sequence,
   text,
@@ -481,5 +491,50 @@ describe("@tschk/moonshine-svelte/navigation & @tschk/moonshine-svelte/kit", () 
     });
     expect(await finalRes.text()).toBe("<main>FIRST(SECOND)</main>");
     expect(trace).toEqual(["first:in", "second:ada", "first:out"]);
+  });
+
+  test("SvelteKit $env/* (publicEnv, privateEnv, env) and $service-worker (build, files, prerendered, version, base)", () => {
+    resetKitEnv();
+    resetKitServiceWorker();
+
+    configureKitEnv({
+      env: {
+        PUBLIC_API_URL: "https://api.example.com",
+        PUBLIC_APP_NAME: "Moonshine",
+        SECRET_TOKEN: "s3cr3t",
+      },
+    });
+
+    expect(env.PUBLIC_API_URL).toBe("https://api.example.com");
+    expect(publicEnv.PUBLIC_APP_NAME).toBe("Moonshine");
+    expect(publicEnv.SECRET_TOKEN).toBeUndefined();
+    expect("PUBLIC_API_URL" in publicEnv).toBe(true);
+    expect("SECRET_TOKEN" in publicEnv).toBe(false);
+    expect(Object.keys(publicEnv).sort()).toEqual([
+      "PUBLIC_API_URL",
+      "PUBLIC_APP_NAME",
+    ]);
+
+    expect(privateEnv.SECRET_TOKEN).toBe("s3cr3t");
+    expect(privateEnv.PUBLIC_API_URL).toBe("https://api.example.com");
+    expect("SECRET_TOKEN" in privateEnv).toBe(true);
+
+    configureKitServiceWorker({
+      build: ["/_app/immutable/entry.js"],
+      files: ["/favicon.png", "/manifest.json"],
+      prerendered: ["/", "/about"],
+      version: "v2026.10",
+      base: "/docs",
+    });
+
+    expect(build).toEqual(["/_app/immutable/entry.js"]);
+    expect(files).toEqual(["/favicon.png", "/manifest.json"]);
+    expect(prerendered).toEqual(["/", "/about"]);
+
+    resetKitServiceWorker();
+    expect(build).toEqual([]);
+    expect(files).toEqual([]);
+    expect(prerendered).toEqual([]);
+    resetKitEnv();
   });
 });

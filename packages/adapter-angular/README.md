@@ -44,16 +44,16 @@ import {
 } from "@tschk/moonshine-angular";
 ```
 
-| Entry        | Provides                                                                                                                                                                                                                                            |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`          | Native Angular signals, signal queries, DI (`inject`, `EnvironmentInjector`), async `resource`/`rxResource`/`httpResource`, `HttpClient`, `toObservable`/`toSignal`, bridges, and lazy SSR renderer                                                 |
-| `./signals`  | Host-free Angular signal primitives, signal inputs/models/outputs/queries, DI (`InjectionToken`, `Injector`, `EnvironmentInjector`, `inject`), `resource`/`rxResource`, `toObservable`/`toSignal`                                                   |
-| `./http`     | Host-free `HttpClient`, `httpResource` (`.text`, `.blob`, `.arrayBuffer`), `HttpHeaders`, `HttpParams`, `HttpContext`, `HttpRequest`, `HttpResponse`, `provideHttpClient`, `withInterceptors`, `withFetch`                                          |
-| `./forms`    | Host-free `FormControl`, `FormGroup`, `FormArray`, `FormRecord`, `FormBuilder`, `NonNullableFormBuilder`, `Validators`, `ControlEvent` streams, signal accessors (`valueSignal`, `statusSignal`, `validSignal`, `errorsSignal`), and `provideForms` |
-| `./router`   | Host-free `Router`, `ActivatedRoute`, `ActivatedRouteSnapshot`, `RouterState`, `UrlTree`, `DefaultUrlSerializer`, `RedirectCommand`, router events, functional guards/resolvers, and `provideRouter`                                                |
-| `./platform` | Host-free `Title`, `Meta`, `DomSanitizer`, `SecurityContext`, `TransferState`, `makeStateKey`, `PLATFORM_ID`, `isPlatformBrowser`, `isPlatformServer`, `bootstrapApplication`, `provideClientHydration`, and built-in pipes (`UpperCasePipe`, etc.) |
-| `./core`     | Legacy Angular core re-exports                                                                                                                                                                                                                      |
-| `./common`   | Legacy Angular common re-exports                                                                                                                                                                                                                    |
+| Entry        | Provides                                                                                                                                                                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`          | Native Angular signals, signal queries, DI (`inject`, `EnvironmentInjector`), `@Component`/`@Injectable`/`@Pipe` decorators, `EventEmitter`, async `resource`/`rxResource`/`httpResource`, `HttpClient`, `toObservable`/`toSignal`, bridges, and lazy SSR renderer                                |
+| `./signals`  | Host-free Angular signal primitives, signal inputs/models/outputs/queries, DI (`InjectionToken`, `Injector`, `EnvironmentInjector`, `inject`), `resource`/`rxResource`, `toObservable`/`toSignal`                                                                                                 |
+| `./http`     | Host-free `HttpClient`, `httpResource` (`.text`, `.blob`, `.arrayBuffer`), `HttpHeaders`, `HttpParams`, `HttpContext`, `HttpRequest`, `HttpResponse`, `provideHttpClient`, `withInterceptors`, `withFetch`                                                                                        |
+| `./forms`    | Host-free `FormControl`, `FormGroup`, `FormArray`, `FormRecord`, `FormBuilder`, `NonNullableFormBuilder`, `Validators`, `ControlEvent` streams, signal accessors (`valueSignal`, `statusSignal`, `validSignal`, `errorsSignal`), and `provideForms`                                               |
+| `./router`   | Host-free `Router`, `ActivatedRoute`, `ActivatedRouteSnapshot`, `RouterState`, `UrlTree`, `DefaultUrlSerializer`, `RedirectCommand`, router events, functional guards/resolvers, `provideRouter`, `RouterOutlet`, `RouterLink`, and `RouterLinkActive`                                            |
+| `./platform` | Host-free `Component`, `Directive`, `Pipe`, `Injectable`, `Input`, `Output`, `EventEmitter`, `Title`, `Meta`, `DomSanitizer`, `TransferState`, `PLATFORM_ID`, `ElementRef`, `ChangeDetectorRef`, `NgZone`, `Renderer2`, `bootstrapApplication`, `instantiateAngularComponent`, and built-in pipes |
+| `./core`     | Legacy Angular core re-exports                                                                                                                                                                                                                                                                    |
+| `./common`   | Legacy Angular common re-exports                                                                                                                                                                                                                                                                  |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install
@@ -67,14 +67,13 @@ called, so signal bridge consumers do not load server rendering.
 Legacy entries require their optional host peers: `@angular/core` and `@angular/common`. They cannot be
 aliased over arbitrary host-compiled output to remove the host.
 
-Angular component decorators, dependency injection, compiled-template instructions and lifecycle remain host APIs on the legacy entries. Native rendering does not execute Angular component classes or claim Ivy instruction compatibility.
-Source parsing and compilation belong to Crepuscularity; these root runtime
-changes do not establish full Angular source support.
+## Native `@Component` module & template compilation
 
-## Native template protocol
-
-The locally verified Crepus template emitter accepts `.component.html` templates
-without Angular. Compiler publication is separate from the Moonshine SDK.
+The locally verified Crepus compiler accepts both standalone `.component.html` templates
+and authored `.component.ts` / `.ng.ts` `@Component` modules (with inline `template` and
+optional inline `styles`) via `crepus web build --emit moonshine-dom` and `--emit moonshine-ssr`
+without the Angular runtime or Ivy compiler instructions. Compiler publication is separate
+from the Moonshine SDK.
 
 ```html
 <ul>
@@ -109,5 +108,8 @@ The scope reader keeps list updates live; handler keys are literal source
 expressions, so this template uses `"save()"`. Browser checks cover clicks,
 reordering with retained row identity, removal, append and disposal. The
 `moonshine-ssr` target renders the same template with an explicit scope object
-and escaped values on Bun and Node. This protocol does not instantiate Angular
-component classes, run their lifecycle hooks or implement Ivy instructions.
+and escaped values on Bun and Node. When compiling `.component.ts` / `.ng.ts`
+modules, `@angular/*` imports are rewritten to `@tschk/moonshine-angular*` and
+`@Component` classes lower to Moonshine DOM/SSR component functions backed by
+`instantiateAngularComponent` and `applyPipe` while preserving `ɵClass` for
+`bootstrapApplication`.
