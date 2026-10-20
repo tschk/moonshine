@@ -264,6 +264,55 @@ describe("@tschk/moonshine-astro/loaders", () => {
   });
 });
 
+const Card = (props: { title: string }, slots: Record<string, any>) => {
+  const astro = useAstro();
+  return sourceElement(
+    "article",
+    [
+      ["data-tenant", String(astro.locals.tenant)],
+      ["data-has-footer", String(sourceHasSlot(slots, "footer"))],
+    ],
+    h("h2", null, props.title),
+    h("div", { class: "body" }, sourceSlot(slots, "default", "Empty")),
+    sourceSlot(slots, "footer"),
+  );
+};
+
+const TargetPage = (props: { label?: string }) => {
+  const astro = useAstro();
+  return h(
+    "main",
+    { "data-slug": astro.params.slug },
+    props.label ?? "Rewritten Target",
+  );
+};
+
+const RewritingPage = async () => {
+  const astro = useAstro();
+  astro.cookies.set("session", "abc", { path: "/", httpOnly: true });
+  if (astro.url.searchParams.get("mode") === "redirect") {
+    return astro.redirect("/login", 307);
+  }
+  if (astro.url.searchParams.get("mode") === "rewrite") {
+    return await astro.rewrite("/posts/welcome");
+  }
+  astro.response.status = 201;
+  astro.response.headers.set("x-custom", "ok");
+  return h(
+    "p",
+    null,
+    `Hello ${astro.cookies.get("user")?.value ?? "guest"}`,
+  );
+};
+
+const slotProbe = async () => {
+  const astro = useAstro();
+  const header = astro.slots.has("header")
+    ? await astro.slots.render("header", ["Ada"])
+    : "";
+  return `<section data-theme="${astro.cookies.get("theme")?.value}">${header}</section>`;
+};
+
 describe("@tschk/moonshine-astro/container", () => {
   test("AstroContainer.create renders native SSR components, props, slots, and Astro context", async () => {
     expect(experimental_AstroContainer).toBe(AstroContainer);
@@ -272,19 +321,6 @@ describe("@tschk/moonshine-astro/container", () => {
       locals: { tenant: "acme" },
     });
 
-    const Card = (props: { title: string }, slots: Record<string, any>) => {
-      const astro = useAstro();
-      return sourceElement(
-        "article",
-        [
-          ["data-tenant", String(astro.locals.tenant)],
-          ["data-has-footer", String(sourceHasSlot(slots, "footer"))],
-        ],
-        h("h2", null, props.title),
-        h("div", { class: "body" }, sourceSlot(slots, "default", "Empty")),
-        sourceSlot(slots, "footer"),
-      );
-    };
 
     const html = await container.renderToString(
       (props, slots) => sourceComponent(Card, props, slots),
@@ -311,34 +347,9 @@ describe("@tschk/moonshine-astro/container", () => {
   test("AstroContainer.renderToResponse handles cookies, headers, redirects, endpoints, and insertPageRoute rewrites", async () => {
     const container = await AstroContainer.create();
 
-    const TargetPage = (props: { label?: string }) => {
-      const astro = useAstro();
-      return h(
-        "main",
-        { "data-slug": astro.params.slug },
-        props.label ?? "Rewritten Target",
-      );
-    };
 
     container.insertPageRoute("/posts/[slug]", TargetPage);
 
-    const RewritingPage = async () => {
-      const astro = useAstro();
-      astro.cookies.set("session", "abc", { path: "/", httpOnly: true });
-      if (astro.url.searchParams.get("mode") === "redirect") {
-        return astro.redirect("/login", 307);
-      }
-      if (astro.url.searchParams.get("mode") === "rewrite") {
-        return await astro.rewrite("/posts/welcome");
-      }
-      astro.response.status = 201;
-      astro.response.headers.set("x-custom", "ok");
-      return h(
-        "p",
-        null,
-        `Hello ${astro.cookies.get("user")?.value ?? "guest"}`,
-      );
-    };
 
     const normalRes = await container.renderToResponse(RewritingPage, {
       request: new Request("https://example.com/dashboard", {
@@ -389,13 +400,6 @@ describe("@tschk/moonshine-astro/container", () => {
     });
 
     const cookies = new AstroCookies("theme=dark");
-    const slotProbe = async () => {
-      const astro = useAstro();
-      const header = astro.slots.has("header")
-        ? await astro.slots.render("header", ["Ada"])
-        : "";
-      return `<section data-theme="${astro.cookies.get("theme")?.value}">${header}</section>`;
-    };
     const slotHtml = await container.renderToString(slotProbe, {
       cookies,
       slots: {

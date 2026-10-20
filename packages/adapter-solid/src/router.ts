@@ -480,7 +480,7 @@ function createRouterInstance(
 
   const flattenedRoutes = createMemo(() => {
     const list = normalizeRouteTree(props.children);
-    return list.sort((a, b) => b.score - a.score);
+    return list.toSorted((a, b) => b.score - a.score);
   });
 
   const currentMatchResult = createMemo<{

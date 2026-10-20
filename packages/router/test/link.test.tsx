@@ -55,6 +55,13 @@ describe("isExternal", () => {
   });
 });
 
+async function clicked(href: string, target?: string) {
+  const container = await render(createElement(Link, { href, target }, "go"));
+  const node = container.querySelector("a");
+  if (!node) throw new Error("Link did not render an anchor");
+  return click(node);
+}
+
 describe("Link and external targets", () => {
   // The regression: safeHref *allows* https/mailto/tel — it only strips schemes
   // that could execute — and Link took that as permission to intercept them.
@@ -64,12 +71,6 @@ describe("Link and external targets", () => {
   afterEach(cleanup);
   beforeEach(() => setLocation("/start"));
 
-  async function clicked(href: string, target?: string) {
-    const container = await render(createElement(Link, { href, target }, "go"));
-    const node = container.querySelector("a");
-    if (!node) throw new Error("Link did not render an anchor");
-    return click(node);
-  }
 
   test("leaves an external URL to the browser", async () => {
     expect((await clicked("https://github.com/me")).defaultPrevented).toBe(

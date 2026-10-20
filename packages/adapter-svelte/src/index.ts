@@ -10,14 +10,14 @@ export type SvelteWritable<T> = Writable<T>;
 /** Store subscribers share one kernel subscription while they are active. */
 export function fromMoonshineSignal<T>(signal: MsSignal<T>): SvelteWritable<T> {
   let mirrored = signal.peek();
-  const store = writable(mirrored, (set) => {
+  const store = writable(mirrored, (setStore) => {
     mirrored = signal.peek();
-    set(mirrored);
+    setStore(mirrored);
     return signal.subscribe(() => {
       const current = signal.peek();
       if (!Object.is(mirrored, current)) {
         mirrored = current;
-        set(current);
+        setStore(current);
       }
     });
   });

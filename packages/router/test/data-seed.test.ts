@@ -247,6 +247,15 @@ test("a disposed seeded router keeps its state and rejects further work", async 
   expect(locations).toEqual([]);
 });
 
+function Probe() {
+  const state = useRouteData();
+  return createElement(
+    "output",
+    null,
+    `${state.status}|${state.location}|${String(state.data)}`
+  );
+}
+
 test("SSR useRouteData renders seeded data as ready without calling the loader", () => {
   let loads = 0;
   const runtime = createDataRouter(
@@ -257,14 +266,6 @@ test("SSR useRouteData renders seeded data as ready without calling the loader",
     "/",
     { location: "/", data: "seeded" },
   );
-  function Probe() {
-    const state = useRouteData();
-    return createElement(
-      "output",
-      null,
-      `${state.status}|${state.location}|${String(state.data)}`,
-    );
-  }
   expect(
     renderToStaticMarkup(
       createElement(MoonshineRouter, {

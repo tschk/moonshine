@@ -53,7 +53,7 @@ test("lexical factories retain node identity and stop reactive writes", () => {
       ),
     document.body,
   );
-  const node = document.querySelector("title")!;
+  const node = document.body.querySelector("title")!;
   write("two");
   expect(document.querySelector("title")).toBe(node);
   expect(node.textContent).toBe("two");

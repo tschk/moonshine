@@ -60,24 +60,24 @@ export function createDataRouter<T>(
     controller = current;
     previous?.abort();
     if (disposed || token !== generation) return undefined;
-    const location = runtime.location.peek();
+    const currentLocation = runtime.location.peek();
     data.set({
-      location,
+      location: currentLocation,
       status: "pending",
-      data: data.peek().location === location ? data.peek().data : undefined,
+      data: data.peek().location === currentLocation ? data.peek().data : undefined,
       error: undefined,
     });
     if (disposed || token !== generation) return undefined;
     let value: T;
     try {
-      value = await load({ location, signal: current.signal });
+      value = await load({ location: currentLocation, signal: current.signal });
     } catch (error) {
       if (disposed || token !== generation) return undefined;
       data.set({ ...data.peek(), status: "errored", error });
       throw error;
     }
     if (disposed || token !== generation) return undefined;
-    data.set({ location, status: "ready", data: value, error: undefined });
+    data.set({ location: currentLocation, status: "ready", data: value, error: undefined });
     return value;
   }
 
@@ -101,11 +101,11 @@ export function createDataRouter<T>(
     current.signal.throwIfAborted();
     if (disposed || token !== actionGeneration)
       throw new DOMException("Action superseded", "AbortError");
-    const location = runtime.location.peek();
+    const currentLocation = runtime.location.peek();
     submitting.set(true);
     try {
       current.signal.throwIfAborted();
-      const result = await action({ location, signal: current.signal });
+      const result = await action({ location: currentLocation, signal: current.signal });
       if (!disposed) await invalidate().catch(() => {});
       return result;
     } finally {

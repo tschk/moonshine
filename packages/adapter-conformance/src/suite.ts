@@ -217,17 +217,17 @@ export function adapterConformance(
       stream: { loader: () => ({ title: "Stream", mode: "ssr" }) },
       slow: {
         loader: async (ctx) => {
-          await new Promise<void>((resolve) => {
+          await new Promise<void>((res) => {
             const id = setInterval(() => {
               if (ctx.signal.aborted) {
                 slowAborted = true;
                 clearInterval(id);
-                resolve();
+                res();
               }
             }, 20);
             setTimeout(() => {
               clearInterval(id);
-              resolve();
+              res();
             }, 500);
           });
           return { title: "Slow" };
