@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { isContained, resolveStaticPath, tryServeStatic, staticFileHeaders } from "../src/static";
+import {
+  isContained,
+  resolveStaticPath,
+  tryServeStatic,
+  staticFileHeaders,
+} from "../src/static";
 import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
