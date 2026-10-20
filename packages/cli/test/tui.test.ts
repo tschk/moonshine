@@ -3,6 +3,7 @@ import { clampColumns, truncate, warningBar } from "../src/tui";
 
 describe("clampColumns", () => {
   test("returns 80 for undefined or non-finite values", () => {
+    expect(clampColumns(0)).toBe(80);
     expect(clampColumns(undefined)).toBe(80);
     expect(clampColumns(NaN)).toBe(80);
     expect(clampColumns(Infinity)).toBe(80);
@@ -12,11 +13,13 @@ describe("clampColumns", () => {
   test("clamps to a minimum of 20", () => {
     expect(clampColumns(10)).toBe(20);
     expect(clampColumns(19)).toBe(20);
+    expect(clampColumns(19.9)).toBe(20);
     expect(clampColumns(20)).toBe(20);
   });
 
   test("clamps to a maximum of 100", () => {
     expect(clampColumns(100)).toBe(100);
+    expect(clampColumns(100.1)).toBe(100);
     expect(clampColumns(101)).toBe(100);
     expect(clampColumns(150)).toBe(100);
   });
