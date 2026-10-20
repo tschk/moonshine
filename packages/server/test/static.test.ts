@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { isContained, resolveStaticPath, staticFileHeaders, tryServeStatic } from "../src/static";
+import {
+  isContained,
+  resolveStaticPath,
+  staticFileHeaders,
+  tryServeStatic,
+} from "../src/static";
 import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
@@ -67,16 +72,18 @@ describe("staticFileHeaders", () => {
     const headers = staticFileHeaders("application/json", {
       "x-frame-options": "SAMEORIGIN",
       "referrer-policy": "strict-origin-when-cross-origin",
-      "x-content-type-options": "custom"
+      "x-content-type-options": "custom",
     });
     expect(headers.get("x-frame-options")).toBe("SAMEORIGIN");
-    expect(headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
+    expect(headers.get("referrer-policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
     expect(headers.get("x-content-type-options")).toBe("custom");
   });
 
   test("overwrites content-type even if provided in customHeaders", () => {
     const headers = staticFileHeaders("text/javascript", {
-      "content-type": "text/plain"
+      "content-type": "text/plain",
     });
     expect(headers.get("content-type")).toBe("text/javascript");
   });
