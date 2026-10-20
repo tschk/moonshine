@@ -379,3 +379,68 @@ assert.ok(html.includes('fetchpriority="high"'), html);
 `);
   },
 );
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro <Component server:defer> Server Islands, astro:prefetch, astro:schema, and astro/zod compile and resolve in eager and deferred modes",
+  async () => {
+    const userBadgeSource = `---
+interface Props {
+  userId: string;
+}
+const { userId } = Astro.props;
+const role = Astro.locals.role ?? "guest";
+---
+<div class="user-badge" data-user={userId} data-role={role}><slot>Default Badge</slot></div>
+`;
+    const pageSource = `---
+import UserBadge from "./UserBadge.astro";
+import { prefetch, getPrefetchedUrls, clearPrefetchedUrls } from "astro:prefetch";
+import { z } from "astro:schema";
+import { z as zodAlias } from "astro/zod";
+clearPrefetchedUrls();
+prefetch("/account");
+const prefetchedCount = getPrefetchedUrls().length;
+const parsed = z.string().parse("verified");
+const numParsed = zodAlias.number().parse(42);
+---
+<section data-prefetched={prefetchedCount} data-parsed={parsed} data-num={numParsed}>
+  <UserBadge server:defer userId="u-100">
+    <strong>Pro Member</strong>
+    <span slot="fallback" class="island-fallback">Loading user...</span>
+  </UserBadge>
+</section>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/UserBadge.astro', ${JSON.stringify(userBadgeSource)});
+await Bun.write('source/Page.astro', ${JSON.stringify(pageSource)});
+const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', 'Page.astro', '--out-dir', 'out'], { stdout: 'pipe', stderr: 'pipe' });
+const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+assert.equal(code, 0, out + err);
+const { default: Page } = await import(process.cwd() + '/out/CrepusEmit.moonshine-ssr.ts');
+const { h, renderToString, withAstroContext } = await import('@tschk/moonshine-astro/ssr');
+
+// Eager mode renders UserBadge immediately without the fallback slot
+const eagerHtml = withAstroContext({ locals: { role: 'admin' } }, (astro) => {
+  const rendered = renderToString(() => h(Page, {}));
+  assert.equal(astro.serverIslands.length, 1);
+  assert.equal(astro.serverIslands[0].componentName, 'UserBadge');
+  assert.equal(astro.serverIslands[0].hasFallback, true);
+  return rendered;
+});
+assert.ok(eagerHtml.includes('data-prefetched="1" data-parsed="verified" data-num="42"'), eagerHtml);
+assert.ok(eagerHtml.includes('<div class="user-badge" data-user="u-100" data-role="admin"><strong>Pro Member</strong></div>'), eagerHtml);
+assert.ok(!eagerHtml.includes('Loading user...'), eagerHtml);
+
+// Deferred mode renders <astro-server-island> fallback shell, then resolves island on demand
+withAstroContext({ locals: { role: 'owner' }, deferServerIslands: true }, (astro) => {
+  const shellHtml = renderToString(() => h(Page, {}));
+  assert.ok(shellHtml.includes('<astro-server-island data-island-id="island-1" data-component="UserBadge"><span class="island-fallback">Loading user...</span></astro-server-island>'), shellHtml);
+  const resolved = astro.resolveAllServerIslands(shellHtml);
+  assert.ok(resolved.includes('<div class="user-badge" data-user="u-100" data-role="owner"><strong>Pro Member</strong></div>'), resolved);
+  assert.ok(!resolved.includes('astro-server-island'), resolved);
+});
+`);
+  },
+);

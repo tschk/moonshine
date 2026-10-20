@@ -29,8 +29,8 @@ import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-astro";
 | `./loaders`     | Independent `astro/loaders` Content Layer loaders (`glob`, `file`, `parseFrontmatter`, `parseSimpleYaml`, `parseSimpleToml`, `parseSimpleCsv`, `matchGlobPattern`)   |
 | `./middleware`  | Independent `astro:middleware` (`defineMiddleware`, `sequence`, `createContext`, `trySerializeLocals`)                                                               |
 | `./routing`     | Independent static path pagination & endpoint types (`paginate`, `createPaginate`, `Page`, `GetStaticPaths`, `InferGetStaticParamsType`, `APIRoute`)                 |
-| `./ssr`         | Independent synchronous Astro source factories and `useAstro` request context re-exports                                                                             |
-| `./transitions` | Independent View Transitions (`ClientRouter`, `ViewTransitions`, `fade`, `slide`, `none`, `navigate`, `swapFunctions`)                                               |
+| `./ssr`         | Independent synchronous Astro source factories (`sourceComponent`, `sourceServerIsland`, `sourceSlot`), and `useAstro` / `withAstroContext` re-exports               |
+| `./transitions` | Independent View Transitions & prefetching (`ClientRouter`, `ViewTransitions`, `fade`, `slide`, `none`, `navigate`, `swapFunctions`, `prefetch`, `init`)             |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install
@@ -172,18 +172,24 @@ helpers are available in SDK 0.4.22. This is not Astro's compiled component ABI;
 async rendering, hydration and full slot/source coverage remain incomplete.
 
 Local `.astro` compilation also rewrites `astro:actions`, `astro:assets`,
-`astro:content`, `astro:env` (`astro:env/client`, `astro:env/server`,
-`astro:env/setup`), `astro:i18n`, `astro:middleware`, `astro:transitions`
-(`astro:transitions/client`), `astro/config`, and `astro/loaders` imports onto
-`@tschk/moonshine-astro/*`, lowers `<Astro.self>` and `Astro.self` to recursive
-component factory references, and lowers `Astro.url`, `Astro.request`,
-`Astro.params`, `Astro.locals`, `Astro.cookies`, `Astro.session`, `Astro.site`,
-`Astro.generator`, `Astro.clientAddress`, `Astro.response`,
-`Astro.originPathname`, `Astro.routePattern`, `Astro.isPrerendered`,
-`Astro.preferredLocale`, `Astro.preferredLocaleList`, `Astro.currentLocale`,
-`Astro.redirect`, `Astro.rewrite`, `Astro.callAction`, and
-`Astro.getActionResult` in frontmatter and template expressions to `useAstro()`
-from `@tschk/moonshine-astro/ssr`.
+`astro:content`, `astro:schema`, `astro/zod`, `astro:env` (`astro:env/client`,
+`astro:env/server`, `astro:env/setup`), `astro:i18n`, `astro:middleware`,
+`astro:prefetch`, `astro:transitions` (`astro:transitions/client`),
+`astro/config`, and `astro/loaders` imports onto `@tschk/moonshine-astro/*`,
+lowers `<Astro.self>` and `Astro.self` to recursive component factory
+references, lowers Astro 5 `<Component server:defer>` Server Islands (with
+`<slot name="fallback">` / `slot="fallback"`) to `sourceServerIsland` in
+`@tschk/moonshine-astro/ssr` (supporting both eager synchronous SSR and deferred
+`<astro-server-island>` placeholder shells resolved via
+`astro.resolveServerIsland(id)` / `astro.resolveAllServerIslands(html)` when
+`deferServerIslands: true` is set on `withAstroContext`), and lowers
+`Astro.url`, `Astro.request`, `Astro.params`, `Astro.locals`, `Astro.cookies`,
+`Astro.session`, `Astro.site`, `Astro.generator`, `Astro.clientAddress`,
+`Astro.response`, `Astro.originPathname`, `Astro.routePattern`,
+`Astro.isPrerendered`, `Astro.preferredLocale`, `Astro.preferredLocaleList`,
+`Astro.currentLocale`, `Astro.redirect`, `Astro.rewrite`, `Astro.callAction`,
+and `Astro.getActionResult` in frontmatter and template expressions to
+`useAstro()` from `@tschk/moonshine-astro/ssr`.
 `<Image>` and `<Picture>` in `@tschk/moonshine-astro/assets` and `<ClientRouter>`
 / `<ViewTransitions>` in `@tschk/moonshine-astro/transitions` render synchronous
 server HTML without Astro host packages.

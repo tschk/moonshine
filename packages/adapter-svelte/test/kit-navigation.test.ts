@@ -42,31 +42,49 @@ import {
 import {
   ActionFailure,
   build,
+  clearKitServerAssets,
+  command,
   configureKitEnv,
   configureKitServiceWorker,
   createKitCookies,
   createKitRequestEvent,
+  createLoadEvent,
+  createServerLoadEvent,
   env,
   error,
+  executeKitAction,
+  executeKitServerLoad,
+  executeKitUniversalLoad,
   fail,
   files,
+  form,
+  getRequestEvent,
   HttpError,
   isActionFailure,
   isHttpError,
   isRedirect,
   json,
   normalizeUrl,
+  prerender,
   prerendered,
   privateEnv,
   publicEnv,
+  query,
+  read,
   Redirect,
   redirect,
+  registerKitServerAsset,
   resetKitEnv,
   resetKitServiceWorker,
   resolvePath,
   sequence,
   text,
   VERSION,
+  withKitRequestEvent,
+  type Actions,
+  type PageLoad,
+  type PageServerLoad,
+  type RequestHandler,
 } from "../src/kit";
 
 describe("@tschk/moonshine-svelte/navigation & @tschk/moonshine-svelte/kit", () => {
@@ -536,5 +554,257 @@ describe("@tschk/moonshine-svelte/navigation & @tschk/moonshine-svelte/kit", () 
     expect(files).toEqual([]);
     expect(prerendered).toEqual([]);
     resetKitEnv();
+  });
+
+  test("$app/server getRequestEvent, withKitRequestEvent, read, and Remote Functions (query, query.batch, prerender, command, form)", async () => {
+    clearKitServerAssets();
+
+    expect(() => getRequestEvent()).toThrow(
+      /outside of an active RequestEvent/,
+    );
+
+    const result = await withKitRequestEvent(
+      {
+        url: "http://localhost/posts/42",
+        params: { id: "42" },
+        locals: { user: "grace" },
+      },
+      async () => {
+        const current = getRequestEvent();
+        expect(current.url.pathname).toBe("/posts/42");
+        expect(current.params.id).toBe("42");
+        expect(current.locals.user).toBe("grace");
+        return `user:${current.locals.user}`;
+      },
+    );
+    expect(result).toBe("user:grace");
+    expect(() => getRequestEvent()).toThrow(
+      /outside of an active RequestEvent/,
+    );
+
+    // read() asset helper
+    registerKitServerAsset("/_app/assets/banner.txt", "Welcome to Moonshine", {
+      type: "text/plain",
+    });
+    const assetRes = read("/_app/assets/banner.txt");
+    expect(assetRes.status).toBe(200);
+    expect(assetRes.headers.get("content-type")).toBe("text/plain");
+    expect(await assetRes.text()).toBe("Welcome to Moonshine");
+    clearKitServerAssets();
+
+    // Remote Function: query() with caching, refresh, set, and withOverride
+    let fetchCount = 0;
+    const getPostTitle = query(
+      (slug: unknown) => {
+        if (typeof slug !== "string" || !slug) {
+          throw new TypeError("Invalid slug");
+        }
+        return slug;
+      },
+      async (slug: string) => {
+        fetchCount++;
+        return `Title:${slug}#${fetchCount}`;
+      },
+    );
+
+    const handleA = getPostTitle("hello");
+    expect(await handleA).toBe("Title:hello#1");
+    expect(handleA.current).toBe("Title:hello#1");
+    expect(handleA.ready).toBe(true);
+    expect(handleA.loading).toBe(false);
+
+    // Cached second call
+    expect(await getPostTitle("hello")).toBe("Title:hello#1");
+    expect(fetchCount).toBe(1);
+
+    // .refresh() re-runs the query
+    await handleA.refresh();
+    expect(handleA.current).toBe("Title:hello#2");
+
+    // .set() & .withOverride()
+    handleA.set("Custom Title");
+    expect(handleA.current).toBe("Custom Title");
+    const revert = handleA.withOverride((prev) => `${prev} (optimistic)`);
+    expect(handleA.current).toBe("Custom Title (optimistic)");
+    revert();
+    expect(handleA.current).toBe("Custom Title");
+
+    // query.batch()
+    let batchRuns = 0;
+    const getUserById = query.batch(async (ids: string[]) => {
+      batchRuns++;
+      const map = new Map(ids.map((id) => [id, { id, name: `User-${id}` }]));
+      return (id: string) => map.get(id)!;
+    });
+    const [u1, u2] = await Promise.all([getUserById("1"), getUserById("2")]);
+    expect(u1).toEqual({ id: "1", name: "User-1" });
+    expect(u2).toEqual({ id: "2", name: "User-2" });
+    expect(batchRuns).toBe(1);
+
+    // prerender()
+    let prerenderCount = 0;
+    const getStaticVersion = prerender(() => {
+      prerenderCount++;
+      return `v1.${prerenderCount}`;
+    });
+    expect(await getStaticVersion()).toBe("v1.1");
+    expect(await getStaticVersion()).toBe("v1.1");
+    expect(prerenderCount).toBe(1);
+
+    // command() with .updates()
+    const renamePost = command(
+      async ({ slug, next }: { slug: string; next: string }) => {
+        handleA.set(next);
+        return { ok: true, slug };
+      },
+    );
+    const cmdRes = await renamePost({ slug: "hello", next: "Renamed" }).updates(
+      handleA,
+    );
+    expect(cmdRes).toEqual({ ok: true, slug: "hello" });
+    expect(getPostTitle.peek("hello")).toBe("Title:hello#3");
+
+    // form()
+    const createComment = form(
+      {
+        parse(raw: Record<string, any>) {
+          if (!raw.body) throw new Error("Comment body is required");
+          return { body: String(raw.body) };
+        },
+      },
+      async (input) => ({ saved: input.body }),
+    );
+    expect(createComment.method).toBe("POST");
+    expect(createComment.fields.body.name).toBe("body");
+    const saved = await createComment({ body: "Nice post!" });
+    expect(saved).toEqual({ saved: "Nice post!" });
+    expect(createComment.result).toEqual({ saved: "Nice post!" });
+
+    const enriched = createComment.for("comment-1");
+    expect(enriched.action).toContain("id=%22comment-1%22");
+  });
+
+  test("@sveltejs/kit executeKitServerLoad, executeKitUniversalLoad, executeKitAction, and RequestHandler", async () => {
+    const serverLoad: PageServerLoad<
+      { slug: string },
+      { account: string }
+    > = async ({ params, depends, parent, setHeaders, untrack }) => {
+      depends("app:post");
+      setHeaders({ "cache-control": "max-age=60" });
+      const parentData = await parent();
+      const untrackedPath = untrack(() => `/posts/${params.slug}`);
+      return {
+        postSlug: params.slug,
+        account: parentData.account,
+        path: untrackedPath,
+      };
+    };
+
+    const serverLoaded = await executeKitServerLoad(serverLoad, {
+      url: "http://localhost/posts/svelte-5",
+      params: { slug: "svelte-5" },
+      parentData: { account: "acme" },
+    });
+
+    expect(serverLoaded.data).toEqual({
+      postSlug: "svelte-5",
+      account: "acme",
+      path: "/posts/svelte-5",
+    });
+    expect(serverLoaded.dependencies).toContain("app:post");
+    expect(serverLoaded.event.responseHeaders.get("cache-control")).toBe(
+      "max-age=60",
+    );
+
+    const universalLoad: PageLoad<{ slug: string }> = async ({
+      params,
+      data,
+      depends,
+    }) => {
+      depends("app:universal");
+      return {
+        ...data,
+        headline: `Post: ${params.slug}`,
+      };
+    };
+
+    const universalLoaded = await executeKitUniversalLoad(universalLoad, {
+      url: "http://localhost/posts/svelte-5",
+      params: { slug: "svelte-5" },
+      data: serverLoaded.data,
+    });
+
+    expect(universalLoaded.data).toEqual({
+      postSlug: "svelte-5",
+      account: "acme",
+      path: "/posts/svelte-5",
+      headline: "Post: svelte-5",
+    });
+    expect(page.data.headline).toBe("Post: svelte-5");
+
+    // Form Actions execution
+    const actions: Actions = {
+      save: async ({ request }) => {
+        const fd = await request.formData();
+        const title = String(fd.get("title") ?? "").trim();
+        if (!title) {
+          return fail(422, { error: "Title is required" });
+        }
+        return { savedTitle: title };
+      },
+      publish: async () => {
+        redirect(303, "/published");
+      },
+    };
+
+    const badFd = new FormData();
+    badFd.set("title", "");
+    const failedAction = await executeKitAction(actions, "save", {
+      url: "http://localhost/posts/svelte-5?/save",
+      formData: badFd,
+    });
+    expect(failedAction.type).toBe("failure");
+    expect(failedAction.status).toBe(422);
+    expect(page.status).toBe(422);
+    expect(page.form).toEqual({ error: "Title is required" });
+
+    const goodFd = new FormData();
+    goodFd.set("title", "SvelteKit Native");
+    const okAction = await executeKitAction(actions, "save", {
+      url: "http://localhost/posts/svelte-5?/save",
+      formData: goodFd,
+    });
+    expect(okAction).toEqual({
+      type: "success",
+      status: 200,
+      data: { savedTitle: "SvelteKit Native" },
+    });
+    expect(page.form).toEqual({ savedTitle: "SvelteKit Native" });
+
+    const redirectedAction = await executeKitAction(actions, "publish", {
+      url: "http://localhost/posts/svelte-5?/publish",
+    });
+    expect(redirectedAction).toEqual({
+      type: "redirect",
+      status: 303,
+      location: "/published",
+    });
+
+    // RequestHandler contract
+    const GET: RequestHandler<{ id: string }> = async ({ params }) =>
+      json({ item: params.id });
+    const getRes = await GET(
+      createKitRequestEvent({
+        url: "http://localhost/api/items/99",
+        params: { id: "99" },
+      }),
+    );
+    expect(await getRes.json()).toEqual({ item: "99" });
+
+    // Direct event factories
+    const sle = createServerLoadEvent({ url: "http://localhost/test" });
+    expect(sle.url.pathname).toBe("/test");
+    const ule = createLoadEvent({ url: "http://localhost/test" });
+    expect(ule.url.pathname).toBe("/test");
   });
 });

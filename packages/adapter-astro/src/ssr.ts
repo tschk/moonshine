@@ -5,10 +5,12 @@ import {
   hAttributes,
   hAttributeEntries,
   defer,
+  renderToString,
   scopeSSRChild,
   type HTML,
   type SSRChild,
 } from "@tschk/moonshine-dom/ssr";
+import { peekAstroContext, type AstroServerIslandEntry } from "./context";
 
 const booleanAttributes = /* @__PURE__ */ new Set(
   /* @__PURE__ */ "allowfullscreen async autofocus autoplay checked controls default defer disabled disablepictureinpicture disableremoteplayback formnovalidate inert loop muted nomodule novalidate open playsinline readonly required reversed scoped seamless selected itemscope".split(
@@ -137,6 +139,56 @@ export function sourceComponent<P extends object>(
   );
 }
 
+/** Compiler-facing Astro 5 `<Component server:defer>` Server Island invocation. */
+export function sourceServerIsland<P extends object>(
+  component: (props: P, slots: SourceSlots) => SSRChild,
+  componentName: string,
+  props: P,
+  slots: Readonly<Record<string, () => SSRChild>> = {},
+): SSRChild {
+  const captured = captureProps(props);
+  const componentSlots: Record<string, () => SSRChild> = {};
+  for (const [name, render] of Object.entries(slots)) {
+    if (name !== "fallback") {
+      componentSlots[name] = render;
+    }
+  }
+  const hasFallback = Object.hasOwn(slots, "fallback");
+  const ctx = peekAstroContext();
+  const deferred = Boolean(ctx?.deferServerIslands);
+  const id = `island-${(ctx?.serverIslands.length ?? 0) + 1}`;
+  const renderIsland = () =>
+    renderToString(() => sourceComponent(component, captured, componentSlots));
+
+  if (ctx) {
+    const entry: AstroServerIslandEntry = {
+      id,
+      componentName,
+      props: { ...(captured as Record<string, unknown>) },
+      hasFallback,
+      deferred,
+      render: renderIsland,
+    };
+    ctx.serverIslands.push(entry);
+  }
+
+  if (deferred) {
+    const fallbackContent = hasFallback
+      ? scopeSSRChild(() => sourceChild(slots.fallback!()))
+      : undefined;
+    return h(
+      "astro-server-island",
+      {
+        "data-island-id": id,
+        "data-component": componentName,
+      },
+      fallbackContent,
+    );
+  }
+
+  return sourceComponent(component, captured, componentSlots);
+}
+
 /** Presence selects a slot, including an explicitly empty supplied slot. */
 export function sourceSlot(
   slots: SourceSlots,
@@ -234,6 +286,7 @@ export function sourceElement(
 
 export {
   useAstro,
+  peekAstroContext,
   withAstroContext,
   createAstroGlobal,
   AstroCookies,
@@ -241,4 +294,5 @@ export {
   type AstroGlobal,
   type AstroContextInit,
   type AstroSlots,
+  type AstroServerIslandEntry,
 } from "./context";

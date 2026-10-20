@@ -379,6 +379,15 @@ export interface AstroActionCallable<TInput = any, TResult = any> {
   readonly queryString?: string;
 }
 
+export interface AstroServerIslandEntry {
+  id: string;
+  componentName: string;
+  props: Record<string, unknown>;
+  hasFallback: boolean;
+  deferred: boolean;
+  render: () => string;
+}
+
 export interface AstroGlobal<
   Props extends Record<string, any> = Record<string, any>,
   Params extends Record<string, string | undefined> = Record<
@@ -405,6 +414,10 @@ export interface AstroGlobal<
   preferredLocale: string | undefined;
   preferredLocaleList: string[] | undefined;
   currentLocale: string | undefined;
+  deferServerIslands: boolean;
+  serverIslands: AstroServerIslandEntry[];
+  resolveServerIsland(id: string): string | undefined;
+  resolveAllServerIslands(html: string): string;
   redirect(path: string, status?: ValidRedirectStatus): Response;
   rewrite(reroutePayload: string | URL | Request): Promise<Response>;
   callAction<TAction extends AstroActionCallable<any, any>>(
@@ -443,6 +456,7 @@ export interface AstroContextInit<
   preferredLocale?: string;
   preferredLocaleList?: string[];
   currentLocale?: string;
+  deferServerIslands?: boolean;
   actionResults?: Map<unknown, unknown> | Record<string, unknown>;
   rewriteHandler?: (
     target: URL,
@@ -557,6 +571,8 @@ export function createAstroGlobal<
     }
   }
 
+  const serverIslands: AstroServerIslandEntry[] = [];
+
   const astro: AstroGlobal<Props, Params, Locals> = {
     props: (init.props ?? {}) as Props,
     request,
@@ -579,6 +595,27 @@ export function createAstroGlobal<
     preferredLocale: init.preferredLocale,
     preferredLocaleList: init.preferredLocaleList,
     currentLocale: init.currentLocale,
+    deferServerIslands: init.deferServerIslands ?? false,
+    serverIslands,
+    resolveServerIsland(id: string): string | undefined {
+      const entry = serverIslands.find((island) => island.id === id);
+      if (!entry) return undefined;
+      return withAstroContext(astro, () => entry.render());
+    },
+    resolveAllServerIslands(html: string): string {
+      let output = html;
+      for (const entry of serverIslands) {
+        const pattern = new RegExp(
+          `<astro-server-island[^>]*data-island-id="${entry.id}"[^>]*>[\\s\\S]*?<\\/astro-server-island>`,
+          "g",
+        );
+        if (pattern.test(output)) {
+          const rendered = withAstroContext(astro, () => entry.render());
+          output = output.replace(pattern, () => rendered);
+        }
+      }
+      return output;
+    },
     redirect(path: string, status: ValidRedirectStatus = 302): Response {
       const headers = new Headers(response.headers);
       headers.set("Location", path);
@@ -648,6 +685,10 @@ export function createAstroGlobal<
 }
 
 let activeAstroContext: AstroGlobal<any, any, any> | undefined;
+
+export function peekAstroContext(): AstroGlobal<any, any, any> | undefined {
+  return activeAstroContext;
+}
 
 function isAstroGlobal(value: unknown): value is AstroGlobal<any, any, any> {
   return (

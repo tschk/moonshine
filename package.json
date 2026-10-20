@@ -1,6 +1,6 @@
 {
   "name": "moonshine-monorepo",
-  "version": "0.4.73",
+  "version": "0.4.74",
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.11.1",
     "@tschk/crepuscularity-wasm": "^0.1.3",

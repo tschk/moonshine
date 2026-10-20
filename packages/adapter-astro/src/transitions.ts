@@ -405,3 +405,92 @@ export function ClientRouter(props: ClientRouterProps = {}): SSRChild {
 
 /** Legacy alias for `<ClientRouter />` from `astro:transitions`. */
 export const ViewTransitions: typeof ClientRouter = ClientRouter;
+
+export type PrefetchStrategy = "tap" | "hover" | "viewport" | "load";
+
+export interface PrefetchOptions {
+  with?: "fetch" | "link";
+  ignoreSlowConnection?: boolean;
+  eagerness?: "immediate" | "eager" | "moderate" | "conservative";
+}
+
+export interface PrefetchInitOptions {
+  defaultStrategy?: PrefetchStrategy;
+  prefetchAll?: boolean;
+}
+
+const PREFETCHED_URLS = /* @__PURE__ */ new Set<string>();
+let activePrefetchConfig: PrefetchInitOptions = {
+  defaultStrategy: "hover",
+  prefetchAll: false,
+};
+
+/** Programmatically prefetch a URL (`astro:prefetch`). */
+export function prefetch(url: string, options: PrefetchOptions = {}): void {
+  if (!url) return;
+  const rawBase =
+    typeof window !== "undefined" && typeof window.location?.href === "string"
+      ? window.location.href
+      : "";
+  const base = /^https?:\/\//i.test(rawBase) ? rawBase : "http://localhost/";
+  let resolvedUrl: string;
+  try {
+    resolvedUrl = new URL(url, base).href;
+  } catch {
+    resolvedUrl = url;
+  }
+  if (PREFETCHED_URLS.has(resolvedUrl)) return;
+  PREFETCHED_URLS.add(resolvedUrl);
+
+  const mode = options.with ?? "link";
+  if (
+    mode === "link" &&
+    typeof document !== "undefined" &&
+    document.head &&
+    typeof document.head.appendChild === "function" &&
+    typeof document.createElement === "function"
+  ) {
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.href = url;
+    document.head.appendChild(link);
+  } else if (mode === "fetch" && typeof fetch === "function") {
+    void Promise.resolve(
+      fetch(resolvedUrl, { priority: "low" } as RequestInit),
+    ).catch(() => {});
+  }
+}
+
+/** Initialize automatic link prefetching (`astro:prefetch`). */
+export function init(options: PrefetchInitOptions = {}): void {
+  activePrefetchConfig = {
+    defaultStrategy: options.defaultStrategy ?? "hover",
+    prefetchAll: options.prefetchAll ?? false,
+  };
+  if (
+    typeof document !== "undefined" &&
+    typeof document.querySelectorAll === "function"
+  ) {
+    const selector = activePrefetchConfig.prefetchAll
+      ? "a[href]"
+      : "a[href][data-astro-prefetch]";
+    for (const anchor of Array.from(
+      document.querySelectorAll<HTMLAnchorElement>(selector),
+    )) {
+      const strategy =
+        (anchor.getAttribute("data-astro-prefetch") as
+          PrefetchStrategy | "" | null) || activePrefetchConfig.defaultStrategy;
+      if (strategy === "load" && anchor.href) {
+        prefetch(anchor.href);
+      }
+    }
+  }
+}
+
+export function getPrefetchedUrls(): string[] {
+  return Array.from(PREFETCHED_URLS);
+}
+
+export function clearPrefetchedUrls(): void {
+  PREFETCHED_URLS.clear();
+}
