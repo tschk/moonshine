@@ -214,3 +214,42 @@ test("astro:prefetch records prefetched URLs and supports init()", () => {
   clearPrefetchedUrls();
   expect(getPrefetchedUrls()).toEqual([]);
 });
+
+test("defineStyleVars, mergeDefineVars, and transition:* helpers serialize CSS custom properties and View Transition attributes", async () => {
+  const {
+    defineStyleVars,
+    mergeDefineVars,
+    transitionAnimateValue,
+    transitionPersistValue,
+    transitionPersistPropsValue,
+  } = await import("../src/ssr");
+
+  expect(
+    defineStyleVars({
+      primaryColor: "crimson",
+      "--accent": "#00f",
+      gap: 16,
+      skipped: null,
+      omitted: undefined,
+      off: false,
+    }),
+  ).toBe("--primaryColor:crimson;--accent:#00f;--gap:16");
+
+  expect(
+    mergeDefineVars("padding: 1rem;", { accentColor: "teal" }, "hero-banner"),
+  ).toBe("padding: 1rem;--accentColor:teal;view-transition-name:hero-banner");
+
+  expect(mergeDefineVars(undefined, undefined, undefined)).toBeUndefined();
+
+  expect(transitionAnimateValue(true)).toBe("initial");
+  expect(transitionAnimateValue("slide")).toBe("slide");
+  expect(transitionAnimateValue({ name: "fade", forwards: {} })).toBe("fade");
+  expect(transitionAnimateValue(false)).toBeUndefined();
+
+  expect(transitionPersistValue(true)).toBe("");
+  expect(transitionPersistValue("video-player")).toBe("video-player");
+  expect(transitionPersistValue(false)).toBeUndefined();
+
+  expect(transitionPersistPropsValue(true)).toBe("");
+  expect(transitionPersistPropsValue(false)).toBeUndefined();
+});

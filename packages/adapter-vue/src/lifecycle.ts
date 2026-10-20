@@ -120,15 +120,47 @@ export function onDeactivated(fn: () => void): void {
   ensureMountQueue(frame).deactivated.push(fn);
   onBeforeUnmount(fn);
 }
+export interface ServerPrefetchSession {
+  phase: "collect" | "awaiting" | "replay";
+  hooks: Array<() => Promise<unknown> | unknown>;
+  cells: unknown[];
+  cursor: number;
+}
+
+let activeServerPrefetchSession: ServerPrefetchSession | undefined;
+
+export function peekServerPrefetchSession(): ServerPrefetchSession | undefined {
+  return activeServerPrefetchSession;
+}
+
+export function withServerPrefetchSession<T>(
+  session: ServerPrefetchSession,
+  fn: () => T,
+): T {
+  const prev = activeServerPrefetchSession;
+  activeServerPrefetchSession = session;
+  try {
+    return fn();
+  } finally {
+    activeServerPrefetchSession = prev;
+  }
+}
+
 export function onServerPrefetch(fn: () => Promise<any>): void {
   const frame = component(fn);
   if (frame.mode !== "ssr") return;
+  if (activeServerPrefetchSession) {
+    if (activeServerPrefetchSession.phase === "collect") {
+      activeServerPrefetchSession.hooks.push(() =>
+        Promise.resolve().then(() => untrack(() => fn())),
+      );
+    }
+    return;
+  }
   if (!frame.owner.disposed) {
-    void Promise.resolve(
-      runWithOwner(frame.owner, () =>
-        untrack(() => withComponentConsumer(frame, fn)),
-      ),
-    ).catch(() => {});
+    void Promise.resolve()
+      .then(() => untrack(() => fn()))
+      .catch(() => {});
   }
 }
 export function onBeforeUnmount(fn: () => void): void {

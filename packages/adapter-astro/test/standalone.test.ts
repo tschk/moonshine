@@ -444,3 +444,39 @@ withAstroContext({ locals: { role: 'owner' }, deferServerIslands: true }, (astro
 `);
   },
 );
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro define:vars and transition:name/animate/persist/persist-props directives compile and render CSS custom properties and View Transition attributes",
+  async () => {
+    const heroSource = `---
+import { fade } from "astro:transitions";
+const primaryColor = "crimson";
+const spacing = "2rem";
+const fadeAnim = fade({ duration: "250ms" });
+---
+<header
+  style="display:flex"
+  define:vars={{ primaryColor, spacing }}
+  transition:name="site-header"
+  transition:animate={fadeAnim}
+>
+  <video transition:persist="media-player" transition:persist-props src="/intro.mp4"></video>
+</header>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Hero.astro', ${JSON.stringify(heroSource)});
+const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', 'Hero.astro', '--out-dir', 'out'], { stdout: 'pipe', stderr: 'pipe' });
+const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+assert.equal(code, 0, out + err);
+const { default: Hero } = await import(process.cwd() + '/out/CrepusEmit.moonshine-ssr.ts');
+const { h, renderToString } = await import('@tschk/moonshine-astro/ssr');
+const html = renderToString(() => h(Hero, {}));
+assert.ok(html.includes('style="display:flex;--primaryColor:crimson;--spacing:2rem;view-transition-name:site-header"'), html);
+assert.ok(html.includes('data-astro-transition-scope="fade"'), html);
+assert.ok(html.includes('data-astro-transition-persist="media-player"'), html);
+assert.ok(html.includes('data-astro-transition-persist-props=""'), html);
+`);
+  },
+);

@@ -190,6 +190,12 @@ references, lowers Astro 5 `<Component server:defer>` Server Islands (with
 `Astro.currentLocale`, `Astro.redirect`, `Astro.rewrite`, `Astro.callAction`,
 and `Astro.getActionResult` in frontmatter and template expressions to
 `useAstro()` from `@tschk/moonshine-astro/ssr`.
+On HTML elements, `define:vars={{ ... }}` and `transition:name` merge into
+`style` via `mergeDefineVars` (`defineStyleVars`), while `transition:animate`,
+`transition:persist`, and `transition:persist-props` lower to
+`data-astro-transition-scope`, `data-astro-transition-persist`, and
+`data-astro-transition-persist-props` via `transitionAnimateValue`,
+`transitionPersistValue`, and `transitionPersistPropsValue`.
 `<Image>` and `<Picture>` in `@tschk/moonshine-astro/assets` and `<ClientRouter>`
 / `<ViewTransitions>` in `@tschk/moonshine-astro/transitions` render synchronous
 server HTML without Astro host packages.

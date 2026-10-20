@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-vue",
-  "version": "0.4.75",
+  "version": "0.4.76",
   "description": "Native composition helpers and signal bridges with optional legacy Vue runtime/compiler entries",
   "license": "ISC",
   "type": "module",
@@ -27,7 +27,8 @@
     "./expose": "./src/expose.ts",
     "./app": "./src/app.ts",
     "./router": "./src/router.ts",
-    "./store": "./src/store.ts"
+    "./store": "./src/store.ts",
+    "./server-renderer": "./src/server-renderer.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "0.4.73",

@@ -10,7 +10,12 @@ import { h as hDOM } from "@tschk/moonshine-dom/dom";
 import { getOwner, onCleanup, untrack } from "@tschk/moonshine-dom/reactive";
 import { h as hSSR } from "@tschk/moonshine-dom/ssr";
 import { isSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
-import { inject, provide, type InjectionKey } from "./context";
+import {
+  hasInjectionContext,
+  inject,
+  provide,
+  type InjectionKey,
+} from "./context";
 import {
   computed,
   ref,
@@ -1201,13 +1206,33 @@ export function createRouter(options: RouterOptions): Router {
       ready = true;
       return Promise.resolve();
     },
-    install(_app?: any) {
+    install(app?: any) {
       setActiveRouter(router);
       setupListeners();
+      const reactiveRoute = createReactiveRouteProxy(currentRoute);
+      if (app && typeof app === "object") {
+        if (typeof app.provide === "function") {
+          app.provide(routerKey, router);
+          app.provide(routerViewLocationKey, currentRoute);
+          app.provide(routeLocationKey, reactiveRoute);
+        }
+        if (typeof app.component === "function") {
+          app.component("RouterLink", RouterLink);
+          app.component("RouterView", RouterView);
+        }
+        if (app.config && app.config.globalProperties) {
+          app.config.globalProperties.$router = router;
+          Object.defineProperty(app.config.globalProperties, "$route", {
+            enumerable: true,
+            configurable: true,
+            get: () => currentRoute.value,
+          });
+        }
+      }
       if (peekComponentContext()) {
         provide(routerKey, router);
         provide(routerViewLocationKey, currentRoute);
-        provide(routeLocationKey, createReactiveRouteProxy(currentRoute));
+        provide(routeLocationKey, reactiveRoute);
       }
     },
   };
@@ -1248,7 +1273,7 @@ function createReactiveRouteProxy(
 }
 
 export function useRouter(): Router {
-  if (peekComponentContext()) {
+  if (hasInjectionContext()) {
     const injected = inject(routerKey);
     if (injected) return injected;
   }
@@ -1259,7 +1284,7 @@ export function useRouter(): Router {
 }
 
 export function useRoute(): RouteLocationNormalizedLoaded {
-  if (peekComponentContext()) {
+  if (hasInjectionContext()) {
     const injected = inject(routeLocationKey);
     if (injected) return injected;
   }

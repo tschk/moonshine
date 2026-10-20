@@ -66,6 +66,118 @@ function style(value: object): string {
     .join(";");
 }
 
+/** Compiler-facing `define:vars` CSS custom property serialization. */
+export function defineStyleVars(
+  vars: Record<string, unknown> | null | undefined,
+): string {
+  if (!vars || typeof vars !== "object") return "";
+  const parts: string[] = [];
+  for (const [key, item] of Object.entries(vars)) {
+    if (item === undefined || item === null || typeof item === "boolean") {
+      continue;
+    }
+    const text = String(item).trim();
+    if (!text) continue;
+    const propName = key.startsWith("--") ? key : `--${key}`;
+    parts.push(`${propName}:${text}`);
+  }
+  return parts.join(";");
+}
+
+/** Merge an element's `style`, `define:vars`, and `transition:name` into a single `style` value. */
+export function mergeDefineVars(
+  existingStyle: unknown,
+  vars?: Record<string, unknown> | null,
+  transitionName?: unknown,
+): string | undefined {
+  const segments: string[] = [];
+  if (typeof existingStyle === "string") {
+    const trimmed = existingStyle.trim().replace(/;+$/, "");
+    if (trimmed) segments.push(trimmed);
+  } else if (existingStyle !== null && typeof existingStyle === "object") {
+    const serialized = Array.isArray(existingStyle)
+      ? `${style(existingStyle[0] ?? {})};${existingStyle[1] ?? ""}`.replace(
+          /^;+|;+$/g,
+          "",
+        )
+      : style(existingStyle);
+    if (serialized) segments.push(serialized);
+  }
+  const varsStr = defineStyleVars(vars);
+  if (varsStr) segments.push(varsStr);
+  if (
+    transitionName !== undefined &&
+    transitionName !== null &&
+    transitionName !== false
+  ) {
+    const nameStr = String(transitionName).trim();
+    if (nameStr) {
+      segments.push(`view-transition-name:${nameStr}`);
+    }
+  }
+  return segments.length > 0 ? segments.join(";") : undefined;
+}
+
+/** Compiler-facing `transition:animate` attribute value normalization. */
+export function transitionAnimateValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === false) {
+    return undefined;
+  }
+  if (value === true || value === "") {
+    return "initial";
+  }
+  if (typeof value === "string") {
+    return value.trim() || "initial";
+  }
+  if (typeof value === "object") {
+    const candidate = value as Record<string, unknown>;
+    if (typeof candidate.name === "string" && candidate.name.trim()) {
+      return candidate.name.trim();
+    }
+    const forwards = candidate.forwards as Record<string, unknown> | undefined;
+    if (forwards && typeof forwards === "object") {
+      const next = forwards.new;
+      if (Array.isArray(next)) {
+        if (
+          next.some((item) =>
+            (item as { name?: string })?.name?.includes("Slide"),
+          )
+        ) {
+          return "slide";
+        }
+      } else if (next && typeof next === "object") {
+        const animName = (next as { name?: string }).name;
+        if (animName === "astroFadeIn") return "fade";
+        if (animName === "none") return "none";
+        if (animName) return animName;
+      }
+    }
+    return "custom";
+  }
+  return String(value);
+}
+
+/** Compiler-facing `transition:persist` attribute value normalization. */
+export function transitionPersistValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === false) {
+    return undefined;
+  }
+  if (value === true || value === "") {
+    return "";
+  }
+  return String(value);
+}
+
+/** Compiler-facing `transition:persist-props` boolean attribute normalization. */
+export function transitionPersistPropsValue(
+  value: unknown,
+): string | undefined {
+  if (value === undefined || value === null || value === false) {
+    return undefined;
+  }
+  return "";
+}
+
 function attribute(
   tag: string,
   name: string,

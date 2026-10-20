@@ -290,3 +290,10 @@ export {
   type Params,
   type Props,
 } from "./routing";
+export {
+  defineStyleVars,
+  mergeDefineVars,
+  transitionAnimateValue,
+  transitionPersistValue,
+  transitionPersistPropsValue,
+} from "./ssr";

@@ -28,7 +28,12 @@ import {
   type Ref,
   type Unwrap,
 } from "./reactive";
-import { inject, provide, type InjectionKey } from "./context";
+import {
+  hasInjectionContext,
+  inject,
+  provide,
+  type InjectionKey,
+} from "./context";
 
 export type StateTree = Record<string | number | symbol, any>;
 
@@ -154,7 +159,7 @@ export function setActivePinia(pinia: Pinia | undefined): Pinia | undefined {
 }
 
 export function getActivePinia(): Pinia | undefined {
-  if (peekComponentContext()) {
+  if (hasInjectionContext()) {
     const injected = inject(piniaSymbol);
     if (injected) {
       setActivePinia(injected);
@@ -169,8 +174,16 @@ export function createPinia(): Pinia {
   const state = scope.run(() => shallowRef<Record<string, StateTree>>({}))!;
   const _p: PiniaPlugin[] = [];
   const pinia: Pinia = {
-    install(_app?: any) {
+    install(app?: any) {
       setActivePinia(pinia);
+      if (app && typeof app === "object") {
+        if (typeof app.provide === "function") {
+          app.provide(piniaSymbol, pinia);
+        }
+        if (app.config && app.config.globalProperties) {
+          app.config.globalProperties.$pinia = pinia;
+        }
+      }
       if (peekComponentContext()) {
         provide(piniaSymbol, pinia);
       }
