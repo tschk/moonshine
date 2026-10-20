@@ -58,10 +58,15 @@ async function buildBody(
   let body = createElement(Page, pageProps);
 
   if (route.layouts) {
-    for (let i = route.layouts.length - 1; i >= 0; i--) {
-      const Layout = (await loadComponent(
-        route.layouts[i]!,
-      )) as FunctionComponent<LayoutProps>;
+    const layoutComponents = await Promise.all(
+      route.layouts.map((file) =>
+        loadComponent(file).then(
+          (cmp) => cmp as FunctionComponent<LayoutProps>,
+        ),
+      ),
+    );
+    for (let i = layoutComponents.length - 1; i >= 0; i--) {
+      const Layout = layoutComponents[i]!;
       body = createElement(Layout, { ...pageProps, children: body });
     }
   }
