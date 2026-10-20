@@ -13,12 +13,16 @@ import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
 const staticDir = resolve(tmpDir, "public");
+const prefixDir = resolve(tmpDir, "public_other");
 
 beforeAll(() => {
   mkdirSync(staticDir, { recursive: true });
+  mkdirSync(prefixDir, { recursive: true });
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
+  writeFileSync(resolve(prefixDir, "sneaky.txt"), "sneaky");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
+  symlinkSync(resolve(staticDir, "ok.txt"), resolve(staticDir, "ok-link.txt"));
 });
 
 afterAll(() => {
@@ -54,6 +58,30 @@ describe("isContained", () => {
 
   test("returns false for a file outside the directory", () => {
     expect(isContained(staticDir, resolve(tmpDir, "secret.txt"))).toBe(false);
+  });
+
+  test("returns false for a symlink inside the directory pointing outside", () => {
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(
+      false,
+    );
+  });
+
+  test("returns true for a symlink inside the directory pointing inside", () => {
+    expect(isContained(staticDir, resolve(staticDir, "ok-link.txt"))).toBe(
+      true,
+    );
+  });
+
+  test("returns false for a file in a directory with the same prefix", () => {
+    expect(isContained(staticDir, resolve(prefixDir, "sneaky.txt"))).toBe(
+      false,
+    );
+  });
+
+  test("throws an error for a non-existent file", () => {
+    expect(() =>
+      isContained(staticDir, resolve(staticDir, "missing.txt")),
+    ).toThrow();
   });
 
   test("caches the real root on successive calls", () => {
