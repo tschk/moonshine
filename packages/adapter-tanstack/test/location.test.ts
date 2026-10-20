@@ -37,6 +37,18 @@ describe("stringifySearch", () => {
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
   });
+
+  test("stringifies objects and arrays", () => {
+    expect(stringifySearch({ a: [1, 2], b: { c: 3 } })).toBe(
+      "?a=%5B1%2C2%5D&b=%7B%22c%22%3A3%7D",
+    );
+  });
+
+  test("stringifies null and false values", () => {
+    expect(stringifySearch({ a: null, b: false, c: 0 })).toBe(
+      "?a=null&b=false&c=0",
+    );
+  });
 });
 
 describe("interpolatePath", () => {
