@@ -51,19 +51,28 @@ async function buildBody(
   registry: IslandRegistry,
 ): Promise<ReactNode> {
   const { route, params, data } = context;
-  const Page = (await loadComponent(
-    route.file,
-  )) as FunctionComponent<PageProps>;
+
+  const pagePromise = loadComponent(route.file) as Promise<
+    FunctionComponent<PageProps>
+  >;
+
+  const layoutsPromise = route.layouts
+    ? Promise.all(
+        route.layouts.map(
+          (file) =>
+            loadComponent(file) as Promise<FunctionComponent<LayoutProps>>,
+        ),
+      )
+    : Promise.resolve([]);
+
+  const [Page, Layouts] = await Promise.all([pagePromise, layoutsPromise]);
+
   const pageProps = { params, data };
   let body = createElement(Page, pageProps);
 
-  if (route.layouts) {
-    for (let i = route.layouts.length - 1; i >= 0; i--) {
-      const Layout = (await loadComponent(
-        route.layouts[i]!,
-      )) as FunctionComponent<LayoutProps>;
-      body = createElement(Layout, { ...pageProps, children: body });
-    }
+  for (let i = Layouts.length - 1; i >= 0; i--) {
+    const Layout = Layouts[i]!;
+    body = createElement(Layout, { ...pageProps, children: body });
   }
 
   return createElement(IslandProvider, { registry }, body);
