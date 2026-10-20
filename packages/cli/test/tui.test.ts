@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { clampColumns, truncate, warningBar } from "../src/tui";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { clampColumns, terminalTui, truncate, warningBar } from "../src/tui";
 
 describe("clampColumns", () => {
   test("returns 80 for undefined or non-finite values", () => {
@@ -69,5 +69,74 @@ describe("warningBar", () => {
 
     // text: "Longer text here", truncate("Longer text here", 7) -> "Longer…"
     expect(warningBar("Longer text here", tui)).toBe("!! Longer…");
+  });
+});
+
+describe("terminalTui", () => {
+  let originalIsTTY: boolean | undefined;
+  let originalColumns: number | undefined;
+  let writeSpy: any;
+
+  beforeEach(() => {
+    originalIsTTY = process.stdout.isTTY;
+    originalColumns = process.stdout.columns;
+    writeSpy = spyOn(process.stdout, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    if (originalIsTTY !== undefined) {
+      process.stdout.isTTY = originalIsTTY;
+    } else {
+      delete (process.stdout as any).isTTY;
+    }
+    if (originalColumns !== undefined) {
+      process.stdout.columns = originalColumns;
+    } else {
+      delete (process.stdout as any).columns;
+    }
+    writeSpy.mockRestore();
+  });
+
+  test("initializes correctly when stdout is a TTY", () => {
+    process.stdout.isTTY = true;
+    process.stdout.columns = 120;
+    const tui = terminalTui();
+    expect(tui.isTTY).toBe(true);
+    expect(tui.columns).toBe(100);
+  });
+
+  test("initializes correctly when stdout is not a TTY", () => {
+    process.stdout.isTTY = false;
+    process.stdout.columns = undefined as any;
+    const tui = terminalTui();
+    expect(tui.isTTY).toBe(false);
+    expect(tui.columns).toBe(80);
+  });
+
+  test("write calls process.stdout.write", () => {
+    const tui = terminalTui();
+    tui.write("test output");
+    expect(writeSpy).toHaveBeenCalledWith("test output");
+  });
+
+  test("prompt writes question and reads from console", async () => {
+    const tui = terminalTui();
+
+    const originalConsole = globalThis.console;
+    let consoleIterated = false;
+    (globalThis as any).console = {
+      ...originalConsole,
+      async *[Symbol.asyncIterator]() {
+        consoleIterated = true;
+        yield "user input";
+      }
+    };
+
+    const result = await tui.prompt("Question? ");
+    expect(writeSpy).toHaveBeenCalledWith("Question? ");
+    expect(result).toBe("user input");
+    expect(consoleIterated).toBe(true);
+
+    (globalThis as any).console = originalConsole;
   });
 });
