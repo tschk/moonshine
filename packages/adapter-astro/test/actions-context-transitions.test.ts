@@ -6,13 +6,27 @@ import {
   ActionInputError,
   actionPathToString,
   defineAction,
+  deserializeActionResult,
+  getActionContext,
   getActionQueryString,
   isActionError,
   isInputError,
+  serializeActionResult,
 } from "../src/actions";
+import {
+  defineConfig,
+  envField,
+  mergeConfig,
+  passthroughImageService,
+  sharpImageService,
+  squooshImageService,
+  validateConfig,
+} from "../src/config";
 import {
   AstroCookie,
   AstroCookies,
+  AstroSession,
+  clearAstroSessions,
   createAstroGlobal,
   useAstro,
   withAstroContext,
@@ -378,6 +392,184 @@ describe("@tschk/moonshine-astro/transitions", () => {
     );
     expect(customRouter).toBe(
       '<meta name="astro-view-transitions-enabled" content="true"><meta name="astro-view-transitions-fallback" content="swap"><meta name="astro-view-transitions-forms" content="false">',
+    );
+  });
+});
+
+describe("@tschk/moonshine-astro/context session, routePattern, callAction, and getActionResult", () => {
+  test("AstroSession persists values across requests with matching session cookie, supports regenerate() and destroy()", async () => {
+    clearAstroSessions();
+    const first = createAstroGlobal({
+      url: "https://example.com/cart",
+      routePattern: "/cart/[id]",
+    });
+    expect(first.routePattern).toBe("/cart/[id]");
+    expect(first.session).toBeInstanceOf(AstroSession);
+
+    first.session.set("cart", ["apple", "banana"]);
+    expect(await first.session.has("cart")).toBe(true);
+    expect(await first.session.get<string[]>("cart")).toEqual([
+      "apple",
+      "banana",
+    ]);
+    expect(await first.session.keys()).toEqual(["cart"]);
+
+    const setCookieHeaders = Array.from(first.cookies.headers());
+    expect(setCookieHeaders.some((h) => h.startsWith("astro-session="))).toBe(
+      true,
+    );
+    const sid = first.session.sessionID;
+
+    const second = createAstroGlobal({
+      request: new Request("https://example.com/checkout", {
+        headers: { cookie: `astro-session=${sid}` },
+      }),
+    });
+    expect(await second.session.get<string[]>("cart")).toEqual([
+      "apple",
+      "banana",
+    ]);
+
+    await second.session.regenerate();
+    expect(second.session.sessionID).not.toBe(sid);
+    expect(await second.session.get<string[]>("cart")).toEqual([
+      "apple",
+      "banana",
+    ]);
+
+    second.session.destroy();
+    expect(await second.session.entries()).toEqual({});
+  });
+
+  test("Astro.callAction, Astro.getActionResult, getActionContext, serializeActionResult, and deserializeActionResult", async () => {
+    const increment = defineAction({
+      name: "counter.increment",
+      handler: (step: number = 1, ctx) => {
+        ctx.session.set("lastStep", step);
+        return { count: step + 10, route: ctx.routePattern };
+      },
+    });
+
+    await withAstroContext({ routePattern: "/counter" }, async () => {
+      const astro = useAstro();
+      expect(astro.getActionResult(increment)).toBeUndefined();
+      const res = await astro.callAction(increment, 5);
+      expect(res).toEqual({
+        data: { count: 15, route: "/counter" },
+        error: undefined,
+      });
+      expect(astro.getActionResult(increment)).toEqual({
+        data: { count: 15, route: "/counter" },
+        error: undefined,
+      });
+      expect(await astro.session.get("lastStep")).toBe(5);
+    });
+
+    const serializedData = serializeActionResult({
+      data: { ok: true },
+      error: undefined,
+    });
+    expect(serializedData.type).toBe("data");
+    expect(deserializeActionResult(serializedData)).toEqual({
+      data: { ok: true },
+      error: undefined,
+    });
+
+    const serializedEmpty = serializeActionResult({
+      data: undefined,
+      error: undefined,
+    });
+    expect(serializedEmpty).toEqual({ type: "empty", status: 204 });
+    expect(deserializeActionResult(serializedEmpty)).toEqual({
+      data: undefined,
+      error: undefined,
+    });
+
+    const serializedErr = serializeActionResult({
+      data: undefined,
+      error: new ActionInputError([{ path: ["email"], message: "Invalid" }]),
+    });
+    expect(serializedErr.type).toBe("error");
+    const deserializedErr = deserializeActionResult(serializedErr);
+    expect(isInputError(deserializedErr.error)).toBe(true);
+
+    // Middleware getActionContext for incoming POST form action
+    await withAstroContext(
+      {
+        request: new Request(
+          "https://example.com/counter?_action=counter.increment",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(7),
+          },
+        ),
+        routePattern: "/counter",
+      },
+      async () => {
+        const actionCtx = getActionContext();
+        expect(actionCtx.action?.name).toBe("counter.increment");
+        expect(actionCtx.action?.calledFrom).toBe("form");
+        const handlerResult = await actionCtx.action!.handler();
+        actionCtx.setActionResult(
+          actionCtx.action!.name,
+          actionCtx.serializeActionResult(handlerResult),
+        );
+        expect(useAstro().getActionResult(increment)).toEqual({
+          data: { count: 17, route: "/counter" },
+          error: undefined,
+        });
+      },
+    );
+  });
+});
+
+describe("@tschk/moonshine-astro/config", () => {
+  test("defineConfig, mergeConfig, validateConfig, and image service helpers", async () => {
+    const raw = defineConfig({
+      site: "https://example.com",
+      base: "/docs",
+      output: "server",
+      image: {
+        service: passthroughImageService(),
+        domains: ["cdn.example.com"],
+      },
+      env: {
+        schema: {
+          API_URL: envField.string({ context: "server", access: "public" }),
+        },
+      },
+    });
+    expect(raw.base).toBe("/docs");
+    expect(sharpImageService({ limitInputPixels: false }).entrypoint).toBe(
+      "astro/assets/services/sharp",
+    );
+    expect(squooshImageService().entrypoint).toBe(
+      "astro/assets/services/squoosh",
+    );
+
+    const merged = mergeConfig(
+      {
+        base: "/",
+        integrations: [{ name: "one", hooks: {} }],
+        vite: { define: { A: "1" } },
+      },
+      {
+        base: "/app",
+        integrations: [{ name: "two", hooks: {} }],
+        vite: { define: { B: "2" } },
+      },
+    );
+    expect(merged.base).toBe("/app");
+    expect(merged.integrations.map((i) => i.name)).toEqual(["one", "two"]);
+    expect(merged.vite.define).toEqual({ A: "1", B: "2" });
+
+    const validated = await validateConfig(raw, "/workspace/project");
+    expect(validated.root.href).toBe("file:///workspace/project/");
+    expect(validated.srcDir.href).toBe("file:///workspace/project/src/");
+    expect(validated.outDir.href).toBe("file:///workspace/project/dist/");
+    expect(validated.image?.service?.entrypoint).toBe(
+      "astro/assets/services/noop",
     );
   });
 });

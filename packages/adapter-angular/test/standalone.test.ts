@@ -207,6 +207,7 @@ test.skipIf(!sourceCompiler)(
   async () => {
     const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, HostBinding, ViewChild, signal, computed, input, model, viewChild } from "@angular/core";
 import { CommonModule, UpperCasePipe } from "@angular/common";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 
 @Injectable({ providedIn: "root" })
 export class StepService {
@@ -228,17 +229,18 @@ export class BadgeBoxComponent {
 @Component({
   selector: "app-counter",
   standalone: true,
-  imports: [CommonModule, UpperCasePipe, BadgeBoxComponent],
+  imports: [CommonModule, ReactiveFormsModule, UpperCasePipe, BadgeBoxComponent],
   styles: [".counter { color: navy; }"],
   host: {
     "role": "region",
     "[class.is-positive]": "count() > 0",
   },
   template: \`
+    @let summaryLabel = (title() | uppercase) + ': ' + doubled();
     <div class="counter" [attr.data-step]="step" [style.color]="accent()" [style.padding.px]="12" [ngStyle]="{ border: '1px solid' }" [ngClass]="{ highlighted: count() > 0 }">
       <input #noteInput [value]="note()" />
       <small>{{ noteInput.value }}</small>
-      <span>{{ title() | uppercase }}: {{ doubled() }}</span>
+      <span>{{ summaryLabel }}</span>
       @if (count() > 0) {
         <em>Active</em>
       } @else {
@@ -254,7 +256,7 @@ export class BadgeBoxComponent {
       }
       <ul>
         @for (item of items(); track item) {
-          <li>{{ item }}</li>
+          <li>{{ $index }}:{{ item }}</li>
         }
       </ul>
       <div class="empty-check">
@@ -264,6 +266,12 @@ export class BadgeBoxComponent {
           <i>No rows</i>
         }
       </div>
+      <form [formGroup]="profileForm" (ngSubmit)="submitProfile()">
+        <input formControlName="username" />
+        <div formGroupName="address">
+          <input formControlName="city" />
+        </div>
+      </form>
       <ng-container>
         <app-badge-box [(val)]="syncedCount">Projected Content</app-badge-box>
       </ng-container>
@@ -284,12 +292,23 @@ export class CounterComponent {
   items = signal(["x", "y"]);
   emptyRows = signal<string[]>([]);
   doubled = computed(() => this.count() * 2);
+  profileForm = new FormGroup({
+    username: new FormControl("ada"),
+    address: new FormGroup({
+      city: new FormControl("London"),
+    }),
+  });
+  submittedCount = 0;
   noteRef = viewChild("noteInput");
   @ViewChild("noteInput") decoratedNoteRef?: any;
   viewReady = false;
 
   ngAfterViewInit() {
     this.viewReady = Boolean(this.noteRef() && this.decoratedNoteRef);
+  }
+
+  submitProfile() {
+    this.submittedCount += 1;
   }
 
   increment() {
@@ -314,8 +333,11 @@ assert.ok(html.includes('<small>ready</small>'), html);
 assert.ok(html.includes('SCORE: 8'), html);
 assert.ok(html.includes('<em>Active</em>'), html);
 assert.ok(html.includes('<strong>Editing</strong>'), html);
-assert.ok(html.includes('<li>x</li><li>y</li>'), html);
+assert.ok(html.includes('<li>0:x</li><li>1:y</li>'), html);
 assert.ok(html.includes('<i>No rows</i>'), html);
+assert.ok(html.includes('value="ada"'), html);
+assert.ok(html.includes('value="London"'), html);
+assert.ok(html.includes('ng-untouched ng-pristine ng-valid'), html);
 assert.ok(html.includes('<b>25</b>Projected Content'), html);
 
 const appRef = await bootstrapApplication(NamedCounter);
@@ -324,6 +346,7 @@ const inst = appRef.components[0].instance;
 assert.equal(inst.doubled(), 8);
 assert.equal(inst.viewReady, true);
 assert.equal(inst.noteRef()?.nativeElement?.value, 'ready');
+assert.equal(inst.profileForm.get('address.city')?.value, 'London');
 const emitted: number[] = [];
 inst.changed.subscribe((v: number) => emitted.push(v));
 inst.increment();

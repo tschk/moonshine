@@ -2304,6 +2304,7 @@ export class NgSwitchCase<T = unknown> {
 }
 
 export class NgSwitchDefault {
+  readonly ɵkind = "NgDirective";
   static readonly ɵdir = {
     selector: "[ngSwitchDefault]",
     standalone: true,
@@ -2362,6 +2363,7 @@ export const COMMON_DIRECTIVES = [
 ] as const;
 
 export class CommonModule {
+  readonly ɵkind = "NgModule";
   static readonly ɵmod = {
     id: "CommonModule",
     declarations: [],
@@ -2643,7 +2645,7 @@ export function mergeAngularHostProps(
     return baseProps ?? null;
   }
 
-  const out: Record<string, any> = { ...(baseProps ?? {}) };
+  const out: Record<string, any> = { ...baseProps };
   const classGetters: Array<() => string> = [];
   const styleGetters: Array<() => Record<string, any> | string | null> = [];
 

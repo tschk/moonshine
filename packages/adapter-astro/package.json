@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-astro",
-  "version": "0.4.71",
+  "version": "0.4.72",
   "description": "Native signal bridges and rendering with optional legacy astro entries",
   "license": "ISC",
   "type": "module",
@@ -11,6 +11,7 @@
     "./actions": "./src/actions.ts",
     "./assets": "./src/assets.ts",
     "./compiler": "./src/compiler.ts",
+    "./config": "./src/config.ts",
     "./container": "./src/container.ts",
     "./content": "./src/content.ts",
     "./context": "./src/context.ts",

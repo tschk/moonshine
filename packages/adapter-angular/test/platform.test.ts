@@ -116,7 +116,6 @@ import {
 import {
   provideRouter,
   ROUTER_CONFIGURATION,
-  Router,
   RouterLink,
   RouterLinkActive,
   RouterOutlet,
@@ -452,7 +451,11 @@ describe("@tschk/moonshine-angular/platform", () => {
       "step",
     );
     Output("stepChanged")(WidgetComponent.prototype, "changed");
-    Directive({ selector: "[appDir]" })(class Dir {});
+    Directive({ selector: "[appDir]" })(
+      class Dir {
+        active = true;
+      },
+    );
     ViewChild("box")(WidgetComponent.prototype, "box");
     ViewChildren("items")(WidgetComponent.prototype, "items");
     ContentChild("projected")(WidgetComponent.prototype, "projected");
@@ -646,5 +649,125 @@ describe("@tschk/moonshine-angular/platform", () => {
     merged["on:click"]({ type: "click" });
     expect(inst.clicks).toBe(1);
     expect(lifecycleOrder[2]).toBe("click:click");
+  });
+
+  test("ReactiveFormsModule, FormsModule, value accessors, directives, bindAngularFormControl, and bindAngularFormGroup", async () => {
+    const forms = await import("../src/forms");
+    expect(forms.ReactiveFormsModule.ɵmod.exports).toEqual(
+      forms.REACTIVE_DRIVEN_DIRECTIVES,
+    );
+    expect(forms.FormsModule.ɵmod.exports).toEqual(
+      forms.TEMPLATE_DRIVEN_DIRECTIVES,
+    );
+    expect(
+      forms.ReactiveFormsModule.withConfig({ callSetDisabledState: "always" })
+        .ngModule,
+    ).toBe(forms.ReactiveFormsModule);
+    expect(
+      forms.FormsModule.withConfig({ callSetDisabledState: "always" }).ngModule,
+    ).toBe(forms.FormsModule);
+
+    const dva = new forms.DefaultValueAccessor();
+    dva.writeValue("initial");
+    expect(dva.value).toBe("initial");
+    dva.setDisabledState(true);
+    expect(dva.disabled).toBe(true);
+
+    const cva = new forms.CheckboxControlValueAccessor();
+    cva.writeValue(1);
+    expect(cva.checked).toBe(true);
+
+    const nva = new forms.NumberValueAccessor();
+    nva.writeValue(42);
+    expect(nva.value).toBe(42);
+
+    const sva = new forms.SelectControlValueAccessor();
+    sva.writeValue("opt-a");
+    expect(sva.value).toBe("opt-a");
+
+    const group = new forms.FormGroup({
+      username: new forms.FormControl("ada", [forms.Validators.required]),
+      subscribed: new forms.FormControl(false),
+      age: new forms.FormControl<number | null>(30),
+      address: new forms.FormGroup({
+        city: new forms.FormControl("London"),
+      }),
+    });
+
+    expect(forms.resolveAngularFormControl(group, "username")).toBe(
+      group.controls.username,
+    );
+    expect(forms.resolveAngularFormControl(() => group, "address.city")).toBe(
+      group.controls.address.controls.city,
+    );
+
+    const usernameProps = forms.bindAngularFormControl(
+      () => group.controls.username,
+      { class: "field" },
+      "text",
+    );
+    expect(usernameProps.value()).toBe("ada");
+    expect(usernameProps.class()).toBe(
+      "field ng-untouched ng-pristine ng-valid",
+    );
+    expect(usernameProps.disabled()).toBe(false);
+
+    usernameProps["on:input"]({ currentTarget: { value: "" } });
+    expect(group.controls.username.value).toBe("");
+    expect(group.controls.username.dirty).toBe(true);
+    expect(group.controls.username.invalid).toBe(true);
+    expect(usernameProps.class()).toBe(
+      "field ng-untouched ng-dirty ng-invalid",
+    );
+
+    usernameProps["on:blur"]({});
+    expect(group.controls.username.touched).toBe(true);
+    expect(usernameProps.class()).toBe("field ng-touched ng-dirty ng-invalid");
+
+    const checkboxProps = forms.bindAngularFormControl(
+      () => group.controls.subscribed,
+      null,
+      "checkbox",
+    );
+    expect(checkboxProps.checked()).toBe(false);
+    checkboxProps["on:change"]({ currentTarget: { checked: true } });
+    expect(group.controls.subscribed.value).toBe(true);
+    expect(checkboxProps.checked()).toBe(true);
+
+    const numberProps = forms.bindAngularFormControl(
+      () => group.controls.age,
+      null,
+      "number",
+    );
+    expect(numberProps.value()).toBe("30");
+    numberProps["on:input"]({ currentTarget: { value: "35" } });
+    expect(group.controls.age.value).toBe(35);
+
+    let submittedEvents = 0;
+    let defaultPrevented = false;
+    const formProps = forms.bindAngularFormGroup(
+      () => group,
+      { class: "profile-form" },
+      () => {
+        submittedEvents += 1;
+      },
+    );
+    expect(formProps.class()).toBe(
+      "profile-form ng-touched ng-dirty ng-invalid",
+    );
+    formProps["on:submit"]({
+      preventDefault() {
+        defaultPrevented = true;
+      },
+    });
+    expect(defaultPrevented).toBe(true);
+    expect(submittedEvents).toBe(1);
+
+    const fgDir = new forms.FormGroupDirective(group);
+    fgDir.onSubmit();
+    expect(fgDir.submitted).toBe(true);
+    fgDir.resetForm({ username: "grace", subscribed: false, age: 40 });
+    expect(fgDir.submitted).toBe(false);
+    expect(group.controls.username.value).toBe("grace");
   });
 });

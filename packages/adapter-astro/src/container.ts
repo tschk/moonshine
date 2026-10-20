@@ -46,6 +46,7 @@ export interface ContainerRenderOptions<
   slots?: Record<string, AstroSlotValue>;
   request?: Request;
   url?: string | URL;
+  routePattern?: string;
   locals?: Record<string, any>;
   cookies?: AstroCookies | Record<string, string> | string;
   site?: string | URL;
@@ -294,6 +295,7 @@ export class AstroContainer {
             ...options,
             request: nextRequest,
             url: targetUrl,
+            routePattern: route.pattern,
             params: {
               ...route.defaultParams,
               ...matchedParams,
@@ -321,6 +323,7 @@ export class AstroContainer {
       slots: rawSlots,
       request: options.request,
       url: options.url,
+      routePattern: options.routePattern,
       cookies: resolvedCookies,
       site: options.site ?? this.options.site,
       clientAddress: options.clientAddress ?? this.options.clientAddress,
