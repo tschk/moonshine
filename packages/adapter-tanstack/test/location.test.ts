@@ -47,7 +47,9 @@ describe("stringifySearch", () => {
   });
 
   test("stringifies nested objects as JSON", () => {
-    expect(stringifySearch({ user: { name: "Alice" } })).toBe("?user=%7B%22name%22%3A%22Alice%22%7D");
+    expect(stringifySearch({ user: { name: "Alice" } })).toBe(
+      "?user=%7B%22name%22%3A%22Alice%22%7D",
+    );
   });
 });
 
