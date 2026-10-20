@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-solid",
-  "version": "0.4.74",
+  "version": "0.4.75",
   "description": "Independent Moonshine replacement for supported Solid APIs and Crepus IR",
   "license": "ISC",
   "type": "module",
@@ -20,7 +20,10 @@
     "./portal": "./src/portal.ts",
     "./dynamic": "./src/dynamic.ts",
     "./router": "./src/router.ts",
-    "./meta": "./src/meta.ts"
+    "./meta": "./src/meta.ts",
+    "./start": "./src/start.ts",
+    "./start/server": "./src/start.ts",
+    "./start/client": "./src/start.ts"
   },
   "dependencies": {
     "@tschk/moonshine": "0.4.73",

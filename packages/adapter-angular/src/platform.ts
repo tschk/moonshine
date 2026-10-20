@@ -3,9 +3,11 @@
  * decorators, lifecycle, and common pipe primitives backed by the Moonshine reactive and DI graph.
  */
 import {
+  createRoot,
   getOwner,
   onCleanup as domOnCleanup,
 } from "@tschk/moonshine-dom/reactive";
+import { withSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
 import {
   applyInputValue,
   applyQueryValue,
@@ -649,6 +651,7 @@ export interface ComponentRef<C = any> {
   readonly componentType: Type<C>;
   readonly injector: EnvironmentInjector;
   readonly destroyRef: DestroyRef;
+  readonly ɵrendered?: unknown;
   destroy(): void;
 }
 
@@ -674,33 +677,58 @@ export class ApplicationRef {
     const ResolvedClass = ((componentOrFactory as any)?.ɵClass ??
       componentOrFactory) as Type<C>;
     let instance!: C;
+    let rendered: unknown;
+    const destroyRef = this.injector.get(DestroyRef);
+    let rootDispose: (() => void) | undefined;
+    const isServer = isPlatformServer(
+      this.injector.get(PLATFORM_ID, PLATFORM_BROWSER_ID),
+    );
     runInInjectionContext(this.injector, () => {
       if (
         typeof componentOrFactory === "function" &&
         "ɵClass" in componentOrFactory
       ) {
-        try {
-          (componentOrFactory as any)({
-            __onInstance: (inst: C) => {
-              instance = inst;
-            },
+        const invokeFactory = () =>
+          createRoot((dispose) => {
+            rootDispose = dispose;
+            return (componentOrFactory as any)({
+              __onInstance: (inst: C) => {
+                instance = inst;
+              },
+            });
           });
+        try {
+          rendered = isServer
+            ? withSSRRendering(invokeFactory)
+            : invokeFactory();
         } catch {
-          if (!instance) {
-            instance = instantiateAngularComponent(ResolvedClass as any) as C;
+          try {
+            rendered = withSSRRendering(invokeFactory);
+          } catch {
+            if (!instance) {
+              instance = instantiateAngularComponent(ResolvedClass as any) as C;
+            }
           }
         }
       } else {
         instance = instantiateAngularComponent(ResolvedClass as any) as C;
+        if (typeof (ResolvedClass as any)?.ɵRender === "function") {
+          rendered = (ResolvedClass as any).ɵRender(instance);
+        }
       }
     });
-    const destroyRef = this.injector.get(DestroyRef);
+    if (rootDispose) {
+      destroyRef.onDestroy(rootDispose);
+    }
     const ref: ComponentRef<C> = {
       instance,
       componentType: ResolvedClass,
       injector: this.injector,
       destroyRef,
+      ɵrendered: rendered,
       destroy: () => {
+        rootDispose?.();
+        rootDispose = undefined;
         const idx = this.components.indexOf(ref);
         if (idx >= 0) this.components.splice(idx, 1);
       },
@@ -734,7 +762,7 @@ export async function createApplication(
 }
 
 export async function bootstrapApplication<C>(
-  rootComponent: Type<C>,
+  rootComponent: Type<C> | ((props?: any) => any),
   options?: ApplicationConfig,
 ): Promise<ApplicationRef> {
   const appRef = await createApplication(options);
@@ -2351,6 +2379,414 @@ export class NgTemplateOutlet<C = unknown> {
   ngTemplateOutletInjector: Injector | null = null;
 }
 
+// ============================================================================
+// `NgOptimizedImage` & Image Loaders (`@angular/common`)
+// ============================================================================
+
+export interface ImageConfig {
+  breakpoints?: number[];
+  disableOptimizedSrcset?: boolean;
+  placeholderResolution?: number;
+}
+
+export const DEFAULT_IMAGE_CONFIG: Required<ImageConfig> = {
+  breakpoints: [
+    16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080, 1200, 1920, 2048,
+    3840,
+  ],
+  disableOptimizedSrcset: false,
+  placeholderResolution: 30,
+};
+
+export const IMAGE_CONFIG = new InjectionToken<ImageConfig>("IMAGE_CONFIG", {
+  providedIn: "root",
+  factory: () => DEFAULT_IMAGE_CONFIG,
+});
+
+export interface ImageLoaderConfig {
+  src: string;
+  width?: number;
+  loaderParams?: Record<string, any>;
+  isPlaceholder?: boolean;
+}
+
+export type ImageLoader = (config: ImageLoaderConfig) => string;
+
+export interface ImageLoaderInfo {
+  path: string;
+  placeholder?: boolean;
+}
+
+export const defaultImageLoader: ImageLoader = (config: ImageLoaderConfig) =>
+  config.src;
+
+export const IMAGE_LOADER = new InjectionToken<ImageLoader>("ImageLoader", {
+  providedIn: "root",
+  factory: () => defaultImageLoader,
+});
+
+function trimTrailingSlash(path: string): string {
+  return path.replace(/\/+$/, "");
+}
+
+function trimLeadingSlash(src: string): string {
+  return src.replace(/^\/+/, "");
+}
+
+export function provideImgixLoader(path: string): Provider[] {
+  const base = trimTrailingSlash(path);
+  const loader: ImageLoader = (config: ImageLoaderConfig) => {
+    const cleanSrc = trimLeadingSlash(config.src);
+    const params = new URLSearchParams();
+    params.set("auto", "format");
+    if (config.width) {
+      params.set("w", String(config.width));
+    }
+    if (config.isPlaceholder) {
+      params.set("q", "20");
+      params.set("blur", "15");
+    }
+    if (config.loaderParams) {
+      for (const [k, v] of Object.entries(config.loaderParams)) {
+        if (v !== undefined && v !== null) {
+          params.set(k, String(v));
+        }
+      }
+    }
+    return `${base}/${cleanSrc}?${params.toString()}`;
+  };
+  return [{ provide: IMAGE_LOADER, useValue: loader }];
+}
+
+export function provideCloudinaryLoader(path: string): Provider[] {
+  const base = trimTrailingSlash(path);
+  const loader: ImageLoader = (config: ImageLoaderConfig) => {
+    const cleanSrc = trimLeadingSlash(config.src);
+    const transforms = [
+      "f_auto",
+      config.isPlaceholder ? "q_auto:low" : "q_auto",
+    ];
+    if (config.width) {
+      transforms.push(`w_${config.width}`);
+    }
+    if (config.loaderParams?.rounded) {
+      transforms.push("r_max");
+    }
+    return `${base}/${transforms.join(",")}/${cleanSrc}`;
+  };
+  return [{ provide: IMAGE_LOADER, useValue: loader }];
+}
+
+export function provideCloudflareLoader(path: string): Provider[] {
+  const base = trimTrailingSlash(path);
+  const loader: ImageLoader = (config: ImageLoaderConfig) => {
+    const cleanSrc = trimLeadingSlash(config.src);
+    const opts = ["format=auto"];
+    if (config.width) {
+      opts.push(`width=${config.width}`);
+    }
+    if (config.isPlaceholder) {
+      opts.push("quality=20");
+    }
+    return `${base}/cdn-cgi/image/${opts.join(",")}/${cleanSrc}`;
+  };
+  return [{ provide: IMAGE_LOADER, useValue: loader }];
+}
+
+export function provideNetlifyLoader(path?: string): Provider[] {
+  const base = path ? trimTrailingSlash(path) : "";
+  const loader: ImageLoader = (config: ImageLoaderConfig) => {
+    const srcParam = config.src.startsWith("/") ? config.src : `/${config.src}`;
+    const params = new URLSearchParams();
+    params.set("url", srcParam);
+    if (config.width) {
+      params.set("w", String(config.width));
+    }
+    if (config.isPlaceholder) {
+      params.set("q", "20");
+    }
+    return `${base}/.netlify/images?${params.toString()}`;
+  };
+  return [{ provide: IMAGE_LOADER, useValue: loader }];
+}
+
+export interface ImagePlaceholderConfig {
+  blur?: boolean;
+}
+
+export class NgOptimizedImage {
+  static readonly ɵdir = {
+    selector: "img[ngSrc]",
+    standalone: true,
+    inputs: [
+      "ngSrc",
+      "ngSrcset",
+      "sizes",
+      "width",
+      "height",
+      "loading",
+      "priority",
+      "loaderParams",
+      "disableOptimizedSrcset",
+      "fill",
+      "placeholder",
+      "placeholderConfig",
+    ],
+  };
+
+  ngSrc = "";
+  ngSrcset?: string;
+  sizes?: string;
+  width?: number | string;
+  height?: number | string;
+  loading?: "lazy" | "eager" | "auto";
+  priority = false;
+  loaderParams?: Record<string, any>;
+  disableOptimizedSrcset = false;
+  fill = false;
+  placeholder?: string | boolean;
+  placeholderConfig?: ImagePlaceholderConfig;
+}
+
+export interface NgOptimizedImageBindingConfig {
+  ngSrc: () => unknown;
+  ngSrcset?: () => unknown;
+  sizes?: () => unknown;
+  width?: () => unknown;
+  height?: () => unknown;
+  loading?: () => unknown;
+  priority?: () => unknown;
+  fill?: () => unknown;
+  loaderParams?: () => Record<string, any> | undefined;
+  disableOptimizedSrcset?: () => unknown;
+  placeholder?: () => unknown;
+  placeholderConfig?: () => ImagePlaceholderConfig | undefined;
+}
+
+function readMaybeSignal(value: unknown): any {
+  if (isSignal(value)) {
+    return (value as Signal<any>)();
+  }
+  return value;
+}
+
+export function resolveNgOptimizedImageProps(
+  instance: any,
+  config: NgOptimizedImageBindingConfig,
+  baseProps?: Record<string, any> | null,
+): Record<string, any> {
+  const injector = getAngularInstanceInjector(instance) ?? getCurrentInjector();
+  const loader =
+    injector?.get(IMAGE_LOADER, defaultImageLoader, { optional: true }) ??
+    defaultImageLoader;
+  const imgConfig: Required<ImageConfig> = {
+    ...DEFAULT_IMAGE_CONFIG,
+    ...(injector?.get(IMAGE_CONFIG, DEFAULT_IMAGE_CONFIG, { optional: true }) ??
+      DEFAULT_IMAGE_CONFIG),
+  };
+
+  const out: Record<string, any> = { ...baseProps };
+
+  const resolveNumber = (raw: unknown): number | undefined => {
+    const val = readMaybeSignal(raw);
+    if (val === undefined || val === null || val === "") return undefined;
+    const n = Number(val);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+
+  const resolveBool = (raw: unknown): boolean => {
+    const val = readMaybeSignal(raw);
+    return val === "" || Boolean(val && val !== "false");
+  };
+
+  const getWidth = () => {
+    if (config.width) return resolveNumber(config.width());
+    if (baseProps && "width" in baseProps) {
+      const bp =
+        typeof baseProps.width === "function"
+          ? baseProps.width()
+          : baseProps.width;
+      return resolveNumber(bp);
+    }
+    return undefined;
+  };
+
+  const getHeight = () => {
+    if (config.height) return resolveNumber(config.height());
+    if (baseProps && "height" in baseProps) {
+      const bp =
+        typeof baseProps.height === "function"
+          ? baseProps.height()
+          : baseProps.height;
+      return resolveNumber(bp);
+    }
+    return undefined;
+  };
+
+  const getPriority = () =>
+    config.priority ? resolveBool(config.priority()) : false;
+  const getFill = () => (config.fill ? resolveBool(config.fill()) : false);
+  const getLoaderParams = () =>
+    config.loaderParams ? readMaybeSignal(config.loaderParams()) : undefined;
+
+  out["ng-img"] = "true";
+
+  out.src = () => {
+    const rawSrc = String(readMaybeSignal(config.ngSrc()) ?? "");
+    if (!rawSrc) return "";
+    return loader({
+      src: rawSrc,
+      width: getWidth(),
+      loaderParams: getLoaderParams(),
+    });
+  };
+
+  out.srcset = () => {
+    const rawSrc = String(readMaybeSignal(config.ngSrc()) ?? "");
+    if (!rawSrc) return undefined;
+    const disabled =
+      (config.disableOptimizedSrcset
+        ? resolveBool(config.disableOptimizedSrcset())
+        : false) || imgConfig.disableOptimizedSrcset;
+    if (disabled) return undefined;
+
+    const explicitSrcset = config.ngSrcset
+      ? String(readMaybeSignal(config.ngSrcset()) ?? "").trim()
+      : "";
+    const loaderParams = getLoaderParams();
+    const baseWidth = getWidth();
+
+    if (explicitSrcset) {
+      const parts = explicitSrcset
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const built: string[] = [];
+      for (const part of parts) {
+        if (part.endsWith("w")) {
+          const w = Number.parseInt(part.slice(0, -1), 10);
+          if (Number.isFinite(w) && w > 0) {
+            built.push(
+              `${loader({ src: rawSrc, width: w, loaderParams })} ${w}w`,
+            );
+          }
+        } else if (part.endsWith("x")) {
+          const density = Number.parseFloat(part.slice(0, -1));
+          const w =
+            baseWidth && Number.isFinite(density)
+              ? Math.round(baseWidth * density)
+              : undefined;
+          built.push(
+            `${loader({ src: rawSrc, width: w, loaderParams })} ${part}`,
+          );
+        }
+      }
+      return built.length > 0 ? built.join(", ") : undefined;
+    }
+
+    if (loader === defaultImageLoader) {
+      return undefined;
+    }
+
+    const sizesVal = config.sizes
+      ? readMaybeSignal(config.sizes())
+      : baseProps?.sizes;
+    const isResponsive = Boolean(sizesVal) || getFill();
+    if (isResponsive) {
+      const bps = imgConfig.breakpoints ?? DEFAULT_IMAGE_CONFIG.breakpoints;
+      return bps
+        .map(
+          (bp) => `${loader({ src: rawSrc, width: bp, loaderParams })} ${bp}w`,
+        )
+        .join(", ");
+    }
+
+    if (baseWidth) {
+      const url1x = loader({ src: rawSrc, width: baseWidth, loaderParams });
+      const url2x = loader({ src: rawSrc, width: baseWidth * 2, loaderParams });
+      return `${url1x} 1x, ${url2x} 2x`;
+    }
+
+    return undefined;
+  };
+
+  if (config.width || (baseProps && "width" in baseProps)) {
+    out.width = () => (getFill() ? undefined : getWidth());
+  }
+  if (config.height || (baseProps && "height" in baseProps)) {
+    out.height = () => (getFill() ? undefined : getHeight());
+  }
+
+  out.sizes = () => {
+    const rawSizes = config.sizes
+      ? readMaybeSignal(config.sizes())
+      : typeof baseProps?.sizes === "function"
+        ? baseProps.sizes()
+        : baseProps?.sizes;
+    if (rawSizes) return String(rawSizes);
+    if (getFill()) return "100vw";
+    return undefined;
+  };
+
+  out.loading = () => {
+    if (config.loading) {
+      const explicit = readMaybeSignal(config.loading());
+      if (explicit) return String(explicit);
+    }
+    return getPriority() ? "eager" : "lazy";
+  };
+
+  out.fetchpriority = () => (getPriority() ? "high" : "auto");
+  out.decoding = () => (getPriority() ? "sync" : "async");
+
+  const existingStyle = out.style;
+  if (config.fill || config.placeholder || existingStyle !== undefined) {
+    out.style = () => {
+      const baseSt =
+        typeof existingStyle === "function" ? existingStyle() : existingStyle;
+      const extra: Record<string, any> = {};
+      if (getFill()) {
+        extra.position = "absolute";
+        extra.width = "100%";
+        extra.height = "100%";
+        extra.inset = "0px";
+      }
+      if (config.placeholder) {
+        const ph = readMaybeSignal(config.placeholder());
+        const rawSrc = String(readMaybeSignal(config.ngSrc()) ?? "");
+        if (ph) {
+          const bgUrl =
+            typeof ph === "string" &&
+            (ph.startsWith("data:") ||
+              ph.startsWith("http") ||
+              ph.startsWith("/"))
+              ? ph
+              : loader({
+                  src: rawSrc,
+                  width: imgConfig.placeholderResolution,
+                  loaderParams: getLoaderParams(),
+                  isPlaceholder: true,
+                });
+          extra["background-size"] = "cover";
+          extra["background-position"] = "50% 50%";
+          extra["background-repeat"] = "no-repeat";
+          extra["background-image"] = `url(${bgUrl})`;
+          const phCfg = config.placeholderConfig
+            ? readMaybeSignal(config.placeholderConfig())
+            : undefined;
+          if (phCfg?.blur !== false) {
+            extra.filter = "blur(15px)";
+          }
+        }
+      }
+      const merged = normalizeNgStyle(baseSt, extra);
+      return merged || undefined;
+    };
+  }
+
+  return out;
+}
+
 export const COMMON_DIRECTIVES = [
   NgClass,
   NgForOf,
@@ -2360,6 +2796,7 @@ export const COMMON_DIRECTIVES = [
   NgSwitch,
   NgSwitchCase,
   NgSwitchDefault,
+  NgOptimizedImage,
 ] as const;
 
 export class CommonModule {
@@ -3078,4 +3515,654 @@ export function instantiateAngularComponent<T extends object>(
   }
 
   return instance;
+}
+
+// ============================================================================
+// Server-Side Rendering & Hybrid Routing (`@angular/ssr` & `@angular/platform-server`)
+// ============================================================================
+
+export interface AngularServerResponseInit extends ResponseInit {
+  status?: number;
+  statusText?: string;
+  headers: Headers;
+}
+
+export interface AngularServerContext {
+  readonly request: Request;
+  readonly requestContext?: unknown;
+  readonly responseInit: AngularServerResponseInit;
+}
+
+export interface AngularServerContextInit {
+  request: Request | string | URL;
+  requestContext?: unknown;
+  responseInit?: ResponseInit;
+}
+
+const serverContextStack: AngularServerContext[] = [];
+
+export function peekAngularServerContext(): AngularServerContext | undefined {
+  return serverContextStack[serverContextStack.length - 1];
+}
+
+export function withAngularServerContext<T>(
+  init: AngularServerContextInit,
+  fn: (ctx: AngularServerContext) => T,
+): T {
+  const request =
+    init.request instanceof Request
+      ? init.request
+      : new Request(String(init.request));
+  const headers = new Headers(init.responseInit?.headers);
+  const responseInit: AngularServerResponseInit = {
+    status: init.responseInit?.status ?? 200,
+    statusText: init.responseInit?.statusText ?? "",
+    headers,
+  };
+  const ctx: AngularServerContext = {
+    request,
+    requestContext: init.requestContext,
+    responseInit,
+  };
+  serverContextStack.push(ctx);
+  let isAsync = false;
+  try {
+    const result = fn(ctx);
+    if (
+      result !== null &&
+      typeof result === "object" &&
+      typeof (result as any).then === "function"
+    ) {
+      isAsync = true;
+      return Promise.resolve(result).finally(() => {
+        const idx = serverContextStack.lastIndexOf(ctx);
+        if (idx >= 0) serverContextStack.splice(idx, 1);
+      }) as unknown as T;
+    }
+    return result;
+  } finally {
+    if (!isAsync) {
+      const idx = serverContextStack.lastIndexOf(ctx);
+      if (idx >= 0) serverContextStack.splice(idx, 1);
+    }
+  }
+}
+
+export const REQUEST = new InjectionToken<Request | null>("REQUEST", {
+  providedIn: "root",
+  factory: () => peekAngularServerContext()?.request ?? null,
+});
+
+export const REQUEST_CONTEXT = new InjectionToken<unknown>("REQUEST_CONTEXT", {
+  providedIn: "root",
+  factory: () => peekAngularServerContext()?.requestContext,
+});
+
+export const RESPONSE_INIT =
+  new InjectionToken<AngularServerResponseInit | null>("RESPONSE_INIT", {
+    providedIn: "root",
+    factory: () => peekAngularServerContext()?.responseInit ?? null,
+  });
+
+export enum RenderMode {
+  Server = 0,
+  Client = 1,
+  Prerender = 2,
+}
+
+export enum PrerenderFallback {
+  Server = 0,
+  Client = 1,
+  None = 2,
+}
+
+export interface ServerRouteCommon {
+  path: string;
+  headers?: Record<string, string>;
+  status?: number;
+}
+
+export interface ServerRouteClient extends ServerRouteCommon {
+  renderMode: RenderMode.Client;
+}
+
+export interface ServerRouteServer extends ServerRouteCommon {
+  renderMode: RenderMode.Server;
+}
+
+export interface ServerRoutePrerender extends ServerRouteCommon {
+  renderMode: RenderMode.Prerender;
+  fallback?: PrerenderFallback;
+}
+
+export interface ServerRoutePrerenderWithParams extends ServerRoutePrerender {
+  getPrerenderParams: () => Promise<Array<Record<string, string>>>;
+}
+
+export type ServerRoute =
+  | ServerRouteClient
+  | ServerRouteServer
+  | ServerRoutePrerender
+  | ServerRoutePrerenderWithParams;
+
+export const SERVER_ROUTES_CONFIG = new InjectionToken<ServerRoute[]>(
+  "SERVER_ROUTES_CONFIG",
+  {
+    providedIn: "root",
+    factory: () => [],
+  },
+);
+
+export const APP_SHELL_COMPONENT = new InjectionToken<
+  Type<unknown> | ((props?: any) => any) | null
+>("APP_SHELL_COMPONENT", {
+  providedIn: "root",
+  factory: () => null,
+});
+
+export enum ServerRouterFeatureKind {
+  AppShell = 0,
+  ServerRoutes = 1,
+}
+
+export interface ServerRouterFeature<
+  KindT extends ServerRouterFeatureKind = ServerRouterFeatureKind,
+> {
+  readonly ɵkind: KindT;
+  readonly ɵproviders: Provider[];
+}
+
+export function withAppShell(
+  component: Type<unknown> | ((props?: any) => any),
+): ServerRouterFeature<ServerRouterFeatureKind.AppShell> {
+  return {
+    ɵkind: ServerRouterFeatureKind.AppShell,
+    ɵproviders: [{ provide: APP_SHELL_COMPONENT, useValue: component }],
+  };
+}
+
+export function withRoutes(
+  routes: ServerRoute[],
+): ServerRouterFeature<ServerRouterFeatureKind.ServerRoutes> {
+  return {
+    ɵkind: ServerRouterFeatureKind.ServerRoutes,
+    ɵproviders: [{ provide: SERVER_ROUTES_CONFIG, useValue: [...routes] }],
+  };
+}
+
+export function provideServerRouting(
+  routes: ServerRoute[],
+  ...features: ServerRouterFeature[]
+): EnvironmentProviders {
+  const providers: Provider[] = [
+    { provide: PLATFORM_ID, useValue: PLATFORM_SERVER_ID },
+    { provide: SERVER_ROUTES_CONFIG, useValue: [...routes] },
+  ];
+  for (const feat of features) {
+    providers.push(...feat.ɵproviders);
+  }
+  return makeEnvironmentProviders(providers);
+}
+
+export function provideServerRoutesConfig(
+  routes: ServerRoute[],
+  ...features: ServerRouterFeature[]
+): EnvironmentProviders {
+  return provideServerRouting(routes, ...features);
+}
+
+export function matchServerRoute(
+  routes: readonly ServerRoute[],
+  pathname: string,
+): { route: ServerRoute; params: Record<string, string> } | null {
+  const cleanActual = pathname
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")
+    .filter(Boolean);
+
+  for (const route of routes) {
+    const cleanPattern = route.path
+      .replace(/^\/+|\/+$/g, "")
+      .split("/")
+      .filter(Boolean);
+
+    if (cleanPattern.length === 1 && cleanPattern[0] === "**") {
+      return { route, params: {} };
+    }
+
+    const params: Record<string, string> = {};
+    let matched = true;
+    let i = 0;
+    for (; i < cleanPattern.length; i++) {
+      const pSeg = cleanPattern[i]!;
+      if (pSeg === "**") {
+        return { route, params };
+      }
+      if (i >= cleanActual.length) {
+        matched = false;
+        break;
+      }
+      const aSeg = cleanActual[i]!;
+      if (pSeg.startsWith(":")) {
+        params[pSeg.slice(1)] = decodeURIComponent(aSeg);
+      } else if (pSeg !== aSeg) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched && i === cleanActual.length) {
+      return { route, params };
+    }
+  }
+  return null;
+}
+
+export interface PlatformConfig {
+  document?: string;
+  url?: string;
+  useAbsoluteUrl?: boolean;
+}
+
+export const INITIAL_CONFIG = new InjectionToken<PlatformConfig>(
+  "Server.INITIAL_CONFIG",
+);
+
+export const BEFORE_APP_SERIALIZED = new InjectionToken<
+  ReadonlyArray<() => void | Promise<void>>
+>("Server.RENDER_MODULE_HOOK");
+
+export const ENABLE_DOM_EMULATION = new InjectionToken<boolean>(
+  "ENABLE_DOM_EMULATION",
+  {
+    providedIn: "root",
+    factory: () => true,
+  },
+);
+
+export const SERVER_CONTEXT = new InjectionToken<string>("SERVER_CONTEXT", {
+  providedIn: "root",
+  factory: () => "other",
+});
+
+export function provideServerRendering(
+  ...features: Array<ServerRouterFeature | EnvironmentProviders>
+): EnvironmentProviders {
+  const providers: Array<Provider | EnvironmentProviders> = [
+    { provide: PLATFORM_ID, useValue: PLATFORM_SERVER_ID },
+  ];
+  for (const feature of features) {
+    if (
+      feature &&
+      "ɵproviders" in feature &&
+      Array.isArray(feature.ɵproviders)
+    ) {
+      providers.push(...feature.ɵproviders);
+    } else if (feature) {
+      providers.push(feature as EnvironmentProviders);
+    }
+  }
+  return makeEnvironmentProviders(providers);
+}
+
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+export function serializeAngularRenderedOutput(
+  value: unknown,
+  topLevel = true,
+): string {
+  if (value === null || value === undefined || typeof value === "boolean") {
+    return "";
+  }
+  if (typeof value === "string") {
+    return topLevel ? value : escapeHtmlText(value);
+  }
+  if (typeof value === "number" || typeof value === "bigint") {
+    return escapeHtmlText(String(value));
+  }
+  if (typeof value === "function") {
+    return serializeAngularRenderedOutput((value as () => unknown)(), false);
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => serializeAngularRenderedOutput(item, false))
+      .join("");
+  }
+  if (typeof value === "object") {
+    for (const sym of Object.getOwnPropertySymbols(value)) {
+      if (
+        sym.description === "moonshine server HTML" &&
+        typeof (value as any)[sym] === "function"
+      ) {
+        return String((value as any)[sym]());
+      }
+      if (sym.description === "moonshine SSR owner" && "child" in value) {
+        return serializeAngularRenderedOutput((value as any).child, false);
+      }
+    }
+    if (typeof (value as any).outerHTML === "string") {
+      return (value as any).outerHTML;
+    }
+    if (typeof (value as any).innerHTML === "string") {
+      return (value as any).innerHTML;
+    }
+  }
+  return "";
+}
+
+const DEFAULT_SERVER_DOCUMENT =
+  "<!DOCTYPE html><html><head></head><body><app-root></app-root></body></html>";
+
+async function serializeBootstrappedApplication(
+  appRef: ApplicationRef,
+  documentTemplate: string = DEFAULT_SERVER_DOCUMENT,
+): Promise<string> {
+  try {
+    const beforeHooks = appRef.injector.get(BEFORE_APP_SERIALIZED, null, {
+      optional: true,
+    });
+    if (Array.isArray(beforeHooks)) {
+      for (const hook of beforeHooks) {
+        if (typeof hook === "function") {
+          await runInInjectionContext(appRef.injector, hook);
+        }
+      }
+    }
+
+    let html = documentTemplate || DEFAULT_SERVER_DOCUMENT;
+
+    for (const compRef of appRef.components) {
+      const renderedMarkup = runInInjectionContext(appRef.injector, () =>
+        withSSRRendering(() =>
+          serializeAngularRenderedOutput(compRef.ɵrendered),
+        ),
+      );
+      if (!renderedMarkup) continue;
+      const selector =
+        (compRef.componentType as any)?.ɵcmp?.selector || "app-root";
+      const tagPattern = new RegExp(
+        `<(${selector})(\\b[^>]*)>[\\s\\S]*?<\\/\\1>`,
+        "i",
+      );
+      if (tagPattern.test(html)) {
+        html = html.replace(tagPattern, `<$1$2>${renderedMarkup}</$1>`);
+      } else if (/<app-root(\b[^>]*)>[\s\S]*?<\/app-root>/i.test(html)) {
+        html = html.replace(
+          /<(app-root)(\b[^>]*)>[\s\S]*?<\/\1>/i,
+          `<$1$2>${renderedMarkup}</$1>`,
+        );
+      } else if (/<\/body>/i.test(html)) {
+        html = html.replace(/<\/body>/i, `${renderedMarkup}</body>`);
+      } else {
+        html += renderedMarkup;
+      }
+    }
+
+    const titleSvc = appRef.injector.get(Title, null, { optional: true });
+    const titleText = titleSvc?.getTitle() ?? "";
+    if (titleText) {
+      const escapedTitle = escapeHtmlText(titleText);
+      if (/<title\b[^>]*>[\s\S]*?<\/title>/i.test(html)) {
+        html = html.replace(
+          /<title\b[^>]*>[\s\S]*?<\/title>/i,
+          `<title>${escapedTitle}</title>`,
+        );
+      } else if (/<\/head>/i.test(html)) {
+        html = html.replace(
+          /<\/head>/i,
+          `<title>${escapedTitle}</title></head>`,
+        );
+      }
+    }
+
+    const metaSvc = appRef.injector.get(Meta, null, { optional: true });
+    const metaMarkup = metaSvc?.renderToString() ?? "";
+    if (metaMarkup) {
+      if (/<\/head>/i.test(html)) {
+        html = html.replace(/<\/head>/i, `${metaMarkup}</head>`);
+      } else {
+        html = `${metaMarkup}${html}`;
+      }
+    }
+
+    const transferState = appRef.injector.get(TransferState, null, {
+      optional: true,
+    });
+    if (transferState && !transferState.isEmpty) {
+      const appId =
+        appRef.injector.get(APP_ID, "ng", { optional: true }) || "ng";
+      const safeJson = transferState
+        .toJson()
+        .replace(/</g, "\\u003c")
+        .replace(/>/g, "\\u003e");
+      const scriptTag = `<script id="${escapeHtmlAttr(appId)}-state" type="application/json">${safeJson}</script>`;
+      if (/<\/body>/i.test(html)) {
+        html = html.replace(/<\/body>/i, `${scriptTag}</body>`);
+      } else {
+        html += scriptTag;
+      }
+    }
+
+    return html;
+  } finally {
+    appRef.destroy();
+  }
+}
+
+export interface RenderApplicationOptions {
+  document?: string;
+  url?: string;
+  platformProviders?: Array<Provider | EnvironmentProviders>;
+}
+
+export async function renderApplication(
+  bootstrap: () => Promise<ApplicationRef>,
+  options?: RenderApplicationOptions,
+): Promise<string> {
+  const url = options?.url ?? "http://localhost/";
+  const fullUrl = url.startsWith("http")
+    ? url
+    : `http://localhost${url.startsWith("/") ? "" : "/"}${url}`;
+  return withAngularServerContext(
+    { request: new Request(fullUrl) },
+    async () => {
+      const appRef = await bootstrap();
+      return serializeBootstrappedApplication(appRef, options?.document);
+    },
+  );
+}
+
+export interface AngularAppEngineOptions {
+  bootstrap?:
+    (() => Promise<ApplicationRef>) | Type<unknown> | ((props?: any) => any);
+  routes?: ServerRoute[];
+  appShell?: Type<unknown> | ((props?: any) => any);
+  document?: string;
+  providers?: Array<Provider | EnvironmentProviders>;
+}
+
+export class AngularAppEngine {
+  static ɵallowStaticRouteRender = true;
+
+  readonly #options: AngularAppEngineOptions;
+
+  constructor(options: AngularAppEngineOptions = {}) {
+    this.#options = options;
+  }
+
+  async handle(
+    request: Request,
+    requestContext?: unknown,
+  ): Promise<Response | null> {
+    const parsedUrl = new URL(request.url);
+    const configuredRoutes = this.#options.routes ?? [];
+    const matched =
+      configuredRoutes.length > 0
+        ? matchServerRoute(configuredRoutes, parsedUrl.pathname)
+        : null;
+
+    const initialHeaders = new Headers({
+      "content-type": "text/html; charset=utf-8",
+    });
+    if (matched?.route.headers) {
+      for (const [hk, hv] of Object.entries(matched.route.headers)) {
+        initialHeaders.set(hk, hv);
+      }
+    }
+    const initialStatus = matched?.route.status ?? 200;
+
+    return withAngularServerContext(
+      {
+        request,
+        requestContext,
+        responseInit: { status: initialStatus, headers: initialHeaders },
+      },
+      async (serverCtx) => {
+        const providers: Array<Provider | EnvironmentProviders> = [
+          provideServerRendering(),
+          ...(this.#options.providers ?? []),
+        ];
+        if (configuredRoutes.length > 0) {
+          providers.push({
+            provide: SERVER_ROUTES_CONFIG,
+            useValue: [...configuredRoutes],
+          });
+        }
+        if (this.#options.appShell) {
+          providers.push({
+            provide: APP_SHELL_COMPONENT,
+            useValue: this.#options.appShell,
+          });
+        }
+
+        const isClientMode = matched?.route.renderMode === RenderMode.Client;
+
+        let appRef: ApplicationRef | null = null;
+        if (isClientMode) {
+          const shellComp = this.#options.appShell;
+          if (!shellComp) {
+            const doc = this.#options.document ?? DEFAULT_SERVER_DOCUMENT;
+            return new Response(doc, {
+              status: serverCtx.responseInit.status ?? 200,
+              statusText: serverCtx.responseInit.statusText,
+              headers: serverCtx.responseInit.headers,
+            });
+          }
+          appRef = await bootstrapApplication(shellComp, { providers });
+        } else if (this.#options.bootstrap) {
+          const boot = this.#options.bootstrap;
+          if (
+            typeof boot === "function" &&
+            !("ɵcmp" in boot) &&
+            !("ɵClass" in boot) &&
+            (!boot.prototype || boot.prototype.constructor !== boot)
+          ) {
+            appRef = await (boot as () => Promise<ApplicationRef>)();
+          } else {
+            appRef = await bootstrapApplication(boot as any, { providers });
+          }
+        } else {
+          appRef = await createApplication({ providers });
+        }
+
+        // Check if SERVER_ROUTES_CONFIG was provided via DI when not passed to constructor
+        if (!matched) {
+          const diRoutes = appRef.injector.get(SERVER_ROUTES_CONFIG, [], {
+            optional: true,
+          });
+          if (diRoutes && diRoutes.length > 0) {
+            const diMatch = matchServerRoute(diRoutes, parsedUrl.pathname);
+            if (diMatch?.route.status) {
+              serverCtx.responseInit.status = diMatch.route.status;
+            }
+            if (diMatch?.route.headers) {
+              for (const [hk, hv] of Object.entries(diMatch.route.headers)) {
+                serverCtx.responseInit.headers.set(hk, hv);
+              }
+            }
+          }
+        }
+
+        const html = await serializeBootstrappedApplication(
+          appRef,
+          this.#options.document,
+        );
+        return new Response(html, {
+          status: serverCtx.responseInit.status ?? 200,
+          statusText: serverCtx.responseInit.statusText,
+          headers: serverCtx.responseInit.headers,
+        });
+      },
+    );
+  }
+}
+
+export interface CommonEngineOptions {
+  bootstrap?:
+    (() => Promise<ApplicationRef>) | Type<unknown> | ((props?: any) => any);
+  providers?: Array<Provider | EnvironmentProviders>;
+  enablePerformanceProfiler?: boolean;
+}
+
+export interface CommonEngineRenderOptions extends CommonEngineOptions {
+  url?: string;
+  document?: string;
+  documentFilePath?: string;
+  inlineCriticalCss?: boolean;
+  publicPath?: string;
+  serverContext?: string;
+}
+
+export class CommonEngine {
+  readonly #options: CommonEngineOptions;
+
+  constructor(options: CommonEngineOptions = {}) {
+    this.#options = options;
+  }
+
+  async render(opts: CommonEngineRenderOptions = {}): Promise<string> {
+    const url = opts.url ?? "http://localhost/";
+    const fullUrl = url.startsWith("http")
+      ? url
+      : `http://localhost${url.startsWith("/") ? "" : "/"}${url}`;
+    const boot = opts.bootstrap ?? this.#options.bootstrap;
+    const providers: Array<Provider | EnvironmentProviders> = [
+      provideServerRendering(),
+      ...(this.#options.providers ?? []),
+      ...(opts.providers ?? []),
+    ];
+    if (opts.serverContext) {
+      providers.push({ provide: SERVER_CONTEXT, useValue: opts.serverContext });
+    }
+    if (opts.document || opts.url) {
+      providers.push({
+        provide: INITIAL_CONFIG,
+        useValue: { document: opts.document, url: opts.url },
+      });
+    }
+
+    return withAngularServerContext(
+      { request: new Request(fullUrl) },
+      async () => {
+        let appRef: ApplicationRef;
+        if (
+          typeof boot === "function" &&
+          !("ɵcmp" in boot) &&
+          !("ɵClass" in boot) &&
+          (!boot.prototype || boot.prototype.constructor !== boot)
+        ) {
+          appRef = await (boot as () => Promise<ApplicationRef>)();
+        } else if (boot) {
+          appRef = await bootstrapApplication(boot as any, { providers });
+        } else {
+          appRef = await createApplication({ providers });
+        }
+        return serializeBootstrappedApplication(appRef, opts.document);
+      },
+    );
+  }
 }

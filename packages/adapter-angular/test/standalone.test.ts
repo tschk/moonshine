@@ -205,10 +205,12 @@ const sourceCompiler = process.env.MOONSHINE_CREPUS_COMPILER;
 test.skipIf(!sourceCompiler)(
   "authored Angular .component.ts compiles via crepus web build to moonshine-dom and moonshine-ssr without Angular host runtime",
   async () => {
-    const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, HostBinding, ViewChild, signal, computed, input, model, viewChild } from "@angular/core";
-import { CommonModule, UpperCasePipe } from "@angular/common";
+    const componentSource = `import { Component, Injectable, Input, Output, EventEmitter, HostBinding, ViewChild, inject, signal, computed, input, model, viewChild } from "@angular/core";
+import { CommonModule, NgOptimizedImage, UpperCasePipe, provideImgixLoader } from "@angular/common";
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { RouterModule } from "@angular/router";
+import { REQUEST, RenderMode } from "@angular/ssr";
+import { provideServerRendering } from "@angular/platform-server";
 
 @Injectable({ providedIn: "root" })
 export class StepService {
@@ -239,7 +241,8 @@ export class BadgeBoxComponent {
 @Component({
   selector: "app-counter",
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, UpperCasePipe, BadgeBoxComponent, RouteLeafComponent],
+  imports: [CommonModule, NgOptimizedImage, FormsModule, ReactiveFormsModule, RouterModule, UpperCasePipe, BadgeBoxComponent, RouteLeafComponent],
+  providers: [provideImgixLoader("https://cdn.example.com")],
   styles: [".counter { color: navy; }"],
   host: {
     "role": "region",
@@ -247,7 +250,8 @@ export class BadgeBoxComponent {
   },
   template: \`
     @let summaryLabel = (title() | uppercase) + ': ' + doubled();
-    <div class="counter" [attr.data-step]="step" [style.color]="accent()" [style.padding.px]="12" [ngStyle]="{ border: '1px solid' }" [ngClass]="{ highlighted: count() > 0 }">
+    <div class="counter" [attr.data-step]="step" [attr.data-req]="reqPath" [style.color]="accent()" [style.padding.px]="12" [ngStyle]="{ border: '1px solid' }" [ngClass]="{ highlighted: count() > 0 }">
+      <img [ngSrc]="heroImg()" ngSrcset="400w, 800w" width="800" height="400" priority [loaderParams]="{ fit: 'crop' }" alt="Hero" />
       <nav>
         <a
           routerLink="/items"
@@ -311,6 +315,11 @@ export class BadgeBoxComponent {
   \`,
 })
 export class CounterComponent {
+  req = inject(REQUEST, { optional: true });
+  reqPath = this.req ? new URL(this.req.url).pathname : "no-req";
+  ssrMode = RenderMode.Server;
+  ssrProviders = provideServerRendering();
+  heroImg = signal("banners/main.png");
   title = input("Count");
   @Input() step = 2;
   @Output() changed = new EventEmitter<number>();
@@ -352,7 +361,7 @@ export class CounterComponent {
     const check = `import assert from 'node:assert/strict';
 import CounterComponent, { CounterComponent as NamedCounter, RouteLeafComponent, StepService } from './ssr/CrepusEmit.moonshine-ssr.ts';
 import { h, renderToString } from '@tschk/moonshine-dom/ssr';
-import { Router, bootstrapApplication, createEnvironmentInjector, provideRouter, runInInjectionContext, withComponentInputBinding } from '@tschk/moonshine-angular';
+import { AngularAppEngine, RenderMode, Router, bootstrapApplication, createEnvironmentInjector, provideRouter, runInInjectionContext, withAngularServerContext, withComponentInputBinding } from '@tschk/moonshine-angular';
 
 const routeInjector = createEnvironmentInjector([
   provideRouter(
@@ -363,11 +372,18 @@ const routeInjector = createEnvironmentInjector([
 const router = routeInjector.get(Router);
 await router.navigateByUrl('/items?section=catalog#list');
 
-const html = runInInjectionContext(routeInjector, () =>
-  renderToString(() => h(CounterComponent, { title: 'score', step: 5 }))
+const html = withAngularServerContext({ request: new Request('https://example.com/items') }, () =>
+  runInInjectionContext(routeInjector, () =>
+    renderToString(() => h(CounterComponent, { title: 'score', step: 5 }))
+  )
 );
 assert.ok(html.includes('role="region"'), html);
 assert.ok(html.includes('data-mode="live"'), html);
+assert.ok(html.includes('data-req="/items"'), html);
+assert.ok(html.includes('ng-img="true"'), html);
+assert.ok(html.includes('src="https://cdn.example.com/banners/main.png?auto=format&amp;w=800&amp;fit=crop"'), html);
+assert.ok(html.includes('fetchpriority="high"'), html);
+assert.ok(html.includes('loading="eager"'), html);
 assert.ok(html.includes('is-positive'), html);
 assert.ok(html.includes('highlighted'), html);
 assert.ok(html.includes('border: 1px solid; color: teal; padding: 12px'), html);
@@ -390,6 +406,16 @@ assert.ok(html.includes('<mark class="deferred-ready">Deferred Ready</mark>'), h
 assert.ok(html.includes('ng-untouched ng-pristine ng-valid'), html);
 assert.ok(html.includes('<b>25</b>Projected Content'), html);
 assert.ok(html.includes('Route Leaf: catalog'), html);
+
+const engine = new AngularAppEngine({
+  bootstrap: NamedCounter,
+  routes: [{ path: '**', renderMode: RenderMode.Server, headers: { 'x-ng-ssr': '1' } }],
+});
+const engineRes = await engine.handle(new Request('https://example.com/ssr-engine-check'));
+assert.equal(engineRes?.status, 200);
+assert.equal(engineRes?.headers.get('x-ng-ssr'), '1');
+const engineHtml = await engineRes!.text();
+assert.ok(engineHtml.includes('data-req="/ssr-engine-check"'), engineHtml);
 
 const appRef = await bootstrapApplication(NamedCounter, {
   providers: [

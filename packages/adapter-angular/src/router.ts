@@ -2445,12 +2445,12 @@ export function bindAngularRouterLink(
   };
 
   if (
-    router &&
-    (config.onRegisterRouterLink ||
-      config.onRegisterRouterLinkActive ||
-      config.onActiveChange)
+    config.onRegisterRouterLink ||
+    config.onRegisterRouterLinkActive ||
+    config.onActiveChange
   ) {
-    const linkDir = new RouterLink(router, route);
+    const effectiveRouter = router ?? new Router();
+    const linkDir = new RouterLink(effectiveRouter, route);
     const syncLinkDir = () => {
       linkDir.routerLink = config.commands();
       linkDir.queryParams = config.queryParams?.();
@@ -2465,7 +2465,7 @@ export function bindAngularRouterLink(
     config.onRegisterRouterLink?.(linkDir);
 
     if (config.onRegisterRouterLinkActive || config.onActiveChange) {
-      const rlaDir = new RouterLinkActive(router, [linkDir]);
+      const rlaDir = new RouterLinkActive(effectiveRouter, [linkDir]);
       const rawCls = untrack(() => config.activeClass?.());
       if (rawCls) {
         rlaDir.routerLinkActive = rawCls;

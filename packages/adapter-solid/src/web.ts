@@ -480,3 +480,14 @@ export function NoHydration<T>(props: { children?: T }): T | undefined {
 export function Assets<T>(_props: { children?: T }): undefined {
   return undefined;
 }
+
+export {
+  FETCH_EVENT_TYPE,
+  createSolidRequestEvent,
+  getRequestEvent,
+  withSolidRequestEvent,
+  type PageEvent,
+  type RequestEvent,
+  type ResponseStub,
+  type SolidRequestEventInit,
+} from "./request-event";

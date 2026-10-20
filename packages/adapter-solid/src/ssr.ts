@@ -174,3 +174,13 @@ export type {
   ResourceSource,
   ResourceState,
 } from "@tschk/moonshine-dom/resource";
+export {
+  FETCH_EVENT_TYPE,
+  createSolidRequestEvent,
+  getRequestEvent,
+  withSolidRequestEvent,
+  type PageEvent,
+  type RequestEvent,
+  type ResponseStub,
+  type SolidRequestEventInit,
+} from "./request-event";
