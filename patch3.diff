@@ -1,0 +1,10 @@
+--- packages/adapter-angular/test/platform.test.ts
++++ packages/adapter-angular/test/platform.test.ts
+@@ -24,7 +24,6 @@
+   ContentChild,
+   ContentChildren,
+   DecimalPipe,
+-  Directive,
+   DOCUMENT,
+   ElementRef,
+   enableProdMode,

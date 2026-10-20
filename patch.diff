@@ -1,0 +1,49 @@
+--- packages/react/src/renderer.tsx
++++ packages/react/src/renderer.tsx
+@@ -58,11 +58,11 @@
+   let body = createElement(Page, pageProps);
+
+   if (route.layouts) {
+-    for (let i = route.layouts.length - 1; i >= 0; i--) {
+-      const Layout = (await loadComponent(
+-        route.layouts[i]!,
+-      )) as FunctionComponent<LayoutProps>;
+-      body = createElement(Layout, { ...pageProps, children: body });
++    const layouts = await Promise.all(
++      route.layouts.map(layout => loadComponent(layout) as Promise<FunctionComponent<LayoutProps>>)
++    );
++    for (let i = layouts.length - 1; i >= 0; i--) {
++      body = createElement(layouts[i]!, { ...pageProps, children: body });
+     }
+   }
+
+--- packages/adapter-angular/test/platform.test.ts
++++ packages/adapter-angular/test/platform.test.ts
+@@ -99,7 +99,6 @@
+ import {
+   provideRouter,
+   ROUTER_CONFIGURATION,
+-  Router,
+   RouterLink,
+   RouterLinkActive,
+   RouterOutlet,
+@@ -404,8 +403,8 @@
+     Host()(WidgetComponent, undefined, 0);
+     Inject(PLATFORM_ID)(WidgetComponent, undefined, 0);
+     Attribute("role")(WidgetComponent, undefined, 0);
+
+-    events.push(`changes:${Object.keys({}).sort().join(",")}`);
+
+     const emitted: number[] = [];
+     const stepEmitted: number[] = [];
+--- packages/server/src/pipeline.ts
++++ packages/server/src/pipeline.ts
+@@ -243,7 +243,7 @@
+       const actionResult = await leaf.module.action.call(ctx, ctx);
+       if (ctx.signal.aborted) throw new Error("Aborted");
+       const result = unpack(actionResult, false);
+-      if (leaf.module.loader) ctx.data.__action = result;
++      if (leaf.module.loader) ctx.data["__action"] = result;
+       else ctx.data[leaf.key] = result;
+     } catch (err: unknown) {
+       leaf.error = err;

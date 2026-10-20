@@ -24,7 +24,6 @@ import {
   CurrencyPipe,
   DatePipe,
   DecimalPipe,
-  Directive,
   DOCUMENT,
   DomSanitizer,
   ElementRef,
@@ -99,7 +98,6 @@ import {
 import {
   provideRouter,
   ROUTER_CONFIGURATION,
-  Router,
   RouterLink,
   RouterLinkActive,
   RouterOutlet,
@@ -404,7 +402,7 @@ describe("@tschk/moonshine-angular/platform", () => {
       changed = new EventEmitter<number>();
 
       ngOnChanges(changes: Record<string, SimpleChange>) {
-        events.push(`changes:${Object.keys(changes).sort().join(",")}`);
+        events.push(`changes:${Object.keys(changes).toSorted().join(",")}`);
       }
       ngOnInit() {
         events.push(`init:${this.label()}:${this.step}`);
@@ -435,7 +433,6 @@ describe("@tschk/moonshine-angular/platform", () => {
       "step",
     );
     Output("stepChanged")(WidgetComponent.prototype, "changed");
-    Directive({ selector: "[appDir]" })(class Dir {});
     ViewChild("box")(WidgetComponent.prototype, "box");
     ViewChildren("items")(WidgetComponent.prototype, "items");
     ContentChild("projected")(WidgetComponent.prototype, "projected");
