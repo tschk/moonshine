@@ -13,12 +13,17 @@ import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
 const staticDir = resolve(tmpDir, "public");
+const siblingDir = resolve(tmpDir, "public-sibling");
 
 beforeAll(() => {
   mkdirSync(staticDir, { recursive: true });
+  mkdirSync(siblingDir, { recursive: true });
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
+  writeFileSync(resolve(siblingDir, "file.txt"), "sibling");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
+  symlinkSync(resolve(staticDir, "ok.txt"), resolve(tmpDir, "link-in.txt"));
+  symlinkSync(staticDir, resolve(tmpDir, "public-link"));
 });
 
 afterAll(() => {
@@ -62,6 +67,32 @@ describe("isContained", () => {
     isContained(staticDir, resolve(staticDir, "ok.txt"));
     // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
     realpathSpy.mockRestore();
+  });
+
+  test("returns true when file is exactly the root", () => {
+    expect(isContained(staticDir, staticDir)).toBe(true);
+  });
+
+  test("returns false for sibling directory prefix match", () => {
+    expect(isContained(staticDir, resolve(siblingDir, "file.txt"))).toBe(false);
+  });
+
+  test("returns false when symlink escapes the directory", () => {
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(false);
+  });
+
+  test("returns true when a symlink outside points inside", () => {
+    expect(isContained(staticDir, resolve(tmpDir, "link-in.txt"))).toBe(true);
+  });
+
+  test("works correctly when the root itself is a symlink", () => {
+    const symlinkRoot = resolve(tmpDir, "public-link");
+    expect(isContained(symlinkRoot, resolve(symlinkRoot, "ok.txt"))).toBe(true);
+    expect(isContained(symlinkRoot, resolve(symlinkRoot, "escape.txt"))).toBe(false);
+  });
+
+  test("throws when the file does not exist", () => {
+    expect(() => isContained(staticDir, resolve(staticDir, "missing.txt"))).toThrow();
   });
 });
 
