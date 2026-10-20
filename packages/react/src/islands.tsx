@@ -89,14 +89,11 @@ export function island<P>(
         },
         children,
       ),
-      createElement(
-        "script",
-        {
-          type: "application/json",
-          "data-moonshine-island-props": id,
-        },
-        serializeIslandProps(props),
-      ),
+      createElement("script", {
+        type: "application/json",
+        "data-moonshine-island-props": id,
+        dangerouslySetInnerHTML: { __html: serializeIslandProps(props) },
+      }),
     );
   };
   return IslandComponent;
