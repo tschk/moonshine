@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { isContained, resolveStaticPath, tryServeStatic } from "../src/static";
+import {
+  isContained,
+  resolveStaticPath,
+  staticFileHeaders,
+  tryServeStatic,
+} from "../src/static";
 import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
@@ -44,6 +49,43 @@ describe("resolveStaticPath", () => {
 
   test("returns null if the path contains null bytes", () => {
     expect(resolveStaticPath(staticDir, "/ok%00.txt")).toBeNull();
+  });
+});
+
+describe("staticFileHeaders", () => {
+  test("sets content-type and default security headers", () => {
+    const headers = staticFileHeaders("text/html");
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-content-type-options")).toBe("nosniff");
+    expect(headers.get("x-frame-options")).toBe("DENY");
+    expect(headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  test("initializes with custom headers", () => {
+    const headers = staticFileHeaders("text/css", { "x-custom": "value" });
+    expect(headers.get("content-type")).toBe("text/css");
+    expect(headers.get("x-custom")).toBe("value");
+    expect(headers.get("x-frame-options")).toBe("DENY");
+  });
+
+  test("does not overwrite provided custom security headers", () => {
+    const headers = staticFileHeaders("application/json", {
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-content-type-options": "custom",
+    });
+    expect(headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(headers.get("referrer-policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(headers.get("x-content-type-options")).toBe("custom");
+  });
+
+  test("overwrites content-type even if provided in customHeaders", () => {
+    const headers = staticFileHeaders("text/javascript", {
+      "content-type": "text/plain",
+    });
+    expect(headers.get("content-type")).toBe("text/javascript");
   });
 });
 
