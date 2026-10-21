@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig, findConfig, defineConfig } from "../src/config";
 
-const tmp = mkdtempSync(join(tmpdir(), "moonshine-config-"));
+const tmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-config-")));
 const validConfigPath = join(tmp, "moonshine.config.ts");
 const stringConfigPath = join(tmp, "string-config.ts");
 const nullConfigPath = join(tmp, "null-config.ts");
@@ -44,12 +44,23 @@ describe("findConfig", () => {
   });
 
   test("returns undefined if no config exists", () => {
-    const emptyTmp = mkdtempSync(join(tmpdir(), "moonshine-empty-"));
+    const emptyTmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-empty-")));
     try {
       expect(findConfig(emptyTmp)).toBeUndefined();
     } finally {
       if (existsSync(emptyTmp))
         rmSync(emptyTmp, { recursive: true, force: true });
+    }
+  });
+
+  test("finds js config if ts config does not exist", () => {
+    const jsTmp = resolve(mkdtempSync(join(tmpdir(), "moonshine-js-config-")));
+    const jsConfigPath = join(jsTmp, "moonshine.config.js");
+    writeFileSync(jsConfigPath, `export default { adapter: "bun" };\n`);
+    try {
+      expect(findConfig(jsTmp)).toBe(jsConfigPath);
+    } finally {
+      if (existsSync(jsTmp)) rmSync(jsTmp, { recursive: true, force: true });
     }
   });
 });
