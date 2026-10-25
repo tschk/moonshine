@@ -9,16 +9,22 @@ test("catchError normalizes unknown strings and objects to Error", async () => {
 
   let dispose = createRoot((d) => {
     catchError(
-      () => { throw "string failure" },
-      (e) => stringErr = e
+      () => {
+        throw "string failure";
+      },
+      (e) => (stringErr = e),
     );
     catchError(
-      () => { throw { fail: true } },
-      (e) => objectErr = e
+      () => {
+        throw { fail: true };
+      },
+      (e) => (objectErr = e),
     );
     catchError(
-      () => { throw new Error("real error") },
-      (e) => errorErr = e
+      () => {
+        throw new Error("real error");
+      },
+      (e) => (errorErr = e),
     );
     return d;
   });
@@ -51,12 +57,12 @@ test("catchError propagates upward if disposed", async () => {
               innerD();
               throw "inner failure";
             },
-            (e) => innerErr = e
+            (e) => (innerErr = e),
           );
           return innerD;
         });
       },
-      (e) => outerErr = e
+      (e) => (outerErr = e),
     );
     return d;
   });
@@ -84,7 +90,7 @@ test("ErrorBoundary unwraps successfully or catches error", async () => {
       fallback: (error, reset) => {
         errorState = error;
         return "fallback";
-      }
+      },
     });
     return d;
   });
@@ -108,11 +114,15 @@ test("catchError handles failure inside the handler itself", async () => {
     catchError(
       () => {
         catchError(
-          () => { throw "first failure" },
-          () => { throw "handler failure" }
+          () => {
+            throw "first failure";
+          },
+          () => {
+            throw "handler failure";
+          },
         );
       },
-      (e) => outerErr = e
+      (e) => (outerErr = e),
     );
     return d;
   });
@@ -139,16 +149,16 @@ test("catchError bypasses queueErrorHandler if scope is disposed before microtas
             () => {
               throw "inner failure"; // queueErrorHandler gets called since scope isn't disposed yet
             },
-            (e) => innerErr = e
+            (e) => (innerErr = e),
           );
         });
         // Dispose right after the throw but before microtask executes
         disposeInner();
       },
       (e) => {
-         // Because it was disposed before microtask executes, queueErrorHandler's callback checks `if (scope.disposed) return;`
-         // So neither innerErr nor outerErr gets called by the inner boundary if parent is not called directly.
-      }
+        // Because it was disposed before microtask executes, queueErrorHandler's callback checks `if (scope.disposed) return;`
+        // So neither innerErr nor outerErr gets called by the inner boundary if parent is not called directly.
+      },
     );
     return d;
   });
