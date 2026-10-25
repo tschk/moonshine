@@ -19,6 +19,10 @@ beforeAll(() => {
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
+
+  const boundaryDir = resolve(tmpDir, "public-secret");
+  mkdirSync(boundaryDir, { recursive: true });
+  writeFileSync(resolve(boundaryDir, "boundary-secret.txt"), "boundary-secret");
 });
 
 afterAll(() => {
@@ -54,6 +58,11 @@ describe("isContained", () => {
 
   test("returns false for a file outside the directory", () => {
     expect(isContained(staticDir, resolve(tmpDir, "secret.txt"))).toBe(false);
+  });
+
+  test("returns false for a boundary directory matching root prefix", () => {
+    const boundaryDir = resolve(tmpDir, "public-secret");
+    expect(isContained(staticDir, resolve(boundaryDir, "boundary-secret.txt"))).toBe(false);
   });
 
   test("caches the real root on successive calls", () => {
