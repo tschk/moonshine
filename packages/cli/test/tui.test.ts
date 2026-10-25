@@ -130,7 +130,7 @@ describe("terminalTui", () => {
       [Symbol.asyncIterator]: async function* () {
         yield "user input line 1";
         yield "user input line 2";
-      }
+      },
     } as any;
 
     try {
@@ -151,8 +151,7 @@ describe("terminalTui", () => {
     const originalConsole = globalThis.console;
     globalThis.console = {
       ...originalConsole,
-      [Symbol.asyncIterator]: async function* () {
-      }
+      [Symbol.asyncIterator]: async function* () {},
     } as any;
 
     try {
