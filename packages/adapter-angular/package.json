@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-angular",
-  "version": "0.4.55",
+  "version": "0.4.78",
   "description": "Native signal bridges and rendering with optional legacy angular entries",
   "license": "ISC",
   "type": "module",
@@ -9,12 +9,17 @@
   "exports": {
     ".": "./src/index.ts",
     "./signals": "./src/signals.ts",
+    "./http": "./src/http.ts",
+    "./forms": "./src/forms.ts",
+    "./router": "./src/router.ts",
+    "./platform": "./src/platform.ts",
+    "./ssr": "./src/platform.ts",
     "./core": "./src/core.ts",
     "./common": "./src/common.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.48",
-    "@tschk/moonshine-dom": "^0.4.48"
+    "@tschk/moonshine": "^0.4.78",
+    "@tschk/moonshine-dom": "^0.4.78"
   },
   "devDependencies": {
     "typescript": "7.0.2"
@@ -22,7 +27,7 @@
   "peerDependencies": {
     "@angular/core": ">=17",
     "@angular/common": ">=17",
-    "@tschk/moonshine-framework": "^0.4.48"
+    "@tschk/moonshine-framework": "^0.4.78"
   },
   "peerDependenciesMeta": {
     "@angular/core": {

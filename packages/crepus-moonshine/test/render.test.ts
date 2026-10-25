@@ -96,3 +96,17 @@ describe("renderCrepusIr", () => {
     expect(out).toContain('data-crepus-root="true"');
   });
 });
+
+test("rejects unsupported and inherited View IR node kinds, including nested nodes", () => {
+  for (const kind of ["unknown", "constructor", "toString", "__proto__"]) {
+    const invalid = { kind };
+    for (const root of [
+      [invalid],
+      [{ kind: "stack", axis: "column", children: [invalid] }],
+    ]) {
+      expect(() =>
+        renderCrepusIr({ version: IR_VERSION, root } as never),
+      ).toThrow(new TypeError(`Unsupported View IR node kind: ${kind}`));
+    }
+  }
+});
