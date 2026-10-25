@@ -230,8 +230,13 @@ test("superseded or disposed loads ignore late rejections", async () => {
   let calls = 0;
   const router2 = createDataRouter(() => {
     calls++;
-    if (calls === 1) return new Promise<number>((_, r) => { rejectFirst = r; });
-    return new Promise<number>((resolve) => { resolveSecond = resolve; });
+    if (calls === 1)
+      return new Promise<number>((_, r) => {
+        rejectFirst = r;
+      });
+    return new Promise<number>((resolve) => {
+      resolveSecond = resolve;
+    });
   }, "/");
 
   await tick();
