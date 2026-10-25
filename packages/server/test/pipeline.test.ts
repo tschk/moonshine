@@ -814,16 +814,19 @@ test("HEAD ignores synchronous thrown error during cancellation", async () => {
     routes: [{ id: "stream", path: "/", file: "stream.ts", mode: "api" }],
     modules: {
       stream: {
-        loader: () =>
-          new Response(
-            new ReadableStream({
-              cancel() {
-                attempts++;
-                throw new Error("synchronous cleanup failed");
-              },
-            }),
-            { status: 206, headers: { "x-stream": "kept" } },
-          ),
+        loader: () => {
+          const stream = new ReadableStream();
+          Object.defineProperty(stream, "cancel", {
+            value: () => {
+              attempts++;
+              throw new TypeError("synchronous cleanup failed");
+            },
+          });
+          return new Response(stream, {
+            status: 206,
+            headers: { "x-stream": "kept" },
+          });
+        },
       },
     },
   });
