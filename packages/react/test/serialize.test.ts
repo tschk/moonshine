@@ -67,7 +67,9 @@ describe("escapeHtml", () => {
   });
 
   test("escapes quotes and apostrophes", () => {
-    expect(escapeHtml(`"Hello" 'World'`)).toBe("&quot;Hello&quot; &#x27;World&#x27;");
+    expect(escapeHtml(`"Hello" 'World'`)).toBe(
+      "&quot;Hello&quot; &#x27;World&#x27;",
+    );
   });
 
   test("handles consecutive special characters", () => {
@@ -75,6 +77,8 @@ describe("escapeHtml", () => {
   });
 
   test("handles mixed content", () => {
-    expect(escapeHtml(`Foo <bar> & "baz" 'qux'`)).toBe("Foo &lt;bar&gt; &amp; &quot;baz&quot; &#x27;qux&#x27;");
+    expect(escapeHtml(`Foo <bar> & "baz" 'qux'`)).toBe(
+      "Foo &lt;bar&gt; &amp; &quot;baz&quot; &#x27;qux&#x27;",
+    );
   });
 });
