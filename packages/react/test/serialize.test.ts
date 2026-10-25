@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeIslandProps } from "../src/serialize";
+import { escapeHtml, serializeIslandProps } from "../src/serialize";
 
 describe("serializeIslandProps", () => {
   test("serializes shared, non-cyclic references", () => {
@@ -46,5 +46,39 @@ describe("serializeIslandProps", () => {
     // threw. Dropping a prop server-side that the client expects is a
     // hydration mismatch, so both paths now refuse the value.
     expect(() => serializeIslandProps({ [Symbol("k")]: 1 })).toThrow(/symbol/);
+  });
+});
+
+describe("escapeHtml", () => {
+  test("escapes basic characters", () => {
+    expect(escapeHtml("&")).toBe("&amp;");
+    expect(escapeHtml("<")).toBe("&lt;");
+    expect(escapeHtml(">")).toBe("&gt;");
+    expect(escapeHtml('"')).toBe("&quot;");
+    expect(escapeHtml("'")).toBe("&#x27;");
+  });
+
+  test("handles empty strings", () => {
+    expect(escapeHtml("")).toBe("");
+  });
+
+  test("handles strings with no special characters", () => {
+    expect(escapeHtml("hello world")).toBe("hello world");
+    expect(escapeHtml("12345")).toBe("12345");
+  });
+
+  test("escapes multiple occurrences of special characters", () => {
+    expect(escapeHtml("<<&&>>")).toBe("&lt;&lt;&amp;&amp;&gt;&gt;");
+    expect(escapeHtml(`"'"'`)).toBe("&quot;&#x27;&quot;&#x27;");
+  });
+
+  test("escapes characters within normal text", () => {
+    expect(escapeHtml("Hello <World> & 'Universe'!")).toBe(
+      "Hello &lt;World&gt; &amp; &#x27;Universe&#x27;!"
+    );
+  });
+
+  test("handles emojis and multi-byte characters", () => {
+    expect(escapeHtml("👋 <hello>")).toBe("👋 &lt;hello&gt;");
   });
 });
