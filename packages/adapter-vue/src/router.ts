@@ -610,6 +610,79 @@ function normalizePropsOption(
   return { default: raw.props };
 }
 
+function parseStringLocation(
+  rawLocation: string,
+  currentLocationPath: string,
+  parseQueryFn: (search: string) => LocationQuery,
+): { path: string; query: LocationQuery; hash: string; raw: string } {
+  let hash = "";
+  let query: LocationQuery = {};
+  let path = "/";
+  let raw = rawLocation;
+
+  const hashIdx = raw.indexOf("#");
+  if (hashIdx >= 0) {
+    hash = raw.slice(hashIdx);
+    raw = raw.slice(0, hashIdx);
+  }
+  const queryIdx = raw.indexOf("?");
+  if (queryIdx >= 0) {
+    query = parseQueryFn(raw.slice(queryIdx + 1));
+    raw = raw.slice(0, queryIdx);
+  }
+  if (!raw) {
+    path = currentLocationPath || "/";
+  } else if (raw.startsWith("/")) {
+    path = raw;
+  } else {
+    const baseDir = currentLocationPath.replace(/\/[^/]*$/, "");
+    path = `${baseDir}/${raw}`.replace(/\/+/g, "/");
+  }
+
+  return { path, query, hash, raw };
+}
+
+function matchRoutePath(
+  path: string,
+  entries: CompiledRouteEntry[],
+): {
+  matched: RouteRecordNormalized[];
+  name: RouteRecordName | null | undefined;
+  params: RouteParams;
+} {
+  let matched: RouteRecordNormalized[] = [];
+  let name: RouteRecordName | null | undefined;
+  let params: RouteParams = {};
+
+  for (const entry of entries) {
+    const m = entry.regex.exec(path);
+    if (m) {
+      matched = entry.chain.map((r) => r.aliasOf ?? r);
+      const leaf = matched[matched.length - 1];
+      name = leaf?.name;
+      const extracted: RouteParams = {};
+      entry.paramKeys.forEach((keyInfo, i) => {
+        const rawVal = m[i + 1];
+        if (rawVal === undefined) {
+          if (keyInfo.repeatable) extracted[keyInfo.name] = [];
+          return;
+        }
+        if (keyInfo.repeatable) {
+          extracted[keyInfo.name] = rawVal
+            .split("/")
+            .map((part) => decodeURIComponent(part));
+        } else {
+          extracted[keyInfo.name] = decodeURIComponent(rawVal);
+        }
+      });
+      params = extracted;
+      break;
+    }
+  }
+
+  return { matched, name, params };
+}
+
 let activeRouter: Router | undefined;
 
 export function setActiveRouter(router: Router | undefined): void {
@@ -793,25 +866,11 @@ export function createRouter(options: RouterOptions): Router {
     let name: RouteRecordName | null | undefined;
 
     if (typeof rawLocation === "string") {
-      let raw = rawLocation;
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
-      if (!raw) {
-        path = currentLocation.path || "/";
-      } else if (raw.startsWith("/")) {
-        path = raw;
-      } else {
-        const baseDir = currentLocation.path.replace(/\/[^/]*$/, "");
-        path = `${baseDir}/${raw}`.replace(/\/+/g, "/");
-      }
+      ({ path, query, hash } = parseStringLocation(
+        rawLocation,
+        currentLocation.path,
+        parseQueryFn,
+      ));
     } else if ("name" in rawLocation && rawLocation.name !== undefined) {
       const entry = namedMap.get(rawLocation.name);
       if (!entry) {
@@ -837,17 +896,14 @@ export function createRouter(options: RouterOptions): Router {
           : "#" + rawLocation.hash
         : "";
     } else if ("path" in rawLocation) {
-      let raw = rawLocation.path || "/";
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
+      const parsed = parseStringLocation(
+        rawLocation.path || "/",
+        "/",
+        parseQueryFn,
+      );
+      hash = parsed.hash;
+      query = parsed.query;
+
       if (rawLocation.query) {
         query = {
           ...query,
@@ -859,35 +915,14 @@ export function createRouter(options: RouterOptions): Router {
           ? rawLocation.hash
           : "#" + rawLocation.hash;
       }
-      path = raw.startsWith("/") ? raw : "/" + raw;
+      path = parsed.raw.startsWith("/") ? parsed.raw : "/" + parsed.raw;
     }
 
     if (matched.length === 0) {
-      for (const entry of entries) {
-        const m = entry.regex.exec(path);
-        if (m) {
-          matched = entry.chain.map((r) => r.aliasOf ?? r);
-          const leaf = matched[matched.length - 1];
-          name = leaf?.name;
-          const extracted: RouteParams = {};
-          entry.paramKeys.forEach((keyInfo, i) => {
-            const rawVal = m[i + 1];
-            if (rawVal === undefined) {
-              if (keyInfo.repeatable) extracted[keyInfo.name] = [];
-              return;
-            }
-            if (keyInfo.repeatable) {
-              extracted[keyInfo.name] = rawVal
-                .split("/")
-                .map((part) => decodeURIComponent(part));
-            } else {
-              extracted[keyInfo.name] = decodeURIComponent(rawVal);
-            }
-          });
-          params = extracted;
-          break;
-        }
-      }
+      const matchResult = matchRoutePath(path, entries);
+      matched = matchResult.matched;
+      name = matchResult.name;
+      params = matchResult.params;
     }
 
     const meta: RouteMeta = {};
