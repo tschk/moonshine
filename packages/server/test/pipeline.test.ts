@@ -863,7 +863,7 @@ test("parallel loaders handle synchronously thrown errors on body cancel", async
     value: () => {
       discarded++;
       throw new Error("sync discard failed");
-    }
+    },
   });
 
   const handler = createRequestHandler({
