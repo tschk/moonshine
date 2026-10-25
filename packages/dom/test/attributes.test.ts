@@ -5,7 +5,7 @@ describe("attributeValue", () => {
   test("handles boolean attributes", () => {
     expect(attributeValue("disabled", true, true)).toBe("");
     expect(attributeValue("disabled", false, true)).toBeUndefined();
-    expect(attributeValue("disabled", "", true)).toBe(""); // changed from toBeUndefined
+    expect(attributeValue("disabled", "", true)).toBe("");
     expect(attributeValue("disabled", null, true)).toBeUndefined();
     expect(attributeValue("disabled", undefined, true)).toBeUndefined();
     expect(attributeValue("disabled", 0, true)).toBeUndefined(); // test 0 as well
@@ -15,7 +15,7 @@ describe("attributeValue", () => {
   test("handles hidden attribute specifically", () => {
     expect(attributeValue("hidden", true, true)).toBe("");
     expect(attributeValue("hidden", false, true)).toBeUndefined();
-    expect(attributeValue("hidden", "", true)).toBe(""); // changed from toBeUndefined
+    expect(attributeValue("hidden", "", true)).toBe("");
     expect(attributeValue("hidden", "until-found", true)).toBe("until-found");
   });
 
@@ -52,7 +52,7 @@ describe("sourceAttributeValue", () => {
   test("handles HTML boolean attributes for source", () => {
     expect(sourceAttributeValue("disabled", true, true)).toBe("");
     expect(sourceAttributeValue("disabled", false, true)).toBeUndefined();
-    expect(sourceAttributeValue("disabled", "", true)).toBe(""); // changed from toBeUndefined
+    expect(sourceAttributeValue("disabled", "", true)).toBe("");
     expect(sourceAttributeValue("disabled", null, true)).toBeUndefined();
 
     // SOURCE_BOOLEAN_ADDITIONS
@@ -67,7 +67,7 @@ describe("sourceAttributeValue", () => {
   test("handles hidden attribute specifically for source", () => {
     expect(sourceAttributeValue("hidden", true, true)).toBe("");
     expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
-    expect(sourceAttributeValue("hidden", "", true)).toBe(""); // changed from toBeUndefined
+    expect(sourceAttributeValue("hidden", "", true)).toBe("");
     // 'until-found' is not treated as boolean for source logic because condition requires value !== 'until-found'
     expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
       "until-found",
