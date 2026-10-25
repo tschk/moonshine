@@ -1399,7 +1399,6 @@ export class HttpClient {
       });
     });
   }
-
 }
 
 for (const method of ["GET", "DELETE", "HEAD", "OPTIONS"] as const) {
@@ -1422,7 +1421,6 @@ for (const method of ["POST", "PUT", "PATCH"] as const) {
     return this.request(method, url, { ...options, body } as any);
   };
 }
-
 
 export type HttpFeatureKind = "interceptors" | "legacy_interceptors" | "fetch";
 
