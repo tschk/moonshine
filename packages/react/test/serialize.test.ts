@@ -75,8 +75,8 @@ describe("escapeHtml", () => {
 
   test("escapes a mix of normal and special characters", () => {
     expect(escapeHtml("<script>alert('hello & welcome');</script>")).toBe(
-      "&lt;script&gt;alert(&#x27;hello &amp; welcome&#x27;);&lt;/script&gt;"
+      "&lt;script&gt;alert(&#x27;hello &amp; welcome&#x27;);&lt;/script&gt;",
     );
-    expect(escapeHtml("John \"Doe\"")).toBe("John &quot;Doe&quot;");
+    expect(escapeHtml('John "Doe"')).toBe("John &quot;Doe&quot;");
   });
 });
