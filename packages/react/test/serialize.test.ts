@@ -76,7 +76,7 @@ describe("escapeHtml", () => {
 
   test("escapes a combination of all special characters", () => {
     expect(escapeHtml(`<div class="test" data-val='1 & 2'>`)).toBe(
-      "&lt;div class=&quot;test&quot; data-val=&#x27;1 &amp; 2&#x27;&gt;"
+      "&lt;div class=&quot;test&quot; data-val=&#x27;1 &amp; 2&#x27;&gt;",
     );
   });
 
