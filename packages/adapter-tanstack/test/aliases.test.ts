@@ -6,7 +6,7 @@ const specifiers = Object.keys(tanstackAliases);
 
 describe("TanStack aliases", () => {
   test("covers the packages this one replaces", () => {
-    expect(specifiers.sort()).toEqual([
+    expect(specifiers.toSorted()).toEqual([
       "@tanstack/react-router",
       "@tanstack/router-core",
     ]);

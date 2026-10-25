@@ -13,7 +13,7 @@ afterEach(cleanup);
 test("TanStack links, hooks and POP preserve reactive history state", async () => {
   setLocation("/page");
   const runtime = createMoonshineRouter();
-  function Page() {
+  const Page = () => {
     const location = useLocation();
     const selectedState = useRouterState({
       select: (value) => value.location.state,
@@ -46,7 +46,7 @@ test("TanStack links, hooks and POP preserve reactive history state", async () =
         "navigate",
       ),
     );
-  }
+  };
   const container = await render(
     createElement(MoonshineRouter, {
       runtime,

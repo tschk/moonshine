@@ -51,7 +51,7 @@ test("catchError propagates upward if disposed", async () => {
   let disposeOuter = createRoot((d) => {
     catchError(
       () => {
-        let disposeInner = createRoot((innerD) => {
+        createRoot((innerD) => {
           catchError(
             () => {
               innerD();
@@ -87,7 +87,7 @@ test("ErrorBoundary unwraps successfully or catches error", async () => {
         if (shouldThrow()) throw "child failure";
         return "success";
       },
-      fallback: (error, reset) => {
+      fallback: (error, _reset) => {
         errorState = error;
         return "fallback";
       },
@@ -155,7 +155,7 @@ test("catchError bypasses queueErrorHandler if scope is disposed before microtas
         // Dispose right after the throw but before microtask executes
         disposeInner();
       },
-      (e) => {
+      (_e) => {
         // Because it was disposed before microtask executes, queueErrorHandler's callback checks `if (scope.disposed) return;`
         // So neither innerErr nor outerErr gets called by the inner boundary if parent is not called directly.
       },
