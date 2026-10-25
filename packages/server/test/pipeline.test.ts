@@ -1265,3 +1265,26 @@ test("detached next rejection discards its Response after a bodyless middleware 
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(cancelled).toBe(1);
 });
+
+test("discardResponse swallows synchronous cancel errors", async () => {
+  const handler = createRequestHandler({
+    routes: [{ id: "page", path: "/", file: "page.ts" }],
+    modules: {
+      page: {
+        loader: () =>
+          new Response(
+            new ReadableStream({
+              cancel() {
+                throw new Error("Synchronous cancel error");
+              },
+            }),
+          ),
+      },
+    },
+  });
+  // A HEAD request triggers discardResponse(response) since the body is omitted.
+  const response = await handler(
+    new Request("http://localhost/", { method: "HEAD" }),
+  );
+  expect(response.status).toBe(200);
+});
