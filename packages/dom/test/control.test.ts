@@ -69,9 +69,9 @@ test("duplicate identities have separate roots retained in occurrence order", ()
   expect(mapped()[0]).toBe(first[0]);
   set(["b", "a"]);
   expect(mapped().map((entry) => entry.id)).toEqual([3, 1]);
-  expect(removed.sort()).toEqual([2, 4]);
+  expect(removed.toSorted()).toEqual([2, 4]);
   stop();
-  expect(removed.sort()).toEqual([1, 2, 3, 4]);
+  expect(removed.toSorted()).toEqual([1, 2, 3, 4]);
 });
 
 test("removed duplicate entries clean up in previous list order", () => {
@@ -843,8 +843,9 @@ test("cancellation during list growth cleans retained and new roots before subse
   for (const kind of ["keyed", "indexed"]) {
     const [items, setItems] = createSignal([1]),
       [source, setSource] = createSignal(0);
-    let stop = () => {},
-      runs = 0;
+    // eslint-disable-next-line unicorn/consistent-function-scoping
+    let stop = () => {};
+    let runs = 0;
     const cleaned: number[] = [];
     let read!: () => number[];
     createRoot((dispose) => {

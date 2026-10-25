@@ -243,7 +243,7 @@ async function runCoreAndAfters(
       actionData = unpack(actionResult, false) ?? null;
     } else if (actionResult !== undefined) {
       const result = unpack(actionResult, false);
-      if (leaf.module.loader) ctx.data.__action = result;
+      if (leaf.module.loader) ctx.data.action = result;
       else ctx.data[leaf.key] = result;
     }
   }

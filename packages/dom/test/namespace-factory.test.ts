@@ -53,9 +53,9 @@ test("lexical factories retain node identity and stop reactive writes", () => {
       ),
     document.body,
   );
-  const node = document.querySelector("title")!;
+  const node = document.body.querySelector("title")!;
   write("two");
-  expect(document.querySelector("title")).toBe(node);
+  expect(document.body.querySelector("title")).toBe(node);
   expect(node.textContent).toBe("two");
   expect(node.getAttribute("data-value")).toBe("two");
   stop();
@@ -79,7 +79,7 @@ test("foreignObject and nested svg can select their own lexical factories", () =
     document.body,
   );
   expect(
-    Array.from(document.querySelectorAll("a")).map((node) => node.namespaceURI),
+    Array.from(document.body.querySelectorAll("a")).map((node) => node.namespaceURI),
   ).toEqual([HTML, SVG]);
 });
 
@@ -87,7 +87,7 @@ test("ordinary h retains its existing inferred and authored namespace behavior",
   expect(h("title").namespaceURI).toBe(HTML);
   expect(h("title", { xmlns: SVG }).namespaceURI).toBe(SVG);
   stop = render(() => h("svg", null, () => h("a")), document.body);
-  expect(document.querySelector("a")!.namespaceURI).toBe(SVG);
+  expect(document.body.querySelector("a")!.namespaceURI).toBe(SVG);
 });
 
 test("arbitrary namespace URIs are delegated to createElementNS", () => {

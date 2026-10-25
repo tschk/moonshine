@@ -65,7 +65,7 @@ export function interpolatePath(
   return to
     .split("/")
     .map((segment) => {
-      if (segment === "$") return params["*"] ?? params._splat ?? "";
+      if (segment === "$") return params["*"] ?? params.splat ?? "";
       if (segment.startsWith("$")) return params[segment.slice(1)] ?? segment;
       return segment;
     })
