@@ -7,16 +7,18 @@ export interface RawSnippet<P extends unknown[] = []> {
   (...values: number extends P["length"] ? never : P): unknown;
   readonly [rawSnippet]: RawSnippetFactory<P>;
 }
+const rejectRawSnippet = (..._values: unknown[]): never => {
+  throw new Error("Raw snippets require compiler-lowered @render invocation");
+};
+
 export function createRawSnippet<P extends unknown[]>(
   factory: RawSnippetFactory<P>,
 ): RawSnippet<P> {
   if (typeof factory !== "function")
     throw new TypeError("Raw snippet requires a factory");
-  const snippet = (
-    ..._values: number extends P["length"] ? never : P
-  ): never => {
-    throw new Error("Raw snippets require compiler-lowered @render invocation");
-  };
+  const snippet = rejectRawSnippet as unknown as (
+    ...values: number extends P["length"] ? never : P
+  ) => never;
   return Object.assign(snippet, { [rawSnippet]: factory });
 }
 /** Internal compiler adapter validation, not a source invocation API. */

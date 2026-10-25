@@ -21,7 +21,7 @@ export function fromMoonshineSignal<T>(signal: MsSignal<T>): SvelteWritable<T> {
       }
     });
   });
-  function set(next: T): void {
+  function setSignal(next: T): void {
     const previous = signal.peek();
     signal.set(() => next);
     const current = signal.peek();
@@ -33,8 +33,8 @@ export function fromMoonshineSignal<T>(signal: MsSignal<T>): SvelteWritable<T> {
   }
   return {
     subscribe: store.subscribe,
-    set,
-    update: (fn) => set(fn(signal.peek())),
+    set: setSignal,
+    update: (fn) => setSignal(fn(signal.peek())),
   };
 }
 

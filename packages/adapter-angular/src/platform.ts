@@ -3499,7 +3499,7 @@ export function resolveAngularContentQueries(
         (meta.kind === "contentChild" || meta.kind === "contentChildren")
       ) {
         const descendants =
-          meta.descendants ?? (meta.kind === "contentChild" ? true : false);
+          meta.descendants ?? (meta.kind === "contentChild");
         const nodes = collectProjectedQueryNodes(children, descendants);
         const matched: any[] = [];
         for (const node of nodes) {
@@ -3533,7 +3533,7 @@ export function resolveAngularContentQueries(
     { selector: any; first: boolean; read?: any; descendants?: boolean }
   >;
   for (const [propName, q] of Object.entries(contentQueries)) {
-    const descendants = q.descendants ?? (q.first ? true : false);
+    const descendants = q.descendants ?? q.first;
     const nodes = collectProjectedQueryNodes(children, descendants);
     const matched: any[] = [];
     for (const node of nodes) {
@@ -4321,6 +4321,14 @@ export function bindAngularDirective<T extends object>(
   return merged;
 }
 
+const isReactivePropGetter = (val: unknown): val is () => any =>
+  typeof val === "function" &&
+  !isSignal(val) &&
+  !("ɵcmp" in val) &&
+  !("ɵdir" in val) &&
+  !("ɵpipe" in val) &&
+  val.length === 0;
+
 /**
  * Instantiates an Angular `@Component` or `@Directive` class within an active `EnvironmentInjector`,
  * binds incoming `props` onto `input()`, `model()`, and `@Input()` properties,
@@ -4435,14 +4443,6 @@ export function instantiateAngularComponent<T extends object>(
 
   const changes: SimpleChanges = {};
   let hasChanges = false;
-
-  const isReactivePropGetter = (val: unknown): val is () => any =>
-    typeof val === "function" &&
-    !isSignal(val) &&
-    !("ɵcmp" in val) &&
-    !("ɵdir" in val) &&
-    !("ɵpipe" in val) &&
-    val.length === 0;
 
   const readPropValue = (raw: unknown) => {
     if (isSignal(raw)) {

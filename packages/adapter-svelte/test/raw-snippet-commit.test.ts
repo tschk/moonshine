@@ -21,11 +21,11 @@ const authoredScheduler = Symbol("test explicit authored scheduler");
 function h(tag: any, props: any, ...children: any[]) {
   return nativeH(
     typeof tag === "function"
-      ? (props: any) =>
+      ? (cmpProps: any) =>
           withRuneScheduler(() => {
             const consumer = peekComponentContext()!;
             (consumer as any)[authoredScheduler] = getRenderScheduler();
-            return tag(props);
+            return tag(cmpProps);
           })
       : tag,
     props,
