@@ -43,7 +43,7 @@ test("catchError routes to parent boundary if handler throws", () => {
           () => {
             throw new Error("inner");
           },
-          (e) => {
+          (_e) => {
             throw new Error("handler fail");
           },
         );
@@ -66,7 +66,7 @@ test("normalizeError wraps primitives and passes through Errors", () => {
       () => {
         throw "string error";
       },
-      (e) => errors.push(e),
+      (_e) => errors.push(_e),
     );
   });
   expect(errors.length).toBe(1);
