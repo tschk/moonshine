@@ -237,7 +237,10 @@ describe("island hydration scheduling", () => {
     await flush();
 
     expect(consoleError).toHaveBeenCalledTimes(1);
-    expect(consoleError).toHaveBeenCalledWith("Moonshine island hydration failed", expect.anything());
+    expect(consoleError).toHaveBeenCalledWith(
+      "Moonshine island hydration failed",
+      expect.anything(),
+    );
 
     consoleError.mockRestore();
   });
