@@ -340,3 +340,194 @@ test("mount returns exposed instance synchronously, flushes template refs, and f
   expect(Reflect.ownKeys(plainVm)).toEqual([]);
   plainApp.unmount();
 });
+
+test("Vue 3 App API supports use, provide, runWithContext, component, directive, config, onUnmount, router, and pinia", async () => {
+  const {
+    createSSRApp,
+    definePlugin,
+    resolveComponent,
+    resolveDirective,
+    withDirectives,
+  } = await import("../src/app");
+  const { inject, hasInjectionContext, useId } = await import("../src/context");
+  const { createPinia, defineStore } = await import("../src/store");
+  const { createRouter, createMemoryHistory, useRoute } =
+    await import("../src/router");
+  const { h: ssrH } = await import("@tschk/moonshine-dom/ssr");
+  const { renderToString } = await import("../src/server-renderer");
+
+  const useCartStore = defineStore("app-cart", () => {
+    const items = ref(2);
+    return { items };
+  });
+
+  const pluginCalls: string[] = [];
+  const myPlugin = definePlugin((app, prefix: string) => {
+    pluginCalls.push(`${prefix}:${app.version}`);
+    app.provide("pluginGreeting", `${prefix}-hello`);
+    app.component("BadgeComp", (props: { label: string }) =>
+      ssrH("em", { class: "badge" }, props.label),
+    );
+    app.directive("focus", {
+      getSSRProps(binding) {
+        return { "data-focused": String(binding.value) };
+      },
+    });
+  });
+
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: "/checkout", component: () => null }],
+  });
+  await router.push("/checkout");
+  const pinia = createPinia();
+
+  const app = createSSRApp(() => {
+    const greeting = inject<string>("pluginGreeting", "missing");
+    const route = useRoute();
+    const cart = useCartStore();
+    const Badge = resolveComponent("BadgeComp") as (props: {
+      label: string;
+    }) => unknown;
+    const focusDir = resolveDirective("focus");
+    const id = useId();
+    const extraProps = withDirectives({ id, "data-path": route.path }, [
+      [focusDir, "yes"],
+    ]);
+    return ssrH(
+      "section",
+      extraProps,
+      `${greeting}:${cart.items}:`,
+      ssrH(Badge as never, { label: "VIP" }),
+    );
+  });
+
+  app.config.idPrefix = "custom";
+  app.use(myPlugin, "v3").use(myPlugin, "duplicate-ignored");
+  app.use(pinia).use(router);
+
+  expect(pluginCalls).toEqual(["v3:3.5.13"]);
+  expect(
+    app.runWithContext(() => [hasInjectionContext(), inject("pluginGreeting")]),
+  ).toEqual([true, "v3-hello"]);
+
+  const html = await renderToString(app);
+  expect(html).toBe(
+    '<section id="custom-0" data-path="/checkout" data-focused="yes">v3-hello:2:<em class="badge">VIP</em></section>',
+  );
+
+  // Verify app.onUnmount runs on DOM unmount
+  const unmounted: string[] = [];
+  const domTarget = document.createElement("div");
+  const domApp = createApp(() => h("span", {}, "dom"), {});
+  domApp.onUnmount(() => unmounted.push("hook-1"));
+  domApp.onUnmount(() => unmounted.push("hook-2"));
+  domApp.mount(domTarget);
+  domApp.unmount();
+  expect(unmounted).toEqual(["hook-1", "hook-2"]);
+});
+
+test("server-renderer awaits onServerPrefetch, replays reactive state, populates useSSRContext + teleports, and streams", async () => {
+  const { createSSRApp } = await import("../src/app");
+  const { onServerPrefetch } = await import("../src/lifecycle");
+  const { reactive, Teleport } = await import("../src/reactive");
+  const { h: ssrH } = await import("@tschk/moonshine-dom/ssr");
+  const {
+    renderToString,
+    renderToWebStream,
+    renderToSimpleStream,
+    useSSRContext,
+    ssrInterpolate,
+    ssrRenderAttrs,
+    ssrRenderClass,
+    ssrRenderStyle,
+    ssrRenderAttr,
+    ssrRenderTeleport,
+  } = await import("../src/server-renderer");
+
+  const Root = () => {
+    const title = ref("loading");
+    const state = reactive({ count: 1 });
+    const ssrCtx = useSSRContext<{ requestId?: string; fetched?: boolean }>();
+
+    onServerPrefetch(async () => {
+      await Promise.resolve();
+      title.value = `ready-${ssrCtx?.requestId ?? "none"}`;
+      state.count = 42;
+      if (ssrCtx) ssrCtx.fetched = true;
+    });
+
+    return ssrH(
+      "main",
+      { "data-count": state.count },
+      ssrH("h1", null, title.value),
+      ssrH(
+        Teleport as never,
+        { to: "#modals" },
+        ssrH("div", { class: "modal" }, `Modal:${state.count}`),
+      ),
+    );
+  };
+
+  const ctx: {
+    requestId: string;
+    fetched?: boolean;
+    teleports?: Record<string, string>;
+  } = { requestId: "req-7" };
+  const html = await renderToString(createSSRApp(Root), ctx);
+  expect(html).toBe(
+    '<main data-count="42"><h1>ready-req-7</h1><!--teleport start--><!--teleport end--></main>',
+  );
+  expect(ctx.fetched).toBe(true);
+  expect(ctx.teleports?.["#modals"]).toBe('<div class="modal">Modal:42</div>');
+
+  // Web ReadableStream
+  const stream = renderToWebStream(createSSRApp(Root), { requestId: "web-1" });
+  const streamText = await new Response(stream).text();
+  expect(streamText).toBe(
+    '<main data-count="42"><h1>ready-web-1</h1><!--teleport start--><!--teleport end--></main>',
+  );
+
+  // SimpleStream
+  const chunks: string[] = [];
+  await new Promise<void>((resolve, reject) => {
+    renderToSimpleStream(
+      createSSRApp(Root),
+      { requestId: "simple-1" },
+      {
+        push(content) {
+          if (content !== null) chunks.push(content);
+          else resolve();
+        },
+        destroy(err) {
+          reject(err);
+        },
+      },
+    );
+  });
+  expect(chunks.join("")).toBe(
+    '<main data-count="42"><h1>ready-simple-1</h1><!--teleport start--><!--teleport end--></main>',
+  );
+
+  // Low-level SSR helpers
+  expect(ssrInterpolate("<tag>&")).toBe("&lt;tag&gt;&amp;");
+  expect(ssrRenderClass(["a", { b: true, c: false }])).toBe("a b");
+  expect(ssrRenderStyle({ backgroundColor: "red", "--x": "1" })).toBe(
+    "background-color:red;--x:1",
+  );
+  expect(ssrRenderAttr("data-title", 'a"b')).toBe(' data-title="a&quot;b"');
+  expect(
+    ssrRenderAttrs({ id: "hero", class: ["x", { y: true }], disabled: true }),
+  ).toBe(' id="hero" class="x y" disabled');
+  const teleportOut: string[] = [];
+  const teleportCtx: { teleports?: Record<string, string> } = {};
+  ssrRenderTeleport(
+    (chunk) => teleportOut.push(chunk),
+    (push) => push("<span>inside</span>"),
+    "#drawer",
+    false,
+    teleportCtx,
+  );
+  expect(teleportOut.join("")).toBe("<!--teleport start--><!--teleport end-->");
+  expect(teleportCtx.teleports?.["#drawer"]).toBe("<span>inside</span>");
+});

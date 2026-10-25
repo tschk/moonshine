@@ -1,5 +1,10 @@
 /** Static View IR mapping parameterized by independent DOM or SSR factories. */
-import type { TabItem, ViewIr, ViewNode } from "@tschk/crepuscularity-wasm";
+import type {
+  PickerOption,
+  TabItem,
+  ViewIr,
+  ViewNode,
+} from "@tschk/crepuscularity-wasm";
 
 export type CrepusNode = ViewNode;
 export type CrepusIr = ViewIr;
@@ -32,10 +37,12 @@ export function createIrRenderer<Child>(
     return children.map((child) => renderCrepusNodeSolid(child));
   }
 
-  const RENDERERS: Record<
-    string,
-    (node: any, cls: string | undefined) => Child
-  > = {
+  const RENDERERS: {
+    [K in ViewNode["kind"]]?: (
+      node: Extract<ViewNode, { kind: K }>,
+      cls: string | undefined,
+    ) => Child;
+  } = {
     text: (node, cls) => el("span", { class: cls }, node.content),
     link: (node, cls) =>
       el(
@@ -122,7 +129,7 @@ export function createIrRenderer<Child>(
       el(
         "select",
         { class: cls, name: node.bind },
-        ...node.options.map((option: any) =>
+        ...node.options.map((option: PickerOption) =>
           el("option", { value: option.value }, option.label),
         ),
       ),
@@ -185,7 +192,10 @@ export function createIrRenderer<Child>(
       throw new TypeError(`Unsupported View IR node kind: ${node.kind}`);
     }
     const cls = classOf(node);
-    const renderer = RENDERERS[node.kind];
+    const renderer = RENDERERS[node.kind as ViewNode["kind"]] as (
+      node: ViewNode,
+      cls: string | undefined,
+    ) => Child;
     return renderer(node, cls);
   }
 
