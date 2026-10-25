@@ -13,10 +13,13 @@ import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
 const staticDir = resolve(tmpDir, "public");
+const boundaryDir = resolve(tmpDir, "public-other");
 
 beforeAll(() => {
   mkdirSync(staticDir, { recursive: true });
+  mkdirSync(boundaryDir, { recursive: true });
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
+  writeFileSync(resolve(boundaryDir, "boundary.txt"), "boundary");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
 });
@@ -54,6 +57,12 @@ describe("isContained", () => {
 
   test("returns false for a file outside the directory", () => {
     expect(isContained(staticDir, resolve(tmpDir, "secret.txt"))).toBe(false);
+  });
+
+  test("returns false for a file in a similarly named directory (boundary check)", () => {
+    expect(
+      isContained(staticDir, resolve(boundaryDir, "boundary.txt")),
+    ).toBe(false);
   });
 
   test("caches the real root on successive calls", () => {
