@@ -106,21 +106,22 @@ test("JSON/coercion failures retain original errors and do not fall back silentl
 test("interpolation tracks nested native ref properties and releases owned observers", () => {
   const value = ref({ count: 1 });
   const seen: Array<string | undefined> = [];
-  let stop = () => {};
+  let stopRef = () => {};
   createRoot((dispose) => {
-    stop = dispose;
+    stopRef = dispose;
     createComputed(() => seen.push(toDisplayString(value)));
   });
   value.value.count = 2;
   expect(seen).toEqual(['{\n  "count": 1\n}', '{\n  "count": 2\n}']);
-  stop();
+  stopRef();
   value.value.count = 3;
   expect(seen.length).toBe(2);
 });
 
+const request = (value: unknown) =>
+  renderToString(() => h("p", {}, toDisplayStringSSR(value)));
+
 test("SSR interpolation stringifies the helper result then escapes through the renderer", () => {
-  const request = (value: unknown) =>
-    renderToString(() => h("p", {}, toDisplayStringSSR(value)));
   expect(request({ toJSON: () => undefined })).toBe("<p>undefined</p>");
   expect(request(null)).toBe("<p></p>");
   expect(request(false)).toBe("<p>false</p>");

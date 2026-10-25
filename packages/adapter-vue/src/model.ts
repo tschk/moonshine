@@ -71,9 +71,9 @@ export function bindTextModel(
     const end = () => {
       if (!composing) return;
       composing = false;
-      element.dispatchEvent(
-        new element.ownerDocument.defaultView!.Event("input"),
-      );
+      const View = element.ownerDocument.defaultView;
+      const CustomEvent = View ? (View as any).Event : Event;
+      element.dispatchEvent(new CustomEvent("input"));
     };
     listen("compositionend", end);
     listen("change", end);

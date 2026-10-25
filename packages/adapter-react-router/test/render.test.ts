@@ -98,10 +98,11 @@ describe("Outlet", () => {
     expect(out).toBe("<main><p>child</p></main>");
   });
 
+  function Child(): ReactNode {
+    return createElement("i", null, useOutletContext<string>());
+  }
+
   test("useOutletContext reads the provider context", () => {
-    function Child(): ReactNode {
-      return createElement("i", null, useOutletContext<string>());
-    }
     const out = html(
       createElement(
         OutletProvider,
@@ -114,39 +115,43 @@ describe("Outlet", () => {
 });
 
 describe("hooks", () => {
+  function LocationProbe(): ReactNode {
+    const location = useLocation();
+    return createElement("code", null, JSON.stringify(location));
+  }
+
   test("useLocation returns a location object", () => {
-    function Probe(): ReactNode {
-      const location = useLocation();
-      return createElement("code", null, JSON.stringify(location));
-    }
-    const out = html(createElement(Probe)).replaceAll("&quot;", '"');
+    const out = html(createElement(LocationProbe)).replaceAll("&quot;", '"');
     expect(out).toContain('"pathname":"/"');
     expect(out).toContain('"state":null');
   });
 
+  function SearchParamsProbe(): ReactNode {
+    const [params, setParams] = useSearchParams();
+    return createElement(
+      "code",
+      null,
+      `${params instanceof URLSearchParams}:${typeof setParams}`,
+    );
+  }
+
   test("useSearchParams returns params and a setter", () => {
-    function Probe(): ReactNode {
-      const [params, setParams] = useSearchParams();
-      return createElement(
-        "code",
-        null,
-        `${params instanceof URLSearchParams}:${typeof setParams}`,
-      );
-    }
-    expect(html(createElement(Probe))).toContain("true:function");
+    expect(html(createElement(SearchParamsProbe))).toContain("true:function");
   });
+
+  function HrefProbe(): ReactNode {
+    return createElement("code", null, useHref("child"));
+  }
 
   test("useHref resolves a relative path against the location", () => {
-    function Probe(): ReactNode {
-      return createElement("code", null, useHref("child"));
-    }
-    expect(html(createElement(Probe))).toBe("<code>/child</code>");
+    expect(html(createElement(HrefProbe))).toBe("<code>/child</code>");
   });
 
+  function NavigationTypeProbe(): ReactNode {
+    return createElement("code", null, useNavigationType());
+  }
+
   test("useNavigationType reports POP", () => {
-    function Probe(): ReactNode {
-      return createElement("code", null, useNavigationType());
-    }
-    expect(html(createElement(Probe))).toBe("<code>POP</code>");
+    expect(html(createElement(NavigationTypeProbe))).toBe("<code>POP</code>");
   });
 });
