@@ -63,7 +63,9 @@ export interface RouteLocationNamedRaw extends RouteLocationOptions {
 }
 
 export type RouteLocationRaw =
-  string | RouteLocationPathRaw | RouteLocationNamedRaw;
+  | string
+  | RouteLocationPathRaw
+  | RouteLocationNamedRaw;
 
 export type RouteComponent = (...args: any[]) => any;
 
@@ -73,7 +75,8 @@ export interface RouteRecordRaw {
   component?: RouteComponent;
   components?: Record<string, RouteComponent>;
   redirect?:
-    RouteLocationRaw | ((to: RouteLocationNormalized) => RouteLocationRaw);
+    | RouteLocationRaw
+    | ((to: RouteLocationNormalized) => RouteLocationRaw);
   alias?: string | string[];
   children?: RouteRecordRaw[];
   meta?: RouteMeta;
@@ -89,7 +92,8 @@ export interface RouteRecordNormalized {
   name: RouteRecordName | undefined;
   components: Record<string, RouteComponent>;
   redirect?:
-    RouteLocationRaw | ((to: RouteLocationNormalized) => RouteLocationRaw);
+    | RouteLocationRaw
+    | ((to: RouteLocationNormalized) => RouteLocationRaw);
   aliasOf: RouteRecordNormalized | undefined;
   children: RouteRecordRaw[];
   meta: RouteMeta;
@@ -119,7 +123,11 @@ export interface RouteLocationNormalized {
 export type RouteLocationNormalizedLoaded = RouteLocationNormalized;
 
 export type NavigationGuardReturn =
-  void | Error | boolean | RouteLocationRaw | ((vm: any) => any);
+  | void
+  | Error
+  | boolean
+  | RouteLocationRaw
+  | ((vm: any) => any);
 
 export type NavigationGuardNext = (
   valid?: boolean | RouteLocationRaw | Error | ((vm: any) => any),
@@ -781,6 +789,25 @@ export function createRouter(options: RouterOptions): Router {
     };
   }
 
+  function parsePathQueryHash(
+    raw: string,
+    parseQueryFn: (search: string) => LocationQuery,
+  ) {
+    let hash = "";
+    let query: LocationQuery = {};
+    const hashIdx = raw.indexOf("#");
+    if (hashIdx >= 0) {
+      hash = raw.slice(hashIdx);
+      raw = raw.slice(0, hashIdx);
+    }
+    const queryIdx = raw.indexOf("?");
+    if (queryIdx >= 0) {
+      query = parseQueryFn(raw.slice(queryIdx + 1));
+      raw = raw.slice(0, queryIdx);
+    }
+    return { hash, query, raw };
+  }
+
   function resolve(
     rawLocation: RouteLocationRaw,
     currentLocation: RouteLocationNormalizedLoaded = currentRoute.value,
@@ -793,17 +820,11 @@ export function createRouter(options: RouterOptions): Router {
     let name: RouteRecordName | null | undefined;
 
     if (typeof rawLocation === "string") {
-      let raw = rawLocation;
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
+      const parsed = parsePathQueryHash(rawLocation, parseQueryFn);
+      hash = parsed.hash;
+      query = parsed.query;
+      let raw = parsed.raw;
+
       if (!raw) {
         path = currentLocation.path || "/";
       } else if (raw.startsWith("/")) {
@@ -837,17 +858,11 @@ export function createRouter(options: RouterOptions): Router {
           : "#" + rawLocation.hash
         : "";
     } else if ("path" in rawLocation) {
-      let raw = rawLocation.path || "/";
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
+      const parsed = parsePathQueryHash(rawLocation.path || "/", parseQueryFn);
+      hash = parsed.hash;
+      query = parsed.query;
+      let raw = parsed.raw;
+
       if (rawLocation.query) {
         query = {
           ...query,
@@ -1399,7 +1414,13 @@ export interface RouterLinkProps {
   activeClass?: string;
   exactActiveClass?: string;
   ariaCurrentValue?:
-    "page" | "step" | "location" | "date" | "time" | "true" | "false";
+    | "page"
+    | "step"
+    | "location"
+    | "date"
+    | "time"
+    | "true"
+    | "false";
   custom?: boolean;
   label?: string;
   children?: any;
