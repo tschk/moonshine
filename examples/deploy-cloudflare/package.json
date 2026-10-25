@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-example-deploy-cloudflare",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.4.62",
   "type": "module",
   "scripts": {
     "format": "bunx prettier --check .",

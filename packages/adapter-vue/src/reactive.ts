@@ -6,6 +6,7 @@ import {
   createRoot,
   createSignal,
   getOwner,
+  getRenderScheduler,
   onCleanup,
   runWithOwner,
   untrack,
@@ -18,21 +19,53 @@ import {
   trackDependency,
   type Trackable,
 } from "@tschk/moonshine/tracking";
+import { createTrackedMap } from "./map";
 import { createTrackedSet } from "./set";
 import {
   getComponentContext,
+  nativeRefSet,
   peekComponentContext,
   withComponentConsumer,
   type ComponentContext,
 } from "@tschk/moonshine-dom/component";
 import { createEmitter } from "./events";
-export { useId } from "./context";
+import { peekSSRContext } from "./context";
+export {
+  hasInjectionContext,
+  inject,
+  peekSSRContext,
+  provide,
+  useAttrs,
+  useId,
+  useSlots,
+  useSSRContext,
+  type AppConfig,
+  type AppContextState,
+  type InjectionKey,
+  type Slots,
+  type SSRContext,
+} from "./context";
+import { peekServerPrefetchSession } from "./lifecycle";
+export {
+  onActivated,
+  onBeforeMount,
+  onBeforeUnmount,
+  onBeforeUpdate,
+  onDeactivated,
+  onErrorCaptured,
+  onMounted,
+  onServerPrefetch,
+  onUnmounted,
+  onUpdated,
+  type ErrorCapturedHook,
+} from "./lifecycle";
+import { normalizeClass, normalizeStyle } from "./normalize";
 import {
   createMutable,
   unwrap as unwrapStore,
 } from "@tschk/moonshine-dom/store";
 
-const refs = new WeakSet<object>();
+const refs = nativeRefSet;
 const readonlyRefs = new WeakSet<object>();
 const refTriggers = new WeakMap<Ref<any>, () => void>();
 const refTriggerVersions = new WeakMap<Ref<any>, number>();
@@ -123,30 +156,40 @@ const arrayIndex = (key: PropertyKey) =>
 export type Unwrap<T> =
   T extends Readonly<Ref<infer V>>
     ? V
-    : T extends Set<infer V>
-      ? Set<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
-      : T extends ReadonlySet<infer V>
-        ? ReadonlySet<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
-        : T extends Function | Date | Map<unknown, unknown> | Node | Window
-          ? T
-          : T extends readonly unknown[]
-            ? {
-                [K in keyof T]: T[K] extends Readonly<Ref<any>>
-                  ? T[K]
-                  : Unwrap<T[K]>;
-              }
-            : T extends object
-              ? { [K in keyof T]: Unwrap<T[K]> }
-              : T;
+    : T extends Map<infer K, infer V>
+      ? Map<
+          K extends Readonly<Ref<any>> ? K : Unwrap<K>,
+          V extends Readonly<Ref<any>> ? V : Unwrap<V>
+        >
+      : T extends ReadonlyMap<infer K, infer V>
+        ? ReadonlyMap<
+            K extends Readonly<Ref<any>> ? K : Unwrap<K>,
+            V extends Readonly<Ref<any>> ? V : Unwrap<V>
+          >
+        : T extends Set<infer V>
+          ? Set<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
+          : T extends ReadonlySet<infer V>
+            ? ReadonlySet<V extends Readonly<Ref<any>> ? V : Unwrap<V>>
+            : T extends Function | Date | Node | Window
+              ? T
+              : T extends readonly unknown[]
+                ? {
+                    [K in keyof T]: T[K] extends Readonly<Ref<any>>
+                      ? T[K]
+                      : Unwrap<T[K]>;
+                  }
+                : T extends object
+                  ? { [K in keyof T]: Unwrap<T[K]> }
+                  : T;
 export type DeepReadonly<T> = T extends
   ((...args: any[]) => any) | Date | RegExp | Node | Window
   ? T
   : T extends Readonly<Ref<infer V>>
     ? Readonly<Ref<DeepReadonly<Unwrap<V>>>>
-    : T extends Set<infer V> | ReadonlySet<infer V>
-      ? ReadonlySet<DeepReadonly<V>>
-      : T extends Map<infer K, infer V> | ReadonlyMap<infer K, infer V>
-        ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
+    : T extends Map<infer K, infer V> | ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
+      : T extends Set<infer V> | ReadonlySet<infer V>
+        ? ReadonlySet<DeepReadonly<V>>
         : T extends readonly unknown[]
           ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
           : T extends object
@@ -155,19 +198,45 @@ export type DeepReadonly<T> = T extends
 function rawValue<T>(value: T): T {
   return toRaw(value);
 }
+function usePrefetchCell<T>(create: () => T): T {
+  const session = peekServerPrefetchSession();
+  if (
+    session &&
+    !activeEffectScope &&
+    peekComponentContext()?.active &&
+    peekComponentContext()?.mode === "ssr"
+  ) {
+    if (session.phase === "replay" && session.cursor < session.cells.length) {
+      return session.cells[session.cursor++] as T;
+    }
+    if (session.phase === "collect") {
+      const cell = create();
+      session.cells.push(cell);
+      return cell;
+    }
+  }
+  return create();
+}
 function wrapValue<T>(value: T): T {
   if (value === null || typeof value !== "object") return value;
   const raw: object = unwrapStore(value);
   if (rawMarked.has(value) || rawMarked.has(raw)) return raw as T;
-  return plain(raw) || raw instanceof Set ? (reactive(value) as T) : value;
+  return plain(raw) || raw instanceof Set || raw instanceof Map
+    ? (createReactive(value) as T)
+    : value;
 }
 function wrapReadonly<T>(value: T): T {
   if (value === null || typeof value !== "object") return value;
   const raw: object = toRaw(value);
   if (rawMarked.has(value) || rawMarked.has(raw)) return value;
-  return plain(raw) || raw instanceof Set ? (readonly(value) as T) : value;
+  return plain(raw) || raw instanceof Set || raw instanceof Map
+    ? (readonly(value) as T)
+    : value;
 }
 export function reactive<T extends object>(value: T): Unwrap<T> {
+  return usePrefetchCell(() => createReactive(value));
+}
+function createReactive<T extends object>(value: T): Unwrap<T> {
   if (readonlyProxies.has(value)) return value as Unwrap<T>;
   const existing = proxies.get(value);
   if (existing) return existing as Unwrap<T>;
@@ -185,9 +254,18 @@ export function reactive<T extends object>(value: T): Unwrap<T> {
     proxies.set(proxy, proxy);
     return proxy as Unwrap<T>;
   }
+  if (rawTarget instanceof Map) {
+    if (!Object.isExtensible(rawTarget)) return rawTarget as Unwrap<T>;
+    const proxy = createTrackedMap(rawTarget, wrapValue, rawValue);
+    reactiveProxies.add(proxy);
+    targets.set(proxy, rawTarget);
+    proxies.set(rawTarget, proxy);
+    proxies.set(proxy, proxy);
+    return proxy as Unwrap<T>;
+  }
   if (!plain(rawTarget))
     throw new TypeError(
-      "Native reactive requires a plain object, array or Set",
+      "Native reactive requires a plain object, array, Set or Map",
     );
   if (!Object.isExtensible(rawTarget)) return rawTarget as Unwrap<T>;
   const mutable = createMutable(rawTarget, { equals: Object.is });
@@ -265,6 +343,9 @@ function notifyShallow(cell: ShallowCell | undefined): void {
 }
 
 export function shallowReactive<T extends object>(value: T): T {
+  return usePrefetchCell(() => createShallowReactive(value));
+}
+function createShallowReactive<T extends object>(value: T): T {
   if (readonlyProxies.has(value)) return value;
   if (shallowProxies.has(value) && reactiveProxies.has(value)) return value;
   const rawTarget = toRaw(value);
@@ -285,9 +366,18 @@ export function shallowReactive<T extends object>(value: T): T {
     shallowReactiveMap.set(proxy, proxy);
     return proxy as unknown as T;
   }
+  if (rawTarget instanceof Map) {
+    const proxy = createTrackedMap(rawTarget, (v) => v, rawValue);
+    reactiveProxies.add(proxy);
+    shallowProxies.add(proxy);
+    targets.set(proxy, rawTarget);
+    shallowReactiveMap.set(rawTarget, proxy);
+    shallowReactiveMap.set(proxy, proxy);
+    return proxy as unknown as T;
+  }
   if (!plain(rawTarget))
     throw new TypeError(
-      "Native shallowReactive requires a plain object, array or Set",
+      "Native shallowReactive requires a plain object, array, Set or Map",
     );
   const methods = new Map<PropertyKey, Function>();
   const proxy = new Proxy(rawTarget, {
@@ -473,6 +563,110 @@ function createReadonlySet(target: Set<unknown>, deep: boolean): Set<unknown> {
   return proxy;
 }
 
+const readonlyMapStates = new WeakMap<
+  object,
+  { target: Map<unknown, unknown>; deep: boolean }
+>();
+function readonlyMapState(value: object) {
+  const found = readonlyMapStates.get(value);
+  if (!found) throw new TypeError("Map method requires a native readonly Map");
+  return found;
+}
+function readonlyMapIterator(
+  receiver: Map<unknown, unknown>,
+  mode: "keys" | "values" | "entries",
+): MapIterator<any> {
+  const s = readonlyMapState(receiver);
+  return (function* () {
+    for (const [key, value] of s.target.entries()) {
+      const wrappedKey = s.deep ? wrapReadonly(key) : key;
+      const wrappedValue = s.deep ? wrapReadonly(value) : value;
+      yield mode === "keys"
+        ? wrappedKey
+        : mode === "values"
+          ? wrappedValue
+          : [wrappedKey, wrappedValue];
+    }
+    return undefined;
+  })();
+}
+const readonlyMapMethods = {
+  get size() {
+    return readonlyMapState(this).target.size;
+  },
+  has(this: Map<unknown, unknown>, key: unknown) {
+    const { target } = readonlyMapState(this);
+    const raw = toRaw(key);
+    return target.has(key) || (raw !== key && target.has(raw));
+  },
+  get(this: Map<unknown, unknown>, key: unknown) {
+    const { target, deep } = readonlyMapState(this);
+    const raw = toRaw(key);
+    let value: unknown;
+    if (target.has(key)) {
+      value = target.get(key);
+    } else if (raw !== key && target.has(raw)) {
+      value = target.get(raw);
+    } else {
+      value = target.get(key);
+    }
+    return deep ? wrapReadonly(value) : value;
+  },
+  set() {
+    throw new TypeError("Cannot mutate a readonly Map");
+  },
+  delete() {
+    throw new TypeError("Cannot mutate a readonly Map");
+  },
+  clear() {
+    throw new TypeError("Cannot mutate a readonly Map");
+  },
+  keys(this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "keys");
+  },
+  values(this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "values");
+  },
+  entries(this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "entries");
+  },
+  [Symbol.iterator](this: Map<unknown, unknown>) {
+    return readonlyMapIterator(this, "entries");
+  },
+  forEach(
+    this: Map<unknown, unknown>,
+    callback: (
+      value: unknown,
+      key: unknown,
+      map: Map<unknown, unknown>,
+    ) => void,
+    thisArg?: unknown,
+  ) {
+    if (typeof callback !== "function")
+      throw new TypeError("Map callback must be a function");
+    const s = readonlyMapState(this);
+    s.target.forEach((value, key) => {
+      const wrappedKey = s.deep ? wrapReadonly(key) : key;
+      const wrappedValue = s.deep ? wrapReadonly(value) : value;
+      callback.call(thisArg, wrappedValue, wrappedKey, this);
+    });
+  },
+};
+function createReadonlyMap(
+  target: Map<unknown, unknown>,
+  deep: boolean,
+): Map<unknown, unknown> {
+  const proxy = new Proxy(target, {
+    get(source, key, receiver) {
+      return Object.hasOwn(readonlyMapMethods, key) && key in source
+        ? Reflect.get(readonlyMapMethods, key, receiver)
+        : Reflect.get(source, key, receiver);
+    },
+  });
+  readonlyMapStates.set(proxy, { target, deep });
+  return proxy;
+}
+
 function createReadonly<T extends object>(value: T, shallow: boolean): any {
   if (isRef(value)) {
     if (readonlyRefs.has(value) && (!shallow || shallowProxies.has(value))) {
@@ -522,9 +716,21 @@ function createReadonly<T extends object>(value: T, shallow: boolean): any {
     cache.set(proxy, proxy);
     return proxy;
   }
+  if (rawCandidate instanceof Map) {
+    const proxy = createReadonlyMap(
+      underlying as unknown as Map<unknown, unknown>,
+      !shallow,
+    );
+    readonlyProxies.add(proxy);
+    if (shallow) shallowProxies.add(proxy);
+    targets.set(proxy, underlying);
+    cache.set(underlying, proxy);
+    cache.set(proxy, proxy);
+    return proxy;
+  }
   if (!plain(rawCandidate))
     throw new TypeError(
-      "Native readonly requires a plain object, array or Set",
+      "Native readonly requires a plain object, array, Set or Map",
     );
   const proxy = new Proxy(underlying, {
     get(target, key, receiver) {
@@ -572,6 +778,9 @@ export function ref<T>(value: Ref<T>): Ref<T>;
 export function ref<T>(value: T): Ref<Unwrap<T>>;
 export function ref<T = any>(): Ref<T | undefined>;
 export function ref<T>(value?: T | Ref<T>): Ref<any> {
+  return usePrefetchCell(() => createRef(value));
+}
+function createRef<T>(value?: T | Ref<T>): Ref<any> {
   if (isRef(value)) return value;
   const convert = wrapValue<T>;
   let forceTrigger = false;
@@ -598,6 +807,9 @@ export function shallowRef<T extends Readonly<Ref<any>>>(value: T): T;
 export function shallowRef<T>(value: T): Ref<T>;
 export function shallowRef<T = any>(): Ref<T | undefined>;
 export function shallowRef(value?: unknown): Ref<any> {
+  return usePrefetchCell(() => createShallowRef(value));
+}
+function createShallowRef(value?: unknown): Ref<any> {
   if (isRef(value)) return value;
   let forceTrigger = false;
   const [read, write] = createSignal<unknown>(value, {
@@ -700,7 +912,7 @@ export function toRef(
       },
     );
   }
-  return ref(source);
+  return createRef(source);
 }
 /** Link the currently enumerable string properties, preserving array holes. */
 export type ToRefs<T = any> = { [K in keyof T]: ToRef<T[K]> };
@@ -718,6 +930,41 @@ export function toRefs<T extends object>(object: T): ToRefs<T> {
     });
   }
   return result;
+}
+type DistributeRef<T> = T extends Readonly<Ref<infer V>> ? V : T;
+export type ShallowUnwrapRef<T> = {
+  [K in keyof T]: DistributeRef<T[K]>;
+};
+const proxyRefsCache = new WeakMap<object, object>();
+export function proxyRefs<T extends object>(
+  objectWithRefs: T,
+): ShallowUnwrapRef<T> {
+  if (objectWithRefs === null || typeof objectWithRefs !== "object") {
+    throw new TypeError("proxyRefs requires an object");
+  }
+  if (isReactive(objectWithRefs)) {
+    return objectWithRefs as unknown as ShallowUnwrapRef<T>;
+  }
+  const existing = proxyRefsCache.get(objectWithRefs);
+  if (existing) {
+    return existing as ShallowUnwrapRef<T>;
+  }
+  const proxy = new Proxy(objectWithRefs, {
+    get(target, key, receiver) {
+      return unref(Reflect.get(target, key, receiver));
+    },
+    set(target, key, value, receiver) {
+      const oldValue: unknown = Reflect.get(target, key, target);
+      if (isRef(oldValue) && !isRef(value)) {
+        oldValue.value = value;
+        return true;
+      }
+      return Reflect.set(target, key, value, receiver);
+    },
+  });
+  proxyRefsCache.set(objectWithRefs, proxy);
+  proxyRefsCache.set(proxy, proxy);
+  return proxy as unknown as ShallowUnwrapRef<T>;
 }
 export function computed<T>(
   getter: (previous: T | undefined) => T,
@@ -825,8 +1072,13 @@ function traverse(
     for (let i = 0; i < value.length; i++) {
       traverse(value[i], depth, seen);
     }
-  } else if (value instanceof Set || value instanceof Map) {
+  } else if (value instanceof Set) {
     value.forEach((entry) => {
+      traverse(entry, depth, seen);
+    });
+  } else if (value instanceof Map) {
+    value.forEach((entry, key) => {
+      traverse(key, depth, seen);
       traverse(entry, depth, seen);
     });
   } else if (plain(value)) {
@@ -1702,3 +1954,740 @@ export function useModel<
 ): ModelRef<T[K], M, G, S> {
   return createModel<T[K], M, G, S>(props, name, options);
 }
+
+export type WatchEffect = (onCleanup: (fn: () => void) => void) => void;
+
+export interface WatchEffectOptions {
+  flush?: "pre" | "post" | "sync";
+  onTrack?: (event: unknown) => void;
+  onTrigger?: (event: unknown) => void;
+}
+
+const pendingPostJobs: Array<() => void> = [];
+let postFlushScheduled = false;
+
+function queueVuePostJob(fn: () => void): void {
+  const scheduler = getRenderScheduler();
+  if (scheduler) {
+    scheduler.post(fn);
+    return;
+  }
+  pendingPostJobs.push(fn);
+  if (!postFlushScheduled) {
+    postFlushScheduled = true;
+    queueMicrotask(() => {
+      postFlushScheduled = false;
+      let failed = false;
+      let failure: unknown;
+      while (pendingPostJobs.length > 0) {
+        const batchJobs = pendingPostJobs.splice(0);
+        for (const job of batchJobs) {
+          try {
+            job();
+          } catch (error) {
+            if (!failed) failure = error;
+            failed = true;
+          }
+        }
+      }
+      if (failed) throw failure;
+    });
+  }
+}
+
+export function watchEffect(
+  effect: WatchEffect,
+  options?: WatchEffectOptions,
+): WatchHandle {
+  if (typeof effect !== "function") {
+    throw new TypeError("Watcher effect must be a function");
+  }
+  if (!options || options.flush !== "post") {
+    return watchSyncEffect(effect);
+  }
+  const outer = getOwner();
+  if (outer?.disposed) {
+    throw new Error("Cannot watch from a disposed native owner");
+  }
+  const reportError = captureWatchErrorHandler();
+  let stop!: () => void;
+  let pause!: () => void;
+  let resume!: () => void;
+
+  createRoot((dispose) => {
+    stop = dispose;
+    let active = true;
+    let running = false;
+    let paused = false;
+    let dirtyWhilePaused = false;
+    let scheduled = false;
+    let lastDeps: Array<Parameters<typeof trackDependency>[0]> = [];
+    const [readTrigger, writeTrigger] = createSignal(0, { equals: false });
+    const cleanups: Array<() => void> = [];
+
+    const clean = () => {
+      let failed = false;
+      let failure: unknown;
+      const prevCleanup = activeWatcherCleanup;
+      activeWatcherCleanup = undefined;
+      try {
+        for (const fn of cleanups.splice(0)) {
+          try {
+            untrack(() =>
+              reportError
+                ? invokeWatch(reportError, "watch cleanup", fn)
+                : fn(),
+            );
+          } catch (error) {
+            if (!failed) failure = error;
+            failed = true;
+          }
+        }
+      } finally {
+        activeWatcherCleanup = prevCleanup;
+      }
+      if (failed) throw failure;
+    };
+
+    const executeEffect = () => {
+      scheduled = false;
+      if (running || !active || paused) return;
+      running = true;
+      try {
+        untrack(clean);
+        if (!active) return;
+        const registerCleanup = (fn: () => void) => {
+          if (typeof fn !== "function") {
+            throw new TypeError("Watcher cleanup must be a function");
+          }
+          if (active) cleanups.push(fn);
+        };
+        const invoke = () => {
+          const previousCleanup = activeWatcherCleanup;
+          activeWatcherCleanup = registerCleanup;
+          try {
+            return effect(registerCleanup);
+          } finally {
+            activeWatcherCleanup = previousCleanup;
+          }
+        };
+        lastDeps = collectDeps(
+          () => {
+            if (reportError) invokeWatch(reportError, "watch effect", invoke);
+            else invoke();
+          },
+          undefined,
+          true,
+        ) as Array<Parameters<typeof trackDependency>[0]>;
+        writeTrigger((v) => v + 1);
+      } catch (error) {
+        try {
+          untrack(clean);
+        } catch {
+          /* Preserve effect failure. */
+        }
+        throw error;
+      } finally {
+        running = false;
+      }
+    };
+
+    pause = () => {
+      if (active) paused = true;
+    };
+    resume = () => {
+      if (!active || !paused) return;
+      paused = false;
+      if (dirtyWhilePaused) {
+        dirtyWhilePaused = false;
+        if (!scheduled) {
+          scheduled = true;
+          queueVuePostJob(executeEffect);
+        }
+      }
+    };
+
+    onCleanup(() => {
+      active = false;
+      paused = false;
+      dirtyWhilePaused = false;
+      scheduled = false;
+      clean();
+    });
+
+    let initialSubscriptionPass = true;
+    createComputed(() => {
+      readTrigger();
+      for (const dep of lastDeps) {
+        dep.validate?.();
+        trackDependency(dep);
+      }
+      if (initialSubscriptionPass) {
+        initialSubscriptionPass = false;
+        scheduled = true;
+        queueVuePostJob(executeEffect);
+        return;
+      }
+      if (!active || running) return;
+      if (paused) {
+        dirtyWhilePaused = true;
+        return;
+      }
+      if (!scheduled) {
+        scheduled = true;
+        queueVuePostJob(executeEffect);
+      }
+    });
+  });
+
+  if (outer) onCleanup(stop);
+  return createWatchHandle(stop, pause, resume);
+}
+
+export function watchPostEffect(
+  effect: WatchEffect,
+  options?: Omit<WatchEffectOptions, "flush">,
+): WatchHandle {
+  return watchEffect(effect, { ...options, flush: "post" });
+}
+
+export function nextTick<R = void>(fn?: () => R): Promise<Awaited<R>> {
+  return new Promise<Awaited<R>>((resolve, reject) => {
+    queueVuePostJob(() => {
+      try {
+        const result = fn ? fn() : undefined;
+        resolve(result as Awaited<R>);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+function isOnEventKey(key: string): boolean {
+  return (
+    key.length > 2 &&
+    key.charCodeAt(0) === 111 &&
+    key.charCodeAt(1) === 110 &&
+    key.charCodeAt(2) <= 96
+  );
+}
+
+export function mergeProps(
+  ...args: Array<Record<string, any> | null | undefined>
+): Record<string, any> {
+  const ret: Record<string, any> = {};
+  for (const toMerge of args) {
+    if (!toMerge || typeof toMerge !== "object") continue;
+    for (const key of Object.keys(toMerge)) {
+      const incoming = toMerge[key];
+      if (key === "class") {
+        if (ret.class !== incoming) {
+          ret.class = normalizeClass([ret.class, incoming]);
+        }
+      } else if (key === "style") {
+        ret.style = normalizeStyle([ret.style, incoming]);
+      } else if (isOnEventKey(key)) {
+        const existing = ret[key];
+        if (
+          incoming &&
+          existing !== incoming &&
+          !(Array.isArray(existing) && existing.includes(incoming))
+        ) {
+          ret[key] = existing
+            ? [].concat(existing as any, incoming as any)
+            : incoming;
+        }
+      } else if (key !== "") {
+        ret[key] = incoming;
+      }
+    }
+  }
+  return ret;
+}
+
+export function defineComponent<T>(options: T): T {
+  return options;
+}
+
+export interface AsyncComponentOptions<T = any> {
+  loader: () => Promise<T | { default: T }>;
+  loadingComponent?: (...args: any[]) => any;
+  errorComponent?: (...args: any[]) => any;
+  delay?: number;
+  timeout?: number;
+  onError?: (
+    error: Error,
+    retry: () => void,
+    fail: () => void,
+    attempts: number,
+  ) => any;
+}
+
+export function defineAsyncComponent<
+  T extends (...args: any[]) => any = (...args: any[]) => any,
+>(source: (() => Promise<T | { default: T }>) | AsyncComponentOptions<T>): T {
+  const options: AsyncComponentOptions<T> =
+    typeof source === "function" ? { loader: source } : source;
+  let resolvedComp: T | undefined;
+  let pendingPromise: Promise<T> | undefined;
+
+  const wrapper = ((props: Record<string, any>) => {
+    if (resolvedComp) {
+      return resolvedComp(props);
+    }
+    const [loaded, setLoaded] = createSignal<T | undefined>(resolvedComp);
+    const [error, setError] = createSignal<Error | undefined>(undefined);
+    const [showLoading, setShowLoading] = createSignal(
+      (options.delay ?? 200) <= 0,
+    );
+
+    let disposed = false;
+    if (getOwner()) {
+      onCleanup(() => {
+        disposed = true;
+      });
+    }
+
+    const delayMs = options.delay ?? 200;
+    const delayTimer =
+      delayMs > 0
+        ? setTimeout(() => {
+            if (!disposed && !resolvedComp) setShowLoading(true);
+          }, delayMs)
+        : undefined;
+
+    const timeoutTimer =
+      options.timeout !== undefined && options.timeout > 0
+        ? setTimeout(() => {
+            if (!disposed && !resolvedComp) {
+              setError(
+                new Error(
+                  `Async component timed out after ${options.timeout}ms.`,
+                ),
+              );
+            }
+          }, options.timeout)
+        : undefined;
+
+    let attempts = 0;
+    const loadAttempt = (): Promise<T> => {
+      attempts++;
+      return options
+        .loader()
+        .then((mod) => {
+          const comp =
+            mod && typeof mod === "object" && "default" in mod
+              ? mod.default
+              : (mod as T);
+          resolvedComp = comp;
+          if (!disposed) {
+            setLoaded(() => comp);
+          }
+          return comp;
+        })
+        .catch((err) => {
+          const normalized =
+            err instanceof Error ? err : new Error(String(err));
+          if (options.onError) {
+            return new Promise<T>((resolve, reject) => {
+              options.onError!(
+                normalized,
+                () => resolve(loadAttempt()),
+                () => reject(normalized),
+                attempts,
+              );
+            });
+          }
+          throw normalized;
+        });
+    };
+
+    if (!pendingPromise) {
+      pendingPromise = loadAttempt();
+    }
+    pendingPromise
+      .then((comp) => {
+        if (!disposed) setLoaded(() => comp);
+      })
+      .catch((err) => {
+        pendingPromise = undefined;
+        if (!disposed) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+        }
+      })
+      .finally(() => {
+        if (delayTimer !== undefined) clearTimeout(delayTimer);
+        if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
+      });
+
+    return () => {
+      const err = error();
+      if (err) {
+        return options.errorComponent
+          ? options.errorComponent({ error: err })
+          : null;
+      }
+      const comp = loaded();
+      if (comp) {
+        return comp(props);
+      }
+      if (showLoading() && options.loadingComponent) {
+        return options.loadingComponent(props);
+      }
+      return null;
+    };
+  }) as unknown as T;
+
+  return wrapper;
+}
+
+import {
+  createInsertionRange,
+  h as hDOM,
+  insertionRangeEnd,
+  prepareInsertionRange,
+} from "@tschk/moonshine-dom";
+import {
+  escapeHtml,
+  h as hSSR,
+  rawHTML,
+  renderToString as renderSSRToString,
+} from "@tschk/moonshine-dom/ssr";
+import { isSSRRendering } from "@tschk/moonshine-dom/ssr-owner";
+import { getDefaultSlotFactory } from "./slots";
+
+function resolveBuiltinSlot(
+  props: Record<string, any> | null | undefined,
+  slotName = "default",
+): any {
+  if (!props || typeof props !== "object") return null;
+  if (slotName === "default") {
+    const frame = peekComponentContext();
+    const defaultFactory = getDefaultSlotFactory(props, frame);
+    if (defaultFactory) return defaultFactory();
+  }
+  const explicitSlots =
+    (props.$slots && typeof props.$slots === "object"
+      ? (props.$slots as Record<string, (...args: any[]) => any>)
+      : undefined) ??
+    (props.slots && typeof props.slots === "object"
+      ? (props.slots as Record<string, (...args: any[]) => any>)
+      : undefined);
+  if (explicitSlots && typeof explicitSlots[slotName] === "function") {
+    return explicitSlots[slotName]!();
+  }
+  if (slotName === "default") {
+    if (typeof props.children === "function") return props.children();
+    if (props.children !== undefined) return props.children;
+  } else if (slotName === "fallback" && props.fallback !== undefined) {
+    return typeof props.fallback === "function"
+      ? props.fallback()
+      : props.fallback;
+  }
+  return null;
+}
+
+export interface TeleportProps {
+  to?: string | Element | ShadowRoot | null;
+  disabled?: boolean;
+  defer?: boolean;
+  children?: any;
+  [key: string]: any;
+}
+
+export function Teleport(props: TeleportProps = {}): any {
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering()) {
+    const content = resolveBuiltinSlot(props);
+    if (!props.disabled && typeof props.to === "string" && props.to) {
+      const ssrCtx = peekSSRContext();
+      if (ssrCtx) {
+        const htmlStr =
+          content === null ||
+          content === undefined ||
+          typeof content === "boolean"
+            ? ""
+            : typeof content === "string" || typeof content === "number"
+              ? escapeHtml(String(content))
+              : renderSSRToString(() => content);
+        ssrCtx.teleports ??= {};
+        ssrCtx.teleports[props.to] =
+          (ssrCtx.teleports[props.to] ?? "") + htmlStr;
+        return rawHTML("<!--teleport start--><!--teleport end-->");
+      }
+    }
+    return content;
+  }
+  const renderTeleport = () => {
+    const content = resolveBuiltinSlot(props);
+    if (props.disabled || typeof document === "undefined" || !props.to) {
+      return content;
+    }
+    const target =
+      typeof props.to === "string"
+        ? document.querySelector(props.to)
+        : props.to;
+    if (
+      target &&
+      typeof Element !== "undefined" &&
+      (target instanceof Element ||
+        (typeof ShadowRoot !== "undefined" && target instanceof ShadowRoot))
+    ) {
+      const owner = getOwner();
+      if (owner && !owner.disposed) {
+        const start = createInsertionRange(content);
+        const end = insertionRangeEnd(start);
+        target.appendChild(start);
+        target.appendChild(end);
+        prepareInsertionRange(start);
+        return null;
+      }
+      if (typeof Node !== "undefined" && content instanceof Node) {
+        target.appendChild(content);
+        return null;
+      }
+    }
+    return content;
+  };
+  if (getOwner()) {
+    return () => renderTeleport();
+  }
+  return renderTeleport();
+}
+
+export type MatchPattern = string | RegExp | (string | RegExp)[];
+
+export interface KeepAliveProps {
+  include?: MatchPattern;
+  exclude?: MatchPattern;
+  max?: number | string;
+  is?: ((props?: any) => any) | (() => (props?: any) => any) | null;
+  componentProps?: Record<string, any>;
+  children?: any;
+  [key: string]: any;
+}
+
+function matchesPattern(pattern: MatchPattern, name: string): boolean {
+  if (Array.isArray(pattern)) {
+    return pattern.some((p) => matchesPattern(p, name));
+  }
+  if (typeof pattern === "string") {
+    return pattern
+      .split(",")
+      .map((s) => s.trim())
+      .includes(name);
+  }
+  if (pattern instanceof RegExp) {
+    pattern.lastIndex = 0;
+    return pattern.test(name);
+  }
+  return false;
+}
+
+export function KeepAlive(props: KeepAliveProps = {}): any {
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering()) {
+    const raw = props.is !== undefined ? props.is : resolveBuiltinSlot(props);
+    if (typeof raw === "function") {
+      return hSSR(raw as any, props.componentProps ?? {});
+    }
+    return raw;
+  }
+
+  const keepAliveOwner = getOwner();
+  const cache = new Map<unknown, { view: any; dispose: () => void }>();
+  if (keepAliveOwner) {
+    onCleanup(() => {
+      for (const entry of cache.values()) {
+        entry.dispose();
+      }
+      cache.clear();
+    });
+  }
+
+  const resolveKeepAlive = () => {
+    const candidate =
+      props.is !== undefined ? props.is : resolveBuiltinSlot(props);
+    if (typeof candidate === "function") {
+      const compName = candidate.name || "";
+      const shouldCache =
+        (!props.include ||
+          (Boolean(compName) && matchesPattern(props.include, compName))) &&
+        (!props.exclude ||
+          !compName ||
+          !matchesPattern(props.exclude, compName));
+
+      if (!shouldCache) {
+        return untrack(() =>
+          hDOM(candidate as any, props.componentProps ?? {}),
+        );
+      }
+
+      if (cache.has(candidate)) {
+        const cached = cache.get(candidate)!;
+        cache.delete(candidate);
+        cache.set(candidate, cached);
+        return cached.view;
+      }
+
+      let disposeEntry = () => {};
+      const rendered = createRoot((dispose) => {
+        disposeEntry = dispose;
+        return untrack(() =>
+          hDOM(candidate as any, props.componentProps ?? {}),
+        );
+      });
+      cache.set(candidate, { view: rendered, dispose: disposeEntry });
+      const maxNum =
+        props.max !== undefined ? Number(props.max) : Number.POSITIVE_INFINITY;
+      if (Number.isFinite(maxNum) && maxNum > 0 && cache.size > maxNum) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey !== undefined) {
+          const evicted = cache.get(oldestKey);
+          cache.delete(oldestKey);
+          evicted?.dispose();
+        }
+      }
+      return rendered;
+    }
+    return candidate;
+  };
+
+  if (keepAliveOwner) {
+    return () => resolveKeepAlive();
+  }
+  return resolveKeepAlive();
+}
+
+export interface TransitionProps {
+  name?: string;
+  type?: "transition" | "animation";
+  css?: boolean;
+  duration?: number | { enter: number; leave: number };
+  enterFromClass?: string;
+  enterActiveClass?: string;
+  enterToClass?: string;
+  appearFromClass?: string;
+  appearActiveClass?: string;
+  appearToClass?: string;
+  leaveFromClass?: string;
+  leaveActiveClass?: string;
+  leaveToClass?: string;
+  mode?: "in-out" | "out-in" | "default";
+  appear?: boolean;
+  persisted?: boolean;
+  children?: any;
+  [key: string]: any;
+}
+
+export function Transition(props: TransitionProps = {}): any {
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering() || !getOwner()) {
+    return resolveBuiltinSlot(props);
+  }
+  return () => resolveBuiltinSlot(props);
+}
+
+export interface TransitionGroupProps extends Omit<TransitionProps, "mode"> {
+  tag?: string;
+  moveClass?: string;
+}
+
+const TRANSITION_GROUP_KEYS = /* @__PURE__ */ new Set([
+  "tag",
+  "moveClass",
+  "name",
+  "type",
+  "css",
+  "duration",
+  "enterFromClass",
+  "enterActiveClass",
+  "enterToClass",
+  "appearFromClass",
+  "appearActiveClass",
+  "appearToClass",
+  "leaveFromClass",
+  "leaveActiveClass",
+  "leaveToClass",
+  "appear",
+  "persisted",
+  "children",
+  "slots",
+  "$slots",
+]);
+
+export function TransitionGroup(props: TransitionGroupProps = {}): any {
+  const frame = peekComponentContext();
+  const isSSR = frame?.mode === "ssr" || isSSRRendering();
+  if (!props.tag) {
+    return isSSR || !getOwner()
+      ? resolveBuiltinSlot(props)
+      : () => resolveBuiltinSlot(props);
+  }
+  const attrs: Record<string, any> = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (TRANSITION_GROUP_KEYS.has(key) || value === undefined) continue;
+    attrs[key] = value;
+  }
+  if (isSSR) {
+    return hSSR(props.tag, attrs, resolveBuiltinSlot(props));
+  }
+  return hDOM(
+    props.tag as any,
+    attrs,
+    getOwner() ? () => resolveBuiltinSlot(props) : resolveBuiltinSlot(props),
+  );
+}
+
+export interface SuspenseProps {
+  timeout?: string | number;
+  suspensible?: boolean;
+  onPending?: () => void;
+  onResolve?: () => void;
+  onFallback?: () => void;
+  fallback?: any;
+  children?: any;
+  [key: string]: any;
+}
+
+export function Suspense(props: SuspenseProps = {}): any {
+  if (typeof props.onResolve === "function") {
+    props.onResolve();
+  }
+  const resolveSuspense = () => {
+    const defaultContent = resolveBuiltinSlot(props, "default");
+    if (defaultContent !== null && defaultContent !== undefined) {
+      return defaultContent;
+    }
+    return resolveBuiltinSlot(props, "fallback");
+  };
+  const frame = peekComponentContext();
+  if (frame?.mode === "ssr" || isSSRRendering() || !getOwner()) {
+    return resolveSuspense();
+  }
+  return () => resolveSuspense();
+}
+
+export {
+  createApp,
+  createSSRApp,
+  definePlugin,
+  resolveComponent,
+  resolveDirective,
+  warn,
+  withDirectives,
+  type App,
+  type Directive,
+  type DirectiveArguments,
+  type DirectiveBinding,
+  type DirectiveHook,
+  type FunctionDirective,
+  type FunctionPlugin,
+  type NativeApplication,
+  type ObjectDirective,
+  type ObjectPlugin,
+  type Plugin,
+} from "./app";
+
+export const version = "3.5.13";
