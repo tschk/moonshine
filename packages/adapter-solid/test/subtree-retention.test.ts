@@ -76,8 +76,6 @@ test("cleanup adoption retains moved children and replaces their old ownership",
   document.body.append(old, next);
   let button!: HTMLElement;
   let stopNext = () => {};
-  void stopNext;
-  void stopNext;
   let clicks = 0;
   const stop = render(() => {
     button = h("button", { onclick: () => clicks++ }, "adopt") as HTMLElement;

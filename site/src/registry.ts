@@ -71,9 +71,9 @@ export async function fetchNpmScope(): Promise<NpmScopeSnapshot> {
     PACKAGES.map((entry) => fetchDistTag(entry.name)),
   );
   const published = versions.filter((entry) => entry.version !== null);
-  const distinct = [
-    ...new Set(published.map((entry) => entry.version!)),
-  ].toSorted((a, b) => b.localeCompare(a, "en", { numeric: true }));
+  const distinct = [...new Set(published.map((entry) => entry.version!))].sort(
+    (a, b) => b.localeCompare(a, "en", { numeric: true }),
+  );
   return {
     versions,
     published: published.length,
@@ -131,7 +131,7 @@ export async function fetchCrepusCrates(): Promise<CratesSnapshot> {
     if (!name.startsWith("crepuscularity")) continue;
     crates.push({ name, version });
   }
-  crates.toSorted((a, b) => a.name.localeCompare(b.name, "en"));
+  crates.sort((a, b) => a.name.localeCompare(b.name, "en"));
   return {
     crates,
     count: crates.length,
