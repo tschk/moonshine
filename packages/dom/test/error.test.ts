@@ -6,11 +6,14 @@ test("catchError catches and normalizes string errors", () => {
   let caughtError: Error | undefined;
 
   createRoot(() => {
-    catchError(() => {
-      throw "string error message";
-    }, (err) => {
-      caughtError = err;
-    });
+    catchError(
+      () => {
+        throw "string error message";
+      },
+      (err) => {
+        caughtError = err;
+      },
+    );
   });
 
   expect(caughtError).toBeInstanceOf(Error);
@@ -23,11 +26,14 @@ test("catchError catches and normalizes object errors", () => {
   const objError = { custom: "error" };
 
   createRoot(() => {
-    catchError(() => {
-      throw objError;
-    }, (err) => {
-      caughtError = err;
-    });
+    catchError(
+      () => {
+        throw objError;
+      },
+      (err) => {
+        caughtError = err;
+      },
+    );
   });
 
   expect(caughtError).toBeInstanceOf(Error);
@@ -40,11 +46,14 @@ test("catchError handles regular Error objects unmodified", () => {
   const standardError = new Error("standard error");
 
   createRoot(() => {
-    catchError(() => {
-      throw standardError;
-    }, (err) => {
-      caughtError = err;
-    });
+    catchError(
+      () => {
+        throw standardError;
+      },
+      (err) => {
+        caughtError = err;
+      },
+    );
   });
 
   expect(caughtError).toBe(standardError);
@@ -53,11 +62,14 @@ test("catchError handles regular Error objects unmodified", () => {
 
 test("catchError returns normally on success", () => {
   const result = createRoot(() => {
-    return catchError(() => {
-      return "success";
-    }, () => {
-      throw new Error("Should not be called");
-    });
+    return catchError(
+      () => {
+        return "success";
+      },
+      () => {
+        throw new Error("Should not be called");
+      },
+    );
   });
 
   expect(result).toBe("success");
@@ -69,7 +81,7 @@ test("ErrorBoundary renders children when there is no error", () => {
   createRoot(() => {
     const view = ErrorBoundary({
       children: () => "success child",
-      fallback: () => "fallback content"
+      fallback: () => "fallback content",
     });
     result = view();
   });
@@ -95,7 +107,7 @@ test("ErrorBoundary renders fallback when there is an error and allows reset", (
         errorReceived = error;
         resetFn = reset;
         return "fallback content";
-      }
+      },
     });
   });
 
