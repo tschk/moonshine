@@ -152,13 +152,13 @@ describe("next/link", () => {
     });
   });
 
-  describe("prefetch", () => {
-    function prefetchHrefs(): string[] {
-      return [...document.head.querySelectorAll("link[rel=prefetch]")].map(
-        (tag) => tag.getAttribute("href") ?? "",
-      );
-    }
+  function prefetchHrefs(): string[] {
+    return [...document.head.querySelectorAll("link[rel=prefetch]")].map(
+      (tag) => tag.getAttribute("href") ?? "",
+    );
+  }
 
+  describe("prefetch", () => {
     test("hovering emits a browser prefetch hint once", async () => {
       const container = await render(
         createElement(Link, { href: "/hover-target" }),

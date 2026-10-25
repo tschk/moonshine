@@ -396,7 +396,7 @@ export function modifyMutable<T>(state: T, modifier: (state: T) => T): void {
   batch(() => untrack(() => modifier(raw(state))));
 }
 
-export function produce<T>(fn: (state: T) => void): (state: T) => T {
+export function produce<T>(fn: (s: T) => void): (s: T) => T {
   return (value) => {
     if (wrappable(raw(value)))
       batch(() => untrack(() => fn(wrap(value, "draft"))));

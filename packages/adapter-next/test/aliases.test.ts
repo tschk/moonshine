@@ -6,7 +6,7 @@ const specifiers = Object.keys(nextAliases);
 
 describe("next/* aliases", () => {
   test("covers every Next module this package reimplements", () => {
-    expect(specifiers.sort()).toEqual([
+    expect(specifiers.toSorted()).toEqual([
       "next/dynamic",
       "next/font/google",
       "next/headers",
@@ -68,8 +68,8 @@ describe("next/* aliases", () => {
     ).text();
     const paths = JSON.parse(tsconfig.replace(/^\s*\/\/.*$/gm, ""))
       .compilerOptions.paths;
-    expect(Object.keys(paths).sort()).toEqual(
-      Object.keys(tsconfigPaths()).sort(),
+    expect(Object.keys(paths).toSorted()).toEqual(
+      Object.keys(tsconfigPaths()).toSorted(),
     );
   });
 

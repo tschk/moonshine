@@ -232,8 +232,9 @@ describe("fill past 100%", () => {
     expect(source).toContain('data-over={fill > 100 ? "true" : "false"}');
   });
 
+  const fill = (count: number) => Math.abs(count) * 4;
+
   test("37 counts as 148 percent, not 100", () => {
-    const fill = (count: number) => Math.abs(count) * 4;
     expect(fill(37)).toBe(148);
     expect(fill(75)).toBe(300);
     expect(Math.min(1, fill(75) / 100)).toBe(1);

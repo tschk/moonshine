@@ -76,16 +76,21 @@ describe("next/navigation", () => {
   // signal, notified nobody, and left every already-mounted `useSearchParams`
   // caller showing the previous query. Re-rendering from scratch would pass
   // either way and prove nothing.
+  function ProbeQuery() {
+    return createElement(
+      "i",
+      { id: "out" },
+      useSearchParams().get("section") ?? "none",
+    );
+  }
+
+  function ProbePath() {
+    return createElement("i", { id: "out" }, usePathname());
+  }
+
   test("useSearchParams updates a mounted tree when only the query changes", async () => {
     navigate("/settings?section=privacy");
-    function Probe() {
-      return createElement(
-        "i",
-        { id: "out" },
-        useSearchParams().get("section") ?? "none",
-      );
-    }
-    const container = await render(createElement(Probe));
+    const container = await render(createElement(ProbeQuery));
     expect(container.querySelector("#out")?.textContent).toBe("privacy");
 
     await act(async () => {
@@ -96,10 +101,7 @@ describe("next/navigation", () => {
 
   test("usePathname ignores the query a mounted tree navigated to", async () => {
     navigate("/settings?section=privacy");
-    function Probe() {
-      return createElement("i", { id: "out" }, usePathname());
-    }
-    const container = await render(createElement(Probe));
+    const container = await render(createElement(ProbePath));
     await act(async () => {
       navigate("/settings?section=developer");
     });

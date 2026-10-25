@@ -427,7 +427,7 @@ function style(element: Element, value: unknown): void {
   if (value != null && typeof value === "object") {
     const entries = styleEntries(value);
     const next = new Set(
-      entries.filter(([, value]) => value !== null).map(([name]) => name),
+      entries.filter(([, v]) => v !== null).map(([name]) => name),
     );
     for (const name of styleNames.get(element) ?? []) {
       if (!next.has(name)) declaration.removeProperty(name);

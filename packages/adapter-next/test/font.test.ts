@@ -12,7 +12,7 @@ import {
 describe("next/font/google", () => {
   test("returns the Next-compatible shape", () => {
     const inter = Inter({ subsets: ["latin"] });
-    expect(Object.keys(inter).sort()).toEqual([
+    expect(Object.keys(inter).toSorted()).toEqual([
       "className",
       "href",
       "style",

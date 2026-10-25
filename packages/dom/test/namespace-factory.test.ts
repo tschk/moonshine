@@ -53,9 +53,9 @@ test("lexical factories retain node identity and stop reactive writes", () => {
       ),
     document.body,
   );
-  const node = document.querySelector("title")!;
+  const node = document.querySelector("svg title")!;
   write("two");
-  expect(document.querySelector("title")).toBe(node);
+  expect(document.querySelector("svg title")).toBe(node);
   expect(node.textContent).toBe("two");
   expect(node.getAttribute("data-value")).toBe("two");
   stop();
