@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeIslandProps } from "../src/serialize";
+import { escapeHtml, serializeIslandProps } from "../src/serialize";
 
 describe("serializeIslandProps", () => {
   test("serializes shared, non-cyclic references", () => {
@@ -46,5 +46,43 @@ describe("serializeIslandProps", () => {
     // threw. Dropping a prop server-side that the client expects is a
     // hydration mismatch, so both paths now refuse the value.
     expect(() => serializeIslandProps({ [Symbol("k")]: 1 })).toThrow(/symbol/);
+  });
+});
+
+describe("escapeHtml", () => {
+  test("returns empty string when given empty string", () => {
+    expect(escapeHtml("")).toBe("");
+  });
+
+  test("returns the same string if no special characters are present", () => {
+    expect(escapeHtml("hello world")).toBe("hello world");
+  });
+
+  test("escapes ampersand (&)", () => {
+    expect(escapeHtml("salt & pepper")).toBe("salt &amp; pepper");
+  });
+
+  test("escapes less than (<)", () => {
+    expect(escapeHtml("1 < 2")).toBe("1 &lt; 2");
+  });
+
+  test("escapes greater than (>)", () => {
+    expect(escapeHtml("2 > 1")).toBe("2 &gt; 1");
+  });
+
+  test("escapes double quote (\")", () => {
+    expect(escapeHtml('say "hello"')).toBe("say &quot;hello&quot;");
+  });
+
+  test("escapes single quote (')", () => {
+    expect(escapeHtml("it's mine")).toBe("it&#x27;s mine");
+  });
+
+  test("escapes all special characters in a mixed string", () => {
+    expect(escapeHtml(`<&>"'`)).toBe("&lt;&amp;&gt;&quot;&#x27;");
+  });
+
+  test("handles multibyte/emoji characters without corruption", () => {
+    expect(escapeHtml("hello 👋 <world>")).toBe("hello 👋 &lt;world&gt;");
   });
 });
