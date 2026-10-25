@@ -163,7 +163,7 @@ import {
   withComponentInputBinding,
   withRouterConfig,
 } from "../src/router";
-import { input, model, output, viewChild, viewChildren } from "../src/signals";
+import { input, model, output } from "../src/signals";
 
 describe("@tschk/moonshine-angular/platform", () => {
   test("PLATFORM_ID, isPlatformBrowser, isPlatformServer, APP_ID, and DOCUMENT work via DI", () => {
@@ -1299,6 +1299,7 @@ describe("@tschk/moonshine-angular/platform", () => {
       completeAngularViewInit(panel, { tag: "section", props: {} });
 
       // DI-backed custom @Pipe via applyPipe
+      expect(new TaggerPipe().transform("hello", "?")).toBe("TAG:hello?");
       expect(applyPipe("hello", "tagger", "?")).toBe("TAG:hello?");
     });
     env.destroy();
