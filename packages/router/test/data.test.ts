@@ -214,7 +214,10 @@ test("disposal settles every invalidation waiter without waiting for ignored abo
 test("disposal during a failing load prevents publishing the error", async () => {
   let reject!: (error: Error) => void;
   const router = createDataRouter(
-    () => new Promise<string>((_, r) => { reject = r; }),
+    () =>
+      new Promise<string>((_, r) => {
+        reject = r;
+      }),
     "/",
   );
   await tick();
@@ -230,7 +233,10 @@ test("supersession during a failing load prevents publishing the error", async (
   let calls = 0;
   const router = createDataRouter(() => {
     calls++;
-    if (calls === 1) return new Promise<string>((_, r) => { reject = r; });
+    if (calls === 1)
+      return new Promise<string>((_, r) => {
+        reject = r;
+      });
     return "ok";
   }, "/");
   await tick();
