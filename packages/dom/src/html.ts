@@ -1,6 +1,13 @@
 /** Explicit unsanitized markup. Default native children continue to escape text. */
 import { createRenderEffect, getOwner, onCleanup } from "./reactive";
 
+let customSanitizer: ((html: string) => unknown) | undefined;
+
+/** Register a global sanitizer function to process HTML strings before insertion. */
+export function setHTMLSanitizer(sanitizer: (html: string) => unknown): void {
+  customSanitizer = sanitizer;
+}
+
 export function rawHTML(
   read: () => unknown,
   namespace: "html" | "svg" | "mathml" = "html",
@@ -23,8 +30,9 @@ export function rawHTML(
               : "http://www.w3.org/1998/Math/MathML",
             namespace === "svg" ? "svg" : "math",
           );
+    const content = customSanitizer ? customSanitizer(value as string) : value;
     // Assign directly: coercing here would discard TrustedHTML identity.
-    wrapper.innerHTML = value as string;
+    wrapper.innerHTML = content as string;
     nodes = Array.from(
       (namespace === "html"
         ? (wrapper as HTMLTemplateElement).content
@@ -48,7 +56,8 @@ export function htmlContent(element: Element, read: () => unknown): void {
   createRenderEffect(() => {
     const value = read() ?? "";
     if (previous === value) return;
-    element.innerHTML = value as string;
+    const content = customSanitizer ? customSanitizer(value as string) : value;
+    element.innerHTML = content as string;
     previous = value;
   });
 }
