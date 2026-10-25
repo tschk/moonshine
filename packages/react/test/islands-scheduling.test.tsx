@@ -242,7 +242,9 @@ describe("island hydration scheduling", () => {
       await flush();
 
       expect(errors).toHaveLength(1);
-      expect((errors[0] as unknown[])[0]).toBe("Moonshine island hydration failed");
+      expect((errors[0] as unknown[])[0]).toBe(
+        "Moonshine island hydration failed",
+      );
     } finally {
       scope.reportError = prevReportError;
       spy.mockRestore();
