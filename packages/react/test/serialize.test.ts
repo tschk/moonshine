@@ -1,5 +1,33 @@
 import { describe, expect, test } from "bun:test";
-import { serializeIslandProps } from "../src/serialize";
+import { escapeHtml, serializeIslandProps } from "../src/serialize";
+
+describe("escapeHtml", () => {
+  test("escapes ampersands", () => {
+    expect(escapeHtml("a & b & c")).toBe("a &amp; b &amp; c");
+  });
+
+  test("escapes less-than and greater-than signs", () => {
+    expect(escapeHtml("<a>")).toBe("&lt;a&gt;");
+  });
+
+  test("escapes double and single quotes", () => {
+    expect(escapeHtml(`"hello" 'world'`)).toBe("&quot;hello&quot; &#x27;world&#x27;");
+  });
+
+  test("escapes multiple special characters in a complex string", () => {
+    expect(escapeHtml(`<script>alert("XSS & 'XSS'")</script>`)).toBe(
+      "&lt;script&gt;alert(&quot;XSS &amp; &#x27;XSS&#x27;&quot;)&lt;/script&gt;",
+    );
+  });
+
+  test("handles empty strings", () => {
+    expect(escapeHtml("")).toBe("");
+  });
+
+  test("handles strings without special characters", () => {
+    expect(escapeHtml("hello world")).toBe("hello world");
+  });
+});
 
 describe("serializeIslandProps", () => {
   test("serializes shared, non-cyclic references", () => {
