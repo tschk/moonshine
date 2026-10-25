@@ -24,8 +24,8 @@ describe("escapeHtml", () => {
   });
 
   test("handles mixed characters", () => {
-    expect(escapeHtml('<script>alert("hello & \'world\'");</script>')).toBe(
-      "&lt;script&gt;alert(&quot;hello &amp; &#x27;world&#x27;&quot;);&lt;/script&gt;"
+    expect(escapeHtml("<script>alert(\"hello & 'world'\");</script>")).toBe(
+      "&lt;script&gt;alert(&quot;hello &amp; &#x27;world&#x27;&quot;);&lt;/script&gt;",
     );
   });
 });
