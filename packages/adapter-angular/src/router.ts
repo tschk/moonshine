@@ -1590,16 +1590,24 @@ export class Router {
           if (res !== true) return res;
         }
       }
-      for (const child of snap.children) {
-        const childRes = await checkNode(child);
-        if (childRes !== true) return childRes;
+      if (snap.children.length > 0) {
+        const childResults = await Promise.all(
+          snap.children.map((child) => checkNode(child)),
+        );
+        for (const childRes of childResults) {
+          if (childRes !== true) return childRes;
+        }
       }
       return true;
     };
 
-    for (const child of nextState.root.children) {
-      const res = await checkNode(child);
-      if (res !== true) return res;
+    if (nextState.root.children.length > 0) {
+      const rootResults = await Promise.all(
+        nextState.root.children.map((child) => checkNode(child)),
+      );
+      for (const res of rootResults) {
+        if (res !== true) return res;
+      }
     }
     return true;
   }
