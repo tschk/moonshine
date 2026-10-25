@@ -6,12 +6,11 @@ import {
   createMemo,
   createComponentScope,
   onCleanup,
-  catchError,
   getOwner,
   runWithOwner,
   queuePostCommit,
 } from "../src/reactive";
-import { ErrorBoundary } from "../src/control";
+import { catchError, ErrorBoundary } from "../src/error";
 test("sticky boundary cleans failed child before fallback and resets", () => {
   const logs: string[] = [];
   let stop!: () => void, reset!: () => void;
@@ -327,5 +326,76 @@ test("unrelated memo startup preserves outside post-commit microtask timing", as
   expect(log).toEqual([]);
   await Promise.resolve();
   expect(log).toEqual(["post"]);
+  stop();
+});
+
+test("normalizeError normalizes strings and non-Error objects into Errors", () => {
+  let stop!: () => void;
+  const errors: Error[] = [];
+
+  createRoot((d) => {
+    stop = d;
+
+    // String error
+    catchError(
+      () => {
+        throw "string error";
+      },
+      (e) => errors.push(e),
+    );
+
+    // Number error
+    catchError(
+      () => {
+        throw 42;
+      },
+      (e) => errors.push(e),
+    );
+
+    // Null error
+    catchError(
+      () => {
+        throw null;
+      },
+      (e) => errors.push(e),
+    );
+
+    // Custom object
+    catchError(
+      () => {
+        throw { custom: true };
+      },
+      (e) => errors.push(e),
+    );
+
+    // Actual Error
+    catchError(
+      () => {
+        throw new Error("actual error");
+      },
+      (e) => errors.push(e),
+    );
+  });
+
+  expect(errors[0]).toBeInstanceOf(Error);
+  expect(errors[0].message).toBe("string error");
+  expect(errors[0].cause).toBe("string error");
+
+  expect(errors[1]).toBeInstanceOf(Error);
+  expect(errors[1].message).toBe("Unknown error");
+  expect(errors[1].cause).toBe(42);
+
+  expect(errors[2]).toBeInstanceOf(Error);
+  expect(errors[2].message).toBe("Unknown error");
+  expect(errors[2].cause).toBe(null);
+
+  expect(errors[3]).toBeInstanceOf(Error);
+  expect(errors[3].message).toBe("Unknown error");
+  expect(errors[3].cause).toEqual({ custom: true });
+
+  expect(errors[4]).toBeInstanceOf(Error);
+  expect(errors[4].message).toBe("actual error");
+  expect(errors[4].cause).toBeUndefined();
+
   stop();
 });
