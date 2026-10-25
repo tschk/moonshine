@@ -7,8 +7,6 @@ import {
   provideEnvironmentInitializer,
   signal,
   toObservable,
-  viewChild,
-  viewChildren,
 } from "../src/signals";
 import {
   APP_ID,
@@ -163,7 +161,7 @@ import {
   withComponentInputBinding,
   withRouterConfig,
 } from "../src/router";
-import { input, model, output } from "../src/signals";
+import { input, model, output, viewChild, viewChildren } from "../src/signals";
 
 describe("@tschk/moonshine-angular/platform", () => {
   test("PLATFORM_ID, isPlatformBrowser, isPlatformServer, APP_ID, and DOCUMENT work via DI", () => {
@@ -1191,6 +1189,7 @@ describe("@tschk/moonshine-angular/platform", () => {
         return `${this.svc.prefix}${String(val)}${suffix}`;
       }
     }
+    // Registered by name through @Pipe; referenced here only to satisfy no-unused-vars.
     void TaggerPipe;
 
     @Directive({
