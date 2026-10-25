@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeIslandProps } from "../src/serialize";
+import { serializeIslandProps, escapeHtml } from "../src/serialize";
 
 describe("serializeIslandProps", () => {
   test("serializes shared, non-cyclic references", () => {
@@ -46,5 +46,45 @@ describe("serializeIslandProps", () => {
     // threw. Dropping a prop server-side that the client expects is a
     // hydration mismatch, so both paths now refuse the value.
     expect(() => serializeIslandProps({ [Symbol("k")]: 1 })).toThrow(/symbol/);
+  });
+});
+
+describe("escapeHtml", () => {
+  test("returns normal strings unchanged", () => {
+    expect(escapeHtml("hello world")).toBe("hello world");
+    expect(escapeHtml("1234567890")).toBe("1234567890");
+    expect(escapeHtml("abc DEF ghi")).toBe("abc DEF ghi");
+  });
+
+  test("handles empty strings", () => {
+    expect(escapeHtml("")).toBe("");
+  });
+
+  test("escapes individual special characters", () => {
+    expect(escapeHtml("&")).toBe("&amp;");
+    expect(escapeHtml("<")).toBe("&lt;");
+    expect(escapeHtml(">")).toBe("&gt;");
+    expect(escapeHtml('"')).toBe("&quot;");
+    expect(escapeHtml("'")).toBe("&#x27;");
+  });
+
+  test("escapes multiple occurrences of special characters", () => {
+    expect(escapeHtml("&&&")).toBe("&amp;&amp;&amp;");
+    expect(escapeHtml("<<<")).toBe("&lt;&lt;&lt;");
+    expect(escapeHtml(">>>")).toBe("&gt;&gt;&gt;");
+    expect(escapeHtml('"""')).toBe("&quot;&quot;&quot;");
+    expect(escapeHtml("'''")).toBe("&#x27;&#x27;&#x27;");
+  });
+
+  test("escapes combinations of special characters and XSS payloads", () => {
+    expect(escapeHtml("<script>alert('XSS')</script>")).toBe(
+      "&lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;"
+    );
+    expect(escapeHtml('<a href="javascript:alert(1)">link</a>')).toBe(
+      "&lt;a href=&quot;javascript:alert(1)&quot;&gt;link&lt;/a&gt;"
+    );
+    expect(escapeHtml("Ben & Jerry's <Ice Cream> \"Rocks\"")).toBe(
+      "Ben &amp; Jerry&#x27;s &lt;Ice Cream&gt; &quot;Rocks&quot;"
+    );
   });
 });
