@@ -52,6 +52,71 @@ test("load failures are observable and recover; disposed work cannot publish", a
   await expect(router.invalidate()).rejects.toThrow("disposed");
 });
 
+test("superseded or disposed loads that throw errors do not change router state", async () => {
+  let rejectLoad!: (e: Error) => void;
+  let promise: Promise<string>;
+  let loadCount = 0;
+  const router = createDataRouter(
+    () => {
+      loadCount++;
+      if (loadCount === 1) {
+        promise = new Promise<string>((_resolve, reject) => {
+          rejectLoad = reject;
+        });
+        return promise;
+      }
+      return Promise.resolve("ok");
+    },
+    "/a",
+  );
+
+  // Wait for initial load to start
+  await tick();
+
+  // Trigger a new load, which will abort the first one and change generation
+  router.navigate("/b");
+  await tick();
+
+  // Reject the first load (with an old generation)
+  let expectedError = new Error("superseded load failed");
+  rejectLoad(expectedError);
+
+  // The superseded promise rejection needs to be caught so it doesn't fail the test runner
+  await promise!.catch(() => {});
+
+  // Wait for the promise handlers in the router to run
+  await tick();
+
+  // The first load should return undefined because token !== generation,
+  // and the data should be ready for /b, not errored from /a.
+  expect(router.data.peek().status).toBe("ready");
+  expect(router.data.peek().error).toBeUndefined();
+
+  // Test disposal during load rejection
+  let rejectDisposedLoad!: (e: Error) => void;
+  let disposedPromise: Promise<string>;
+  const router2 = createDataRouter(
+    () => {
+      disposedPromise = new Promise<string>((_resolve, reject) => {
+        rejectDisposedLoad = reject;
+      });
+      return disposedPromise;
+    },
+    "/a",
+  );
+
+  await tick();
+  router2.dispose();
+  const stateBeforeReject = router2.data.peek();
+
+  rejectDisposedLoad(new Error("disposed load failed"));
+  await disposedPromise!.catch(() => {});
+  await tick();
+
+  // State should not change after dispose
+  expect(router2.data.peek()).toBe(stateBeforeReject);
+});
+
 test("actions revalidate after success and clear pending state after failure", async () => {
   let value = 1;
   const router = createDataRouter(() => value);
