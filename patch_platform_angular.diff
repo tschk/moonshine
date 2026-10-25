@@ -1,0 +1,39 @@
+<<<<<<< SEARCH
+      ) {
+        const descendants =
+          meta.descendants ?? (meta.kind === "contentChild" ? true : false);
+        const nodes = collectProjectedQueryNodes(children, descendants);
+=======
+      ) {
+        const descendants =
+          meta.descendants ?? (meta.kind === "contentChild");
+        const nodes = collectProjectedQueryNodes(children, descendants);
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  for (const [propName, q] of Object.entries(contentQueries)) {
+    const descendants = q.descendants ?? (q.first ? true : false);
+    const nodes = collectProjectedQueryNodes(children, descendants);
+=======
+  for (const [propName, q] of Object.entries(contentQueries)) {
+    const descendants = q.descendants ?? q.first;
+    const nodes = collectProjectedQueryNodes(children, !!descendants);
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  createEnvironmentInjector,
+  inject,
+  provideEnvironmentInitializer,
+  signal,
+  toObservable,
+  viewChild,
+  viewChildren,
+} from "../src/signals";
+import {
+=======
+  createEnvironmentInjector,
+  inject,
+  provideEnvironmentInitializer,
+  signal,
+  toObservable,
+} from "../src/signals";
+import {
+>>>>>>> REPLACE
