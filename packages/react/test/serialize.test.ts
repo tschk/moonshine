@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeIslandProps } from "../src/serialize";
+import { escapeHtml, serializeIslandProps } from "../src/serialize";
 
 describe("serializeIslandProps", () => {
   test("serializes shared, non-cyclic references", () => {
@@ -46,5 +46,35 @@ describe("serializeIslandProps", () => {
     // threw. Dropping a prop server-side that the client expects is a
     // hydration mismatch, so both paths now refuse the value.
     expect(() => serializeIslandProps({ [Symbol("k")]: 1 })).toThrow(/symbol/);
+  });
+});
+
+describe("escapeHtml", () => {
+  test("does not modify normal text", () => {
+    expect(escapeHtml("Hello World")).toBe("Hello World");
+  });
+
+  test("handles empty strings", () => {
+    expect(escapeHtml("")).toBe("");
+  });
+
+  test("escapes ampersands", () => {
+    expect(escapeHtml("Bread & Butter")).toBe("Bread &amp; Butter");
+  });
+
+  test("escapes less-than and greater-than", () => {
+    expect(escapeHtml("<script>")).toBe("&lt;script&gt;");
+  });
+
+  test("escapes quotes and apostrophes", () => {
+    expect(escapeHtml(`"Hello" 'World'`)).toBe("&quot;Hello&quot; &#x27;World&#x27;");
+  });
+
+  test("handles consecutive special characters", () => {
+    expect(escapeHtml("<<&&>>")).toBe("&lt;&lt;&amp;&amp;&gt;&gt;");
+  });
+
+  test("handles mixed content", () => {
+    expect(escapeHtml(`Foo <bar> & "baz" 'qux'`)).toBe("Foo &lt;bar&gt; &amp; &quot;baz&quot; &#x27;qux&#x27;");
   });
 });
