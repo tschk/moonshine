@@ -15,7 +15,8 @@ describe("wrapFragmentSource", () => {
   });
 
   test("wraps with WebGL2 template when webgl2 is true", () => {
-    const source = "vec4 shade(vec2 uv, float t) { return vec4(uv, 0.0, 1.0); }";
+    const source =
+      "vec4 shade(vec2 uv, float t) { return vec4(uv, 0.0, 1.0); }";
     const result = wrapFragmentSource(source, true);
     expect(result).toContain("#version 300 es");
     expect(result).toContain("out vec4 outColor;");
@@ -24,7 +25,8 @@ describe("wrapFragmentSource", () => {
   });
 
   test("wraps with WebGL1 template when webgl2 is false", () => {
-    const source = "vec4 shade(vec2 uv, float t) { return vec4(uv, 0.0, 1.0); }";
+    const source =
+      "vec4 shade(vec2 uv, float t) { return vec4(uv, 0.0, 1.0); }";
     const result = wrapFragmentSource(source, false);
     expect(result).not.toContain("#version 300 es");
     expect(result).not.toContain("out vec4 outColor;");
