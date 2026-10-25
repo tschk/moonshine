@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { wrapFragmentSource } from "../src/index";
+import { createFullscreenFragment, wrapFragmentSource } from "../src/index";
 
 describe("wrapFragmentSource", () => {
   it("returns unmodified source if it starts with #version", () => {
@@ -38,5 +38,21 @@ describe("wrapFragmentSource", () => {
     expect(result).not.toContain("out vec4 outColor;");
     expect(result).toContain(source);
     expect(result).toContain("gl_FragColor = shade(uv, u_time);");
+  });
+});
+
+describe("createFullscreenFragment", () => {
+  it("creates fragment and vertex for WebGL2", () => {
+    const source = "return vec4(1.0);";
+    const result = createFullscreenFragment(source, true);
+    expect(result.vertex).toContain("#version 300 es");
+    expect(result.fragment).toContain("#version 300 es");
+  });
+
+  it("creates fragment and vertex for WebGL1", () => {
+    const source = "return vec4(1.0);";
+    const result = createFullscreenFragment(source, false);
+    expect(result.vertex).toContain("attribute vec2 a_pos;");
+    expect(result.fragment).not.toContain("#version 300 es");
   });
 });
