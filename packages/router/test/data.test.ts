@@ -210,3 +210,34 @@ test("disposal settles every invalidation waiter without waiting for ignored abo
   expect(await second).toBeUndefined();
   expect(router.submitting.peek()).toBe(false);
 });
+
+test("disposal during a failing load prevents publishing the error", async () => {
+  let reject!: (error: Error) => void;
+  const router = createDataRouter(
+    () => new Promise<string>((_, r) => { reject = r; }),
+    "/",
+  );
+  await tick();
+  const stateBefore = router.data.peek();
+  router.dispose();
+  reject(new Error("fail"));
+  await tick();
+  expect(router.data.peek()).toBe(stateBefore);
+});
+
+test("supersession during a failing load prevents publishing the error", async () => {
+  let reject!: (error: Error) => void;
+  let calls = 0;
+  const router = createDataRouter(() => {
+    calls++;
+    if (calls === 1) return new Promise<string>((_, r) => { reject = r; });
+    return "ok";
+  }, "/");
+  await tick();
+  const reload = router.invalidate();
+  reject(new Error("fail"));
+  await tick();
+  await reload;
+  expect(router.data.peek().data).toBe("ok");
+  router.dispose();
+});
