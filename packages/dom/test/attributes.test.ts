@@ -1,96 +1,126 @@
-import { expect, test, describe } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { attributeValue, sourceAttributeValue } from "../src/attributes";
 
 describe("attributeValue", () => {
-  test("handles nullish and empty values", () => {
+  test("handles null and undefined values", () => {
     expect(attributeValue("class", null, true)).toBeUndefined();
     expect(attributeValue("class", undefined, true)).toBeUndefined();
-    expect(attributeValue("class", "", true)).toBe("");
+    expect(attributeValue("class", null, false)).toBeUndefined();
   });
 
-  test("handles normal attributes", () => {
-    expect(attributeValue("class", "foo", true)).toBe("foo");
-    expect(attributeValue("tabindex", 0, true)).toBe("0");
-    expect(attributeValue("data-foo", false, true)).toBe("false");
+  test("handles standard string values", () => {
+    expect(attributeValue("class", "button", true)).toBe("button");
+    expect(attributeValue("class", "button", false)).toBe("button");
+    expect(attributeValue("data-id", 123, true)).toBe("123");
   });
 
-  test("handles boolean HTML attributes", () => {
-    // True/truthy values
+  test("handles boolean attributes in HTML mode", () => {
+    // True values become empty string
     expect(attributeValue("disabled", true, true)).toBe("");
-    expect(attributeValue("disabled", "true", true)).toBe("true");
+    expect(attributeValue("readonly", true, true)).toBe("");
 
-    // False values should return undefined for HTML boolean attributes
+    // False values become undefined
     expect(attributeValue("disabled", false, true)).toBeUndefined();
+    expect(attributeValue("disabled", null, true)).toBeUndefined();
 
-    // Case insensitive for name
-    expect(attributeValue("DISABLED", true, true)).toBe("");
+    // Empty string is kept
+    expect(attributeValue("disabled", "", true)).toBe("");
 
-    // When html is false, boolean attributes act as normal attributes
+    // Truthy string values are converted to string
+    expect(attributeValue("disabled", "disabled", true)).toBe("disabled");
+  });
+
+  test("handles non-HTML mode (XML/SVG)", () => {
+    // Boolean mapping does not apply
     expect(attributeValue("disabled", true, false)).toBe("true");
     expect(attributeValue("disabled", false, false)).toBe("false");
+    expect(attributeValue("hidden", true, false)).toBe("true");
+    expect(attributeValue("translate", true, false)).toBe("true");
   });
 
-  test("handles hidden attribute specially", () => {
+  test("handles 'hidden' attribute special cases", () => {
     expect(attributeValue("hidden", true, true)).toBe("");
     expect(attributeValue("hidden", false, true)).toBeUndefined();
     expect(attributeValue("hidden", "until-found", true)).toBe("until-found");
-    // "hidden" with html=false
-    expect(attributeValue("hidden", true, false)).toBe("true");
+    expect(attributeValue("hidden", "", true)).toBe("");
   });
 
-  test("handles translate attribute specially", () => {
+  test("handles 'translate' attribute special cases", () => {
     expect(attributeValue("translate", true, true)).toBe("yes");
     expect(attributeValue("translate", false, true)).toBe("no");
-    // Only normalizes booleans
     expect(attributeValue("translate", "yes", true)).toBe("yes");
-    // Not special when html is false
-    expect(attributeValue("translate", true, false)).toBe("true");
+  });
+
+  test("matches boolean attribute names case-insensitively", () => {
+    expect(attributeValue("DISABLED", true, true)).toBe("");
+  });
+
+  test("stringifies falsy values on non-boolean attributes", () => {
+    expect(attributeValue("tabindex", 0, true)).toBe("0");
+    expect(attributeValue("data-foo", false, true)).toBe("false");
   });
 });
 
 describe("sourceAttributeValue", () => {
-  test("returns early for non-dynamic strings", () => {
-    expect(sourceAttributeValue("class", "foo", false)).toBe("foo");
-    expect(sourceAttributeValue("disabled", "true", false)).toBe("true");
-  });
-
-  test("handles nullish values", () => {
-    expect(sourceAttributeValue("class", null, true)).toBeUndefined();
-    expect(sourceAttributeValue("class", undefined, true)).toBeUndefined();
-  });
-
-  test("handles normal attributes", () => {
-    expect(sourceAttributeValue("class", "foo", true)).toBe("foo");
-    expect(sourceAttributeValue("tabindex", 0, true)).toBe("0");
-    // Notice sourceAttributeValue is case sensitive for boolean attribute check
-    expect(sourceAttributeValue("DISABLED", true, true)).toBe("true");
-  });
-
-  test("handles SOURCE_BOOLEAN_ADDITIONS", () => {
-    expect(sourceAttributeValue("indeterminate", true, true)).toBe("");
-    expect(sourceAttributeValue("indeterminate", false, true)).toBeUndefined();
-    expect(sourceAttributeValue("seamless", true, true)).toBe("");
-  });
-
-  test("handles SOURCE_BOOLEAN_EXCLUSIONS", () => {
-    // Excluded standard boolean attributes
-    expect(sourceAttributeValue("alpha", true, true)).toBe("true");
-    expect(sourceAttributeValue("itemscope", true, true)).toBe("true");
-  });
-
-  test("handles hidden attribute specially", () => {
-    // hidden true -> boolean true -> ""
-    expect(sourceAttributeValue("hidden", true, true)).toBe("");
-    expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
-    // hidden "until-found" -> boolean false -> "until-found"
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
-      "until-found",
+  test("returns static strings immediately when not dynamic", () => {
+    expect(sourceAttributeValue("class", "button", false)).toBe("button");
+    expect(sourceAttributeValue("disabled", "disabled", false)).toBe(
+      "disabled",
     );
   });
 
-  test("handles translate attribute specially", () => {
+  test("evaluates non-string static values", () => {
+    expect(sourceAttributeValue("class", 123, false)).toBe("123");
+  });
+
+  test("handles null and undefined values", () => {
+    expect(sourceAttributeValue("class", null, true)).toBeUndefined();
+    expect(sourceAttributeValue("class", undefined, true)).toBeUndefined();
+    expect(sourceAttributeValue("class", null, false)).toBeUndefined();
+  });
+
+  test("handles standard HTML boolean attributes", () => {
+    expect(sourceAttributeValue("disabled", true, true)).toBe("");
+    expect(sourceAttributeValue("disabled", false, true)).toBeUndefined();
+    expect(sourceAttributeValue("disabled", "", true)).toBe("");
+    // In compiler source, any truthy value for a boolean attribute yields ""
+    expect(sourceAttributeValue("disabled", "disabled", true)).toBe("");
+  });
+
+  test("handles SOURCE_BOOLEAN_ADDITIONS", () => {
+    // indeterminate is added as a boolean attribute in source semantics
+    expect(sourceAttributeValue("indeterminate", true, true)).toBe("");
+    expect(sourceAttributeValue("indeterminate", false, true)).toBeUndefined();
+    expect(sourceAttributeValue("indeterminate", "yes", true)).toBe("");
+  });
+
+  test("handles SOURCE_BOOLEAN_EXCLUSIONS", () => {
+    // alpha is excluded from boolean evaluation in source semantics
+    expect(sourceAttributeValue("alpha", true, true)).toBe("true");
+    expect(sourceAttributeValue("alpha", false, true)).toBe("false");
+  });
+
+  test("handles 'hidden' attribute special cases", () => {
+    expect(sourceAttributeValue("hidden", true, true)).toBe("");
+    expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
+    // 'until-found' is treated non-boolean
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
+    expect(sourceAttributeValue("hidden", "", true)).toBe("");
+  });
+
+  test("handles 'translate' attribute special cases", () => {
     expect(sourceAttributeValue("translate", true, true)).toBe("yes");
     expect(sourceAttributeValue("translate", false, true)).toBe("no");
     expect(sourceAttributeValue("translate", "yes", true)).toBe("yes");
+  });
+
+  test("matches boolean attribute names case-sensitively", () => {
+    expect(sourceAttributeValue("DISABLED", true, true)).toBe("true");
+  });
+
+  test("stringifies falsy values on non-boolean attributes", () => {
+    expect(sourceAttributeValue("tabindex", 0, true)).toBe("0");
   });
 });
