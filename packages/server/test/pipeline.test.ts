@@ -1265,3 +1265,32 @@ test("detached next rejection discards its Response after a bodyless middleware 
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(cancelled).toBe(1);
 });
+
+test("discardResponse catches synchronous cancel errors", async () => {
+  let cancelCalled = 0;
+  const handler = createRequestHandler({
+    routes: [{ id: "endpoint", path: "/", file: "endpoint.ts", mode: "api" }],
+    modules: {
+      endpoint: {
+        loader: () => {
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array([1, 2, 3]));
+            },
+            cancel() {
+              cancelCalled++;
+              throw new Error("Synchronous cancel error");
+            },
+          });
+          return new Response(stream);
+        },
+      },
+    },
+  });
+
+  const response = await handler(
+    new Request("http://localhost/", { method: "HEAD" }),
+  );
+  expect(response.status).toBe(200);
+  expect(cancelCalled).toBe(1);
+});
