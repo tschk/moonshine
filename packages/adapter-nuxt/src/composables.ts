@@ -399,8 +399,7 @@ export function useAsyncData<ResT, DataT = ResT, ErrorT = Error>(
 export function useAsyncData<ResT, DataT = ResT, ErrorT = Error>(
   keyOrHandler: string | (() => Promise<ResT> | ResT),
   handlerOrOptions?:
-    | (() => Promise<ResT> | ResT)
-    | AsyncDataOptions<ResT, DataT>,
+    (() => Promise<ResT> | ResT) | AsyncDataOptions<ResT, DataT>,
   maybeOptions?: AsyncDataOptions<ResT, DataT>,
 ): AsyncData<DataT, ErrorT> {
   const store = resolveScopeStore();
@@ -612,8 +611,7 @@ export function useLazyAsyncData<ResT, DataT = ResT, ErrorT = Error>(
 export function useLazyAsyncData<ResT, DataT = ResT, ErrorT = Error>(
   keyOrHandler: string | (() => Promise<ResT> | ResT),
   handlerOrOptions?:
-    | (() => Promise<ResT> | ResT)
-    | Omit<AsyncDataOptions<ResT, DataT>, "lazy">,
+    (() => Promise<ResT> | ResT) | Omit<AsyncDataOptions<ResT, DataT>, "lazy">,
   maybeOptions?: Omit<AsyncDataOptions<ResT, DataT>, "lazy">,
 ): AsyncData<DataT, ErrorT> {
   if (typeof keyOrHandler === "string") {
@@ -2331,10 +2329,7 @@ export function resolveHeadTags(): ResolvedHead {
   const store = resolveScopeStore();
   let rawTitle: string | undefined;
   let titleTemplate:
-    | string
-    | ((title?: string) => string | null)
-    | null
-    | undefined;
+    string | ((title?: string) => string | null) | null | undefined;
   let base: Record<string, any> | undefined;
   const link: Array<Record<string, any>> = [];
   const metaMap = new Map<string, Record<string, any>>();
