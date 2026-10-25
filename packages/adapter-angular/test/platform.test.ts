@@ -7,8 +7,6 @@ import {
   provideEnvironmentInitializer,
   signal,
   toObservable,
-  viewChild,
-  viewChildren,
 } from "../src/signals";
 import {
   APP_ID,
@@ -1191,6 +1189,7 @@ describe("@tschk/moonshine-angular/platform", () => {
         return `${this.svc.prefix}${String(val)}${suffix}`;
       }
     }
+    void TaggerPipe;
 
     @Directive({
       selector: "[appHighlight]",
