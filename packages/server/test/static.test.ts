@@ -16,8 +16,10 @@ const staticDir = resolve(tmpDir, "public");
 
 beforeAll(() => {
   mkdirSync(staticDir, { recursive: true });
+  mkdirSync(resolve(tmpDir, "public-secret"), { recursive: true });
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
+  writeFileSync(resolve(tmpDir, "public-secret", "secret2.txt"), "secret2");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
 });
 
@@ -54,6 +56,12 @@ describe("isContained", () => {
 
   test("returns false for a file outside the directory", () => {
     expect(isContained(staticDir, resolve(tmpDir, "secret.txt"))).toBe(false);
+  });
+
+  test("returns false for a file in a sibling directory sharing the same prefix", () => {
+    expect(
+      isContained(staticDir, resolve(tmpDir, "public-secret", "secret2.txt")),
+    ).toBe(false);
   });
 
   test("caches the real root on successive calls", () => {
