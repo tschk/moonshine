@@ -212,6 +212,25 @@ describe("createRequestHandler security", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
+  test("rejects redirect to unparseable URL string throwing error", async () => {
+    const modulesWithInvalidUrlThrow: Record<string, RouteModule> = {
+      ...modules,
+      "invalid-url-throw": {
+        loader: () => {
+          throw redirect("http://%/");
+        },
+      },
+    };
+    const h = createRequestHandler({
+      routes: [...routes, { id: "invalid-url-throw", path: "/invalid-url-throw", file: "invalid-url-throw.tsx" }],
+      modules: modulesWithInvalidUrlThrow,
+      notFound: () => new Response("Not Found", { status: 404 }),
+    });
+    const res = await h(new Request("http://localhost/invalid-url-throw"));
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
   test("rejects header injection in redirect location", async () => {
     const res = await handler(new Request("http://localhost/crlf"));
     expect(res.status).toBe(400);
