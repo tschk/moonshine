@@ -42,7 +42,7 @@ test("copyAsset rejects when source realpath fails", async () => {
   try {
     await symlink(join(root, "nonexistent"), join(root, "broken"));
     await expect(
-      copyAsset({ file: join(root, "broken"), path: "/broken" }, root)
+      copyAsset({ file: join(root, "broken"), path: "/broken" }, root),
     ).rejects.toThrow();
   } finally {
     await rm(root, { recursive: true, force: true });
