@@ -1,5 +1,10 @@
 /** Static View IR mapping parameterized by independent DOM or SSR factories. */
-import type { TabItem, ViewIr, ViewNode } from "@tschk/crepuscularity-wasm";
+import type {
+  PickerOption,
+  TabItem,
+  ViewIr,
+  ViewNode,
+} from "@tschk/crepuscularity-wasm";
 
 export type CrepusNode = ViewNode;
 export type CrepusIr = ViewIr;
@@ -122,7 +127,7 @@ export function createIrRenderer<Child>(
       el(
         "select",
         { class: cls, name: node.bind },
-        ...node.options.map((option: any) =>
+        ...node.options.map((option: PickerOption) =>
           el("option", { value: option.value }, option.label),
         ),
       ),
