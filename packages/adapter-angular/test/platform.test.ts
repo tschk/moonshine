@@ -1186,6 +1186,7 @@ describe("@tschk/moonshine-angular/platform", () => {
 
     // @ts-ignore
     @Pipe({ name: "tagger", standalone: true })
+    // eslint-disable-next-line
     class TaggerPipe {
       svc = inject(PrefixService);
       transform(val: unknown, suffix = "!") {
