@@ -221,6 +221,48 @@ describe("island hydration scheduling", () => {
     expect(hydrate).toHaveBeenCalledTimes(1);
   });
 
+  test("uses console.error for failed imports when reportError is not available", async () => {
+    marker();
+    const modules = document.querySelector(
+      "script[data-moonshine-island-modules]",
+    )!;
+    modules.textContent = JSON.stringify({
+      counter: "./missing-island-fixture.tsx",
+    });
+    const originalConsoleError = console.error;
+    const consoleErrors: unknown[] = [];
+    console.error = (...args: unknown[]) => consoleErrors.push(args);
+    scope.reportError = undefined;
+    const hydrate = hydrationSpy();
+    dispose = hydrateIslands();
+    try {
+      await flush();
+      expect(consoleErrors).toHaveLength(1);
+      expect((consoleErrors[0] as unknown[])[0]).toBe("Moonshine island hydration failed");
+      expect(hydrate).not.toHaveBeenCalled();
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+
+  test("does not report error if disposed before catch block resolves", async () => {
+    marker();
+    const modules = document.querySelector(
+      "script[data-moonshine-island-modules]",
+    )!;
+    modules.textContent = JSON.stringify({
+      counter: "./missing-island-fixture.tsx",
+    });
+    const errors: unknown[] = [];
+    scope.reportError = (error: unknown) => errors.push(error);
+    const hydrate = hydrationSpy();
+    const cleanup = hydrateIslands();
+    cleanup(); // Dispose immediately
+    await flush();
+    expect(errors).toHaveLength(0);
+    expect(hydrate).not.toHaveBeenCalled();
+  });
+
   test("a visible island reuses SSR markup and handles a real counter click", async () => {
     const element = marker("visible");
     const button = element.querySelector("button")!;
