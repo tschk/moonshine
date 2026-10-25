@@ -77,7 +77,9 @@ describe("sourceAttributeValue", () => {
     expect(sourceAttributeValue("hidden", true, true)).toBe("");
     expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
     expect(sourceAttributeValue("hidden", "", true)).toBe("");
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe("until-found");
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
     // "other" triggers the boolean branch, getting output as empty string
     expect(sourceAttributeValue("hidden", "other", true)).toBe("");
   });
