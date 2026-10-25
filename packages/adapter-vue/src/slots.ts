@@ -1,7 +1,9 @@
 /** Compiler-private static default-slot transport; independent of declared props. */
 import {
   getComponentContext,
+  peekComponentContext,
   withComponentConsumer,
+  type ComponentContext,
 } from "@tschk/moonshine-dom/component";
 import {
   createComponentScope,
@@ -12,6 +14,25 @@ import type { DOMChild } from "@tschk/moonshine-dom";
 import type { SSRChild } from "@tschk/moonshine-dom/ssr";
 const slots = /* @__PURE__ */ Symbol("moonshine.vue.slots");
 type Content = () => unknown;
+const frameDefaultSlotSymbol = Symbol.for("moonshine.vue.frame.defaultSlot");
+const frameDefaultSlots = /* @__PURE__ */ new WeakMap<
+  ComponentContext,
+  Content
+>();
+export function getDefaultSlotFactory(
+  source: object | null | undefined,
+  frame?: ComponentContext,
+): Content | undefined {
+  if (frame) {
+    const fromFrame =
+      frameDefaultSlots.get(frame) ??
+      (Reflect.get(frame, frameDefaultSlotSymbol) as Content | undefined);
+    if (typeof fromFrame === "function") return fromFrame;
+  }
+  if (!source || typeof source !== "object") return undefined;
+  const supplied = Reflect.get(source, slots, source) as Content | undefined;
+  return typeof supplied === "function" ? supplied : undefined;
+}
 /** Each authored outlet gets a distinct instance; its factory identity is static. */
 function createSlotOutlet(
   source: object,
@@ -63,6 +84,11 @@ export function withDefaultSlot<P extends object, R>(
   if (typeof component !== "function" || typeof content !== "function")
     throw new TypeError("Static component and slot factories required");
   return (source) => {
+    const activeFrame = peekComponentContext();
+    if (activeFrame) {
+      frameDefaultSlots.set(activeFrame, content);
+      Reflect.set(activeFrame, frameDefaultSlotSymbol, content);
+    }
     const target = Object.create(
       Object.getPrototypeOf(source),
       Object.getOwnPropertyDescriptors(source),

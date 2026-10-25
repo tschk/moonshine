@@ -31,6 +31,13 @@ import {
 } from "@tschk/moonshine-dom/reactive";
 export { untrack };
 export { getAbortSignal } from "./abort-signal";
+export { mount, unmount } from "./mount";
+export type {
+  ComponentProps,
+  ComponentExports,
+  MountOptions,
+  UnmountOptions,
+} from "./mount-types";
 
 function componentOwner(hook: string) {
   assertNotCleanupComputation();
