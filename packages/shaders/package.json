@@ -30,6 +30,6 @@
     "format": "bunx prettier --check .",
     "lint": "bunx oxlint .",
     "typecheck": "exit 0",
-    "test": "exit 0"
+    "test": "bun test"
   }
 }
