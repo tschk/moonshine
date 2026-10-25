@@ -3498,8 +3498,7 @@ export function resolveAngularContentQueries(
         meta &&
         (meta.kind === "contentChild" || meta.kind === "contentChildren")
       ) {
-        const descendants =
-          meta.descendants ?? meta.kind === "contentChild";
+        const descendants = meta.descendants ?? meta.kind === "contentChild";
         const nodes = collectProjectedQueryNodes(children, descendants);
         const matched: any[] = [];
         for (const node of nodes) {
