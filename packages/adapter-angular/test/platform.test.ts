@@ -1237,7 +1237,7 @@ describe("@tschk/moonshine-angular/platform", () => {
 
     const env = createEnvironmentInjector([PrefixService]);
     env.runInContext(() => {
-      const _tagger = TaggerPipe; // Mark as used
+      void TaggerPipe; // Mark as used
       const hostComp = {
         toggledEvents: [] as boolean[],
       };
