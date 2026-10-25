@@ -37,6 +37,18 @@ test("public asset storage remains literal and cannot overwrite the server bundl
   }
 });
 
+test("copyAsset rejects when source realpath fails", async () => {
+  const root = await mkdtemp(join(tmpdir(), "moonshine-copy-broken-"));
+  try {
+    await symlink(join(root, "nonexistent"), join(root, "broken"));
+    await expect(
+      copyAsset({ file: join(root, "broken"), path: "/broken" }, root)
+    ).rejects.toThrow();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("public symlinks cannot alias private files", async () => {
   const root = await mkdtemp(join(tmpdir(), "moonshine-copy-link-"));
   try {
