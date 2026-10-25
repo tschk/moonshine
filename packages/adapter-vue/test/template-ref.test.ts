@@ -32,6 +32,7 @@ test("element and component template refs publish before onMounted, preserve ide
   const internalWatched: Array<HTMLInputElement | null> = [];
   const externalWatched: Array<HTMLInputElement | null> = [];
   let stopExternalWatch = () => {};
+  void stopExternalWatch;
   createRoot((stop) => {
     stopExternalWatch = stop;
     watch(
@@ -170,7 +171,9 @@ test("owner disposed before flush skips publication and identity guard preserves
   expect(target.value).toBeNull();
 
   let stopFirst = () => {};
+  void stopFirst;
   let stopSecond = () => {};
+  void stopSecond;
   createRoot((stop) => {
     stopFirst = stop;
     bindRef(first, {
@@ -217,18 +220,21 @@ test("separate component instances keep isolated template refs and ref(instance)
     child: ref<{ label: string; bump: () => void } | null>(null),
   };
 
-  const makeChild = (initial: string) => () => {
-    const label = ref(initial);
-    const exposed = exposeComponent(
-      exposeRefs({
-        label,
-        bump() {
-          label.value += "!";
-        },
-      }),
-    );
-    expect(Object.getPrototypeOf(Object.getPrototypeOf(exposed))).toBeNull();
-    return h("span", null, () => label.value);
+  const makeChild = (initial: string) => {
+    void makeChild;
+    return () => {
+      const label = ref(initial);
+      const exposed = exposeComponent(
+        exposeRefs({
+          label,
+          bump() {
+            label.value += "!";
+          },
+        }),
+      );
+      expect(Object.getPrototypeOf(Object.getPrototypeOf(exposed))).toBeNull();
+      return h("span", null, () => label.value);
+    };
   };
 
   const ChildA = makeChild("alpha");

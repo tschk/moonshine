@@ -42,6 +42,8 @@ describe("Link", () => {
 
   test("provides navigation status to its children", () => {
     function Status(): ReactNode {
+      void Status;
+      void Status;
       return createElement(
         "em",
         null,
@@ -68,6 +70,10 @@ describe("Link", () => {
 describe("hooks", () => {
   test("useRoute reports Waku's route shape", () => {
     function Probe(): ReactNode {
+      void Probe;
+      void Probe;
+      void Probe;
+      void Probe;
       const route = useRoute();
       return createElement(
         "code",

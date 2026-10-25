@@ -6,7 +6,10 @@ const specifiers = Object.keys(wakuAliases);
 
 describe("waku aliases", () => {
   test("covers the modules this package replaces", () => {
-    expect(specifiers.sort()).toEqual(["waku/router", "waku/router/client"]);
+    expect(specifiers.toSorted()).toEqual([
+      "waku/router",
+      "waku/router/client",
+    ]);
   });
 
   test("maps every specifier onto this package", () => {

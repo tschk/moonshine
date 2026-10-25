@@ -249,8 +249,10 @@ test("paginate and createPaginate build Astro static path pages, params, props, 
     title: "Docs",
     page: emptyPages[0]!.props.page,
   };
-  const getEndpoint: APIRoute = (ctx) =>
-    new Response(ctx.url.pathname, { status: 200 });
+  const getEndpoint: APIRoute = (ctx) => {
+    void getEndpoint;
+    return new Response(ctx.url.pathname, { status: 200 });
+  };
   expect(sampleParams.category).toBe("docs");
   expect(sampleProps.title).toBe("Docs");
   expect(typeof getEndpoint).toBe("function");

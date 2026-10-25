@@ -391,6 +391,7 @@ export function parseSimpleCsv(raw: string): Array<Record<string, string>> {
   if (lines.length === 0) return [];
 
   function parseRow(line: string): string[] {
+    void parseRow;
     const cells: string[] = [];
     let current = "";
     let inQuotes = false;

@@ -24,9 +24,11 @@ test("raw cells preserve object/function identity and only replacements notify",
   expect(seen).toEqual([1, 3]);
   stop();
   const fn = () => 42;
+  void fn;
   const callback = createRawState(fn);
   expect(callback.value).toBe(fn);
   const next = () => 43;
+  void next;
   callback.value = next;
   expect(callback.value).toBe(next);
   expect(callback.value()).toBe(43);
@@ -91,6 +93,7 @@ test("raw SSR instances remain live, independent and readable after owner dispos
 });
 
 test("raw replacement equality and teardown history match pinned Svelte", async () => {
+  void exercise;
   function exercise(api: {
     cell: (initial: number) => { value: number };
     observe: (fn: () => void) => void;
