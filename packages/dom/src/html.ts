@@ -14,15 +14,18 @@ export function rawHTML(
   return () => {
     const value = read() ?? "";
     if (previous === value) return nodes;
-    const wrapper =
-      namespace === "html"
-        ? document.createElement("template")
-        : document.createElementNS(
-            namespace === "svg"
-              ? "http://www.w3.org/2000/svg"
-              : "http://www.w3.org/1998/Math/MathML",
-            namespace === "svg" ? "svg" : "math",
-          );
+    let wrapper: Element;
+    if (namespace === "html") {
+      wrapper = document.createElement("template");
+    } else {
+      wrapper = document.createElementNS(
+        namespace === "svg"
+          ? "http://www.w3.org/2000/svg"
+          : "http://www.w3.org/1998/Math/MathML",
+        namespace === "svg" ? "svg" : "math",
+      );
+      document.createElement("template").content.appendChild(wrapper);
+    }
     // Assign directly: coercing here would discard TrustedHTML identity.
     wrapper.innerHTML = value as string;
     nodes = Array.from(
