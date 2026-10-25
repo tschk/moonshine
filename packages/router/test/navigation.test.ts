@@ -49,6 +49,29 @@ describe("safeHref", () => {
     expect(safeHref("")).toBe("#");
     expect(safeHref("   ")).toBe("#");
   });
+  test("handles mixed case schemes", () => {
+    expect(safeHref("jAvAsCrIpT:alert(1)")).toBe("#");
+    expect(safeHref("Http://example.com")).toBe("Http://example.com");
+  });
+  test("strips all control characters up to 0x1F and 0x7F", () => {
+    expect(safeHref("java\u0000script:alert(1)")).toBe("#");
+    expect(safeHref("java\u001Fscript:alert(1)")).toBe("#");
+    expect(safeHref("java\u007Fscript:alert(1)")).toBe("#");
+  });
+  test("rejects schemes with +, -, and .", () => {
+    expect(safeHref("android-app://x")).toBe("#");
+    expect(safeHref("view-source:x")).toBe("#");
+    expect(safeHref("my+scheme:x")).toBe("#");
+    expect(safeHref("my.scheme:x")).toBe("#");
+  });
+  test("allows safe URLs that look unsafe but start with relative prefixes", () => {
+    expect(safeHref("/javascript:alert(1)")).toBe("/javascript:alert(1)");
+    expect(safeHref("?javascript:alert(1)")).toBe("?javascript:alert(1)");
+    expect(safeHref("#javascript:alert(1)")).toBe("#javascript:alert(1)");
+  });
+  test("handles invalid scheme patterns by treating them as relative paths", () => {
+    expect(safeHref("123:456")).toBe("123:456");
+  });
 });
 
 describe("isExternal", () => {
