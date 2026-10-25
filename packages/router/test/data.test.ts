@@ -210,3 +210,18 @@ test("disposal settles every invalidation waiter without waiting for ignored abo
   expect(await second).toBeUndefined();
   expect(router.submitting.peek()).toBe(false);
 });
+
+test("disposal or navigation ignores late load failures", async () => {
+  let rejectLoad!: (e: Error) => void;
+  const router = createDataRouter(
+    () =>
+      new Promise<string>((_, reject) => {
+        rejectLoad = reject;
+      }),
+    "/",
+  );
+  router.dispose();
+  rejectLoad(new Error("failed"));
+  await tick();
+  expect(router.data.peek().status).not.toBe("errored");
+});
