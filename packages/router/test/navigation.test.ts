@@ -49,6 +49,51 @@ describe("safeHref", () => {
     expect(safeHref("")).toBe("#");
     expect(safeHref("   ")).toBe("#");
   });
+  test("handles mixed case schemes", () => {
+    expect(safeHref("jAvAsCrIpT:alert(1)")).toBe("#");
+    expect(safeHref("Http://example.com")).toBe("Http://example.com");
+  });
+  test("strips all control characters up to 0x1F and 0x7F", () => {
+    expect(safeHref("java\u0000script:alert(1)")).toBe("#");
+    expect(safeHref("java\u001Fscript:alert(1)")).toBe("#");
+    expect(safeHref("java\u007Fscript:alert(1)")).toBe("#");
+  });
+  test("rejects schemes with +, -, and .", () => {
+    expect(safeHref("android-app://x")).toBe("#");
+    expect(safeHref("view-source:x")).toBe("#");
+    expect(safeHref("my+scheme:x")).toBe("#");
+    expect(safeHref("my.scheme:x")).toBe("#");
+  });
+  test("allows safe URLs that look unsafe but start with relative prefixes", () => {
+    expect(safeHref("/javascript:alert(1)")).toBe("/javascript:alert(1)");
+    expect(safeHref("?javascript:alert(1)")).toBe("?javascript:alert(1)");
+    expect(safeHref("#javascript:alert(1)")).toBe("#javascript:alert(1)");
+  });
+  test("handles invalid scheme patterns by treating them as relative paths", () => {
+    expect(safeHref("123:456")).toBe("123:456");
+  });
+  test("handles leading and trailing spaces with valid schemes", () => {
+    expect(safeHref("  http://example.com  ")).toBe("http://example.com");
+    expect(safeHref(" \n javascript:alert(1) \n ")).toBe("#");
+  });
+  test("handles control characters thoroughly", () => {
+    expect(safeHref("\u0000javascript:alert(1)")).toBe("#");
+    expect(safeHref("java\u001Fscript:alert(1)")).toBe("#");
+    expect(safeHref("javascript\u0000:alert(1)")).toBe("#");
+    expect(safeHref("javascript:\u0000alert(1)")).toBe("#");
+  });
+  test("handles non-scheme colons in unambiguously relative paths", () => {
+    expect(safeHref("/path:with:colon")).toBe("/path:with:colon");
+    expect(safeHref("?query=1:2")).toBe("?query=1:2");
+    expect(safeHref("#hash:colon")).toBe("#hash:colon");
+  });
+  test("handles relative paths that look like unknown schemes", () => {
+    expect(safeHref("unknown:path")).toBe("#");
+  });
+  test("handles relative paths that begin with invalid scheme characters", () => {
+    expect(safeHref("1invalid:path")).toBe("1invalid:path");
+    expect(safeHref("-invalid:path")).toBe("-invalid:path");
+  });
 });
 
 describe("isExternal", () => {
