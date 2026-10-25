@@ -37,6 +37,18 @@ test("public asset storage remains literal and cannot overwrite the server bundl
   }
 });
 
+test("copyAsset rejects when source file cannot be resolved (e.g. broken symlink)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "moonshine-copy-missing-"));
+  try {
+    await symlink(join(root, "does-not-exist.js"), join(root, "broken-link.js"));
+    await expect(
+      copyAsset({ file: "broken-link.js", path: "/broken-link.js" }, root),
+    ).rejects.toThrow();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("public symlinks cannot alias private files", async () => {
   const root = await mkdtemp(join(tmpdir(), "moonshine-copy-link-"));
   try {
