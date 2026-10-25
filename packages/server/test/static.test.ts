@@ -56,6 +56,17 @@ describe("isContained", () => {
     expect(isContained(staticDir, resolve(tmpDir, "secret.txt"))).toBe(false);
   });
 
+  test("returns false for a file in a sibling directory with a matching prefix", () => {
+    const siblingDir = staticDir + "2";
+    mkdirSync(siblingDir, { recursive: true });
+    try {
+      writeFileSync(resolve(siblingDir, "ok.txt"), "ok");
+      expect(isContained(staticDir, resolve(siblingDir, "ok.txt"))).toBe(false);
+    } finally {
+      rmSync(siblingDir, { recursive: true, force: true });
+    }
+  });
+
   test("caches the real root on successive calls", () => {
     const realpathSpy = spyOn(fs.realpathSync, "native");
     isContained(staticDir, resolve(staticDir, "ok.txt"));
