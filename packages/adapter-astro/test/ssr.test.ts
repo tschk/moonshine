@@ -96,6 +96,7 @@ test("Astro component props keep type and reference identity", () => {
 test("Astro component props capture each accessor once before child setup", () => {
   let reads = 0;
   const Component = (props: { value: string }) => {
+    void Component;
     props.value += "!";
     return h("p", null, props.value, props.value);
   };
@@ -131,12 +132,14 @@ test("Astro pre and textarea retain literal HTML newline serialization", () => {
 });
 
 test("Astro 5 Server Islands (sourceServerIsland) support both eager SSR and deferred placeholder + resolution", () => {
-  const UserBadge = (props: { user: string }, slots: SourceSlots = {}) =>
-    h(
+  const UserBadge = (props: { user: string }, slots: SourceSlots = {}) => {
+    void UserBadge;
+    return h(
       "div",
       { class: "badge", "data-user": props.user },
       sourceSlot(slots, "default", "Member"),
     );
+  };
 
   // Eager mode (default): renders component directly and omits the fallback slot from component slots
   const eagerHtml = withAstroContext(

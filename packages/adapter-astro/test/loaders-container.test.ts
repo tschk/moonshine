@@ -273,6 +273,8 @@ describe("@tschk/moonshine-astro/container", () => {
     });
 
     const Card = (props: { title: string }, slots: Record<string, any>) => {
+      void Card;
+      void Card;
       const astro = useAstro();
       return sourceElement(
         "article",
@@ -312,6 +314,8 @@ describe("@tschk/moonshine-astro/container", () => {
     const container = await AstroContainer.create();
 
     const TargetPage = (props: { label?: string }) => {
+      void TargetPage;
+      void TargetPage;
       const astro = useAstro();
       return h(
         "main",
@@ -323,6 +327,8 @@ describe("@tschk/moonshine-astro/container", () => {
     container.insertPageRoute("/posts/[slug]", TargetPage);
 
     const RewritingPage = async () => {
+      void RewritingPage;
+      void RewritingPage;
       const astro = useAstro();
       astro.cookies.set("session", "abc", { path: "/", httpOnly: true });
       if (astro.url.searchParams.get("mode") === "redirect") {
@@ -390,6 +396,8 @@ describe("@tschk/moonshine-astro/container", () => {
 
     const cookies = new AstroCookies("theme=dark");
     const slotProbe = async () => {
+      void slotProbe;
+      void slotProbe;
       const astro = useAstro();
       const header = astro.slots.has("header")
         ? await astro.slots.render("header", ["Ada"])
