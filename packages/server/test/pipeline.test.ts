@@ -815,11 +815,16 @@ test("HEAD ignores synchronous thrown errors during stream cancellation", async 
     modules: {
       stream: {
         loader: () => {
-          const res = new Response(null, { status: 206, headers: { "x-stream": "kept" } });
+          const res = new Response(null, {
+            status: 206,
+            headers: { "x-stream": "kept" },
+          });
           Object.defineProperty(res, "body", {
             get() {
               return {
-                get locked() { return false; },
+                get locked() {
+                  return false;
+                },
                 cancel() {
                   attempts++;
                   throw new Error("sync cleanup failed");
