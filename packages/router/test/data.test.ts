@@ -210,3 +210,41 @@ test("disposal settles every invalidation waiter without waiting for ignored abo
   expect(await second).toBeUndefined();
   expect(router.submitting.peek()).toBe(false);
 });
+
+test("late rejections from superseded or disposed loads are ignored", async () => {
+  const rejects: Array<(error: Error) => void> = [];
+  const router = createDataRouter(
+    () =>
+      new Promise<string>((_, r) => {
+        rejects.push(r);
+      }),
+    "/a",
+  );
+
+  router.navigate("/b");
+  rejects[0]!(new Error("late error"));
+
+  await tick();
+  expect(router.data.peek().status).toBe("pending");
+
+  rejects[1]!(new Error("real error"));
+
+  await tick();
+  expect(router.data.peek().status).toBe("errored");
+
+  router.dispose();
+
+  const rejects2: Array<(error: Error) => void> = [];
+  const router2 = createDataRouter(
+    () =>
+      new Promise<string>((_, r) => {
+        rejects2.push(r);
+      }),
+    "/c",
+  );
+
+  router2.dispose();
+  rejects2[0]!(new Error("late error 2"));
+  await tick();
+  expect(router2.data.peek().status).not.toBe("errored");
+});
