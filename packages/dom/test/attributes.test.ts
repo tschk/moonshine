@@ -50,7 +50,9 @@ describe("attributeValue", () => {
 describe("sourceAttributeValue", () => {
   test("handles non-dynamic string fast path", () => {
     expect(sourceAttributeValue("class", "foo", false)).toBe("foo");
-    expect(sourceAttributeValue("disabled", "disabled", false)).toBe("disabled");
+    expect(sourceAttributeValue("disabled", "disabled", false)).toBe(
+      "disabled",
+    );
   });
 
   test("handles null or undefined values", () => {
@@ -77,7 +79,9 @@ describe("sourceAttributeValue", () => {
   test("handles hidden attribute", () => {
     expect(sourceAttributeValue("hidden", true, true)).toBe("");
     expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe("until-found");
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
   });
 
   test("handles translate attribute", () => {
