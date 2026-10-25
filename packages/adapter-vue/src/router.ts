@@ -781,6 +781,121 @@ export function createRouter(options: RouterOptions): Router {
     };
   }
 
+  function resolveStringLocation(
+    rawLocation: string,
+    currentLocation: RouteLocationNormalizedLoaded,
+  ) {
+    let raw = rawLocation;
+    let hash = "";
+    let query: LocationQuery = {};
+    const hashIdx = raw.indexOf("#");
+    if (hashIdx >= 0) {
+      hash = raw.slice(hashIdx);
+      raw = raw.slice(0, hashIdx);
+    }
+    const queryIdx = raw.indexOf("?");
+    if (queryIdx >= 0) {
+      query = parseQueryFn(raw.slice(queryIdx + 1));
+      raw = raw.slice(0, queryIdx);
+    }
+    let path = "/";
+    if (!raw) {
+      path = currentLocation.path || "/";
+    } else if (raw.startsWith("/")) {
+      path = raw;
+    } else {
+      const baseDir = currentLocation.path.replace(/\/[^/]*$/, "");
+      path = `${baseDir}/${raw}`.replace(/\/+/g, "/");
+    }
+    return { path, query, hash };
+  }
+
+  function resolveNamedLocation(
+    rawLocation: RouteLocationNamedRaw,
+    currentLocation: RouteLocationNormalizedLoaded,
+  ) {
+    const entry = namedMap.get(rawLocation.name);
+    if (!entry) {
+      throw new Error(`No match for route named "${String(rawLocation.name)}"`);
+    }
+    const mergedParams = {
+      ...currentLocation.params,
+      ...rawLocation.params,
+    };
+    const built = buildPathFromEntry(entry, mergedParams);
+    return {
+      path: built.path,
+      params: built.params,
+      matched: entry.chain.map((r) => r.aliasOf ?? r),
+      name: entry.record.name,
+      query: rawLocation.query
+        ? parseQueryFn(stringifyQueryFn(rawLocation.query))
+        : {},
+      hash: rawLocation.hash
+        ? rawLocation.hash.startsWith("#")
+          ? rawLocation.hash
+          : "#" + rawLocation.hash
+        : "",
+    };
+  }
+
+  function resolvePathLocation(rawLocation: RouteLocationPathRaw) {
+    let raw = rawLocation.path || "/";
+    let hash = "";
+    let query: LocationQuery = {};
+    const hashIdx = raw.indexOf("#");
+    if (hashIdx >= 0) {
+      hash = raw.slice(hashIdx);
+      raw = raw.slice(0, hashIdx);
+    }
+    const queryIdx = raw.indexOf("?");
+    if (queryIdx >= 0) {
+      query = parseQueryFn(raw.slice(queryIdx + 1));
+      raw = raw.slice(0, queryIdx);
+    }
+    if (rawLocation.query) {
+      query = {
+        ...query,
+        ...parseQueryFn(stringifyQueryFn(rawLocation.query)),
+      };
+    }
+    if (rawLocation.hash) {
+      hash = rawLocation.hash.startsWith("#")
+        ? rawLocation.hash
+        : "#" + rawLocation.hash;
+    }
+    const path = raw.startsWith("/") ? raw : "/" + raw;
+    return { path, query, hash };
+  }
+
+  function matchRoute(path: string) {
+    for (const entry of entries) {
+      const m = entry.regex.exec(path);
+      if (m) {
+        const matched = entry.chain.map((r) => r.aliasOf ?? r);
+        const leaf = matched[matched.length - 1];
+        const name = leaf?.name;
+        const params: RouteParams = {};
+        entry.paramKeys.forEach((keyInfo, i) => {
+          const rawVal = m[i + 1];
+          if (rawVal === undefined) {
+            if (keyInfo.repeatable) params[keyInfo.name] = [];
+            return;
+          }
+          if (keyInfo.repeatable) {
+            params[keyInfo.name] = rawVal
+              .split("/")
+              .map((part) => decodeURIComponent(part));
+          } else {
+            params[keyInfo.name] = decodeURIComponent(rawVal);
+          }
+        });
+        return { matched, name, params };
+      }
+    }
+    return { matched: [], name: undefined, params: {} };
+  }
+
   function resolve(
     rawLocation: RouteLocationRaw,
     currentLocation: RouteLocationNormalizedLoaded = currentRoute.value,
@@ -793,101 +908,21 @@ export function createRouter(options: RouterOptions): Router {
     let name: RouteRecordName | null | undefined;
 
     if (typeof rawLocation === "string") {
-      let raw = rawLocation;
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
-      if (!raw) {
-        path = currentLocation.path || "/";
-      } else if (raw.startsWith("/")) {
-        path = raw;
-      } else {
-        const baseDir = currentLocation.path.replace(/\/[^/]*$/, "");
-        path = `${baseDir}/${raw}`.replace(/\/+/g, "/");
-      }
+      ({ path, query, hash } = resolveStringLocation(
+        rawLocation,
+        currentLocation,
+      ));
     } else if ("name" in rawLocation && rawLocation.name !== undefined) {
-      const entry = namedMap.get(rawLocation.name);
-      if (!entry) {
-        throw new Error(
-          `No match for route named "${String(rawLocation.name)}"`,
-        );
-      }
-      const mergedParams = {
-        ...currentLocation.params,
-        ...rawLocation.params,
-      };
-      const built = buildPathFromEntry(entry, mergedParams);
-      path = built.path;
-      params = built.params;
-      matched = entry.chain.map((r) => r.aliasOf ?? r);
-      name = entry.record.name;
-      query = rawLocation.query
-        ? parseQueryFn(stringifyQueryFn(rawLocation.query))
-        : {};
-      hash = rawLocation.hash
-        ? rawLocation.hash.startsWith("#")
-          ? rawLocation.hash
-          : "#" + rawLocation.hash
-        : "";
+      ({ path, params, matched, name, query, hash } = resolveNamedLocation(
+        rawLocation,
+        currentLocation,
+      ));
     } else if ("path" in rawLocation) {
-      let raw = rawLocation.path || "/";
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
-      if (rawLocation.query) {
-        query = {
-          ...query,
-          ...parseQueryFn(stringifyQueryFn(rawLocation.query)),
-        };
-      }
-      if (rawLocation.hash) {
-        hash = rawLocation.hash.startsWith("#")
-          ? rawLocation.hash
-          : "#" + rawLocation.hash;
-      }
-      path = raw.startsWith("/") ? raw : "/" + raw;
+      ({ path, query, hash } = resolvePathLocation(rawLocation));
     }
 
     if (matched.length === 0) {
-      for (const entry of entries) {
-        const m = entry.regex.exec(path);
-        if (m) {
-          matched = entry.chain.map((r) => r.aliasOf ?? r);
-          const leaf = matched[matched.length - 1];
-          name = leaf?.name;
-          const extracted: RouteParams = {};
-          entry.paramKeys.forEach((keyInfo, i) => {
-            const rawVal = m[i + 1];
-            if (rawVal === undefined) {
-              if (keyInfo.repeatable) extracted[keyInfo.name] = [];
-              return;
-            }
-            if (keyInfo.repeatable) {
-              extracted[keyInfo.name] = rawVal
-                .split("/")
-                .map((part) => decodeURIComponent(part));
-            } else {
-              extracted[keyInfo.name] = decodeURIComponent(rawVal);
-            }
-          });
-          params = extracted;
-          break;
-        }
-      }
+      ({ matched, name, params } = matchRoute(path));
     }
 
     const meta: RouteMeta = {};
