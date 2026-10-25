@@ -24,7 +24,8 @@ export function rawHTML(
             namespace === "svg" ? "svg" : "math",
           );
     // Assign directly: coercing here would discard TrustedHTML identity.
-    wrapper.innerHTML = value as string;
+    if ("setHTMLUnsafe" in wrapper) (wrapper as any).setHTMLUnsafe(value as string);
+    else (wrapper as Element).innerHTML = value as string;
     nodes = Array.from(
       (namespace === "html"
         ? (wrapper as HTMLTemplateElement).content
@@ -48,7 +49,8 @@ export function htmlContent(element: Element, read: () => unknown): void {
   createRenderEffect(() => {
     const value = read() ?? "";
     if (previous === value) return;
-    element.innerHTML = value as string;
+    if ("setHTMLUnsafe" in element) (element as any).setHTMLUnsafe(value as string);
+    else (element as Element).innerHTML = value as string;
     previous = value;
   });
 }
