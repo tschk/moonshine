@@ -210,3 +210,57 @@ test("disposal settles every invalidation waiter without waiting for ignored abo
   expect(await second).toBeUndefined();
   expect(router.submitting.peek()).toBe(false);
 });
+
+test("superseded or disposed loads ignore errors and do not publish", async () => {
+  let rejectLoad1!: (error: Error) => void;
+  let rejectLoad2!: (error: Error) => void;
+  let calls = 0;
+
+  const router = createDataRouter(() => {
+    calls++;
+    if (calls === 2)
+      return new Promise<string>((_, reject) => {
+        rejectLoad1 = reject;
+      });
+    if (calls === 3)
+      return new Promise<string>((_, reject) => {
+        rejectLoad2 = reject;
+      });
+    return "ok";
+  });
+
+  // initial load is ok (token 1)
+  await tick();
+
+  // First load is pending (token 2)
+  const first = router.invalidate();
+
+  // Second load is pending (token 3) -> first load superseded
+  const second = router.invalidate();
+
+  // Now reject the first load
+  rejectLoad1(new Error("first error"));
+
+  // Wait a tick for the promise rejection to process
+  await tick();
+
+  // The error should be swallowed because token !== generation
+  expect(router.data.peek().status).toBe("pending"); // still pending for the second load
+
+  // Now dispose the router
+  router.dispose();
+
+  // Now reject the second load
+  rejectLoad2(new Error("second error"));
+
+  // Wait a tick
+  await tick();
+
+  // The error should be swallowed because disposed === true
+  // state should not change to errored
+  expect(router.data.peek().status).toBe("pending");
+
+  // Clean up rejections from promises
+  await first.catch(() => {});
+  await second.catch(() => {});
+});
