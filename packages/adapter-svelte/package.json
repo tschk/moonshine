@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-svelte",
-  "version": "0.4.55",
+  "version": "0.4.78",
   "description": "Independent Svelte store and native lifecycle APIs with Moonshine signal bridges",
   "license": "ISC",
   "type": "module",
@@ -25,18 +25,28 @@
     "./mount": "./src/mount.ts",
     "./server-mount": "./src/server-mount.ts",
     "./const": "./src/const-derived.ts",
+    "./animate": "./src/animate.ts",
+    "./attachments": "./src/attachments.ts",
+    "./easing": "./src/easing.ts",
+    "./events": "./src/events.ts",
+    "./motion": "./src/motion.ts",
     "./reactivity": "./src/reactivity.ts",
-    "./reactivity/window": "./src/reactivity-window.ts"
+    "./reactivity/window": "./src/reactivity-window.ts",
+    "./transition": "./src/transition.ts",
+    "./server": "./src/server.ts",
+    "./legacy": "./src/legacy.ts",
+    "./navigation": "./src/navigation.ts",
+    "./kit": "./src/kit.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.48",
-    "@tschk/moonshine-dom": "^0.4.48"
+    "@tschk/moonshine": "^0.4.78",
+    "@tschk/moonshine-dom": "^0.4.78"
   },
   "devDependencies": {
     "typescript": "7.0.2"
   },
   "peerDependencies": {
-    "@tschk/moonshine-framework": "^0.4.48"
+    "@tschk/moonshine-framework": "^0.4.78"
   },
   "peerDependenciesMeta": {
     "@tschk/moonshine-framework": {
