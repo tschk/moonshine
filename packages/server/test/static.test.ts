@@ -63,6 +63,13 @@ describe("isContained", () => {
     // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
     realpathSpy.mockRestore();
   });
+
+  test("returns false for a file in a directory that merely shares a prefix with the root", () => {
+    const boundaryDir = staticDir + "-secret";
+    mkdirSync(boundaryDir, { recursive: true });
+    writeFileSync(resolve(boundaryDir, "boundary.txt"), "boundary");
+    expect(isContained(staticDir, resolve(boundaryDir, "boundary.txt"))).toBe(false);
+  });
 });
 
 describe("tryServeStatic", () => {
