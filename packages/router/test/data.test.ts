@@ -210,3 +210,39 @@ test("disposal settles every invalidation waiter without waiting for ignored abo
   expect(await second).toBeUndefined();
   expect(router.submitting.peek()).toBe(false);
 });
+
+test("superseded or disposed loads ignore late rejections", async () => {
+  let reject!: (error: Error) => void;
+  const router = createDataRouter(
+    () =>
+      new Promise<number>((_, r) => {
+        reject = r;
+      }),
+  );
+  router.dispose();
+  const state = router.data.peek();
+  reject(new Error("late error"));
+  await tick();
+  expect(router.data.peek()).toBe(state);
+
+  let rejectFirst!: (error: Error) => void;
+  let resolveSecond!: (value: number) => void;
+  let calls = 0;
+  const router2 = createDataRouter(() => {
+    calls++;
+    if (calls === 1) return new Promise<number>((_, r) => { rejectFirst = r; });
+    return new Promise<number>((resolve) => { resolveSecond = resolve; });
+  }, "/");
+
+  await tick();
+  router2.invalidate();
+  const state2 = router2.data.peek();
+  rejectFirst(new Error("superseded error"));
+  await tick();
+  expect(router2.data.peek()).toBe(state2);
+
+  resolveSecond(42);
+  await tick();
+  expect(router2.data.peek().data).toBe(42);
+  router2.dispose();
+});
