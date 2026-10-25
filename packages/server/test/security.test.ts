@@ -14,6 +14,7 @@ import {
   redirect,
   resolveStaticPath,
 } from "../src";
+import { isSafeRedirect } from "../src/pipeline";
 import { tryServeStatic } from "../src/static";
 import type { RouteModule } from "../src/data";
 
@@ -223,6 +224,10 @@ describe("createRequestHandler security", () => {
     const res = await handler(new Request("http://localhost/invalid-url"));
     expect(res.status).toBe(400);
     expect(res.headers.get("location")).toBeNull();
+  });
+
+  test("rejects redirect to completely invalid URL causing parse error", async () => {
+    expect(isSafeRedirect("http://this is not a valid url!!!", new Request("http://localhost"))).toBe(false);
   });
 
   test("rejects same-origin path with embedded CR/LF", async () => {

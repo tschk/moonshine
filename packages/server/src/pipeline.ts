@@ -23,7 +23,7 @@ function hasControlChars(value: string): boolean {
   return false;
 }
 
-function isSafeRedirect(location: string, request: Request): boolean {
+export function isSafeRedirect(location: string, request: Request): boolean {
   try {
     if (hasControlChars(location)) return false;
     if (location.startsWith("//") || location.includes("\\")) return false;
