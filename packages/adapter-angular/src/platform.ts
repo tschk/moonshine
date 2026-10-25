@@ -3498,8 +3498,7 @@ export function resolveAngularContentQueries(
         meta &&
         (meta.kind === "contentChild" || meta.kind === "contentChildren")
       ) {
-        const descendants =
-          meta.descendants ?? (meta.kind === "contentChild" ? true : false);
+        const descendants = meta.descendants ?? meta.kind === "contentChild";
         const nodes = collectProjectedQueryNodes(children, descendants);
         const matched: any[] = [];
         for (const node of nodes) {
@@ -3533,7 +3532,7 @@ export function resolveAngularContentQueries(
     { selector: any; first: boolean; read?: any; descendants?: boolean }
   >;
   for (const [propName, q] of Object.entries(contentQueries)) {
-    const descendants = q.descendants ?? (q.first ? true : false);
+    const descendants = q.descendants ?? q.first;
     const nodes = collectProjectedQueryNodes(children, descendants);
     const matched: any[] = [];
     for (const node of nodes) {
@@ -4327,6 +4326,17 @@ export function bindAngularDirective<T extends object>(
  * subscribes `output()`, `model()`, and `@Output()` `OutputEmitterRef` callbacks,
  * and invokes `ngOnChanges`, `ngOnInit`, `ngAfterContentInit`, `ngAfterViewInit`, and `ngOnDestroy`.
  */
+export function isReactivePropGetter(val: unknown): val is () => any {
+  return (
+    typeof val === "function" &&
+    !isSignal(val) &&
+    !("ɵcmp" in val) &&
+    !("ɵdir" in val) &&
+    !("ɵpipe" in val) &&
+    val.length === 0
+  );
+}
+
 export function instantiateAngularComponent<T extends object>(
   ComponentClass: Type<T> | ((props?: any) => any),
   props: Record<string, any> = {},
@@ -4435,14 +4445,6 @@ export function instantiateAngularComponent<T extends object>(
 
   const changes: SimpleChanges = {};
   let hasChanges = false;
-
-  const isReactivePropGetter = (val: unknown): val is () => any =>
-    typeof val === "function" &&
-    !isSignal(val) &&
-    !("ɵcmp" in val) &&
-    !("ɵdir" in val) &&
-    !("ɵpipe" in val) &&
-    val.length === 0;
 
   const readPropValue = (raw: unknown) => {
     if (isSignal(raw)) {
