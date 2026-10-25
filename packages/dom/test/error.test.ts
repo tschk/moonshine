@@ -329,3 +329,42 @@ test("unrelated memo startup preserves outside post-commit microtask timing", as
   expect(log).toEqual(["post"]);
   stop();
 });
+
+test("normalizeError handles different error types", () => {
+  let stop!: () => void;
+  createRoot((d) => {
+    stop = d;
+    catchError(
+      () => {
+        throw "string error";
+      },
+      (e) => {
+        expect(e).toBeInstanceOf(Error);
+        expect(e.message).toBe("string error");
+        expect(e.cause).toBe("string error");
+      },
+    );
+
+    catchError(
+      () => {
+        throw { custom: "object" };
+      },
+      (e) => {
+        expect(e).toBeInstanceOf(Error);
+        expect(e.message).toBe("Unknown error");
+        expect(e.cause).toEqual({ custom: "object" });
+      },
+    );
+
+    const err = new Error("real error");
+    catchError(
+      () => {
+        throw err;
+      },
+      (e) => {
+        expect(e).toBe(err);
+      },
+    );
+  });
+  stop();
+});
