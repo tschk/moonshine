@@ -221,6 +221,35 @@ describe("island hydration scheduling", () => {
     expect(hydrate).toHaveBeenCalledTimes(1);
   });
 
+  test("falls back to console.error when reportError is not available", async () => {
+    marker();
+    const modules = document.querySelector(
+      "script[data-moonshine-island-modules]",
+    )!;
+    modules.textContent = JSON.stringify({
+      counter: "./missing-island-fixture.tsx",
+    });
+
+    // Remove reportError from scope
+    scope.reportError = undefined;
+
+    const errors: unknown[] = [];
+    const consoleSpy = spyOn(console, "error").mockImplementation(
+      (msg, err) => {
+        errors.push(err);
+      },
+    );
+
+    try {
+      dispose = hydrateIslands();
+      await flush();
+
+      expect(errors).toHaveLength(1);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
   test("a visible island reuses SSR markup and handles a real counter click", async () => {
     const element = marker("visible");
     const button = element.querySelector("button")!;
