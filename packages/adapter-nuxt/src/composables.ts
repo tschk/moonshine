@@ -2824,11 +2824,10 @@ function createHooksRegistry(): NuxtHooks {
   };
 }
 
-function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
+function createDataProxy(store: NuxtScopeStore): Record<string, any> {
   const extraData: Record<string, any> = {};
-  const extraErrors: Record<string, any> = {};
 
-  const dataProxy = new Proxy(extraData, {
+  return new Proxy(extraData, {
     get(target, prop) {
       if (typeof prop === "string" && store.asyncData.has(prop)) {
         return store.asyncData.get(prop)!.data.value;
@@ -2865,8 +2864,10 @@ function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
       return Reflect.getOwnPropertyDescriptor(target, prop);
     },
   });
+}
 
-  const stateProxy = new Proxy({} as Record<string, any>, {
+function createStateProxy(store: NuxtScopeStore): Record<string, any> {
+  return new Proxy({} as Record<string, any>, {
     get(_target, prop) {
       if (typeof prop === "string" && store.state.has(prop)) {
         return store.state.get(prop)!.value;
@@ -2903,8 +2904,12 @@ function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
       return undefined;
     },
   });
+}
 
-  const errorsProxy = new Proxy(extraErrors, {
+function createErrorsProxy(store: NuxtScopeStore): Record<string, any> {
+  const extraErrors: Record<string, any> = {};
+
+  return new Proxy(extraErrors, {
     get(target, prop) {
       if (typeof prop === "string" && store.asyncData.has(prop)) {
         return store.asyncData.get(prop)!.error.value;
@@ -2919,11 +2924,13 @@ function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
       return Reflect.set(target, prop, value);
     },
   });
+}
 
+function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
   return {
-    data: dataProxy,
-    state: stateProxy,
-    _errors: errorsProxy,
+    data: createDataProxy(store),
+    state: createStateProxy(store),
+    _errors: createErrorsProxy(store),
     serverRendered: Boolean(store.event || isSSRRendering()),
     get error() {
       return store.error?.value;
