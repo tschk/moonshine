@@ -781,6 +781,50 @@ export function createRouter(options: RouterOptions): Router {
     };
   }
 
+  function parseURL(raw: string) {
+    let hash = "";
+    let query: LocationQuery = {};
+    const hashIdx = raw.indexOf("#");
+    if (hashIdx >= 0) {
+      hash = raw.slice(hashIdx);
+      raw = raw.slice(0, hashIdx);
+    }
+    const queryIdx = raw.indexOf("?");
+    if (queryIdx >= 0) {
+      query = parseQueryFn(raw.slice(queryIdx + 1));
+      raw = raw.slice(0, queryIdx);
+    }
+    return { raw, hash, query };
+  }
+
+  function matchRoute(path: string) {
+    for (const entry of entries) {
+      const m = entry.regex.exec(path);
+      if (m) {
+        const matched = entry.chain.map((r) => r.aliasOf ?? r);
+        const leaf = matched[matched.length - 1];
+        const name = leaf?.name;
+        const extracted: RouteParams = {};
+        entry.paramKeys.forEach((keyInfo, i) => {
+          const rawVal = m[i + 1];
+          if (rawVal === undefined) {
+            if (keyInfo.repeatable) extracted[keyInfo.name] = [];
+            return;
+          }
+          if (keyInfo.repeatable) {
+            extracted[keyInfo.name] = rawVal
+              .split("/")
+              .map((part) => decodeURIComponent(part));
+          } else {
+            extracted[keyInfo.name] = decodeURIComponent(rawVal);
+          }
+        });
+        return { matched, name, params: extracted };
+      }
+    }
+    return null;
+  }
+
   function resolve(
     rawLocation: RouteLocationRaw,
     currentLocation: RouteLocationNormalizedLoaded = currentRoute.value,
@@ -793,17 +837,11 @@ export function createRouter(options: RouterOptions): Router {
     let name: RouteRecordName | null | undefined;
 
     if (typeof rawLocation === "string") {
-      let raw = rawLocation;
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
+      const parsed = parseURL(rawLocation);
+      hash = parsed.hash;
+      query = parsed.query;
+      const raw = parsed.raw;
+
       if (!raw) {
         path = currentLocation.path || "/";
       } else if (raw.startsWith("/")) {
@@ -837,17 +875,11 @@ export function createRouter(options: RouterOptions): Router {
           : "#" + rawLocation.hash
         : "";
     } else if ("path" in rawLocation) {
-      let raw = rawLocation.path || "/";
-      const hashIdx = raw.indexOf("#");
-      if (hashIdx >= 0) {
-        hash = raw.slice(hashIdx);
-        raw = raw.slice(0, hashIdx);
-      }
-      const queryIdx = raw.indexOf("?");
-      if (queryIdx >= 0) {
-        query = parseQueryFn(raw.slice(queryIdx + 1));
-        raw = raw.slice(0, queryIdx);
-      }
+      const parsed = parseURL(rawLocation.path || "/");
+      hash = parsed.hash;
+      query = parsed.query;
+      const raw = parsed.raw;
+
       if (rawLocation.query) {
         query = {
           ...query,
@@ -863,30 +895,11 @@ export function createRouter(options: RouterOptions): Router {
     }
 
     if (matched.length === 0) {
-      for (const entry of entries) {
-        const m = entry.regex.exec(path);
-        if (m) {
-          matched = entry.chain.map((r) => r.aliasOf ?? r);
-          const leaf = matched[matched.length - 1];
-          name = leaf?.name;
-          const extracted: RouteParams = {};
-          entry.paramKeys.forEach((keyInfo, i) => {
-            const rawVal = m[i + 1];
-            if (rawVal === undefined) {
-              if (keyInfo.repeatable) extracted[keyInfo.name] = [];
-              return;
-            }
-            if (keyInfo.repeatable) {
-              extracted[keyInfo.name] = rawVal
-                .split("/")
-                .map((part) => decodeURIComponent(part));
-            } else {
-              extracted[keyInfo.name] = decodeURIComponent(rawVal);
-            }
-          });
-          params = extracted;
-          break;
-        }
+      const match = matchRoute(path);
+      if (match) {
+        matched = match.matched;
+        name = match.name;
+        params = match.params;
       }
     }
 
