@@ -282,16 +282,16 @@ type AnyNodeRenderer = (
 ) => ReactNode;
 
 export function renderCrepusNode(node: ViewNode, key: string): ReactNode {
-  if (!Object.hasOwn(nodeRenderers, node.kind)) {
-    throw new TypeError(`Unsupported View IR node kind: ${node.kind}`);
-  }
   const className = classNameOf(node);
   const id = idOf(node);
 
   const renderer = nodeRenderers[node.kind] as AnyNodeRenderer;
-  // Cast is necessary because TypeScript cannot correlate the discriminated
-  // union `node` with the generic function retrieved from `nodeRenderers`.
-  return renderer(node, key, id, className);
+  if (renderer) {
+    // Cast is necessary because TypeScript cannot correlate the discriminated
+    // union `node` with the generic function retrieved from `nodeRenderers`.
+    return renderer(node, key, id, className);
+  }
+  return null;
 }
 
 export function renderCrepusIr(

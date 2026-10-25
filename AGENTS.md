@@ -6,13 +6,7 @@ Moonshine is a ground-up, Bun-first web framework built from a hyperminimal
 signal kernel. The default export of `@tschk/moonshine` stays signal-only;
 routing, rendering, server, compiler, and deployment are opt-in packages.
 
-Target architecture: independently replace host frameworks, rather than retain
-their runtimes behind re-exports. Keep the signal kernel dependency-free and
-all web capabilities opt-in. Source-language parsing and lowering belong in
-Crepuscularity; Moonshine owns web routing, rendering, hydration, data loading,
-actions, and deployment. Do not duplicate component-language parsers here.
-
-The current tree contains four kinds of adapter during this transition:
+There are two kinds of adapter:
 
 - **Reimplementing** (`adapter-next`, `adapter-react-router`,
   `adapter-tanstack`, `adapter-waku`): the host's API surface rewritten on
@@ -20,41 +14,23 @@ The current tree contains four kinds of adapter during this transition:
   list it as a dependency or peerDependency — an app aliases the host specifier
   onto the adapter and drops the host entirely. Only possible where the host's
   public API is ordinary React.
-- **Native source API replacement** (`adapter-solid`, `adapter-svelte`): supported APIs use
-  Moonshine's independent graph and DOM/SSR factories, without host runtime
-  dependencies. Svelte stores use the independent store protocol. Recompile authored components through Crepus; Solid compiler
-  instructions, hydration and async SSR are unsupported. Native source-level
-  keyed Show/Match are supported independently.
-  Server components use the explicit `/ssr` factory. Do not claim a drop-in
-  alias for arbitrary precompiled applications. Crepus supports a bounded Svelte
-  source slice (ordinary deep state, snapshots, derived values, post-DOM effects,
-  live/destructured props, events, imported children and reactive component selection); full coverage is tracked
-  in `docs/native-sfc-coverage.md`. Native
-  component contexts/events do not implement Svelte's compiled component ABI.
-- **Native composition with legacy entries** (`adapter-vue`): root bridges and
-  `/reactive` use only Moonshine core/DOM. `/vue` and `/compiler-sfc` retain an
-  optional Vue peer for real host reexports. Native refs/computed/reactive/sync
-  watch do not implement Vue's VNode/compiler ABI or full SFC script lowering.
-  The optional framework peer is loaded only by the lazy native SSR facade.
-- **Native roots with hosting subpaths** (`adapter-angular`, `adapter-astro`, `adapter-nuxt`):
-  root signal bridges and the lazy native source renderer do not load the host,
-  React or parser WASM. Explicit legacy subpaths re-export host APIs as optional
-  peers. These are incomplete replacements: remove remaining host dependencies
-  only as independent compiler/runtime behavior is implemented and verified.
-  Compiled component formats require a Crepuscularity compiler contract; do not
-  alias a partial implementation over unsupported host compiler instructions.
+- **Hosting** (`adapter-solid`, `adapter-svelte`, `adapter-vue`,
+  `adapter-angular`, `adapter-astro`, `adapter-nuxt`): the host's real
+  runtime re-exported on subpaths as a peer dependency, plus moonshine
+  signal bridges. Required wherever the host's component format is compiled
+  (Svelte, Vue, Angular, `.astro`, Nuxt), which moonshine cannot replace.
 
 ## Rules
 
 1. Default export signal-only. React on `/react`.
 2. Reimplementing adapters must not import or depend on the host they replace,
    and ship an `/aliases` module mapping the host's specifiers onto their own
-   supported subpaths. Existing hosting subpaths remain explicitly documented
-   until replaced; new replacement APIs must be host-free and opt-in.
+   subpaths. Hosting adapters re-export **host libraries on subpaths** (peer
+   deps), not only moonshine.
 3. Next: `/navigation`, `/link`, `/image`, `/headers`, `/dynamic`, `/shaders`,
    `/server`.
 4. Solid: `/solid`, `/store`, `/h`. Svelte: `/svelte`, `/store`. Vue:
-   `/reactive` (native), `/vue`, `/compiler-sfc` (legacy host). Angular: `/core`, `/common`. Astro: `/compiler`.
+   `/vue`, `/compiler-sfc`. Angular: `/core`, `/common`. Astro: `/compiler`.
    Nuxt: `/app`, `/vue`.
 5. Next root must not export `MoonshineRouter`.
 6. Framework packages communicate through `@tschk/moonshine-framework`

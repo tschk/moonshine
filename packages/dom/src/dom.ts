@@ -43,14 +43,14 @@ export type DOMChild =
 
 const SVG = "http://www.w3.org/2000/svg";
 const HTML = "http://www.w3.org/1999/xhtml";
-const SVG_TAGS = /* @__PURE__ */ new Set(
+const SVG_TAGS = new Set(
   "animate animateMotion animateTransform circle clipPath defs desc ellipse feBlend feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting feDisplacementMap feDistantLight feDropShadow feFlood feFuncA feFuncB feFuncG feFuncR feGaussianBlur feImage feMerge feMergeNode feMorphology feOffset fePointLight feSpecularLighting feSpotLight feTile feTurbulence filter foreignObject g image line linearGradient marker mask metadata mpath path pattern polygon polyline radialGradient rect set stop switch symbol text textPath tspan use view".split(
     " ",
   ),
 );
 let namespace = HTML;
-const selectUpdates = /* @__PURE__ */ new WeakMap<Node, () => void>();
-const styleNames = /* @__PURE__ */ new WeakMap<Element, Set<string>>();
+const selectUpdates = new WeakMap<Node, () => void>();
+const styleNames = new WeakMap<Element, Set<string>>();
 
 function childrenNamespace(parent: Node): string {
   return parent instanceof Element &&

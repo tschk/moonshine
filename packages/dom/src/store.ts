@@ -2,23 +2,9 @@
 import { batch, createSignal, untrack } from "./reactive";
 
 type Key = string | number | symbol;
-export type StorePathRange = { from?: number; to?: number; by?: number };
-type Range = StorePathRange;
+type Range = { from?: number; to?: number; by?: number };
 type Selector =
   Key | readonly Key[] | Range | ((value: any, index: number) => boolean);
-export type Store<T> = T;
-export type NotWrappable =
-  string | number | bigint | symbol | boolean | Function | null | undefined;
-export type StoreSetter<T, U extends PropertyKey[] = []> =
-  T | Partial<T> | ((prevState: T, traversed: U) => T | Partial<T> | void);
-export interface ReconcileOptions {
-  key?: string | null;
-  merge?: boolean;
-}
-export const $RAW: unique symbol = Symbol("store-raw");
-export const DEV: { readonly $RAW: typeof $RAW } | undefined = Object.freeze({
-  $RAW,
-});
 type Update<T> =
   T | Partial<T> | ((previous: T, path: Key[]) => T | Partial<T> | void);
 export interface SetStoreFunction<T> {
@@ -196,7 +182,6 @@ function wrap<T>(
   const methods = new Map<PropertyKey, Function>();
   const proxy: object = new Proxy(value, {
     get(target, key, receiver) {
-      if (key === $RAW) return target;
       // Undefined constructor selects ordinary arrays without exposing prototypes.
       if (writable && key === "constructor" && Array.isArray(target))
         return undefined;
@@ -231,7 +216,6 @@ function wrap<T>(
       return wrap(result, mode, equals);
     },
     has(target, key) {
-      if (key === $RAW) return true;
       if (tracked) track(state(target).has, key);
       return key in target;
     },

@@ -1,16 +1,9 @@
 export {
-  $RAW,
-  DEV,
   createStore,
   createMutable,
   modifyMutable,
   produce,
   reconcile,
   unwrap,
-  type NotWrappable,
-  type ReconcileOptions,
   type SetStoreFunction,
-  type Store,
-  type StorePathRange,
-  type StoreSetter,
 } from "@tschk/moonshine-dom/store";

@@ -19,8 +19,6 @@ type ComponentContextSource = ComponentContext & {
 export const componentEvents = /* @__PURE__ */ Symbol(
   "moonshine.component.events",
 );
-/** Internal unforgeable registry for native ref wrappers across Vue/Nuxt adapters. */
-export const nativeRefSet = /* @__PURE__ */ new WeakSet<object>();
 export interface ComponentContext<P = unknown> {
   readonly props: P;
   readonly owner: Owner;

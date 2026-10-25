@@ -30,10 +30,6 @@ function getCrepusIr(context: RenderContext): ViewIr {
   return EMPTY_IR;
 }
 
-/** Document shell matching crepuscularity CLI `assets/web/index.html`. */
-const DOCUMENT_RESET_CSS =
-  "html{scroll-behavior:smooth}html,body{margin:0}body{min-height:100vh}";
-
 function buildRoot(context: RenderContext, body: ReactElement): ReactElement {
   const preloads = context.route.clientEntries.map((href) =>
     createElement("link", { rel: "modulepreload", href, key: href }),
@@ -43,23 +39,8 @@ function buildRoot(context: RenderContext, body: ReactElement): ReactElement {
   );
   return createElement(
     "html",
-    { lang: "en" },
-    createElement(
-      "head",
-      null,
-      createElement("meta", { charSet: "utf-8", key: "charset" }),
-      createElement("meta", {
-        name: "viewport",
-        content: "width=device-width, initial-scale=1",
-        key: "viewport",
-      }),
-      createElement("style", {
-        key: "document-reset",
-        dangerouslySetInnerHTML: { __html: DOCUMENT_RESET_CSS },
-      }),
-      ...preloads,
-      ...scripts,
-    ),
+    null,
+    createElement("head", null, ...preloads, ...scripts),
     createElement(
       "body",
       {
@@ -81,10 +62,6 @@ async function renderReactToStringAsync(
   return res.text();
 }
 
-function documentHtml(markup: string): string {
-  return `<!DOCTYPE html>${markup.replaceAll("charSet=", "charset=")}`;
-}
-
 export const crepusRenderer: Renderer = {
   name: "crepus",
   async prerender(context) {
@@ -94,10 +71,10 @@ export const crepusRenderer: Renderer = {
         id: "moonshine-app",
         "data-moonshine-app": context.route.id,
       });
-      return documentHtml(renderToStaticMarkup(buildRoot(context, body)));
+      return `<!DOCTYPE html>${renderToStaticMarkup(buildRoot(context, body))}`;
     }
     const body = renderCrepusIr(getCrepusIr(context));
-    return documentHtml(renderToStaticMarkup(buildRoot(context, body)));
+    return `<!DOCTYPE html>${renderToStaticMarkup(buildRoot(context, body))}`;
   },
   async render(context) {
     if (context.route.mode === "api") {
@@ -110,15 +87,13 @@ export const crepusRenderer: Renderer = {
         id: "moonshine-app",
         "data-moonshine-app": context.route.id,
       });
-      const html = documentHtml(renderToStaticMarkup(buildRoot(context, body)));
+      const html = `<!DOCTYPE html>${renderToStaticMarkup(buildRoot(context, body))}`;
       return new Response(html, {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
     const body = renderCrepusIr(getCrepusIr(context));
-    const html = documentHtml(
-      await renderReactToStringAsync(buildRoot(context, body), context.signal),
-    );
+    const html = `<!DOCTYPE html>${await renderReactToStringAsync(buildRoot(context, body), context.signal)}`;
     return new Response(html, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });

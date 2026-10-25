@@ -7,7 +7,6 @@ import {
   sourceComponent,
   sourceSlot,
   sourceHasSlot,
-  sourceRenderSlot,
   type SourceSlots,
 } from "../src/ssr";
 
@@ -212,18 +211,4 @@ test("slot presence queries are own-key checks and never evaluate supplied conte
   expect(sourceHasSlot(slots as SourceSlots, "inherited")).toBe(false);
   expect(sourceHasSlot(slots as SourceSlots, "toString")).toBe(false);
   expect(calls).toBe(0);
-});
-
-test("sourceRenderSlot serializes named slots synchronously with optional callback arguments", () => {
-  const slots: SourceSlots = {
-    default: () => h("span", null, "Default Body"),
-    row: (label: unknown, idx: unknown) =>
-      h("li", { "data-idx": String(idx) }, `${String(label)} #${String(idx)}`),
-  };
-  expect(sourceRenderSlot(slots)).toBe("<span>Default Body</span>");
-  expect(sourceRenderSlot(slots, "row", ["Item", 3])).toBe(
-    '<li data-idx="3">Item #3</li>',
-  );
-  expect(sourceRenderSlot(slots, "missing")).toBe("");
-  expect(sourceRenderSlot(slots, "toString")).toBe("");
 });

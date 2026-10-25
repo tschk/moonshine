@@ -126,22 +126,6 @@
         "typescript": "7.0.2",
       },
     },
-    "examples/native-template": {
-      "name": "@tschk/moonshine-example-native-template",
-      "version": "0.1.0",
-      "dependencies": {
-        "@tschk/moonshine-deploy-bun": "workspace:*",
-        "@tschk/moonshine-dom": "workspace:*",
-        "@tschk/moonshine-framework": "workspace:*",
-        "@tschk/moonshine-server": "workspace:*",
-        "@tschk/moonshine-svelte": "workspace:*",
-      },
-      "devDependencies": {
-        "@tschk/moonshine-cli": "workspace:*",
-        "@types/bun": "1.3.14",
-        "typescript": "7.0.2",
-      },
-    },
     "examples/svelte-adopt": {
       "name": "@tschk/moonshine-example-svelte-adopt",
       "version": "0.0.0",
@@ -855,8 +839,6 @@
     "@tschk/moonshine-example-hybrid-app": ["@tschk/moonshine-example-hybrid-app@workspace:examples/hybrid-app"],
 
     "@tschk/moonshine-example-native-app": ["@tschk/moonshine-example-native-app@workspace:examples/native-app"],
-
-    "@tschk/moonshine-example-native-template": ["@tschk/moonshine-example-native-template@workspace:examples/native-template"],
 
     "@tschk/moonshine-example-svelte-adopt": ["@tschk/moonshine-example-svelte-adopt@workspace:examples/svelte-adopt"],
 
