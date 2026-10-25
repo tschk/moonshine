@@ -1183,6 +1183,7 @@ describe("@tschk/moonshine-angular/platform", () => {
     }
 
     @Pipe({ name: "tagger", standalone: true })
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     class TaggerPipe {
       svc = inject(PrefixService);
       transform(val: unknown, suffix = "!") {
