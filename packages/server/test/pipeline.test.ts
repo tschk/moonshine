@@ -259,6 +259,47 @@ describe("createRequestHandler", () => {
     expect(data.error).toBe("Unhandled pipeline error");
   });
 
+  test("error boundary throws out of the pipeline handler", async () => {
+    const handler = createRequestHandler({
+      routes: [{ id: "root", path: "/", file: "root.tsx" }],
+      modules: {
+        root: {
+          loader: () => {
+            throw new Error("loader error");
+          },
+          errorBoundary: () => {
+            throw new Error("boundary error");
+          },
+        },
+      },
+    });
+    await expect(handler(new Request("http://x/"))).rejects.toThrow(
+      "boundary error",
+    );
+  });
+
+  test("error boundary throwing a Response rejects with the Response", async () => {
+    const handler = createRequestHandler({
+      routes: [{ id: "root", path: "/", file: "root.tsx" }],
+      modules: {
+        root: {
+          loader: () => {
+            throw new Error("loader error");
+          },
+          errorBoundary: () => {
+            throw new Response("boundary error response", { status: 418 });
+          },
+        },
+      },
+    });
+    const rejected = await handler(new Request("http://x/")).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(rejected).toBeInstanceOf(Response);
+    expect((rejected as Response).status).toBe(418);
+  });
+
   test("nearest error boundary catches loader errors", async () => {
     const routes = graph([
       { id: "root", path: "/", file: "root.tsx" },
@@ -872,6 +913,37 @@ test("HEAD ignores rejected cancellation without losing its valid response", asy
             }),
             { status: 206, headers: { "x-stream": "kept" } },
           ),
+      },
+    },
+  });
+  const response = await handler(
+    new Request("http://localhost/", { method: "HEAD" }),
+  );
+  expect(attempts).toBe(1);
+  expect(response.status).toBe(206);
+  expect(response.body).toBeNull();
+  expect(response.headers.get("x-stream")).toBe("kept");
+});
+
+test("HEAD ignores synchronous thrown error during cancellation", async () => {
+  let attempts = 0;
+  const handler = createRequestHandler({
+    routes: [{ id: "stream", path: "/", file: "stream.ts", mode: "api" }],
+    modules: {
+      stream: {
+        loader: () => {
+          const stream = new ReadableStream();
+          Object.defineProperty(stream, "cancel", {
+            value: () => {
+              attempts++;
+              throw new TypeError("synchronous cleanup failed");
+            },
+          });
+          return new Response(stream, {
+            status: 206,
+            headers: { "x-stream": "kept" },
+          });
+        },
       },
     },
   });

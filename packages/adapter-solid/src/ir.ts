@@ -37,10 +37,12 @@ export function createIrRenderer<Child>(
     return children.map((child) => renderCrepusNodeSolid(child));
   }
 
-  const RENDERERS: Record<
-    string,
-    (node: any, cls: string | undefined) => Child
-  > = {
+  const RENDERERS: {
+    [K in ViewNode["kind"]]?: (
+      node: Extract<ViewNode, { kind: K }>,
+      cls: string | undefined,
+    ) => Child;
+  } = {
     text: (node, cls) => el("span", { class: cls }, node.content),
     link: (node, cls) =>
       el(
@@ -190,7 +192,10 @@ export function createIrRenderer<Child>(
       throw new TypeError(`Unsupported View IR node kind: ${node.kind}`);
     }
     const cls = classOf(node);
-    const renderer = RENDERERS[node.kind];
+    const renderer = RENDERERS[node.kind as ViewNode["kind"]] as (
+      node: ViewNode,
+      cls: string | undefined,
+    ) => Child;
     return renderer(node, cls);
   }
 

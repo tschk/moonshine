@@ -19,6 +19,18 @@ describe("parseSearch", () => {
     expect(parseSearch('?f={"a":1}')).toEqual({ f: { a: 1 } });
   });
 
+  test("falls back to string for malformed JSON", () => {
+    expect(parseSearch("?f={bad}")).toEqual({ f: "{bad}" });
+  });
+
+  test("handles empty values and keys without equals", () => {
+    expect(parseSearch("?empty=&key")).toEqual({ empty: "", key: "" });
+  });
+
+  test("takes the last value for duplicate keys", () => {
+    expect(parseSearch("?a=1&a=2")).toEqual({ a: 2 });
+  });
+
   test("returns an empty record for no query", () => {
     expect(parseSearch("")).toEqual({});
   });
