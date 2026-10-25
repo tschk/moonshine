@@ -24,6 +24,8 @@ beforeAll(() => {
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
+  symlinkSync(resolve(staticDir, "ok.txt"), resolve(tmpDir, "link-in.txt"));
+  symlinkSync(staticDir, resolve(tmpDir, "public-link"));
 });
 
 afterAll(() => {
@@ -133,6 +135,18 @@ describe("isContained", () => {
     expect(() =>
       isContained(staticDir, resolve(staticDir, "missing.txt")),
     ).toThrow();
+  });
+
+  test("returns true when a symlink outside points inside", () => {
+    expect(isContained(staticDir, resolve(tmpDir, "link-in.txt"))).toBe(true);
+  });
+
+  test("works correctly when the root itself is a symlink", () => {
+    const symlinkRoot = resolve(tmpDir, "public-link");
+    expect(isContained(symlinkRoot, resolve(symlinkRoot, "ok.txt"))).toBe(true);
+    expect(isContained(symlinkRoot, resolve(symlinkRoot, "escape.txt"))).toBe(
+      false,
+    );
   });
 });
 
