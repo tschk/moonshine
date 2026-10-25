@@ -889,6 +889,47 @@ test("parallel loaders cancel ignored response bodies but retain the selected bo
   expect(discarded).toBe(1);
 });
 
+test("synchronous stream cancellation errors are caught and ignored when discarding responses", async () => {
+  let discarded = 0;
+  let selectedCancelled = 0;
+  const handler = createRequestHandler({
+    routes: [
+      { id: "page", path: "/", file: "page.ts", layouts: ["layout.ts"] },
+    ],
+    modules: {
+      "layout.ts": {
+        loader: () =>
+          new Response(
+            new ReadableStream({
+              start(c) {
+                c.enqueue(new TextEncoder().encode("selected"));
+                c.close();
+              },
+              cancel() {
+                selectedCancelled++;
+              },
+            }),
+          ),
+      },
+      page: {
+        loader: () =>
+          new Response(
+            new ReadableStream({
+              cancel() {
+                discarded++;
+                throw new Error("sync discard failed");
+              },
+            }),
+          ),
+      },
+    },
+  });
+  const response = await handler(new Request("http://localhost/"));
+  expect(await response.text()).toBe("selected");
+  expect(selectedCancelled).toBe(0);
+  expect(discarded).toBe(1);
+});
+
 test("after middleware cancels replaced bodies but preserves shared body transfers", async () => {
   let cancelled = 0;
   const handler = createRequestHandler({
