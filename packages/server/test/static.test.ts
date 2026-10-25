@@ -60,7 +60,9 @@ describe("isContained", () => {
   });
 
   test("returns false for a file in an adjacent directory with a matching prefix", () => {
-    expect(isContained(staticDir, resolve(adjacentDir, "secret.txt"))).toBe(false);
+    expect(isContained(staticDir, resolve(adjacentDir, "secret.txt"))).toBe(
+      false,
+    );
   });
 
   test("caches the real root on successive calls", () => {
