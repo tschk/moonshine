@@ -68,7 +68,9 @@ describe("isContained", () => {
     const boundaryDir = staticDir + "-secret";
     mkdirSync(boundaryDir, { recursive: true });
     writeFileSync(resolve(boundaryDir, "boundary.txt"), "boundary");
-    expect(isContained(staticDir, resolve(boundaryDir, "boundary.txt"))).toBe(false);
+    expect(isContained(staticDir, resolve(boundaryDir, "boundary.txt"))).toBe(
+      false,
+    );
   });
 });
 
