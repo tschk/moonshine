@@ -63,9 +63,7 @@ export interface RouteLocationNamedRaw extends RouteLocationOptions {
 }
 
 export type RouteLocationRaw =
-  | string
-  | RouteLocationPathRaw
-  | RouteLocationNamedRaw;
+  string | RouteLocationPathRaw | RouteLocationNamedRaw;
 
 export type RouteComponent = (...args: any[]) => any;
 
@@ -75,8 +73,7 @@ export interface RouteRecordRaw {
   component?: RouteComponent;
   components?: Record<string, RouteComponent>;
   redirect?:
-    | RouteLocationRaw
-    | ((to: RouteLocationNormalized) => RouteLocationRaw);
+    RouteLocationRaw | ((to: RouteLocationNormalized) => RouteLocationRaw);
   alias?: string | string[];
   children?: RouteRecordRaw[];
   meta?: RouteMeta;
@@ -92,8 +89,7 @@ export interface RouteRecordNormalized {
   name: RouteRecordName | undefined;
   components: Record<string, RouteComponent>;
   redirect?:
-    | RouteLocationRaw
-    | ((to: RouteLocationNormalized) => RouteLocationRaw);
+    RouteLocationRaw | ((to: RouteLocationNormalized) => RouteLocationRaw);
   aliasOf: RouteRecordNormalized | undefined;
   children: RouteRecordRaw[];
   meta: RouteMeta;
@@ -123,11 +119,7 @@ export interface RouteLocationNormalized {
 export type RouteLocationNormalizedLoaded = RouteLocationNormalized;
 
 export type NavigationGuardReturn =
-  | void
-  | Error
-  | boolean
-  | RouteLocationRaw
-  | ((vm: any) => any);
+  void | Error | boolean | RouteLocationRaw | ((vm: any) => any);
 
 export type NavigationGuardNext = (
   valid?: boolean | RouteLocationRaw | Error | ((vm: any) => any),
@@ -1414,13 +1406,7 @@ export interface RouterLinkProps {
   activeClass?: string;
   exactActiveClass?: string;
   ariaCurrentValue?:
-    | "page"
-    | "step"
-    | "location"
-    | "date"
-    | "time"
-    | "true"
-    | "false";
+    "page" | "step" | "location" | "date" | "time" | "true" | "false";
   custom?: boolean;
   label?: string;
   children?: any;
