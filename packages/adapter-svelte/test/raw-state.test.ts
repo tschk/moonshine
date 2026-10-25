@@ -6,6 +6,30 @@ import { h, render } from "@tschk/moonshine-dom/dom";
 import { h as ssrH, renderToString } from "@tschk/moonshine-dom/ssr";
 import "../../react/test/dom";
 
+const fn = () => 42;
+const nextFn = () => 43;
+
+function exercise(api: {
+  cell: (initial: number) => { value: number };
+  observe: (fn: () => void) => void;
+  root: (fn: () => void) => () => void;
+}) {
+  const seen: string[] = [];
+  const stop = api.root(() => {
+    const value = api.cell(0);
+    api.observe(() =>
+      seen.push(Object.is(value.value, -0) ? "-0" : String(value.value)),
+    );
+    value.value = -0;
+    value.value = NaN;
+    value.value = NaN;
+    value.value = 1;
+    value.value = 1;
+  });
+  stop();
+  return seen;
+}
+
 test("raw cells preserve object/function identity and only replacements notify", () => {
   const original = { nested: { count: 1 } };
   const cell = createRawState(original);
@@ -23,12 +47,10 @@ test("raw cells preserve object/function identity and only replacements notify",
   expect(cell.value).toBe(replacement);
   expect(seen).toEqual([1, 3]);
   stop();
-  const fn = () => 42;
   const callback = createRawState(fn);
   expect(callback.value).toBe(fn);
-  const next = () => 43;
-  callback.value = next;
-  expect(callback.value).toBe(next);
+  callback.value = nextFn;
+  expect(callback.value).toBe(nextFn);
   expect(callback.value()).toBe(43);
 });
 
@@ -91,26 +113,6 @@ test("raw SSR instances remain live, independent and readable after owner dispos
 });
 
 test("raw replacement equality and teardown history match pinned Svelte", async () => {
-  function exercise(api: {
-    cell: (initial: number) => { value: number };
-    observe: (fn: () => void) => void;
-    root: (fn: () => void) => () => void;
-  }) {
-    const seen: string[] = [];
-    const stop = api.root(() => {
-      const value = api.cell(0);
-      api.observe(() =>
-        seen.push(Object.is(value.value, -0) ? "-0" : String(value.value)),
-      );
-      value.value = -0;
-      value.value = NaN;
-      value.value = NaN;
-      value.value = 1;
-      value.value = 1;
-    });
-    stop();
-    return seen;
-  }
   const pkg = Bun.resolveSync(
     "svelte/package.json",
     `${import.meta.dir}/../../../examples/svelte-adopt`,

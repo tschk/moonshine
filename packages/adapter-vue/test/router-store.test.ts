@@ -162,6 +162,16 @@ describe("@tschk/moonshine-vue/store (Pinia-compatible stores)", () => {
 });
 
 describe("@tschk/moonshine-vue/router (Vue Router 4 compatible)", () => {
+  const Home = () => hSSR("main", null, "Home Page");
+  const UserLayout = () =>
+    hSSR("section", { class: "user-layout" }, [
+      hSSR("h1", null, () => `User ${useRoute().params.id}`),
+      hSSR(RouterView, {}),
+    ]);
+  const UserProfile = () =>
+    hSSR("p", null, () => `Profile tab=${useRoute().query.tab ?? "main"}`);
+  const NotFound = () => hSSR("p", null, "404 Not Found");
+
   test("parses/stringifies queries and resolves dynamic, nested, alias, and redirect routes with navigation guards", async () => {
     expect(parseQuery("?tag=vue&tag=moonshine&page=2&empty")).toEqual({
       tag: ["vue", "moonshine"],

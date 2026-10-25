@@ -17,9 +17,10 @@ describe("@tschk/moonshine-vue", () => {
     expect(r.value).toBe("b");
   });
 
+  const initial = () => 1;
+  const next = () => 2;
+
   test("function values are stored without invoking them as updaters", () => {
-    const initial = () => 1;
-    const next = () => 2;
     const ref = createBridgedRef(initial);
     ref.value = next;
     expect(ref.value).toBe(next);

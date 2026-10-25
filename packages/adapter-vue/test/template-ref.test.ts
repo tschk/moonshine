@@ -22,6 +22,26 @@ import {
 import { createModelOption, createSelectModel } from "../src/select";
 import { createDOMSlotOutlet, withDefaultSlot } from "../src/slots";
 
+let stopExternalWatch = () => {};
+let stopFirst = () => {};
+let stopSecond = () => {};
+const makeChild = (initial: string) => () => {
+  const label = ref(initial);
+  const exposed = exposeComponent(
+    exposeRefs({
+      label,
+      bump() {
+        label.value += "!";
+      },
+    }),
+  );
+  expect(Object.getPrototypeOf(Object.getPrototypeOf(exposed))).toBeNull();
+  return [
+    h("span", {}, () => label.value),
+    h("button", { onClick: exposed.bump }, "Bump"),
+  ];
+};
+
 test("element and component template refs publish before onMounted, preserve identity in ref(), and clear synchronously on commit", () => {
   const container = document.createElement("main");
   document.body.append(container);
@@ -31,7 +51,6 @@ test("element and component template refs publish before onMounted, preserve ide
   const childVm = ref<{ count: number; increment: () => void } | null>(null);
   const internalWatched: Array<HTMLInputElement | null> = [];
   const externalWatched: Array<HTMLInputElement | null> = [];
-  let stopExternalWatch = () => {};
   createRoot((stop) => {
     stopExternalWatch = stop;
     watch(
@@ -169,8 +188,6 @@ test("owner disposed before flush skips publication and identity guard preserves
   expect(writes).toBe(0);
   expect(target.value).toBeNull();
 
-  let stopFirst = () => {};
-  let stopSecond = () => {};
   createRoot((stop) => {
     stopFirst = stop;
     bindRef(first, {
@@ -215,20 +232,6 @@ test("separate component instances keep isolated template refs and ref(instance)
   const refsB = {
     el: ref<HTMLButtonElement | null>(null),
     child: ref<{ label: string; bump: () => void } | null>(null),
-  };
-
-  const makeChild = (initial: string) => () => {
-    const label = ref(initial);
-    const exposed = exposeComponent(
-      exposeRefs({
-        label,
-        bump() {
-          label.value += "!";
-        },
-      }),
-    );
-    expect(Object.getPrototypeOf(Object.getPrototypeOf(exposed))).toBeNull();
-    return h("span", null, () => label.value);
   };
 
   const ChildA = makeChild("alpha");
