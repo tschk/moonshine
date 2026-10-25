@@ -21,9 +21,7 @@ describe("escapeHtml", () => {
   });
 
   test("handles multi-byte characters and emojis", () => {
-    expect(escapeHtml("👋 hello <world> 🌎")).toBe(
-      "👋 hello &lt;world&gt; 🌎",
-    );
+    expect(escapeHtml("👋 hello <world> 🌎")).toBe("👋 hello &lt;world&gt; 🌎");
   });
 
   test("handles strings consisting only of special characters", () => {
