@@ -14,23 +14,21 @@ export function rawHTML(
   return () => {
     const value = read() ?? "";
     if (previous === value) return nodes;
-    const wrapper =
-      namespace === "html"
-        ? document.createElement("template")
-        : document.createElementNS(
-            namespace === "svg"
-              ? "http://www.w3.org/2000/svg"
-              : "http://www.w3.org/1998/Math/MathML",
-            namespace === "svg" ? "svg" : "math",
-          );
+    const template = document.createElement("template");
+    let container: Element | DocumentFragment = template.content;
+    if (namespace !== "html") {
+      container = document.createElementNS(
+        namespace === "svg"
+          ? "http://www.w3.org/2000/svg"
+          : "http://www.w3.org/1998/Math/MathML",
+        namespace === "svg" ? "svg" : "math",
+      );
+      template.content.appendChild(container);
+    }
     // Assign directly: coercing here would discard TrustedHTML identity.
-    wrapper.innerHTML = value as string;
-    nodes = Array.from(
-      (namespace === "html"
-        ? (wrapper as HTMLTemplateElement).content
-        : wrapper
-      ).childNodes,
-    );
+    (namespace === "html" ? template : (container as Element)).innerHTML =
+      value as string;
+    nodes = Array.from(container.childNodes);
     previous = value;
     return nodes;
   };
