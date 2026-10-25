@@ -58,6 +58,10 @@ describe("parseSearch", () => {
   test("overwrites duplicate keys", () => {
     expect(parseSearch("?a=1&a=2")).toEqual({ a: 2 });
   });
+
+  test("handles query without leading ?", () => {
+    expect(parseSearch("page=2&open=true")).toEqual({ page: 2, open: true });
+  });
 });
 
 describe("stringifySearch", () => {
