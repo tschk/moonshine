@@ -2824,7 +2824,10 @@ function createHooksRegistry(): NuxtHooks {
   };
 }
 
-function createDataProxy(store: NuxtScopeStore, extraData: Record<string, any>) {
+function createDataProxy(
+  store: NuxtScopeStore,
+  extraData: Record<string, any>,
+) {
   return new Proxy(extraData, {
     get(target, prop) {
       if (typeof prop === "string" && store.asyncData.has(prop)) {
@@ -2904,7 +2907,10 @@ function createStateProxy(store: NuxtScopeStore) {
   });
 }
 
-function createErrorsProxy(store: NuxtScopeStore, extraErrors: Record<string, any>) {
+function createErrorsProxy(
+  store: NuxtScopeStore,
+  extraErrors: Record<string, any>,
+) {
   return new Proxy(extraErrors, {
     get(target, prop) {
       if (typeof prop === "string" && store.asyncData.has(prop)) {
