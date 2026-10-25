@@ -3498,7 +3498,8 @@ export function resolveAngularContentQueries(
         meta &&
         (meta.kind === "contentChild" || meta.kind === "contentChildren")
       ) {
-        const descendants = meta.descendants ?? meta.kind === "contentChild";
+        const descendants =
+          meta.descendants ?? (meta.kind === "contentChild" ? true : false);
         const nodes = collectProjectedQueryNodes(children, descendants);
         const matched: any[] = [];
         for (const node of nodes) {
@@ -3532,7 +3533,7 @@ export function resolveAngularContentQueries(
     { selector: any; first: boolean; read?: any; descendants?: boolean }
   >;
   for (const [propName, q] of Object.entries(contentQueries)) {
-    const descendants = q.descendants ?? Boolean(q.first);
+    const descendants = q.descendants ?? (q.first ? true : false);
     const nodes = collectProjectedQueryNodes(children, descendants);
     const matched: any[] = [];
     for (const node of nodes) {
