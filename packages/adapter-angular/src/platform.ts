@@ -3498,8 +3498,7 @@ export function resolveAngularContentQueries(
         meta &&
         (meta.kind === "contentChild" || meta.kind === "contentChildren")
       ) {
-        const descendants =
-          meta.descendants ?? (meta.kind === "contentChild" ? true : false);
+        const descendants = meta.descendants ?? meta.kind === "contentChild";
         const nodes = collectProjectedQueryNodes(children, descendants);
         const matched: any[] = [];
         for (const node of nodes) {
@@ -3533,7 +3532,7 @@ export function resolveAngularContentQueries(
     { selector: any; first: boolean; read?: any; descendants?: boolean }
   >;
   for (const [propName, q] of Object.entries(contentQueries)) {
-    const descendants = q.descendants ?? (q.first ? true : false);
+    const descendants = q.descendants ?? q.first;
     const nodes = collectProjectedQueryNodes(children, descendants);
     const matched: any[] = [];
     for (const node of nodes) {
@@ -4433,9 +4432,6 @@ export function instantiateAngularComponent<T extends object>(
     ...(((ResolvedClass as any)?.ɵoutputs ?? {}) as Record<string, string>),
   };
 
-  const changes: SimpleChanges = {};
-  let hasChanges = false;
-
   const isReactivePropGetter = (val: unknown): val is () => any =>
     typeof val === "function" &&
     !isSignal(val) &&
@@ -4443,6 +4439,9 @@ export function instantiateAngularComponent<T extends object>(
     !("ɵdir" in val) &&
     !("ɵpipe" in val) &&
     val.length === 0;
+
+  const changes: SimpleChanges = {};
+  let hasChanges = false;
 
   const readPropValue = (raw: unknown) => {
     if (isSignal(raw)) {
