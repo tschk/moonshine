@@ -189,6 +189,22 @@ describe("createRequestHandler", () => {
     expect(head.headers.getSetCookie()).toEqual(["blocked=1; Path=/"]);
   });
 
+  test("blocks unparseable redirects", async () => {
+    const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        from: {
+          loader: () => redirect("http://a.b:invalid", 302),
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/from"));
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Invalid redirect");
+  });
+
   test("blocks backslash bypass redirects", async () => {
     const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
     const handler = createRequestHandler({
