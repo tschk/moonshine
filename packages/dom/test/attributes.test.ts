@@ -93,7 +93,9 @@ describe("sourceAttributeValue", () => {
     expect(sourceAttributeValue("hidden", true, true)).toBe("");
     expect(sourceAttributeValue("hidden", false, true)).toBe(undefined);
     expect(sourceAttributeValue("hidden", "", true)).toBe("");
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe("until-found");
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
   });
 
   test("handles translate attribute", () => {
