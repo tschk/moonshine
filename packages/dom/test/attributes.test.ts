@@ -51,7 +51,9 @@ describe("sourceAttributeValue", () => {
   });
 
   test("returns string directly for non-dynamic strings (fast path)", () => {
-    expect(sourceAttributeValue("disabled", "disabled", false)).toBe("disabled");
+    expect(sourceAttributeValue("disabled", "disabled", false)).toBe(
+      "disabled",
+    );
     expect(sourceAttributeValue("class", "btn", false)).toBe("btn");
   });
 
@@ -81,13 +83,17 @@ describe("sourceAttributeValue", () => {
     expect(sourceAttributeValue("hidden", true, true)).toBe("");
     expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
     expect(sourceAttributeValue("hidden", "", true)).toBe("");
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe("until-found");
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
   });
 
   test("handles translate attribute", () => {
     expect(sourceAttributeValue("translate", true, true)).toBe("yes");
     expect(sourceAttributeValue("translate", false, true)).toBe("no");
-    expect(sourceAttributeValue("translate", "something", true)).toBe("something");
+    expect(sourceAttributeValue("translate", "something", true)).toBe(
+      "something",
+    );
   });
 
   test("stringifies non-boolean/non-special attributes", () => {
