@@ -454,6 +454,28 @@ describe("createRequestHandler", () => {
     await fs.rm(dir, { recursive: true, force: true });
   });
 
+  test("throws if a static route has no renderer and no static file matches", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ms-srv-static-"));
+    const routes = graph([
+      { id: "home", path: "/missing.txt", file: "home.tsx", mode: "static" },
+    ]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {},
+      staticDir: dir,
+      mode: "development",
+    });
+
+    const res = await handler(new Request("http://x/missing.txt"));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("No renderer for static route");
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
   test("unmatched route returns 404", async () => {
     const routes = graph([{ id: "home", path: "/", file: "home.tsx" }]);
     const handler = createRequestHandler({ graph: routes, modules: {} });
