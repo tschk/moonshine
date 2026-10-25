@@ -418,7 +418,9 @@ describe("createRequestHandler", () => {
     const os = await import("node:os");
     const path = await import("node:path");
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ms-srv-static-"));
-    const routes = graph([{ id: "home", path: "/missing.txt", file: "home.tsx", mode: "static" }]);
+    const routes = graph([
+      { id: "home", path: "/missing.txt", file: "home.tsx", mode: "static" },
+    ]);
     const handler = createRequestHandler({
       graph: routes,
       modules: {},
