@@ -233,12 +233,16 @@ describe("island hydration scheduling", () => {
     scope.reportError = undefined;
     try {
       const errors: unknown[] = [];
-      const spy = spyOn(console, "error").mockImplementation((...args) => errors.push(args));
+      const spy = spyOn(console, "error").mockImplementation((...args) =>
+        errors.push(args),
+      );
       const hydrate = hydrationSpy();
       dispose = hydrateIslands();
       await flush();
       expect(errors).toHaveLength(1);
-      expect((errors[0] as unknown[])[0]).toBe("Moonshine island hydration failed");
+      expect((errors[0] as unknown[])[0]).toBe(
+        "Moonshine island hydration failed",
+      );
       expect(hydrate).not.toHaveBeenCalled();
       spy.mockRestore();
     } finally {
