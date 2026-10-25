@@ -1,6 +1,11 @@
 import { test, expect } from "bun:test";
 import { catchError, ErrorBoundary } from "../src/error";
-import { createRoot, createSignal, getOwner, errorHandlerKey } from "../src/reactive";
+import {
+  createRoot,
+  createSignal,
+  getOwner,
+  errorHandlerKey,
+} from "../src/reactive";
 
 test("normalizeError handles strings", () => {
   let caught: Error | undefined;
@@ -11,7 +16,7 @@ test("normalizeError handles strings", () => {
       },
       (err) => {
         caught = err;
-      }
+      },
     );
   });
   expect(caught).toBeInstanceOf(Error);
@@ -28,7 +33,7 @@ test("normalizeError handles unknown objects", () => {
       },
       (err) => {
         caught = err;
-      }
+      },
     );
   });
   expect(caught).toBeInstanceOf(Error);
@@ -46,7 +51,7 @@ test("normalizeError passes through Error instances", () => {
       },
       (err) => {
         caught = err;
-      }
+      },
     );
   });
   expect(caught).toBe(original);
@@ -57,7 +62,7 @@ test("catchError returns fn result on success", () => {
   createRoot(() => {
     result = catchError(
       () => "success",
-      () => {}
+      () => {},
     );
   });
   expect(result).toBe("success");
@@ -74,12 +79,12 @@ test("handler failure is passed to parent if it exists", () => {
           },
           () => {
             throw "second";
-          }
+          },
         );
       },
       (err) => {
         parentCaught = err;
-      }
+      },
     );
   });
   expect(parentCaught).toBeInstanceOf(Error);
@@ -98,7 +103,7 @@ test("handler failure is normalized and re-thrown if no parent catches", () => {
         },
         () => {
           throw "second";
-        }
+        },
       );
     });
   } catch (e) {
@@ -122,7 +127,7 @@ test("route ignores errors if scope is disposed", async () => {
       },
       () => {
         handlerCalled = true;
-      }
+      },
     );
   });
 
@@ -142,7 +147,7 @@ test("ErrorBoundary renders children on success", () => {
   createRoot(() => {
     result = ErrorBoundary({
       children: () => "child",
-      fallback: () => "error"
+      fallback: () => "error",
     });
   });
   expect(result?.()).toBe("child");
@@ -152,8 +157,10 @@ test("ErrorBoundary renders fallback on error", () => {
   let result: (() => string | undefined) | undefined;
   createRoot(() => {
     result = ErrorBoundary({
-      children: () => { throw new Error("child error"); },
-      fallback: () => "error"
+      children: () => {
+        throw new Error("child error");
+      },
+      fallback: () => "error",
     });
   });
   expect(result?.()).toBe("error");
@@ -175,7 +182,7 @@ test("ErrorBoundary allows resetting the error state", () => {
       fallback: (_error, reset) => {
         resetFn = reset;
         return "error fallback";
-      }
+      },
     });
   });
 
