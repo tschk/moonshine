@@ -13,11 +13,11 @@ test("catchError normalizes strings", async () => {
       },
       (error) => {
         caughtError = error;
-      }
+      },
     );
   });
 
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(caughtError).toBeInstanceOf(Error);
   expect(caughtError?.message).toBe("String error");
   expect(caughtError?.cause).toBe("String error");
@@ -35,11 +35,11 @@ test("catchError normalizes Error instances", async () => {
       },
       (error) => {
         caughtError = error;
-      }
+      },
     );
   });
 
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(caughtError).toBeInstanceOf(Error);
   expect(caughtError?.message).toBe("Standard error");
   dispose();
@@ -56,11 +56,11 @@ test("catchError normalizes numbers as Unknown error", async () => {
       },
       (error) => {
         caughtError = error;
-      }
+      },
     );
   });
 
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(caughtError).toBeInstanceOf(Error);
   expect(caughtError?.message).toBe("Unknown error");
   expect(caughtError?.cause).toBe(42);
@@ -80,11 +80,11 @@ test("catchError normalizes objects as Unknown error", async () => {
       },
       (error) => {
         caughtError = error;
-      }
+      },
     );
   });
 
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(caughtError).toBeInstanceOf(Error);
   expect(caughtError?.message).toBe("Unknown error");
   expect(caughtError?.cause).toBe(customError);
@@ -103,11 +103,11 @@ test("catchError catches and normalizes null as Unknown error", async () => {
       },
       (error) => {
         caughtError = error;
-      }
+      },
     );
   });
 
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(caughtError).toBeInstanceOf(Error);
   expect(caughtError?.message).toBe("Unknown error");
   expect(caughtError?.cause).toBe(null);
@@ -131,16 +131,16 @@ test("catchError routes to parent when nested", async () => {
             innerError = error;
             // Throwing from a handler routes to parent boundary
             throw error;
-          }
+          },
         );
       },
       (error) => {
         outerError = error;
-      }
+      },
     );
   });
 
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(innerError?.message).toBe("Inner error");
   expect(outerError?.message).toBe("Inner error");
   dispose();
@@ -165,7 +165,7 @@ test("ErrorBoundary renders children and handles fallbacks", async () => {
       fallback: (error, reset) => {
         caughtError = error;
         return "Fallback";
-      }
+      },
     });
   });
 
@@ -173,7 +173,7 @@ test("ErrorBoundary renders children and handles fallbacks", async () => {
 
   setShouldThrow(true);
 
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(view()).toBe("Fallback");
   expect(caughtError?.message).toBe("Component error");
 
@@ -201,19 +201,19 @@ test("ErrorBoundary unmounts fallback and resets on reset call", async () => {
         caughtError = error;
         resetFn = reset;
         return "Fallback";
-      }
+      },
     });
   });
 
   expect(view()).toBe("Content");
 
   setShouldThrow(true);
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(view()).toBe("Fallback");
 
   setShouldThrow(false);
   resetFn();
-  await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
   expect(view()).toBe("Content");
 
   dispose();
