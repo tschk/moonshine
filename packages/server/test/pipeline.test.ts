@@ -848,6 +848,34 @@ test("HEAD finalizes a tee branch without waiting for its retained sibling", asy
   await retained.cancel();
 });
 
+test("parallel loaders ignore synchronous errors during stream cancellation", async () => {
+  let discarded = 0;
+  const handler = createRequestHandler({
+    routes: [
+      { id: "page", path: "/", file: "page.ts", layouts: ["layout.ts"] },
+    ],
+    modules: {
+      "layout.ts": {
+        loader: () => new Response("selected"),
+      },
+      page: {
+        loader: () =>
+          new Response(
+            new ReadableStream({
+              cancel() {
+                discarded++;
+                throw new Error("sync discard failed");
+              },
+            }),
+          ),
+      },
+    },
+  });
+  const response = await handler(new Request("http://localhost/"));
+  expect(await response.text()).toBe("selected");
+  expect(discarded).toBe(1);
+});
+
 test("parallel loaders cancel ignored response bodies but retain the selected body", async () => {
   let discarded = 0;
   let selectedCancelled = 0;
