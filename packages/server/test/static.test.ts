@@ -62,7 +62,9 @@ describe("isContained", () => {
 
   test("returns false for a boundary directory matching root prefix", () => {
     const boundaryDir = resolve(tmpDir, "public-secret");
-    expect(isContained(staticDir, resolve(boundaryDir, "boundary-secret.txt"))).toBe(false);
+    expect(
+      isContained(staticDir, resolve(boundaryDir, "boundary-secret.txt")),
+    ).toBe(false);
   });
 
   test("caches the real root on successive calls", () => {
