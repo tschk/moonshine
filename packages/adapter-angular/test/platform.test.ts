@@ -7,8 +7,6 @@ import {
   provideEnvironmentInitializer,
   signal,
   toObservable,
-  viewChild,
-  viewChildren,
 } from "../src/signals";
 import {
   APP_ID,
@@ -1185,6 +1183,7 @@ describe("@tschk/moonshine-angular/platform", () => {
     }
 
     @Pipe({ name: "tagger", standalone: true })
+    // eslint-disable-next-line no-unused-vars
     class TaggerPipe {
       svc = inject(PrefixService);
       transform(val: unknown, suffix = "!") {
