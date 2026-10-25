@@ -779,6 +779,34 @@ test("HEAD initiates discarded stream cancellation and preserves response metada
   expect(response.headers.getSetCookie()).toEqual(["session=active; Path=/"]);
 });
 
+test("HEAD ignores synchronous cancellation error without losing its valid response", async () => {
+  let attempts = 0;
+  const handler = createRequestHandler({
+    routes: [{ id: "stream", path: "/", file: "stream.ts", mode: "api" }],
+    modules: {
+      stream: {
+        loader: () =>
+          new Response(
+            new ReadableStream({
+              cancel() {
+                attempts++;
+                throw new Error("sync cleanup failed");
+              },
+            }),
+            { status: 206, headers: { "x-stream": "kept" } },
+          ),
+      },
+    },
+  });
+  const response = await handler(
+    new Request("http://localhost/", { method: "HEAD" }),
+  );
+  expect(attempts).toBe(1);
+  expect(response.status).toBe(206);
+  expect(response.body).toBeNull();
+  expect(response.headers.get("x-stream")).toBe("kept");
+});
+
 test("HEAD ignores rejected cancellation without losing its valid response", async () => {
   let attempts = 0;
   const handler = createRequestHandler({
