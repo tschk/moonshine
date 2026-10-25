@@ -808,6 +808,39 @@ test("HEAD ignores rejected cancellation without losing its valid response", asy
   expect(response.headers.get("x-stream")).toBe("kept");
 });
 
+test("HEAD ignores synchronous thrown errors during stream cancellation", async () => {
+  let attempts = 0;
+  const handler = createRequestHandler({
+    routes: [{ id: "stream", path: "/", file: "stream.ts", mode: "api" }],
+    modules: {
+      stream: {
+        loader: () => {
+          const res = new Response(null, { status: 206, headers: { "x-stream": "kept" } });
+          Object.defineProperty(res, "body", {
+            get() {
+              return {
+                get locked() { return false; },
+                cancel() {
+                  attempts++;
+                  throw new Error("sync cleanup failed");
+                },
+              };
+            },
+          });
+          return res;
+        },
+      },
+    },
+  });
+  const response = await handler(
+    new Request("http://localhost/", { method: "HEAD" }),
+  );
+  expect(attempts).toBeGreaterThan(0);
+  expect(response.status).toBe(206);
+  expect(response.body).toBeNull();
+  expect(response.headers.get("x-stream")).toBe("kept");
+});
+
 test("GET streams remain consumable and are not cancelled by finalization", async () => {
   let cancelled = false;
   const handler = createRequestHandler({
