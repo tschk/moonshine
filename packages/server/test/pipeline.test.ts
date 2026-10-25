@@ -820,7 +820,6 @@ test("HEAD ignores sync exceptions during stream cancellation without losing its
             status: 206,
             headers: { "x-stream": "kept" },
           });
-          const originalCancel = response.body!.cancel;
           response.body!.cancel = function () {
             attempts++;
             throw new Error("sync cleanup failed");
