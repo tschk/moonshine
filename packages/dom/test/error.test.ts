@@ -6,12 +6,11 @@ import {
   createMemo,
   createComponentScope,
   onCleanup,
-  catchError,
   getOwner,
   runWithOwner,
   queuePostCommit,
 } from "../src/reactive";
-import { ErrorBoundary } from "../src/control";
+import { ErrorBoundary, catchError } from "../src/error";
 test("sticky boundary cleans failed child before fallback and resets", () => {
   const logs: string[] = [];
   let stop!: () => void, reset!: () => void;
@@ -327,5 +326,44 @@ test("unrelated memo startup preserves outside post-commit microtask timing", as
   expect(log).toEqual([]);
   await Promise.resolve();
   expect(log).toEqual(["post"]);
+  stop();
+});
+
+test("normalizeError handles various error types correctly", () => {
+  let stop!: () => void;
+  const errors: Error[] = [];
+  createRoot((d) => {
+    stop = d;
+    catchError(
+      () => {
+        throw new Error("Explicit error");
+      },
+      (e) => errors.push(e),
+    );
+    catchError(
+      () => {
+        throw "String error";
+      },
+      (e) => errors.push(e),
+    );
+    catchError(
+      () => {
+        throw { custom: "Object error" };
+      },
+      (e) => errors.push(e),
+    );
+  });
+
+  expect(errors[0]).toBeInstanceOf(Error);
+  expect(errors[0].message).toBe("Explicit error");
+
+  expect(errors[1]).toBeInstanceOf(Error);
+  expect(errors[1].message).toBe("String error");
+  expect(errors[1].cause).toBe("String error");
+
+  expect(errors[2]).toBeInstanceOf(Error);
+  expect(errors[2].message).toBe("Unknown error");
+  expect(errors[2].cause).toEqual({ custom: "Object error" });
+
   stop();
 });
