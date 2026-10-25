@@ -50,6 +50,15 @@ describe("attributeValue", () => {
     expect(attributeValue("translate", false, true)).toBe("no");
     expect(attributeValue("translate", "yes", true)).toBe("yes");
   });
+
+  test("matches boolean attribute names case-insensitively", () => {
+    expect(attributeValue("DISABLED", true, true)).toBe("");
+  });
+
+  test("stringifies falsy values on non-boolean attributes", () => {
+    expect(attributeValue("tabindex", 0, true)).toBe("0");
+    expect(attributeValue("data-foo", false, true)).toBe("false");
+  });
 });
 
 describe("sourceAttributeValue", () => {
@@ -105,5 +114,13 @@ describe("sourceAttributeValue", () => {
     expect(sourceAttributeValue("translate", true, true)).toBe("yes");
     expect(sourceAttributeValue("translate", false, true)).toBe("no");
     expect(sourceAttributeValue("translate", "yes", true)).toBe("yes");
+  });
+
+  test("matches boolean attribute names case-sensitively", () => {
+    expect(sourceAttributeValue("DISABLED", true, true)).toBe("true");
+  });
+
+  test("stringifies falsy values on non-boolean attributes", () => {
+    expect(sourceAttributeValue("tabindex", 0, true)).toBe("0");
   });
 });
