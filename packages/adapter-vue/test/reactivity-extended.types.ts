@@ -8,6 +8,7 @@ import {
   isShallow,
   markRaw,
   onScopeDispose,
+  proxyRefs,
   readonly,
   ref,
   shallowReactive,
@@ -22,6 +23,7 @@ import {
   type MaybeRef,
   type MaybeRefOrGetter,
   type Ref,
+  type ShallowUnwrapRef,
 } from "../src/reactive";
 
 const maybeRef: MaybeRef<number> = ref(1);
@@ -75,4 +77,22 @@ const current: EffectScope | undefined = getCurrentScope();
 onScopeDispose(() => {}, true);
 scope.stop();
 
-void [v1, v2, v3, cr, unwrapped, nestedStr, shallowRo, checks, ran, current];
+const proxied: ShallowUnwrapRef<{ count: Ref<number>; label: string }> =
+  proxyRefs({ count: ref(1), label: "hi" });
+const proxiedCount: number = proxied.count;
+const proxiedLabel: string = proxied.label;
+
+void [
+  v1,
+  v2,
+  v3,
+  cr,
+  unwrapped,
+  nestedStr,
+  shallowRo,
+  checks,
+  ran,
+  current,
+  proxiedCount,
+  proxiedLabel,
+];

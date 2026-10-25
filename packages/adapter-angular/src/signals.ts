@@ -55,6 +55,7 @@ export interface EffectRef {
 export interface CreateEffectOptions {
   allowSignalWrites?: boolean;
   manualCleanup?: boolean;
+  injector?: Injector;
 }
 
 const signals = new WeakSet<Function>();
@@ -62,19 +63,44 @@ const writableSignals = new WeakSet<Function>();
 const readonlyWrappers = new WeakMap<Function, Signal<any>>();
 
 let disallowWritesDepth = 0;
+let reactiveContextDepth = 0;
 
 function withWritesDisallowed<T>(fn: () => T): T {
   disallowWritesDepth++;
+  reactiveContextDepth++;
   try {
     return fn();
   } finally {
+    reactiveContextDepth--;
     disallowWritesDepth--;
+  }
+}
+
+function withReactiveContext<T>(fn: () => T): T {
+  reactiveContextDepth++;
+  try {
+    return fn();
+  } finally {
+    reactiveContextDepth--;
   }
 }
 
 function assertWritesAllowed(): void {
   if (disallowWritesDepth > 0) {
     throw new Error("Cannot write to signals inside a reactive computation");
+  }
+}
+
+export function assertNotInReactiveContext(
+  debugFn: Function,
+  extraNote?: string,
+): void {
+  if (reactiveContextDepth > 0) {
+    const name = debugFn?.name || "Function";
+    const suffix = extraNote ? ` ${extraNote}` : "";
+    throw new Error(
+      `NG0602: ${name}() cannot be called from within a reactive context.${suffix}`,
+    );
   }
 }
 
@@ -276,7 +302,14 @@ export function effect(
     return { destroy() {} };
   }
   const outer = getOwner();
-  if (!options?.manualCleanup && outer?.disposed) {
+  const activeInj = options?.injector ?? currentInjector;
+  const injDestroyRef = activeInj?.get(DestroyRef, undefined, {
+    optional: true,
+  });
+  if (
+    !options?.manualCleanup &&
+    (outer?.disposed || injDestroyRef?.destroyed)
+  ) {
     throw new Error("Cannot create an effect inside a disposed native owner");
   }
 
@@ -390,10 +423,17 @@ export function effect(
             deps = collectDeps(
               () => {
                 try {
-                  if (options?.allowSignalWrites === false) {
-                    withWritesDisallowed(() => effectFn(registerCleanup));
+                  const runBody = () => {
+                    if (options?.allowSignalWrites === false) {
+                      withWritesDisallowed(() => effectFn(registerCleanup));
+                    } else {
+                      withReactiveContext(() => effectFn(registerCleanup));
+                    }
+                  };
+                  if (activeInj) {
+                    runInInjectionContext(activeInj, runBody);
                   } else {
-                    effectFn(registerCleanup);
+                    runBody();
                   }
                 } catch (error) {
                   runFailed = true;
@@ -464,8 +504,13 @@ export function effect(
     }
   };
 
-  if (outer && !options?.manualCleanup) {
-    domOnCleanup(destroy);
+  if (!options?.manualCleanup) {
+    if (outer) {
+      domOnCleanup(destroy);
+    }
+    if (injDestroyRef) {
+      injDestroyRef.onDestroy(destroy);
+    }
   }
 
   execute();
@@ -474,7 +519,13 @@ export function effect(
 }
 
 export function untracked<T>(nonReactiveReadsFn: () => T): T {
-  return untrack(nonReactiveReadsFn);
+  const prevDepth = reactiveContextDepth;
+  reactiveContextDepth = 0;
+  try {
+    return untrack(nonReactiveReadsFn);
+  } finally {
+    reactiveContextDepth = prevDepth;
+  }
 }
 
 export function fromMoonshineSignal<T>(
@@ -541,12 +592,17 @@ export interface InteropObservable<T> extends Subscribable<T> {
   ): Unsubscribable;
 }
 
+export interface ToObservableOptions {
+  injector?: Injector;
+}
+
 export interface ToSignalOptions<T> {
   initialValue?: T;
   requireSync?: boolean;
   manualCleanup?: boolean;
   rejectErrors?: boolean;
   equal?: ValueEqualityFn<T>;
+  injector?: Injector;
 }
 
 function resolveSubscribable<T>(
@@ -581,10 +637,17 @@ function resolveSubscribable<T>(
 /**
  * Exposes an Angular `Signal<T>` as an RxJS-compatible `InteropObservable<T>`.
  */
-export function toObservable<T>(source: Signal<T>): InteropObservable<T> {
+export function toObservable<T>(
+  source: Signal<T>,
+  options?: ToObservableOptions,
+): InteropObservable<T> {
   if (typeof source !== "function") {
     throw new TypeError("toObservable requires a signal function");
   }
+  const boundInjector = options?.injector ?? currentInjector;
+  const boundDestroyRef = boundInjector?.get(DestroyRef, undefined, {
+    optional: true,
+  });
   const observable: InteropObservable<T> & Record<PropertyKey, unknown> = {
     subscribe(
       observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
@@ -601,6 +664,10 @@ export function toObservable<T>(source: Signal<T>): InteropObservable<T> {
                 observerOrNext,
               ),
             };
+      if (boundDestroyRef?.destroyed) {
+        untrack(() => observer.complete?.());
+        return { unsubscribe() {} };
+      }
       let closed = false;
       const ref = effect(
         () => {
@@ -616,15 +683,22 @@ export function toObservable<T>(source: Signal<T>): InteropObservable<T> {
           }
           untrack(() => observer.next?.(value));
         },
-        { manualCleanup: true },
+        { manualCleanup: true, injector: boundInjector },
       );
       if (closed) {
         ref.destroy();
       }
+      const offDestroy = boundDestroyRef?.onDestroy(() => {
+        if (closed) return;
+        closed = true;
+        ref.destroy();
+        untrack(() => observer.complete?.());
+      });
       return {
         unsubscribe() {
           if (closed) return;
           closed = true;
+          offDestroy?.();
           ref.destroy();
         },
       };
@@ -703,8 +777,14 @@ export function toSignal<T, U = undefined>(
     );
   }
 
-  if (!options?.manualCleanup && getOwner()) {
-    domOnCleanup(cleanup);
+  if (!options?.manualCleanup) {
+    if (getOwner()) {
+      domOnCleanup(cleanup);
+    }
+    const activeInj = options?.injector ?? currentInjector;
+    activeInj
+      ?.get(DestroyRef, undefined, { optional: true })
+      ?.onDestroy(cleanup);
   }
 
   const read = (() => {
@@ -740,6 +820,7 @@ export interface ResourceOptions<T, R = unknown> {
   loader: ResourceLoader<T, R>;
   defaultValue?: T;
   equal?: ValueEqualityFn<T>;
+  injector?: Injector;
 }
 
 export interface Resource<T> {
@@ -914,6 +995,8 @@ export function resource<T, R = unknown>(
   if (getOwner()) {
     domOnCleanup(destroy);
   }
+  const activeInj = options.injector ?? currentInjector;
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
 
   const hasValueMemo = computed(() => {
     const s = statusSig();
@@ -987,4 +1070,1880 @@ export function resource<T, R = unknown>(
   };
 
   return ref;
+}
+
+export type RxResourceLoader<T, R> = (
+  params: ResourceLoaderParams<R>,
+) => Subscribable<T>;
+
+export interface RxResourceOptions<T, R = unknown> {
+  request?: () => R;
+  loader: RxResourceLoader<T, R>;
+  defaultValue?: T;
+  equal?: ValueEqualityFn<T>;
+  injector?: Injector;
+}
+
+/**
+ * Reactive Observable-backed resource primitive compatible with Angular 19's `rxResource()` API.
+ */
+export function rxResource<T, R = unknown>(
+  options: RxResourceOptions<T, R> & { defaultValue: NoInfer<T> },
+): ResourceRef<T>;
+export function rxResource<T, R = unknown>(
+  options: RxResourceOptions<T, R>,
+): ResourceRef<T | undefined>;
+export function rxResource<T, R = unknown>(
+  options: RxResourceOptions<T, R>,
+): ResourceRef<T | undefined> {
+  if (
+    typeof options !== "object" ||
+    options === null ||
+    typeof options.loader !== "function"
+  ) {
+    throw new TypeError("rxResource requires an options object with a loader");
+  }
+
+  const defaultValue = options.defaultValue;
+  const equal = options.equal ?? Object.is;
+  const valueSig = signal<T | undefined>(defaultValue, {
+    equal: (a, b) =>
+      a === undefined || b === undefined ? Object.is(a, b) : equal(a, b),
+  });
+  const statusSig = signal<ResourceStatus>("idle");
+  const errorSig = signal<unknown>(undefined);
+  const isLoadingSig = computed(() => {
+    const s = statusSig();
+    return s === "loading" || s === "reloading";
+  });
+
+  const requestFn: () => R = options.request ?? (() => true as unknown as R);
+
+  let currentAbort: AbortController | undefined;
+  let currentCleanupSub: (() => void) | undefined;
+  let activeLoadId = 0;
+  let destroyed = false;
+
+  const abortPending = () => {
+    if (currentCleanupSub) {
+      const unsub = currentCleanupSub;
+      currentCleanupSub = undefined;
+      unsub();
+    }
+    if (currentAbort) {
+      const controller = currentAbort;
+      currentAbort = undefined;
+      controller.abort();
+    }
+  };
+
+  const startLoad = (
+    req: Exclude<R, undefined>,
+    nextStatus: "loading" | "reloading",
+    previousStatus: ResourceStatus,
+  ) => {
+    abortPending();
+    const loadId = ++activeLoadId;
+    const controller = new AbortController();
+    currentAbort = controller;
+
+    untrack(() => {
+      batch(() => {
+        if (nextStatus === "loading") {
+          valueSig.set(defaultValue);
+        }
+        errorSig.set(undefined);
+        statusSig.set(nextStatus);
+      });
+    });
+
+    let stream: Subscribable<T>;
+    try {
+      stream = untrack(() =>
+        options.loader({
+          request: req,
+          abortSignal: controller.signal,
+          previous: { status: previousStatus },
+        }),
+      );
+      if (!stream || typeof stream.subscribe !== "function") {
+        throw new TypeError(
+          "rxResource loader must return a Subscribable with a subscribe() method",
+        );
+      }
+    } catch (err) {
+      if (!destroyed && loadId === activeLoadId && !controller.signal.aborted) {
+        currentAbort = undefined;
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(err);
+            statusSig.set("error");
+          });
+        });
+      }
+      return;
+    }
+
+    let subClosed = false;
+    let rawSub: SubscriptionCleanup = undefined;
+
+    const cleanupSub = () => {
+      if (subClosed) return;
+      subClosed = true;
+      if (typeof rawSub === "function") {
+        rawSub();
+      } else if (rawSub && typeof rawSub.unsubscribe === "function") {
+        rawSub.unsubscribe();
+      }
+    };
+    currentCleanupSub = cleanupSub;
+
+    try {
+      rawSub = untrack(() =>
+        stream.subscribe({
+          next: (resolved: T) => {
+            if (
+              destroyed ||
+              loadId !== activeLoadId ||
+              controller.signal.aborted
+            ) {
+              return;
+            }
+            batch(() => {
+              valueSig.set(resolved);
+              errorSig.set(undefined);
+              statusSig.set("resolved");
+            });
+          },
+          error: (err: unknown) => {
+            if (
+              destroyed ||
+              loadId !== activeLoadId ||
+              controller.signal.aborted
+            ) {
+              return;
+            }
+            subClosed = true;
+            currentCleanupSub = undefined;
+            currentAbort = undefined;
+            batch(() => {
+              valueSig.set(defaultValue);
+              errorSig.set(err);
+              statusSig.set("error");
+            });
+          },
+          complete: () => {
+            if (
+              destroyed ||
+              loadId !== activeLoadId ||
+              controller.signal.aborted
+            ) {
+              return;
+            }
+            subClosed = true;
+            currentCleanupSub = undefined;
+            currentAbort = undefined;
+            const st = untracked(statusSig);
+            if (st === "loading" || st === "reloading") {
+              statusSig.set("resolved");
+            }
+          },
+        }),
+      );
+      if (subClosed) {
+        if (typeof rawSub === "function") {
+          rawSub();
+        } else if (rawSub && typeof rawSub.unsubscribe === "function") {
+          rawSub.unsubscribe();
+        }
+      }
+    } catch (err) {
+      subClosed = true;
+      currentCleanupSub = undefined;
+      currentAbort = undefined;
+      if (!destroyed && loadId === activeLoadId && !controller.signal.aborted) {
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(err);
+            statusSig.set("error");
+          });
+        });
+      }
+    }
+  };
+
+  let lastRequest: R | undefined;
+  const watcher = effect(
+    () => {
+      if (destroyed) return;
+      const req = requestFn();
+      lastRequest = req;
+      const prevStatus = untracked(statusSig);
+      if (req === undefined) {
+        activeLoadId++;
+        abortPending();
+        untrack(() => {
+          batch(() => {
+            valueSig.set(defaultValue);
+            errorSig.set(undefined);
+            statusSig.set("idle");
+          });
+        });
+        return;
+      }
+      startLoad(req as Exclude<R, undefined>, "loading", prevStatus);
+    },
+    { manualCleanup: true },
+  );
+
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    activeLoadId++;
+    abortPending();
+    watcher.destroy();
+  };
+
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+  const activeInj = options.injector ?? currentInjector;
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
+
+  const hasValueMemo = computed(() => {
+    const s = statusSig();
+    const v = valueSig();
+    if (s === "error") return false;
+    if (s === "resolved" || s === "local" || s === "reloading") {
+      return v !== undefined;
+    }
+    return defaultValue !== undefined && v !== undefined;
+  });
+
+  const readonlyView: Resource<T | undefined> = {
+    value: valueSig.asReadonly(),
+    status: statusSig.asReadonly(),
+    error: errorSig.asReadonly(),
+    isLoading: isLoadingSig,
+    hasValue(): this is Resource<Exclude<T | undefined, undefined>> {
+      return hasValueMemo();
+    },
+  };
+
+  const ref: ResourceRef<T | undefined> = {
+    value: valueSig,
+    status: statusSig.asReadonly(),
+    error: errorSig.asReadonly(),
+    isLoading: isLoadingSig,
+    hasValue(): this is Resource<Exclude<T | undefined, undefined>> {
+      return hasValueMemo();
+    },
+    set(newValue: T | undefined) {
+      assertWritesAllowed();
+      activeLoadId++;
+      abortPending();
+      batch(() => {
+        valueSig.set(newValue);
+        errorSig.set(undefined);
+        statusSig.set("local");
+      });
+    },
+    update(updater: (value: T | undefined) => T | undefined) {
+      assertWritesAllowed();
+      const current = untracked(valueSig);
+      const next = untracked(() => updater(current));
+      ref.set(next);
+    },
+    asReadonly() {
+      return readonlyView;
+    },
+    reload(): boolean {
+      if (destroyed) return false;
+      const currentStatus = untracked(statusSig);
+      if (
+        currentStatus === "idle" ||
+        currentStatus === "loading" ||
+        currentStatus === "reloading"
+      ) {
+        return false;
+      }
+      const req = lastRequest ?? untracked(requestFn);
+      if (req === undefined) {
+        return false;
+      }
+      const nextStatus =
+        currentStatus === "resolved" || currentStatus === "local"
+          ? "reloading"
+          : "loading";
+      startLoad(req as Exclude<R, undefined>, nextStatus, currentStatus);
+      return true;
+    },
+    destroy,
+  };
+
+  return ref;
+}
+
+export interface OutputOptions {
+  alias?: string;
+}
+
+export interface OutputRefSubscription {
+  unsubscribe(): void;
+}
+
+export interface OutputRef<T> {
+  subscribe(callback: (value: T) => void): OutputRefSubscription;
+}
+
+export class OutputEmitterRef<T = void> implements OutputRef<T> {
+  readonly #listeners = new Set<(value: T) => void>();
+  readonly alias?: string;
+  #destroyed = false;
+
+  constructor(opts?: OutputOptions) {
+    this.alias = opts?.alias;
+    if (getOwner()) {
+      domOnCleanup(() => {
+        this.destroy();
+      });
+    }
+  }
+
+  get destroyed(): boolean {
+    return this.#destroyed;
+  }
+
+  subscribe(callback: (value: T) => void): OutputRefSubscription {
+    if (this.#destroyed) {
+      throw new Error(
+        "Unexpected subscription to destroyed OutputRef. The owning directive/component is destroyed.",
+      );
+    }
+    this.#listeners.add(callback);
+    const unsubscribe = () => {
+      this.#listeners.delete(callback);
+    };
+    if (getOwner()) {
+      domOnCleanup(unsubscribe);
+    }
+    return { unsubscribe };
+  }
+
+  emit(value: T): void {
+    if (this.#destroyed) {
+      throw new Error(
+        "Unexpected emit for destroyed OutputRef. The owning directive/component is destroyed.",
+      );
+    }
+    for (const listener of Array.from(this.#listeners)) {
+      untracked(() => listener(value));
+    }
+  }
+
+  destroy(): void {
+    this.#destroyed = true;
+    this.#listeners.clear();
+  }
+}
+
+export function output<T = void>(opts?: OutputOptions): OutputEmitterRef<T> {
+  return new OutputEmitterRef<T>(opts);
+}
+
+export function outputFromObservable<T>(
+  observable: Subscribable<T>,
+  _opts?: OutputOptions,
+): OutputRef<T> {
+  const owner = getOwner();
+  let destroyed = false;
+  if (owner) {
+    domOnCleanup(() => {
+      destroyed = true;
+    });
+  }
+  return {
+    subscribe(callback: (value: T) => void): OutputRefSubscription {
+      if (destroyed) {
+        throw new Error(
+          "Unexpected subscription to destroyed OutputRef. The owning directive/component is destroyed.",
+        );
+      }
+      const sub = observable.subscribe({
+        next: (value: T) => {
+          if (!destroyed) {
+            untracked(() => callback(value));
+          }
+        },
+      });
+      const unsubscribe = () => {
+        if (typeof sub === "function") {
+          sub();
+        } else if (sub && typeof sub.unsubscribe === "function") {
+          sub.unsubscribe();
+        }
+      };
+      if (getOwner()) {
+        domOnCleanup(unsubscribe);
+      } else if (owner && !owner.disposed) {
+        runWithOwner(owner, () => domOnCleanup(unsubscribe));
+      }
+      return { unsubscribe };
+    },
+  };
+}
+
+export function outputToObservable<T>(ref: OutputRef<T>): InteropObservable<T> {
+  const obs: InteropObservable<T> & Record<PropertyKey, unknown> = {
+    subscribe(
+      observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
+    ): Unsubscribable {
+      const nextFn =
+        typeof observerOrNext === "function"
+          ? observerOrNext
+          : observerOrNext?.next
+            ? (v: T) => observerOrNext.next!(v)
+            : undefined;
+      if (!nextFn) {
+        return { unsubscribe() {} };
+      }
+      return ref.subscribe(nextFn);
+    },
+  };
+  obs[ObservableSymbol] = () => obs;
+  obs["@@observable"] = () => obs;
+  return obs;
+}
+
+export interface InputOptionsWithoutTransform<T> {
+  alias?: string;
+  readonly __brand?: T;
+}
+
+export interface InputOptionsWithTransform<T, TransformT> {
+  alias?: string;
+  transform: (v: TransformT) => T;
+}
+
+export type InputOptions<T, TransformT> =
+  InputOptionsWithoutTransform<T> | InputOptionsWithTransform<T, TransformT>;
+
+declare const inputWriteBrand: unique symbol;
+
+export interface InputSignalWithTransform<ReadT, WriteT> extends Signal<ReadT> {
+  readonly [inputWriteBrand]?: WriteT;
+}
+
+export type InputSignal<T> = InputSignalWithTransform<T, T>;
+
+type InputController = {
+  applyValue: (rawValue: any) => void;
+  alias?: string;
+};
+
+const inputControllers = new WeakMap<Function, InputController>();
+
+function createInputSignalInternal<ReadT, WriteT>(
+  initialValue: ReadT | undefined,
+  required: boolean,
+  options?: InputOptions<ReadT, WriteT>,
+): InputSignalWithTransform<ReadT, WriteT> {
+  let initialized = !required;
+  const transform =
+    options && "transform" in options && typeof options.transform === "function"
+      ? options.transform
+      : undefined;
+  const backing = signal<ReadT>(initialValue as ReadT);
+
+  const read = (() => {
+    if (!initialized) {
+      throw new Error(
+        `Input${options?.alias ? ` "${options.alias}"` : ""} is required, but no value is available yet.`,
+      );
+    }
+    return backing();
+  }) as InputSignalWithTransform<ReadT, WriteT>;
+
+  signals.add(read);
+  inputControllers.set(read, {
+    alias: options?.alias,
+    applyValue(rawValue: WriteT) {
+      const next = transform
+        ? transform(rawValue)
+        : (rawValue as unknown as ReadT);
+      initialized = true;
+      backing.set(next);
+    },
+  });
+  return read;
+}
+
+export interface InputFunction {
+  <T>(): InputSignal<T | undefined>;
+  <T>(initialValue: T, opts?: InputOptionsWithoutTransform<T>): InputSignal<T>;
+  <T, TransformT>(
+    initialValue: T,
+    opts: InputOptionsWithTransform<T, TransformT>,
+  ): InputSignalWithTransform<T, TransformT>;
+  required: {
+    <T>(opts?: InputOptionsWithoutTransform<T>): InputSignal<T>;
+    <T, TransformT>(
+      opts: InputOptionsWithTransform<T, TransformT>,
+    ): InputSignalWithTransform<T, TransformT>;
+  };
+}
+
+export const input: InputFunction = Object.assign(
+  function inputImpl<T, TransformT = T>(
+    initialValue?: T,
+    opts?: InputOptions<T, TransformT>,
+  ): InputSignalWithTransform<T, TransformT> {
+    return createInputSignalInternal<T, TransformT>(initialValue, false, opts);
+  },
+  {
+    required<T, TransformT = T>(
+      opts?: InputOptions<T, TransformT>,
+    ): InputSignalWithTransform<T, TransformT> {
+      return createInputSignalInternal<T, TransformT>(undefined, true, opts);
+    },
+  },
+) as InputFunction;
+
+export function isInputSignal(
+  value: unknown,
+): value is InputSignalWithTransform<any, any> | ModelSignal<any> {
+  return typeof value === "function" && inputControllers.has(value);
+}
+
+export function getInputAlias(value: unknown): string | undefined {
+  return typeof value === "function"
+    ? inputControllers.get(value)?.alias
+    : undefined;
+}
+
+export function applyInputValue<ReadT, WriteT>(
+  target: InputSignalWithTransform<ReadT, WriteT> | ModelSignal<ReadT>,
+  value: WriteT,
+): void {
+  const ctrl = inputControllers.get(target);
+  if (!ctrl) {
+    throw new TypeError("Target is not an Angular input() or model() signal");
+  }
+  ctrl.applyValue(value);
+}
+
+export interface ModelOptions {
+  alias?: string;
+}
+
+export interface ModelSignal<T> extends WritableSignal<T>, OutputRef<T> {}
+
+function createModelSignalInternal<T>(
+  initialValue: T | undefined,
+  required: boolean,
+  options?: ModelOptions,
+): ModelSignal<T> {
+  let initialized = !required;
+  const backing = signal<T>(initialValue as T);
+  const emitter = new OutputEmitterRef<T>();
+
+  const read = (() => {
+    if (!initialized) {
+      throw new Error(
+        `Model${options?.alias ? ` "${options.alias}"` : ""} is required, but no value is available yet.`,
+      );
+    }
+    return backing();
+  }) as ModelSignal<T>;
+
+  read.set = (value: T) => {
+    assertWritesAllowed();
+    initialized = true;
+    backing.set(value);
+    emitter.emit(value);
+  };
+
+  read.update = (updateFn: (value: T) => T) => {
+    assertWritesAllowed();
+    if (!initialized) {
+      throw new Error(
+        `Model${options?.alias ? ` "${options.alias}"` : ""} is required, but no value is available yet.`,
+      );
+    }
+    const current = untracked(backing);
+    const next = untracked(() => updateFn(current));
+    read.set(next);
+  };
+
+  read.asReadonly = attachReadonly(read);
+  read.subscribe = (callback: (value: T) => void) =>
+    emitter.subscribe(callback);
+
+  signals.add(read);
+  writableSignals.add(read);
+  inputControllers.set(read, {
+    alias: options?.alias,
+    applyValue(rawValue: T) {
+      initialized = true;
+      backing.set(rawValue);
+    },
+  });
+
+  return read;
+}
+
+export interface ModelFunction {
+  <T>(): ModelSignal<T | undefined>;
+  <T>(initialValue: T, opts?: ModelOptions): ModelSignal<T>;
+  required: <T>(opts?: ModelOptions) => ModelSignal<T>;
+}
+
+export const model: ModelFunction = Object.assign(
+  function modelImpl<T>(initialValue?: T, opts?: ModelOptions): ModelSignal<T> {
+    return createModelSignalInternal<T>(initialValue, false, opts);
+  },
+  {
+    required<T>(opts?: ModelOptions): ModelSignal<T> {
+      return createModelSignalInternal<T>(undefined, true, opts);
+    },
+  },
+) as ModelFunction;
+
+export abstract class DestroyRef {
+  abstract onDestroy(callback: () => void): () => void;
+  abstract readonly destroyed: boolean;
+  abstract destroy(): void;
+}
+
+class NativeDestroyRef extends DestroyRef {
+  #isDestroyed = false;
+  readonly #callbacks = new Set<() => void>();
+
+  constructor(bindToOwner = true) {
+    super();
+    if (bindToOwner && getOwner()) {
+      domOnCleanup(() => {
+        this.destroy();
+      });
+    }
+  }
+
+  override get destroyed(): boolean {
+    return this.#isDestroyed;
+  }
+
+  override onDestroy(callback: () => void): () => void {
+    if (this.#isDestroyed) {
+      callback();
+      return () => {};
+    }
+    this.#callbacks.add(callback);
+    return () => {
+      this.#callbacks.delete(callback);
+    };
+  }
+
+  override destroy(): void {
+    if (this.#isDestroyed) return;
+    this.#isDestroyed = true;
+    const toRun = Array.from(this.#callbacks);
+    this.#callbacks.clear();
+    for (const cb of toRun) {
+      cb();
+    }
+  }
+}
+
+const ownerDestroyRefs = new WeakMap<object, DestroyRef>();
+
+export function createDestroyRef(): DestroyRef {
+  return new NativeDestroyRef(true);
+}
+
+export function injectDestroyRef(): DestroyRef {
+  if (currentInjector) {
+    const fromInj = currentInjector.get(DestroyRef, undefined, {
+      optional: true,
+    });
+    if (fromInj) {
+      return fromInj;
+    }
+  }
+  const owner = getOwner();
+  if (!owner) {
+    throw new Error(
+      "injectDestroyRef() must be called within an active reactive owner or injection context",
+    );
+  }
+  let ref = ownerDestroyRefs.get(owner);
+  if (!ref) {
+    ref = createDestroyRef();
+    ownerDestroyRefs.set(owner, ref);
+  }
+  return ref;
+}
+
+export function takeUntilDestroyed<T>(
+  destroyRef?: DestroyRef,
+): (source: Subscribable<T>) => InteropObservable<T> {
+  const resolvedDestroyRef = destroyRef ?? injectDestroyRef();
+  return (source: Subscribable<T>): InteropObservable<T> => {
+    const obs: InteropObservable<T> & Record<PropertyKey, unknown> = {
+      subscribe(
+        observerOrNext?: Partial<Observer<T>> | ((value: T) => void),
+      ): Unsubscribable {
+        if (resolvedDestroyRef.destroyed) {
+          if (
+            typeof observerOrNext === "object" &&
+            observerOrNext !== null &&
+            typeof observerOrNext.complete === "function"
+          ) {
+            observerOrNext.complete();
+          }
+          return { unsubscribe() {} };
+        }
+        let active = true;
+        const observer: Partial<Observer<T>> =
+          typeof observerOrNext === "function"
+            ? {
+                next: (v: T) => {
+                  if (active) observerOrNext(v);
+                },
+              }
+            : {
+                next: (v: T) => {
+                  if (active) observerOrNext?.next?.(v);
+                },
+                error: (e: unknown) => {
+                  if (active) observerOrNext?.error?.(e);
+                },
+                complete: () => {
+                  if (active) observerOrNext?.complete?.();
+                },
+              };
+        const sub = source.subscribe(observer);
+        const cleanupSub = () => {
+          if (!active) return;
+          active = false;
+          if (typeof sub === "function") {
+            sub();
+          } else if (sub && typeof sub.unsubscribe === "function") {
+            sub.unsubscribe();
+          }
+        };
+        const offDestroy = resolvedDestroyRef.onDestroy(() => {
+          if (active) {
+            observer.complete?.();
+            cleanupSub();
+          }
+        });
+        return {
+          unsubscribe() {
+            offDestroy();
+            cleanupSub();
+          },
+        };
+      },
+    };
+    obs[ObservableSymbol] = () => obs;
+    obs["@@observable"] = () => obs;
+    return obs;
+  };
+}
+
+export interface AfterRenderRef {
+  destroy(): void;
+}
+
+export interface AfterRenderOptions {
+  injector?: Injector;
+}
+
+export interface AfterRenderPhases<E = unknown, W = unknown, M = unknown> {
+  earlyRead?: () => E;
+  write?: (...args: [E] extends [never] ? [] : [E]) => W;
+  mixedReadWrite?: (...args: [W] extends [never] ? [] : [W]) => M;
+  read?: (...args: [M] extends [never] ? [] : [M]) => void;
+}
+
+export type AfterRenderSpec<E = any, W = any, M = any> =
+  (() => void) | AfterRenderPhases<E, W, M>;
+
+function executeRenderSpec(spec: AfterRenderSpec, injector?: Injector): void {
+  const runPhase = <R>(fn: () => R): R =>
+    injector
+      ? runInInjectionContext(injector, () => untracked(fn))
+      : untracked(fn);
+  if (typeof spec === "function") {
+    runPhase(spec);
+    return;
+  }
+  let lastResult: any;
+  if (spec.earlyRead) {
+    lastResult = runPhase(() => spec.earlyRead!());
+  }
+  if (spec.write) {
+    lastResult = runPhase(() => spec.write!(lastResult));
+  }
+  if (spec.mixedReadWrite) {
+    lastResult = runPhase(() => spec.mixedReadWrite!(lastResult));
+  }
+  if (spec.read) {
+    runPhase(() => spec.read!(lastResult));
+  }
+}
+
+export function afterNextRender(
+  spec: AfterRenderSpec,
+  options?: AfterRenderOptions,
+): AfterRenderRef {
+  if (isSSRRendering()) {
+    return { destroy() {} };
+  }
+  const activeInj = options?.injector ?? currentInjector;
+  let cancelled = false;
+  const destroy = () => {
+    cancelled = true;
+  };
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
+  queueMicrotask(() => {
+    if (!cancelled) {
+      cancelled = true;
+      executeRenderSpec(spec, activeInj);
+    }
+  });
+  return { destroy };
+}
+
+export function afterRender(
+  spec: AfterRenderSpec,
+  options?: AfterRenderOptions,
+): AfterRenderRef {
+  if (isSSRRendering()) {
+    return { destroy() {} };
+  }
+  const activeInj = options?.injector ?? currentInjector;
+  let cancelled = false;
+  const destroy = () => {
+    cancelled = true;
+  };
+  if (getOwner()) {
+    domOnCleanup(destroy);
+  }
+  activeInj?.get(DestroyRef, undefined, { optional: true })?.onDestroy(destroy);
+  queueMicrotask(() => {
+    if (!cancelled) {
+      executeRenderSpec(spec, activeInj);
+    }
+  });
+  return { destroy };
+}
+
+export interface AfterRenderEffectPhases<
+  E = unknown,
+  W = unknown,
+  M = unknown,
+> {
+  earlyRead?: (onCleanup: EffectCleanupRegisterFn) => E;
+  write?: (
+    ...args: [E] extends [never]
+      ? [EffectCleanupRegisterFn]
+      : [E, EffectCleanupRegisterFn]
+  ) => W;
+  mixedReadWrite?: (
+    ...args: [W] extends [never]
+      ? [EffectCleanupRegisterFn]
+      : [W, EffectCleanupRegisterFn]
+  ) => M;
+  read?: (
+    ...args: [M] extends [never]
+      ? [EffectCleanupRegisterFn]
+      : [M, EffectCleanupRegisterFn]
+  ) => void;
+}
+
+export type AfterRenderEffectSpec<E = any, W = any, M = any> =
+  | ((onCleanup: EffectCleanupRegisterFn) => void)
+  | AfterRenderEffectPhases<E, W, M>;
+
+export function afterRenderEffect<E = never, W = never, M = never>(
+  spec: AfterRenderEffectSpec<E, W, M>,
+  options?: AfterRenderOptions,
+): EffectRef {
+  if (isSSRRendering()) {
+    return { destroy() {} };
+  }
+  return effect(
+    (onCleanup) => {
+      if (typeof spec === "function") {
+        spec(onCleanup);
+        return;
+      }
+      let hasPrior = false;
+      let lastValue: any;
+      if (spec.earlyRead) {
+        lastValue = withWritesDisallowed(() => spec.earlyRead!(onCleanup));
+        hasPrior = true;
+      }
+      if (spec.write) {
+        const writeFn = spec.write as (...args: any[]) => any;
+        lastValue = hasPrior
+          ? writeFn(lastValue, onCleanup)
+          : writeFn(onCleanup);
+        hasPrior = true;
+      }
+      if (spec.mixedReadWrite) {
+        const mixedFn = spec.mixedReadWrite as (...args: any[]) => any;
+        lastValue = hasPrior
+          ? mixedFn(lastValue, onCleanup)
+          : mixedFn(onCleanup);
+        hasPrior = true;
+      }
+      if (spec.read) {
+        const readFn = spec.read as (...args: any[]) => void;
+        withWritesDisallowed(() => {
+          if (hasPrior) {
+            readFn(lastValue, onCleanup);
+          } else {
+            readFn(onCleanup);
+          }
+        });
+      }
+    },
+    { injector: options?.injector },
+  );
+}
+
+export class PendingTasks {
+  static readonly ɵprov = {
+    providedIn: "root" as const,
+    factory: (): PendingTasks => new PendingTasks(),
+  };
+
+  readonly #count = signal(0);
+  readonly #activeTasks = new Set<symbol>();
+  readonly hasPendingTasks: Signal<boolean> = computed(() => this.#count() > 0);
+  #destroyed = false;
+
+  constructor() {
+    const cleanup = () => {
+      this.destroy();
+    };
+    if (getOwner()) {
+      domOnCleanup(cleanup);
+    }
+    currentInjector
+      ?.get(DestroyRef, undefined, { optional: true })
+      ?.onDestroy(cleanup);
+  }
+
+  add(): () => void {
+    if (this.#destroyed) {
+      return () => {};
+    }
+    const token = Symbol("PendingTask");
+    this.#activeTasks.add(token);
+    untracked(() => {
+      this.#count.set(this.#activeTasks.size);
+    });
+    return () => {
+      if (this.#activeTasks.delete(token)) {
+        untracked(() => {
+          this.#count.set(this.#activeTasks.size);
+        });
+      }
+    };
+  }
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    const remove = this.add();
+    try {
+      return await fn();
+    } finally {
+      remove();
+    }
+  }
+
+  destroy(): void {
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+    this.#activeTasks.clear();
+    untracked(() => {
+      this.#count.set(0);
+    });
+  }
+}
+
+export { PendingTasks as ExperimentalPendingTasks };
+
+export function createPendingTasks(): PendingTasks {
+  return new PendingTasks();
+}
+
+export interface Type<T> extends Function {
+  new (...args: any[]): T;
+}
+
+export interface AbstractType<T> extends Function {
+  prototype: T;
+}
+
+export interface InjectionTokenOptions<T> {
+  providedIn?: "root" | "platform" | "any" | null;
+  factory?: () => T;
+}
+
+export class InjectionToken<T> {
+  readonly _desc: string;
+  readonly ɵprov?: {
+    token: InjectionToken<T>;
+    providedIn: "root" | "platform" | "any" | null;
+    factory: () => T;
+  };
+
+  constructor(desc: string, options?: InjectionTokenOptions<T>) {
+    this._desc = desc;
+    if (options?.factory) {
+      this.ɵprov = {
+        token: this,
+        providedIn:
+          options.providedIn === undefined ? "root" : options.providedIn,
+        factory: options.factory,
+      };
+    }
+  }
+
+  toString(): string {
+    return `InjectionToken ${this._desc}`;
+  }
+}
+
+export class HostAttributeToken {
+  readonly attributeName: string;
+
+  constructor(attributeName: string) {
+    this.attributeName = attributeName;
+  }
+
+  toString(): string {
+    return `HostAttributeToken ${this.attributeName}`;
+  }
+}
+
+export type ProviderToken<T> = Type<T> | AbstractType<T> | InjectionToken<T>;
+
+export interface InjectOptions {
+  optional?: boolean;
+  skipSelf?: boolean;
+  self?: boolean;
+  host?: boolean;
+}
+
+export interface ValueProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useValue: T;
+  multi?: boolean;
+}
+
+export interface FactoryProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useFactory: (...deps: any[]) => T;
+  deps?: any[];
+  multi?: boolean;
+}
+
+export interface ExistingProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useExisting: ProviderToken<T> | HostAttributeToken | string;
+  multi?: boolean;
+}
+
+export interface ClassProvider<T = any> {
+  provide: ProviderToken<T> | HostAttributeToken | string;
+  useClass: Type<T>;
+  deps?: any[];
+  multi?: boolean;
+}
+
+export interface ConstructorProvider<T = any> {
+  provide: Type<T>;
+  deps?: any[];
+  multi?: boolean;
+}
+
+export type StaticProvider =
+  | ValueProvider
+  | FactoryProvider
+  | ExistingProvider
+  | ClassProvider
+  | ConstructorProvider
+  | StaticProvider[];
+
+export interface EnvironmentProviders {
+  readonly ɵbrand: "EnvironmentProviders";
+  readonly providers: (Provider | EnvironmentProviders)[];
+}
+
+export type Provider =
+  | Type<any>
+  | ValueProvider
+  | FactoryProvider
+  | ExistingProvider
+  | ClassProvider
+  | ConstructorProvider
+  | EnvironmentProviders
+  | Provider[];
+
+export function makeEnvironmentProviders(
+  providers: (Provider | EnvironmentProviders)[],
+): EnvironmentProviders {
+  return {
+    ɵbrand: "EnvironmentProviders",
+    providers,
+  };
+}
+
+export const ENVIRONMENT_INITIALIZER = new InjectionToken<
+  readonly (() => void)[]
+>("ENVIRONMENT_INITIALIZER");
+
+export function provideEnvironmentInitializer(
+  initializerFn: () => void,
+): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    {
+      provide: ENVIRONMENT_INITIALIZER,
+      useValue: initializerFn,
+      multi: true,
+    },
+  ]);
+}
+
+function formatTokenName(token: unknown): string {
+  if (token instanceof InjectionToken || token instanceof HostAttributeToken) {
+    return token.toString();
+  }
+  if (typeof token === "function") {
+    return token.name || "AnonymousType";
+  }
+  return String(token);
+}
+
+const THROW_IF_NOT_FOUND_SYMBOL = Symbol("Injector.THROW_IF_NOT_FOUND");
+const UNINITIALIZED_RECORD = Symbol("Injector.UNINITIALIZED");
+
+export abstract class Injector {
+  static readonly THROW_IF_NOT_FOUND: symbol = THROW_IF_NOT_FOUND_SYMBOL;
+  static NULL: Injector;
+
+  static create(
+    options:
+      | {
+          providers: (Provider | EnvironmentProviders)[];
+          parent?: Injector;
+          name?: string;
+        }
+      | (Provider | EnvironmentProviders)[],
+    parent?: Injector,
+  ): EnvironmentInjector {
+    if (Array.isArray(options)) {
+      return createEnvironmentInjector(options, parent);
+    }
+    return createEnvironmentInjector(
+      options.providers,
+      options.parent ?? parent,
+      options.name,
+    );
+  }
+
+  abstract get<T>(
+    token: ProviderToken<T> | HostAttributeToken | string,
+    notFoundValue?: T,
+    options?: InjectOptions,
+  ): T;
+}
+
+class NullInjector extends Injector {
+  override get<T>(
+    token: ProviderToken<T> | HostAttributeToken | string,
+    notFoundValue: unknown = THROW_IF_NOT_FOUND_SYMBOL,
+    options?: InjectOptions,
+  ): T {
+    if (notFoundValue === THROW_IF_NOT_FOUND_SYMBOL) {
+      if (options?.optional) {
+        return null as unknown as T;
+      }
+      throw new Error(
+        `NG0201: No provider for ${formatTokenName(token)} found!`,
+      );
+    }
+    return notFoundValue as T;
+  }
+}
+
+Injector.NULL = new NullInjector();
+
+export abstract class EnvironmentInjector extends Injector {
+  abstract runInContext<ReturnT>(fn: () => ReturnT): ReturnT;
+  abstract destroy(): void;
+  abstract readonly destroyed: boolean;
+}
+
+type ProviderRecord = {
+  multi: boolean;
+  factory: () => any;
+  factories?: Array<() => any>;
+  value: any;
+};
+
+type InjectableDef<T = any> = {
+  providedIn?: "root" | "platform" | "any" | null;
+  factory: () => T;
+};
+
+function getInjectableDef<T>(token: unknown): InjectableDef<T> | undefined {
+  if (
+    (typeof token === "object" || typeof token === "function") &&
+    token !== null &&
+    "ɵprov" in token
+  ) {
+    const prov = (token as { ɵprov?: InjectableDef<T> }).ɵprov;
+    if (prov && typeof prov.factory === "function") {
+      return prov;
+    }
+  }
+  return undefined;
+}
+
+class NativeEnvironmentInjector extends EnvironmentInjector {
+  readonly #records = new Map<unknown, ProviderRecord>();
+  readonly #hostAttrs = new Map<string, string>();
+  readonly #instantiating = new Set<unknown>();
+  readonly #parent: Injector;
+  readonly #isRoot: boolean;
+  readonly #destroyRef: NativeDestroyRef;
+  readonly debugName?: string;
+
+  constructor(
+    providers: (Provider | EnvironmentProviders)[],
+    parent?: Injector,
+    debugName?: string,
+    isRoot = false,
+  ) {
+    super();
+    this.#parent = parent ?? Injector.NULL;
+    this.#isRoot = isRoot || !(parent instanceof NativeEnvironmentInjector);
+    this.debugName = debugName;
+    this.#destroyRef = new NativeDestroyRef(true);
+
+    this.#records.set(Injector, {
+      multi: false,
+      factory: () => this,
+      value: this,
+    });
+    this.#records.set(EnvironmentInjector, {
+      multi: false,
+      factory: () => this,
+      value: this,
+    });
+    this.#records.set(DestroyRef, {
+      multi: false,
+      factory: () => this.#destroyRef,
+      value: this.#destroyRef,
+    });
+
+    this.#registerProviders(providers);
+  }
+
+  override get destroyed(): boolean {
+    return this.#destroyRef.destroyed;
+  }
+
+  override runInContext<ReturnT>(fn: () => ReturnT): ReturnT {
+    if (this.#destroyRef.destroyed) {
+      throw new Error("NG0205: Injector has already been destroyed.");
+    }
+    return runInInjectionContext(this, fn);
+  }
+
+  override destroy(): void {
+    this.#destroyRef.destroy();
+  }
+
+  #resolveDeps(deps?: any[]): any[] {
+    if (!deps || deps.length === 0) return [];
+    return deps.map((depEntry) => {
+      if (Array.isArray(depEntry)) {
+        let opts: InjectOptions = {};
+        let token: any;
+        for (const item of depEntry) {
+          if (
+            item &&
+            typeof item === "object" &&
+            !(item instanceof InjectionToken) &&
+            !(item instanceof HostAttributeToken)
+          ) {
+            opts = { ...opts, ...item };
+          } else {
+            token = item;
+          }
+        }
+        return this.get(token, undefined, opts);
+      }
+      return this.get(depEntry);
+    });
+  }
+
+  #createProviderFactory(
+    provider: Exclude<Provider, Provider[] | EnvironmentProviders>,
+  ): () => any {
+    if (typeof provider === "function") {
+      const def = getInjectableDef(provider);
+      if (def) {
+        return () => runInInjectionContext(this, def.factory);
+      }
+      return () =>
+        runInInjectionContext(this, () => new (provider as Type<any>)());
+    }
+    if ("useValue" in provider) {
+      return () => provider.useValue;
+    }
+    if ("useFactory" in provider) {
+      return () =>
+        runInInjectionContext(this, () => {
+          const resolved = this.#resolveDeps(provider.deps);
+          return provider.useFactory(...resolved);
+        });
+    }
+    if ("useExisting" in provider) {
+      return () => this.get(provider.useExisting);
+    }
+    if ("useClass" in provider) {
+      return () =>
+        runInInjectionContext(this, () => {
+          const resolved = this.#resolveDeps(provider.deps);
+          return new provider.useClass(...resolved);
+        });
+    }
+    return () =>
+      runInInjectionContext(this, () => {
+        const resolved = this.#resolveDeps(provider.deps);
+        return new provider.provide(...resolved);
+      });
+  }
+
+  #registerProviders(providers: (Provider | EnvironmentProviders)[]): void {
+    for (const entry of providers) {
+      if (!entry) continue;
+      if (Array.isArray(entry)) {
+        this.#registerProviders(entry);
+        continue;
+      }
+      if (typeof entry === "object" && "ɵbrand" in entry) {
+        this.#registerProviders(entry.providers);
+        continue;
+      }
+      const token = typeof entry === "function" ? entry : entry.provide;
+      const isMulti = typeof entry === "object" && Boolean(entry.multi);
+      const factory = this.#createProviderFactory(entry);
+
+      if (
+        token instanceof HostAttributeToken &&
+        typeof entry === "object" &&
+        "useValue" in entry
+      ) {
+        this.#hostAttrs.set(token.attributeName, String(entry.useValue));
+      }
+
+      if (isMulti) {
+        let existing = this.#records.get(token);
+        if (!existing || !existing.multi) {
+          existing = {
+            multi: true,
+            factory: () => existing!.factories!.map((f) => f()),
+            factories: [],
+            value: UNINITIALIZED_RECORD,
+          };
+          this.#records.set(token, existing);
+        }
+        existing.factories!.push(factory);
+      } else {
+        this.#records.set(token, {
+          multi: false,
+          factory,
+          value: UNINITIALIZED_RECORD,
+        });
+      }
+    }
+  }
+
+  #resolveRecord<T>(token: unknown, record: ProviderRecord): T {
+    if (record.value !== UNINITIALIZED_RECORD) {
+      return record.value as T;
+    }
+    if (this.#instantiating.has(token)) {
+      throw new Error(
+        `NG0200: Circular dependency in DI detected for ${formatTokenName(token)}.`,
+      );
+    }
+    this.#instantiating.add(token);
+    try {
+      const value = record.factory();
+      record.value = value;
+      return value as T;
+    } finally {
+      this.#instantiating.delete(token);
+    }
+  }
+
+  override get<T>(
+    token: ProviderToken<T> | HostAttributeToken | string,
+    notFoundValue: unknown = THROW_IF_NOT_FOUND_SYMBOL,
+    options?: InjectOptions,
+  ): T {
+    if (options?.skipSelf) {
+      if (options.self) {
+        return Injector.NULL.get(token, notFoundValue as T, options);
+      }
+      const nextOpts: InjectOptions = { ...options, skipSelf: false };
+      return this.#parent.get(token, notFoundValue as T, nextOpts);
+    }
+
+    if (
+      token instanceof HostAttributeToken &&
+      this.#hostAttrs.has(token.attributeName)
+    ) {
+      return this.#hostAttrs.get(token.attributeName) as unknown as T;
+    }
+
+    const record = this.#records.get(token);
+    if (record) {
+      return this.#resolveRecord<T>(token, record);
+    }
+
+    const def = getInjectableDef<T>(token);
+    if (def && !options?.self) {
+      if (
+        def.providedIn === "any" ||
+        (this.#isRoot &&
+          (def.providedIn === "root" || def.providedIn === "platform"))
+      ) {
+        const autoRecord: ProviderRecord = {
+          multi: false,
+          factory: () => runInInjectionContext(this, def.factory),
+          value: UNINITIALIZED_RECORD,
+        };
+        this.#records.set(token, autoRecord);
+        return this.#resolveRecord<T>(token, autoRecord);
+      }
+    }
+
+    if (options?.self) {
+      return Injector.NULL.get(token, notFoundValue as T, options);
+    }
+
+    return this.#parent.get(token, notFoundValue as T, options);
+  }
+}
+
+let currentInjector: Injector | undefined;
+let defaultRootInjector: NativeEnvironmentInjector | undefined;
+const ownerInjectors = new WeakMap<object, NativeEnvironmentInjector>();
+
+function getDefaultRootInjector(): NativeEnvironmentInjector {
+  if (!defaultRootInjector || defaultRootInjector.destroyed) {
+    defaultRootInjector = new NativeEnvironmentInjector(
+      [],
+      Injector.NULL,
+      "RootEnvironmentInjector",
+      true,
+    );
+  }
+  return defaultRootInjector;
+}
+
+export function getCurrentInjector(): Injector | undefined {
+  return currentInjector;
+}
+
+export function setCurrentInjector(
+  injector: Injector | undefined,
+): Injector | undefined {
+  const prev = currentInjector;
+  currentInjector = injector;
+  return prev;
+}
+
+export function runInInjectionContext<ReturnT>(
+  injector: Injector,
+  fn: () => ReturnT,
+): ReturnT {
+  if (injector instanceof EnvironmentInjector && injector.destroyed) {
+    throw new Error("NG0205: Injector has already been destroyed.");
+  }
+  const prev = setCurrentInjector(injector);
+  try {
+    return fn();
+  } finally {
+    setCurrentInjector(prev);
+  }
+}
+
+export function assertInInjectionContext(debugFn: Function): void {
+  if (!currentInjector && !getOwner()) {
+    const name = debugFn?.name || "Function";
+    throw new Error(
+      `NG0203: ${name}() must be called from an injection context such as a constructor, a factory function, a field initializer, or a function used with \`runInInjectionContext\`.`,
+    );
+  }
+}
+
+export function createEnvironmentInjector(
+  providers: (Provider | EnvironmentProviders)[],
+  parent?: EnvironmentInjector | Injector,
+  debugName?: string,
+): EnvironmentInjector {
+  const resolvedParent = parent ?? getDefaultRootInjector();
+  const injector = new NativeEnvironmentInjector(
+    providers,
+    resolvedParent,
+    debugName,
+    !parent,
+  );
+  const initializers = injector.get(ENVIRONMENT_INITIALIZER, null, {
+    optional: true,
+    self: true,
+  });
+  if (Array.isArray(initializers)) {
+    for (const init of initializers) {
+      if (typeof init === "function") {
+        runInInjectionContext(injector, init);
+      }
+    }
+  }
+  return injector;
+}
+
+function resolveActiveInjectorForInject(): Injector {
+  if (currentInjector) {
+    return currentInjector;
+  }
+  const owner = getOwner();
+  if (!owner) {
+    throw new Error(
+      "NG0203: inject() must be called from an injection context such as a constructor, a factory function, a field initializer, or a function used with `runInInjectionContext`.",
+    );
+  }
+  let inj = ownerInjectors.get(owner);
+  if (!inj) {
+    const destroyRef = injectDestroyRef();
+    inj = new NativeEnvironmentInjector(
+      [{ provide: DestroyRef, useValue: destroyRef }],
+      getDefaultRootInjector(),
+      "OwnerEnvironmentInjector",
+      false,
+    );
+    ownerInjectors.set(owner, inj);
+  }
+  return inj;
+}
+
+export function inject<T>(token: ProviderToken<T>): T;
+export function inject<T>(
+  token: ProviderToken<T>,
+  options: InjectOptions & { optional?: false },
+): T;
+export function inject<T>(
+  token: ProviderToken<T>,
+  options: InjectOptions,
+): T | null;
+export function inject(
+  token: HostAttributeToken,
+  options?: InjectOptions & { optional?: false },
+): string;
+export function inject(
+  token: HostAttributeToken,
+  options: InjectOptions,
+): string | null;
+export function inject<T>(
+  token: ProviderToken<T> | HostAttributeToken,
+  options?: InjectOptions,
+): T | string | null {
+  const injector = resolveActiveInjectorForInject();
+  return injector.get(
+    token as ProviderToken<T>,
+    THROW_IF_NOT_FOUND_SYMBOL as unknown as T,
+    options,
+  );
+}
+
+export interface QueryOptions<ReadT = unknown> {
+  read?: ProviderToken<ReadT> | string;
+}
+
+export interface ContentChildOptions<
+  ReadT = unknown,
+> extends QueryOptions<ReadT> {
+  descendants?: boolean;
+}
+
+export type QueryKind =
+  "viewChild" | "viewChildren" | "contentChild" | "contentChildren";
+
+export interface QueryMetadata<LocatorT = unknown, ReadT = unknown> {
+  readonly kind: QueryKind;
+  readonly locator: ProviderToken<LocatorT> | string;
+  readonly read?: ProviderToken<ReadT> | string;
+  readonly descendants: boolean;
+  readonly required: boolean;
+}
+
+type QueryController = {
+  applyValue: (value: any) => void;
+  metadata: QueryMetadata<any, any>;
+};
+
+const queryControllers = new WeakMap<Function, QueryController>();
+
+function createSingleQuerySignal<LocatorT, ReadT>(
+  kind: "viewChild" | "contentChild",
+  locator: ProviderToken<LocatorT> | string,
+  required: boolean,
+  descendants: boolean,
+  options?: QueryOptions<ReadT>,
+): Signal<ReadT> {
+  let initialized = !required;
+  const backing = signal<ReadT | undefined>(undefined);
+  const metadata: QueryMetadata<LocatorT, ReadT> = Object.freeze({
+    kind,
+    locator,
+    read: options?.read,
+    descendants,
+    required,
+  });
+
+  const read = (() => {
+    const current = backing();
+    if (required && (!initialized || current === undefined)) {
+      throw new Error(
+        `NG0951: Child query result is required, but no value is available (${formatTokenName(locator)}).`,
+      );
+    }
+    return current as ReadT;
+  }) as Signal<ReadT>;
+
+  signals.add(read);
+  queryControllers.set(read, {
+    metadata,
+    applyValue(nextValue: ReadT | undefined) {
+      initialized = true;
+      backing.set(nextValue);
+    },
+  });
+  return read;
+}
+
+function createMultiQuerySignal<LocatorT, ReadT>(
+  kind: "viewChildren" | "contentChildren",
+  locator: ProviderToken<LocatorT> | string,
+  descendants: boolean,
+  options?: QueryOptions<ReadT>,
+): Signal<readonly ReadT[]> {
+  const emptyList: readonly ReadT[] = Object.freeze([]);
+  const backing = signal<readonly ReadT[]>(emptyList);
+  const metadata: QueryMetadata<LocatorT, ReadT> = Object.freeze({
+    kind,
+    locator,
+    read: options?.read,
+    descendants,
+    required: false,
+  });
+
+  const read = (() => backing()) as Signal<readonly ReadT[]>;
+  signals.add(read);
+  queryControllers.set(read, {
+    metadata,
+    applyValue(nextValues: readonly ReadT[]) {
+      const normalized = Array.isArray(nextValues)
+        ? Object.freeze(Array.from(nextValues))
+        : emptyList;
+      backing.set(normalized);
+    },
+  });
+  return read;
+}
+
+export interface ViewChildFunction {
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+  ): Signal<LocatorT | undefined>;
+  <LocatorT, ReadT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts: QueryOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+  ): Signal<ReadT | undefined>;
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: QueryOptions<LocatorT>,
+  ): Signal<LocatorT | undefined>;
+  required: {
+    <LocatorT>(locator: ProviderToken<LocatorT> | string): Signal<LocatorT>;
+    <LocatorT, ReadT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts: QueryOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+    ): Signal<ReadT>;
+    <LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: QueryOptions<LocatorT>,
+    ): Signal<LocatorT>;
+  };
+}
+
+export const viewChild: ViewChildFunction = Object.assign(
+  function viewChildImpl<LocatorT, ReadT = LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: QueryOptions<ReadT>,
+  ): Signal<ReadT | undefined> {
+    return createSingleQuerySignal<LocatorT, ReadT | undefined>(
+      "viewChild",
+      locator,
+      false,
+      true,
+      opts as QueryOptions<ReadT | undefined>,
+    );
+  },
+  {
+    required<LocatorT, ReadT = LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: QueryOptions<ReadT>,
+    ): Signal<ReadT> {
+      return createSingleQuerySignal<LocatorT, ReadT>(
+        "viewChild",
+        locator,
+        true,
+        true,
+        opts,
+      );
+    },
+  },
+) as ViewChildFunction;
+
+export function viewChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+): Signal<readonly LocatorT[]>;
+export function viewChildren<LocatorT, ReadT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts: QueryOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+): Signal<readonly ReadT[]>;
+export function viewChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: QueryOptions<LocatorT>,
+): Signal<readonly LocatorT[]>;
+export function viewChildren<LocatorT, ReadT = LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: QueryOptions<ReadT>,
+): Signal<readonly ReadT[]> {
+  return createMultiQuerySignal<LocatorT, ReadT>(
+    "viewChildren",
+    locator,
+    true,
+    opts,
+  );
+}
+
+export interface ContentChildFunction {
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+  ): Signal<LocatorT | undefined>;
+  <LocatorT, ReadT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts: ContentChildOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+  ): Signal<ReadT | undefined>;
+  <LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: ContentChildOptions<LocatorT>,
+  ): Signal<LocatorT | undefined>;
+  required: {
+    <LocatorT>(locator: ProviderToken<LocatorT> | string): Signal<LocatorT>;
+    <LocatorT, ReadT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts: ContentChildOptions<ReadT> & {
+        read: ProviderToken<ReadT> | string;
+      },
+    ): Signal<ReadT>;
+    <LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: ContentChildOptions<LocatorT>,
+    ): Signal<LocatorT>;
+  };
+}
+
+export const contentChild: ContentChildFunction = Object.assign(
+  function contentChildImpl<LocatorT, ReadT = LocatorT>(
+    locator: ProviderToken<LocatorT> | string,
+    opts?: ContentChildOptions<ReadT>,
+  ): Signal<ReadT | undefined> {
+    return createSingleQuerySignal<LocatorT, ReadT | undefined>(
+      "contentChild",
+      locator,
+      false,
+      opts?.descendants ?? true,
+      opts as QueryOptions<ReadT | undefined>,
+    );
+  },
+  {
+    required<LocatorT, ReadT = LocatorT>(
+      locator: ProviderToken<LocatorT> | string,
+      opts?: ContentChildOptions<ReadT>,
+    ): Signal<ReadT> {
+      return createSingleQuerySignal<LocatorT, ReadT>(
+        "contentChild",
+        locator,
+        true,
+        opts?.descendants ?? true,
+        opts,
+      );
+    },
+  },
+) as ContentChildFunction;
+
+export function contentChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+): Signal<readonly LocatorT[]>;
+export function contentChildren<LocatorT, ReadT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts: ContentChildOptions<ReadT> & { read: ProviderToken<ReadT> | string },
+): Signal<readonly ReadT[]>;
+export function contentChildren<LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: ContentChildOptions<LocatorT>,
+): Signal<readonly LocatorT[]>;
+export function contentChildren<LocatorT, ReadT = LocatorT>(
+  locator: ProviderToken<LocatorT> | string,
+  opts?: ContentChildOptions<ReadT>,
+): Signal<readonly ReadT[]> {
+  return createMultiQuerySignal<LocatorT, ReadT>(
+    "contentChildren",
+    locator,
+    opts?.descendants ?? false,
+    opts,
+  );
+}
+
+export function applyQueryValue<T>(target: Signal<T>, value: T): void {
+  const ctrl = queryControllers.get(target);
+  if (!ctrl) {
+    throw new TypeError("Target is not an Angular signal query");
+  }
+  ctrl.applyValue(value);
+}
+
+export function getQueryMetadata(
+  target: Signal<unknown>,
+): QueryMetadata | undefined {
+  return queryControllers.get(target)?.metadata;
 }
