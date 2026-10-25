@@ -70,7 +70,7 @@ describe("escapeHtml", () => {
     expect(escapeHtml("2 > 1")).toBe("2 &gt; 1");
   });
 
-  test("escapes double quote (\")", () => {
+  test('escapes double quote (")', () => {
     expect(escapeHtml('say "hello"')).toBe("say &quot;hello&quot;");
   });
 
