@@ -210,3 +210,43 @@ test("disposal settles every invalidation waiter without waiting for ignored abo
   expect(await second).toBeUndefined();
   expect(router.submitting.peek()).toBe(false);
 });
+
+test("a thrown error during a superseded or disposed load does not overwrite the router state", async () => {
+  let rejectLoad!: (err: Error) => void;
+  let calls = 0;
+  const router = createDataRouter(() => {
+    calls++;
+    if (calls === 1) {
+      return new Promise<string>((_, reject) => {
+        rejectLoad = reject;
+      });
+    }
+    return new Promise<string>(() => {});
+  }, "/");
+
+  const stateBefore = router.data.peek();
+  await tick(); // let the first load start
+
+  // supersede the load
+  void router.invalidate();
+
+  rejectLoad(new Error("should be ignored"));
+  await tick();
+  expect(router.data.peek()).toEqual(stateBefore);
+
+  let rejectDisposedLoad!: (err: Error) => void;
+  const router2 = createDataRouter(
+    () =>
+      new Promise<string>((_, reject) => {
+        rejectDisposedLoad = reject;
+      }),
+    "/",
+  );
+  const stateBefore2 = router2.data.peek();
+  await tick(); // let the disposed load start
+
+  router2.dispose();
+  rejectDisposedLoad(new Error("should be ignored"));
+  await tick();
+  expect(router2.data.peek()).toEqual(stateBefore2);
+});
