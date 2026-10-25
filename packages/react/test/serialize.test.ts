@@ -74,7 +74,7 @@ describe("escapeHtml", () => {
 
   test("escapes characters within normal text", () => {
     expect(escapeHtml("Hello <World> & 'Universe'!")).toBe(
-      "Hello &lt;World&gt; &amp; &#x27;Universe&#x27;!"
+      "Hello &lt;World&gt; &amp; &#x27;Universe&#x27;!",
     );
   });
 
