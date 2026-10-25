@@ -86,3 +86,19 @@ test("legacy external registrations still copy to their declared destination", a
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("broken symlinks cause copyAsset to reject", async () => {
+  const root = await mkdtemp(join(tmpdir(), "moonshine-copy-broken-link-"));
+  try {
+    await mkdir(join(root, "public"));
+    await symlink(
+      join(root, "non-existent.js"),
+      join(root, "public/broken.js"),
+    );
+    await expect(
+      copyAsset({ file: "public/broken.js", path: "/broken.js" }, root),
+    ).rejects.toThrow("ENOENT");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
