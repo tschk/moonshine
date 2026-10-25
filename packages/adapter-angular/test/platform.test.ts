@@ -1191,6 +1191,7 @@ describe("@tschk/moonshine-angular/platform", () => {
         return `${this.svc.prefix}${String(val)}${suffix}`;
       }
     }
+    void TaggerPipe;
 
     @Directive({
       selector: "[appHighlight]",
