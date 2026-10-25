@@ -63,6 +63,18 @@ describe("isContained", () => {
     // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
     realpathSpy.mockRestore();
   });
+
+  test("returns false for a directory that shares a prefix with the root", () => {
+    const siblingDir = resolve(tmpDir, "public-sibling");
+    mkdirSync(siblingDir, { recursive: true });
+    try {
+      const siblingFile = resolve(siblingDir, "ok.txt");
+      writeFileSync(siblingFile, "ok");
+      expect(isContained(staticDir, siblingFile)).toBe(false);
+    } finally {
+      rmSync(siblingDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("tryServeStatic", () => {
