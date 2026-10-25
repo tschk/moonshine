@@ -399,7 +399,8 @@ export function useAsyncData<ResT, DataT = ResT, ErrorT = Error>(
 export function useAsyncData<ResT, DataT = ResT, ErrorT = Error>(
   keyOrHandler: string | (() => Promise<ResT> | ResT),
   handlerOrOptions?:
-    (() => Promise<ResT> | ResT) | AsyncDataOptions<ResT, DataT>,
+    | (() => Promise<ResT> | ResT)
+    | AsyncDataOptions<ResT, DataT>,
   maybeOptions?: AsyncDataOptions<ResT, DataT>,
 ): AsyncData<DataT, ErrorT> {
   const store = resolveScopeStore();
@@ -611,7 +612,8 @@ export function useLazyAsyncData<ResT, DataT = ResT, ErrorT = Error>(
 export function useLazyAsyncData<ResT, DataT = ResT, ErrorT = Error>(
   keyOrHandler: string | (() => Promise<ResT> | ResT),
   handlerOrOptions?:
-    (() => Promise<ResT> | ResT) | Omit<AsyncDataOptions<ResT, DataT>, "lazy">,
+    | (() => Promise<ResT> | ResT)
+    | Omit<AsyncDataOptions<ResT, DataT>, "lazy">,
   maybeOptions?: Omit<AsyncDataOptions<ResT, DataT>, "lazy">,
 ): AsyncData<DataT, ErrorT> {
   if (typeof keyOrHandler === "string") {
@@ -2329,7 +2331,10 @@ export function resolveHeadTags(): ResolvedHead {
   const store = resolveScopeStore();
   let rawTitle: string | undefined;
   let titleTemplate:
-    string | ((title?: string) => string | null) | null | undefined;
+    | string
+    | ((title?: string) => string | null)
+    | null
+    | undefined;
   let base: Record<string, any> | undefined;
   const link: Array<Record<string, any>> = [];
   const metaMap = new Map<string, Record<string, any>>();
@@ -2824,11 +2829,11 @@ function createHooksRegistry(): NuxtHooks {
   };
 }
 
-function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
-  const extraData: Record<string, any> = {};
-  const extraErrors: Record<string, any> = {};
-
-  const dataProxy = new Proxy(extraData, {
+function createDataProxy(
+  store: NuxtScopeStore,
+  extraData: Record<string, any>,
+) {
+  return new Proxy(extraData, {
     get(target, prop) {
       if (typeof prop === "string" && store.asyncData.has(prop)) {
         return store.asyncData.get(prop)!.data.value;
@@ -2865,8 +2870,10 @@ function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
       return Reflect.getOwnPropertyDescriptor(target, prop);
     },
   });
+}
 
-  const stateProxy = new Proxy({} as Record<string, any>, {
+function createStateProxy(store: NuxtScopeStore) {
+  return new Proxy({} as Record<string, any>, {
     get(_target, prop) {
       if (typeof prop === "string" && store.state.has(prop)) {
         return store.state.get(prop)!.value;
@@ -2903,8 +2910,13 @@ function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
       return undefined;
     },
   });
+}
 
-  const errorsProxy = new Proxy(extraErrors, {
+function createErrorsProxy(
+  store: NuxtScopeStore,
+  extraErrors: Record<string, any>,
+) {
+  return new Proxy(extraErrors, {
     get(target, prop) {
       if (typeof prop === "string" && store.asyncData.has(prop)) {
         return store.asyncData.get(prop)!.error.value;
@@ -2919,11 +2931,16 @@ function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
       return Reflect.set(target, prop, value);
     },
   });
+}
+
+function createNuxtPayload(store: NuxtScopeStore): NuxtPayload {
+  const extraData: Record<string, any> = {};
+  const extraErrors: Record<string, any> = {};
 
   return {
-    data: dataProxy,
-    state: stateProxy,
-    _errors: errorsProxy,
+    data: createDataProxy(store, extraData),
+    state: createStateProxy(store),
+    _errors: createErrorsProxy(store, extraErrors),
     serverRendered: Boolean(store.event || isSSRRendering()),
     get error() {
       return store.error?.value;
