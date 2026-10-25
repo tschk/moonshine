@@ -19,7 +19,7 @@ describe("escapeHtml", () => {
   });
 
   test("escapes double and single quotes", () => {
-    expect(escapeHtml("\"hello'world\"")).toBe("&quot;hello&#x27;world&quot;");
+    expect(escapeHtml('"hello\'world"')).toBe("&quot;hello&#x27;world&quot;");
   });
 
   test("escapes multiple occurrences", () => {
