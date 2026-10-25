@@ -68,7 +68,9 @@ describe("sourceAttributeValue", () => {
   test("returns strings immediately for static fast path", () => {
     expect(sourceAttributeValue("class", "button", false)).toBe("button");
     expect(sourceAttributeValue("class", "button", true)).toBe("button");
-    expect(sourceAttributeValue("disabled", "disabled", false)).toBe("disabled");
+    expect(sourceAttributeValue("disabled", "disabled", false)).toBe(
+      "disabled",
+    );
   });
 
   test("returns undefined for nullish values", () => {
@@ -100,7 +102,9 @@ describe("sourceAttributeValue", () => {
     expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
     expect(sourceAttributeValue("hidden", "", true)).toBe("");
     // "until-found" bypasses boolean logic and stringifies
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe("until-found");
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
   });
 
   test("handles translate attribute mapping", () => {
