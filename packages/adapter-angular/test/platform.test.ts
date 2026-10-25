@@ -1186,11 +1186,14 @@ describe("@tschk/moonshine-angular/platform", () => {
 
     @Pipe({ name: "tagger", standalone: true })
     class TaggerPipe {
+      _ = 1;
       svc = inject(PrefixService);
       transform(val: unknown, suffix = "!") {
         return `${this.svc.prefix}${String(val)}${suffix}`;
       }
     }
+    // Register pipe explicitly to avoid unused class warnings and ensure it's available for applyPipe
+    const env = createEnvironmentInjector([PrefixService, TaggerPipe]);
 
     @Directive({
       selector: "[appHighlight]",
@@ -1236,7 +1239,6 @@ describe("@tschk/moonshine-angular/platform", () => {
       }
     }
 
-    const env = createEnvironmentInjector([PrefixService]);
     env.runInContext(() => {
       const hostComp = {
         toggledEvents: [] as boolean[],
