@@ -11,7 +11,9 @@ describe("escapeHtml", () => {
   });
 
   test("escapes double and single quotes", () => {
-    expect(escapeHtml(`"hello" 'world'`)).toBe("&quot;hello&quot; &#x27;world&#x27;");
+    expect(escapeHtml(`"hello" 'world'`)).toBe(
+      "&quot;hello&quot; &#x27;world&#x27;",
+    );
   });
 
   test("escapes multiple special characters in a complex string", () => {
