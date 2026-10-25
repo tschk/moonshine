@@ -72,7 +72,7 @@ export function bindTextModel(
       if (!composing) return;
       composing = false;
       element.dispatchEvent(
-        new element.ownerDocument.defaultView!.Event("input"),
+        new Event("input"),
       );
     };
     listen("compositionend", end);

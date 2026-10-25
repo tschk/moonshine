@@ -77,12 +77,12 @@ describe("@tschk/moonshine-solid/web & primitives", () => {
         },
       },
       style: {
-        _cssText: "",
+        internalCssText: "",
         get cssText() {
-          return this._cssText;
+          return this.internalCssText;
         },
         set cssText(val: string) {
-          this._cssText = val;
+          this.internalCssText = val;
           styles.clear();
         },
         setProperty(k: string, v: string) {
