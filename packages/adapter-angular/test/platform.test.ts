@@ -163,7 +163,7 @@ import {
   withComponentInputBinding,
   withRouterConfig,
 } from "../src/router";
-import { input, model, output, viewChild, viewChildren } from "../src/signals";
+import { input, model, output } from "../src/signals";
 
 describe("@tschk/moonshine-angular/platform", () => {
   test("PLATFORM_ID, isPlatformBrowser, isPlatformServer, APP_ID, and DOCUMENT work via DI", () => {
@@ -1185,7 +1185,7 @@ describe("@tschk/moonshine-angular/platform", () => {
     }
 
     @Pipe({ name: "tagger", standalone: true })
-    class TaggerPipe {
+    class _TaggerPipe {
       svc = inject(PrefixService);
       transform(val: unknown, suffix = "!") {
         return `${this.svc.prefix}${String(val)}${suffix}`;

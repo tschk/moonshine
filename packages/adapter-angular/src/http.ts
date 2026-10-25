@@ -1269,7 +1269,7 @@ export interface HttpMethodNoBody {
     url: string,
     options: HttpRequestOptions & { observe: "events" },
   ): HttpObservable<HttpEvent<T>>;
-  <T = any>(url: string, options?: HttpRequestOptions): HttpObservable<any>;
+  <_T = any>(url: string, options?: HttpRequestOptions): HttpObservable<any>;
 }
 
 export interface HttpMethodWithBody {
@@ -1288,13 +1288,14 @@ export interface HttpMethodWithBody {
     body: any,
     options: HttpRequestOptions & { observe: "events" },
   ): HttpObservable<HttpEvent<T>>;
-  <T = any>(
+  <_T = any>(
     url: string,
     body: any,
     options?: HttpRequestOptions,
   ): HttpObservable<any>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export interface HttpClient {
   get: HttpMethodNoBody;
   delete: HttpMethodNoBody;
