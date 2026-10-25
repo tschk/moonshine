@@ -163,7 +163,7 @@ import {
   withComponentInputBinding,
   withRouterConfig,
 } from "../src/router";
-import { input, model, output, viewChild, viewChildren } from "../src/signals";
+import { input, model, output } from "../src/signals";
 
 describe("@tschk/moonshine-angular/platform", () => {
   test("PLATFORM_ID, isPlatformBrowser, isPlatformServer, APP_ID, and DOCUMENT work via DI", () => {
@@ -461,7 +461,7 @@ describe("@tschk/moonshine-angular/platform", () => {
       changed = new EventEmitter<number>();
 
       ngOnChanges(changes: Record<string, SimpleChange>) {
-        events.push(`changes:${Object.keys(changes).sort().join(",")}`);
+        events.push(`changes:${Object.keys(changes).toSorted().join(",")}`);
       }
       ngOnInit() {
         events.push(`init:${this.label()}:${this.step}`);
@@ -1184,6 +1184,7 @@ describe("@tschk/moonshine-angular/platform", () => {
       prefix = "TAG:";
     }
 
+    // @ts-ignore
     @Pipe({ name: "tagger", standalone: true })
     class TaggerPipe {
       svc = inject(PrefixService);
