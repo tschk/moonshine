@@ -637,14 +637,19 @@ export async function buildBundles(options: {
       ancestor = dirname(ancestor);
     }
   }
-  for (const asset of publicPaths) {
-    await mkdir(dirname(asset.destination), { recursive: true });
-    await copyFile(asset.source, asset.destination);
-    clientAssets.push({
-      file: toOutRelative(options.outDir, asset.destination),
-      path: asset.url,
-      integrity: await hashFile(asset.destination),
-    });
+  const newClientAssets = await Promise.all(
+    publicPaths.map(async (asset) => {
+      await mkdir(dirname(asset.destination), { recursive: true });
+      await copyFile(asset.source, asset.destination);
+      return {
+        file: toOutRelative(options.outDir, asset.destination),
+        path: asset.url,
+        integrity: await hashFile(asset.destination),
+      };
+    }),
+  );
+  for (const asset of newClientAssets) {
+    clientAssets.push(asset);
   }
 
   const routeClientEntries = Object.fromEntries(
