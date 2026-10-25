@@ -1256,6 +1256,56 @@ class DefaultHttpHandler implements HttpHandler {
 /**
  * Host-free Angular `HttpClient` service with functional & class-based interceptor support.
  */
+export interface HttpMethodNoBody {
+  <T = any>(
+    url: string,
+    options?: HttpRequestOptions & { observe?: "body" },
+  ): HttpObservable<T>;
+  <T = any>(
+    url: string,
+    options: HttpRequestOptions & { observe: "response" },
+  ): HttpObservable<HttpResponse<T>>;
+  <T = any>(
+    url: string,
+    options: HttpRequestOptions & { observe: "events" },
+  ): HttpObservable<HttpEvent<T>>;
+  <T = any>(url: string, options?: HttpRequestOptions): HttpObservable<any>;
+}
+
+export interface HttpMethodWithBody {
+  <T = any>(
+    url: string,
+    body: any,
+    options?: HttpRequestOptions & { observe?: "body" },
+  ): HttpObservable<T>;
+  <T = any>(
+    url: string,
+    body: any,
+    options: HttpRequestOptions & { observe: "response" },
+  ): HttpObservable<HttpResponse<T>>;
+  <T = any>(
+    url: string,
+    body: any,
+    options: HttpRequestOptions & { observe: "events" },
+  ): HttpObservable<HttpEvent<T>>;
+  <T = any>(
+    url: string,
+    body: any,
+    options?: HttpRequestOptions,
+  ): HttpObservable<any>;
+}
+
+export interface HttpClient {
+  get: HttpMethodNoBody;
+  delete: HttpMethodNoBody;
+  head: HttpMethodNoBody;
+  options: HttpMethodNoBody;
+
+  post: HttpMethodWithBody;
+  put: HttpMethodWithBody;
+  patch: HttpMethodWithBody;
+}
+
 export class HttpClient {
   static ɵprov = {
     token: HttpClient,
@@ -1350,148 +1400,29 @@ export class HttpClient {
     });
   }
 
-  get<T = any>(
-    url: string,
-    options?: HttpRequestOptions & { observe?: "body" },
-  ): HttpObservable<T>;
-  get<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "response" },
-  ): HttpObservable<HttpResponse<T>>;
-  get<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "events" },
-  ): HttpObservable<HttpEvent<T>>;
-  get<T = any>(url: string, options?: HttpRequestOptions): HttpObservable<any> {
-    return this.request<T>("GET", url, options as any);
-  }
-
-  delete<T = any>(
-    url: string,
-    options?: HttpRequestOptions & { observe?: "body" },
-  ): HttpObservable<T>;
-  delete<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "response" },
-  ): HttpObservable<HttpResponse<T>>;
-  delete<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "events" },
-  ): HttpObservable<HttpEvent<T>>;
-  delete<T = any>(
-    url: string,
-    options?: HttpRequestOptions,
-  ): HttpObservable<any> {
-    return this.request<T>("DELETE", url, options as any);
-  }
-
-  head<T = any>(
-    url: string,
-    options?: HttpRequestOptions & { observe?: "body" },
-  ): HttpObservable<T>;
-  head<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "response" },
-  ): HttpObservable<HttpResponse<T>>;
-  head<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "events" },
-  ): HttpObservable<HttpEvent<T>>;
-  head<T = any>(
-    url: string,
-    options?: HttpRequestOptions,
-  ): HttpObservable<any> {
-    return this.request<T>("HEAD", url, options as any);
-  }
-
-  options<T = any>(
-    url: string,
-    options?: HttpRequestOptions & { observe?: "body" },
-  ): HttpObservable<T>;
-  options<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "response" },
-  ): HttpObservable<HttpResponse<T>>;
-  options<T = any>(
-    url: string,
-    options: HttpRequestOptions & { observe: "events" },
-  ): HttpObservable<HttpEvent<T>>;
-  options<T = any>(
-    url: string,
-    options?: HttpRequestOptions,
-  ): HttpObservable<any> {
-    return this.request<T>("OPTIONS", url, options as any);
-  }
-
-  post<T = any>(
-    url: string,
-    body: any,
-    options?: HttpRequestOptions & { observe?: "body" },
-  ): HttpObservable<T>;
-  post<T = any>(
-    url: string,
-    body: any,
-    options: HttpRequestOptions & { observe: "response" },
-  ): HttpObservable<HttpResponse<T>>;
-  post<T = any>(
-    url: string,
-    body: any,
-    options: HttpRequestOptions & { observe: "events" },
-  ): HttpObservable<HttpEvent<T>>;
-  post<T = any>(
-    url: string,
-    body: any,
-    options?: HttpRequestOptions,
-  ): HttpObservable<any> {
-    return this.request<T>("POST", url, { ...options, body } as any);
-  }
-
-  put<T = any>(
-    url: string,
-    body: any,
-    options?: HttpRequestOptions & { observe?: "body" },
-  ): HttpObservable<T>;
-  put<T = any>(
-    url: string,
-    body: any,
-    options: HttpRequestOptions & { observe: "response" },
-  ): HttpObservable<HttpResponse<T>>;
-  put<T = any>(
-    url: string,
-    body: any,
-    options: HttpRequestOptions & { observe: "events" },
-  ): HttpObservable<HttpEvent<T>>;
-  put<T = any>(
-    url: string,
-    body: any,
-    options?: HttpRequestOptions,
-  ): HttpObservable<any> {
-    return this.request<T>("PUT", url, { ...options, body } as any);
-  }
-
-  patch<T = any>(
-    url: string,
-    body: any,
-    options?: HttpRequestOptions & { observe?: "body" },
-  ): HttpObservable<T>;
-  patch<T = any>(
-    url: string,
-    body: any,
-    options: HttpRequestOptions & { observe: "response" },
-  ): HttpObservable<HttpResponse<T>>;
-  patch<T = any>(
-    url: string,
-    body: any,
-    options: HttpRequestOptions & { observe: "events" },
-  ): HttpObservable<HttpEvent<T>>;
-  patch<T = any>(
-    url: string,
-    body: any,
-    options?: HttpRequestOptions,
-  ): HttpObservable<any> {
-    return this.request<T>("PATCH", url, { ...options, body } as any);
-  }
 }
+
+for (const method of ["GET", "DELETE", "HEAD", "OPTIONS"] as const) {
+  (HttpClient.prototype as any)[method.toLowerCase()] = function (
+    this: HttpClient,
+    url: string,
+    options?: HttpRequestOptions,
+  ) {
+    return this.request(method, url, options as any);
+  };
+}
+
+for (const method of ["POST", "PUT", "PATCH"] as const) {
+  (HttpClient.prototype as any)[method.toLowerCase()] = function (
+    this: HttpClient,
+    url: string,
+    body: any,
+    options?: HttpRequestOptions,
+  ) {
+    return this.request(method, url, { ...options, body } as any);
+  };
+}
+
 
 export type HttpFeatureKind = "interceptors" | "legacy_interceptors" | "fetch";
 
