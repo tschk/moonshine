@@ -221,6 +221,44 @@ describe("island hydration scheduling", () => {
     expect(hydrate).toHaveBeenCalledTimes(1);
   });
 
+  test("reports failed module imports and falls back on console.error when reportError is unavailable", async () => {
+    const markerEl = marker();
+    const modules = document.querySelector(
+      "script[data-moonshine-island-modules]",
+    )!;
+    modules.textContent = JSON.stringify({
+      counter: "./missing-island-fixture.tsx",
+    });
+
+    const originalReportError = scope.reportError;
+    const consoleError = spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      scope.reportError = undefined;
+      const hydrate = hydrationSpy();
+      dispose = hydrateIslands();
+      await flush();
+
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError.mock.calls[0]![0]).toBe("Moonshine island hydration failed");
+      expect(hydrate).not.toHaveBeenCalled();
+
+      // Verify state cleanup by calling hydrateIslands again
+      // If cleanup didn't happen, the marker would be skipped
+      // Note: we can't easily assert on hydrationStates since it's unexported
+      modules.textContent = JSON.stringify({
+        counter: new URL("./fixtures/Counter.tsx", import.meta.url).href,
+      });
+      const disposeAgain = hydrateIslands();
+      await flush();
+      expect(hydrate).toHaveBeenCalledTimes(1);
+      disposeAgain();
+    } finally {
+      scope.reportError = originalReportError;
+      consoleError.mockRestore();
+    }
+  });
+
   test("a visible island reuses SSR markup and handles a real counter click", async () => {
     const element = marker("visible");
     const button = element.querySelector("button")!;
