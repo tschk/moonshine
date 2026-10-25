@@ -73,7 +73,7 @@ describe("escapeHtml", () => {
 
   test("escapes mixed special characters", () => {
     expect(escapeHtml('<script>alert("xss & fun")</script>')).toBe(
-      "&lt;script&gt;alert(&quot;xss &amp; fun&quot;)&lt;/script&gt;"
+      "&lt;script&gt;alert(&quot;xss &amp; fun&quot;)&lt;/script&gt;",
     );
   });
 });
