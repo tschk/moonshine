@@ -4,7 +4,7 @@ Moonshine is a hyperminimal, Bun-first UI runtime built around a signal-only
 kernel. Start with signals; add only the compiler, routing, rendering, server,
 and deployment layers your project needs, then ship to Bun, Node, Cloudflare, or
 Vercel. `.crepus` templates are parsed by the crepuscularity Rust parser
-compiled to WebAssembly and rendered through React or independent native factories, with template class
+compiled to WebAssembly and rendered to React or Solid, with template class
 tokens preserved so UnoCSS or Tailwind styles the output.
 
 ```bash
@@ -15,30 +15,30 @@ bun run moonshine -- inspect
 
 ## What you get
 
-| Package                              | Role                                                           |
-| ------------------------------------ | -------------------------------------------------------------- |
-| `@tschk/moonshine`                   | Signal-only kernel                                             |
-| `@tschk/moonshine-router`            | Renderer-neutral route graph and matcher                       |
-| `@tschk/moonshine-server`            | Request pipeline, loaders, actions, middleware, static files   |
-| `@tschk/moonshine-compiler`          | Filesystem discovery, analysis, bundles, and manifest          |
-| `@tschk/moonshine-framework`         | Public contracts: routes, manifest, renderer, adapter, config  |
-| `@tschk/moonshine-react`             | React SSR, streaming, islands, and hydration                   |
-| `@tschk/moonshine-solid`             | Independent replacement for supported Solid APIs and static IR |
-| `@tschk/moonshine-svelte`            | Independent stores, native lifecycle, and signal bridges       |
-| `@tschk/moonshine-vue`               | Native composition APIs + optional legacy Vue entries          |
-| `@tschk/moonshine-angular`           | Native bridges/renderer; legacy Angular subpaths               |
-| `@tschk/moonshine-astro`             | Native bridges/renderer; legacy Astro compiler                 |
-| `@tschk/moonshine-nuxt`              | Native bridges/renderer; legacy Nuxt/Vue subpaths              |
-| `@tschk/crepus-moonshine`            | `.crepus` parsing (Rust parser via WASM) and View IR renderer  |
-| `@tschk/moonshine-cli`               | `new`, `adopt`, `dev`, `build`, `preview`, `inspect`           |
-| `@tschk/moonshine-next`              | Next.js API reimplemented on moonshine (no `next` dependency)  |
-| `@tschk/moonshine-react-router`      | react-router / Remix client API reimplemented on moonshine     |
-| `@tschk/moonshine-tanstack`          | TanStack Router / Start client API reimplemented on moonshine  |
-| `@tschk/moonshine-waku`              | Waku client router API reimplemented on moonshine              |
-| `@tschk/moonshine-deploy-bun`        | Bun server deployment                                          |
-| `@tschk/moonshine-deploy-node`       | Node HTTP deployment                                           |
-| `@tschk/moonshine-deploy-cloudflare` | Cloudflare Workers deployment                                  |
-| `@tschk/moonshine-deploy-vercel`     | Vercel functions, edge, and static output                      |
+| Package                              | Role                                                          |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `@tschk/moonshine`                   | Signal-only kernel                                            |
+| `@tschk/moonshine-router`            | Renderer-neutral route graph and matcher                      |
+| `@tschk/moonshine-server`            | Request pipeline, loaders, actions, middleware, static files  |
+| `@tschk/moonshine-compiler`          | Filesystem discovery, analysis, bundles, and manifest         |
+| `@tschk/moonshine-framework`         | Public contracts: routes, manifest, renderer, adapter, config |
+| `@tschk/moonshine-react`             | React SSR, streaming, islands, and hydration                  |
+| `@tschk/moonshine-solid`             | Solid renderer and signal bridges                             |
+| `@tschk/moonshine-svelte`            | Svelte hosting adapter (peer `svelte` + signal bridges)       |
+| `@tschk/moonshine-vue`               | Vue hosting adapter (peer `vue` + signal bridges)             |
+| `@tschk/moonshine-angular`           | Angular hosting adapter (peer `@angular/*` + signal bridges)  |
+| `@tschk/moonshine-astro`             | Astro hosting adapter (peer `astro` + signal bridges)         |
+| `@tschk/moonshine-nuxt`              | Nuxt hosting adapter (peer `nuxt`/`vue` + signal bridges)     |
+| `@tschk/crepus-moonshine`            | `.crepus` parsing (Rust parser via WASM) and View IR renderer |
+| `@tschk/moonshine-cli`               | `new`, `adopt`, `dev`, `build`, `preview`, `inspect`          |
+| `@tschk/moonshine-next`              | Next.js API reimplemented on moonshine (no `next` dependency) |
+| `@tschk/moonshine-react-router`      | react-router / Remix client API reimplemented on moonshine    |
+| `@tschk/moonshine-tanstack`          | TanStack Router / Start client API reimplemented on moonshine |
+| `@tschk/moonshine-waku`              | Waku client router API reimplemented on moonshine             |
+| `@tschk/moonshine-deploy-bun`        | Bun server deployment                                         |
+| `@tschk/moonshine-deploy-node`       | Node HTTP deployment                                          |
+| `@tschk/moonshine-deploy-cloudflare` | Cloudflare Workers deployment                                 |
+| `@tschk/moonshine-deploy-vercel`     | Vercel functions, edge, and static output                     |
 
 `@tschk/moonshine` still re-exports optional framework pieces on compatibility
 subpaths (`/react`, `/runes`, `/router`, `/server`, `/shaders`) during the
@@ -46,8 +46,8 @@ subpaths (`/react`, `/runes`, `/router`, `/server`, `/shaders`) during the
 
 ## Host adapters
 
-Adapters either replace supported APIs or host a library. The distinction decides
-whether the host package stays installed.
+There are two kinds, and the difference decides whether the host package stays
+installed.
 
 **Reimplementing** — `@tschk/moonshine-next`, `@tschk/moonshine-react-router`,
 `@tschk/moonshine-tanstack`, `@tschk/moonshine-waku`. Each one rewrites the
@@ -58,31 +58,11 @@ is only possible where the host's public API is plain React —
 `packages/core/test/adapters-contract.test.ts` enforces the no-import and
 no-dependency rules.
 
-**Independent Solid surface** — `@tschk/moonshine-solid` implements supported
-source-level APIs on Moonshine DOM, reactivity, and SSR without `solid-js`.
-Authored JSX must be recompiled through Crepus; existing Solid compiler output
-and hydration are unsupported.
-
-**Independent Svelte helpers** — `@tschk/moonshine-svelte` provides stores,
-native lifecycle, component context/events and signal bridges without `svelte`.
-Existing Svelte compiler output must be recompiled. The tested local Crepus source
-path supports ordinary deep state, snapshots, derived values, post-DOM effects,
-live/destructured props, await blocks, events, imported child components, native
-mount/unmount and function-local TypeScript/JavaScript companion factories.
-Coverage and remaining limits are
-tracked in [the SFC coverage ledger](docs/native-sfc-coverage.md).
-
-**Native Vue composition with legacy entries** — `@tschk/moonshine-vue` provides
-independent refs, computed values, tracked plain objects, synchronous watchers,
-and signal bridges without Vue. `/vue` and `/compiler-sfc` retain an optional
-Vue peer for their real host reexports. Native helpers do not implement Vue's
-VNode/compiler ABI or establish working `<script setup>` compilation.
-
-**Native roots with legacy host entries** — `@tschk/moonshine-angular`,
-`-astro`, `-nuxt` provide signal bridges, host-free runtime/composable/platform
-subpaths, and a lazy native source renderer without loading their hosts, React
-or parser WASM. Explicit legacy subpaths retain optional host peers. Source
-parsing and lowering belong in Crepuscularity.
+**Hosting** — `@tschk/moonshine-solid`, `-svelte`, `-vue`, `-angular`,
+`-astro`, `-nuxt`. The host's real runtime is a peer dependency, re-exported
+on subpaths alongside moonshine signal bridges. Required wherever the host's
+component format is compiled rather than written as React (Svelte, Vue,
+Angular, `.astro`, Nuxt); moonshine cannot replace that compiler.
 
 Each adapter's README lists its subpaths and, for the reimplementing ones, an
 explicit **Not supported** section. Read it before aliasing: RSC, loader/action
@@ -120,14 +100,12 @@ remapped through `compilerOptions.paths`, which Bun honours in both `bun run` an
 `Bun.build`. Svelte, Vue, Astro and Angular apps are adopted through
 crepuscularity's template frontends — each `.svelte`, `.vue`, `.astro` or Angular
 component template (`*.component.html`, `*.ng.html`, `*.ng`; never a plain
-`.html`) compiles through Crepus to a native SSR component. A generated module
-under `moonshine/routes/` or `moonshine/components/` renders it with explicit
-route scope, without a React or Svelte runtime.
+`.html`) compiles to the same View IR as `.crepus` and JSX, and a generated
+module under `moonshine/routes/` or `moonshine/components/` renders it with
+`@tschk/crepus-moonshine`.
 
-Svelte source support depends on the installed Crepus build; the verified
-rune/SFC subsets require native module-graph emission. Vue's Composition API,
-Astro's `---` frontmatter and the Angular component class are never executed by
-the template adoption path, and that logic
+Only markup is compiled: Svelte `<script>`, Vue's Composition API, Astro's `---`
+frontmatter and the Angular component class are never executed, and that logic
 has to be ported to moonshine signals. Unsupported constructs are parse errors
 reported per file — Astro rejects imported component tags, `<slot />`, spreads
 and `transition:*`, so a real Astro app usually adopts partially rather than
@@ -147,21 +125,15 @@ parallel and intercepting routes, image optimization, and component script logic
 ### Solid
 
 ```ts
-import { createSignal } from "@tschk/moonshine-solid/solid";
-import { render } from "@tschk/moonshine-solid/dom";
-import h from "@tschk/moonshine-solid/h";
+import { createSignal as solidSignal, For } from "@tschk/moonshine-solid/solid";
+import { parseCrepus } from "@tschk/crepus-moonshine";
+import { renderCrepusIrSolid } from "@tschk/moonshine-solid";
 
-render(() => {
-  const [count, setCount] = createSignal(0);
-  return h("button", { onClick: () => setCount(count() + 1) }, () => count());
-}, document.getElementById("app")!);
+const view = renderCrepusIrSolid(parseCrepus(source));
 ```
 
-These supported source-level APIs use the independent native runtime and require
-no Solid installation. Use the explicit `/ssr` entry for server factories and
-static View IR rendering. Recompile authored Solid JSX through Crepus; unsupported
-APIs must fail explicitly. Solid compiler instructions, hydration, and Suspense
-are not implemented.
+Class tokens from the template are emitted verbatim as `class`; the renderers
+never turn View IR style hints into inline CSS.
 
 ## Examples
 

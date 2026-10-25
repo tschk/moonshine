@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeIslandProps, escapeHtml } from "../src/serialize";
+import { serializeIslandProps } from "../src/serialize";
 
 describe("serializeIslandProps", () => {
   test("serializes shared, non-cyclic references", () => {
@@ -46,59 +46,5 @@ describe("serializeIslandProps", () => {
     // threw. Dropping a prop server-side that the client expects is a
     // hydration mismatch, so both paths now refuse the value.
     expect(() => serializeIslandProps({ [Symbol("k")]: 1 })).toThrow(/symbol/);
-  });
-});
-
-describe("escapeHtml", () => {
-  test("returns empty string for empty string input", () => {
-    expect(escapeHtml("")).toBe("");
-  });
-
-  test("returns regular strings unmodified", () => {
-    expect(escapeHtml("hello world")).toBe("hello world");
-    expect(escapeHtml("1234567890")).toBe("1234567890");
-  });
-
-  test("escapes ampersands", () => {
-    expect(escapeHtml("&")).toBe("&amp;");
-    expect(escapeHtml("a & b")).toBe("a &amp; b");
-    expect(escapeHtml("&&&")).toBe("&amp;&amp;&amp;");
-  });
-
-  test("escapes less-than signs", () => {
-    expect(escapeHtml("<")).toBe("&lt;");
-    expect(escapeHtml("1 < 2")).toBe("1 &lt; 2");
-    expect(escapeHtml("<<<")).toBe("&lt;&lt;&lt;");
-  });
-
-  test("escapes greater-than signs", () => {
-    expect(escapeHtml(">")).toBe("&gt;");
-    expect(escapeHtml("2 > 1")).toBe("2 &gt; 1");
-    expect(escapeHtml(">>>")).toBe("&gt;&gt;&gt;");
-  });
-
-  test("escapes double quotes", () => {
-    expect(escapeHtml('"')).toBe("&quot;");
-    expect(escapeHtml('hello "world"')).toBe("hello &quot;world&quot;");
-    expect(escapeHtml('"""')).toBe("&quot;&quot;&quot;");
-  });
-
-  test("escapes single quotes", () => {
-    expect(escapeHtml("'")).toBe("&#x27;");
-    expect(escapeHtml("hello 'world'")).toBe("hello &#x27;world&#x27;");
-    expect(escapeHtml("'''")).toBe("&#x27;&#x27;&#x27;");
-  });
-
-  test("escapes mixed occurrences", () => {
-    expect(escapeHtml('<script>alert("xss & fun")</script>')).toBe(
-      "&lt;script&gt;alert(&quot;xss &amp; fun&quot;)&lt;/script&gt;",
-    );
-  });
-
-  test("handles multi-byte and emoji characters properly without mutating them", () => {
-    expect(escapeHtml("👨‍👩‍👧‍👦 < 🐶")).toBe("👨‍👩‍👧‍👦 &lt; 🐶");
-    expect(escapeHtml("こんにちは & さようなら")).toBe(
-      "こんにちは &amp; さようなら",
-    );
   });
 });

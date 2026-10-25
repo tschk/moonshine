@@ -30,12 +30,8 @@ import {
 export { scopeSSRChild } from "./ssr-owner";
 
 /** Compiler-only typed selection; payloads preserve literal function/object identity. */
-export const selectBinding = /* @__PURE__ */ Symbol(
-  "moonshine server select binding",
-);
-export const optionBinding = /* @__PURE__ */ Symbol(
-  "moonshine server option binding",
-);
+export const selectBinding = Symbol("moonshine server select binding");
+export const optionBinding = Symbol("moonshine server option binding");
 type BindingValue = { value: unknown; preserveSelected?: boolean };
 const ELEMENT_NAME = /^[a-zA-Z][a-zA-Z0-9:_-]*$/;
 const ATTRIBUTE_NAME = /^[a-zA-Z_:][a-zA-Z0-9:_.-]*$/;
@@ -73,7 +69,7 @@ function bindingValue(
   if (!props || !Object.hasOwn(props, key)) return undefined;
   return validateBindingBox(Reflect.get(props, key));
 }
-const html = /* @__PURE__ */ Symbol("moonshine server HTML");
+const html = Symbol("moonshine server HTML");
 type Selection = {
   values?: Set<string>;
   binding?: BindingValue;
@@ -96,7 +92,7 @@ export type SSRChild =
   | readonly SSRChild[]
   | (() => SSRChild);
 
-const VOID = /* @__PURE__ */ new Set([
+const VOID = new Set([
   "area",
   "base",
   "br",

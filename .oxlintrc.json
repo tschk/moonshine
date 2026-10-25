@@ -11,8 +11,5 @@
     "unicorn/consistent-function-scoping": "warn",
     "unicorn/no-array-sort": "warn"
   },
-  "ignorePatterns": [
-    "packages/cli/test/fixtures/**",
-    "examples/native-template/templates/**"
-  ]
+  "ignorePatterns": ["packages/cli/test/fixtures/**"]
 }

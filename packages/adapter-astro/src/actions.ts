@@ -1,5 +1,5 @@
 /** Independent host-free Astro Actions runtime (defineAction, ActionError, ActionInputError). */
-import { recordAstroActionResult, useAstro, type AstroGlobal } from "./context";
+import { useAstro, type AstroGlobal } from "./context";
 
 export const ACTION_ERROR_CODES = {
   BAD_REQUEST: 400,
@@ -161,20 +161,16 @@ export type ActionAPIContext = Pick<
   | "params"
   | "locals"
   | "cookies"
-  | "session"
   | "site"
   | "generator"
   | "clientAddress"
   | "redirect"
   | "rewrite"
   | "originPathname"
-  | "routePattern"
   | "isPrerendered"
   | "preferredLocale"
   | "preferredLocaleList"
   | "currentLocale"
-  | "callAction"
-  | "getActionResult"
 >;
 
 export type SchemaValidator<TInput> =
@@ -223,7 +219,6 @@ export interface ActionClient<
       : [input: TAccept extends "form" ? FormData | TInput : TInput]
   ): Promise<Awaited<TOutput>>;
   readonly queryString: string;
-  toString(): string;
 }
 
 function formDataToObject(formData: FormData): Record<string, unknown> {
@@ -299,177 +294,6 @@ export function actionPathToString(path: readonly string[]): string {
   return path.join(".");
 }
 
-export type SerializedActionResult =
-  | {
-      type: "data";
-      status: 200;
-      contentType: "application/json";
-      body: string;
-    }
-  | {
-      type: "empty";
-      status: 204;
-    }
-  | {
-      type: "error";
-      status: number;
-      contentType: "application/json";
-      body: string;
-    };
-
-export function serializeActionResult<TInput, TOutput>(
-  res: SafeResult<TInput, TOutput>,
-): SerializedActionResult {
-  if (res.error) {
-    const status = res.error.status ?? 500;
-    return {
-      type: "error",
-      status,
-      contentType: "application/json",
-      body: JSON.stringify({
-        type: res.error.type,
-        code: res.error.code,
-        message: res.error.message,
-        issues: isInputError(res.error) ? res.error.issues : undefined,
-      }),
-    };
-  }
-  if (res.data === undefined) {
-    return {
-      type: "empty",
-      status: 204,
-    };
-  }
-  return {
-    type: "data",
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify(res.data),
-  };
-}
-
-export function deserializeActionResult<TInput, TOutput>(
-  res: SerializedActionResult,
-): SafeResult<TInput, TOutput> {
-  if (res.type === "empty") {
-    return { data: undefined as unknown as TOutput, error: undefined };
-  }
-  if (res.type === "data") {
-    return {
-      data: JSON.parse(res.body) as TOutput,
-      error: undefined,
-    };
-  }
-  let parsed: {
-    type?: string;
-    code?: ActionErrorCode;
-    message?: string;
-    issues?: ActionInputIssue[];
-  } = {};
-  try {
-    parsed = JSON.parse(res.body);
-  } catch {
-    // Fallback to status code below
-  }
-  if (parsed.type === "AstroActionInputError" && Array.isArray(parsed.issues)) {
-    return {
-      data: undefined,
-      error: new ActionInputError(parsed.issues) as ActionInputError<
-        TInput extends ErrorInferenceObject ? TInput : ErrorInferenceObject
-      >,
-    };
-  }
-  return {
-    data: undefined,
-    error: new ActionError({
-      code: parsed.code ?? ActionError.statusToCode(res.status),
-      message: parsed.message,
-    }),
-  };
-}
-
-export interface AstroActionContext {
-  action?: {
-    calledFrom: "form" | "rpc";
-    name: string;
-    handler: () => Promise<SafeResult<unknown, unknown>>;
-  };
-  setActionResult(actionName: string, result: SerializedActionResult): void;
-  serializeActionResult: typeof serializeActionResult;
-  deserializeActionResult: typeof deserializeActionResult;
-}
-
-const registeredActions = /* @__PURE__ */ new Map<
-  string,
-  ActionClient<unknown, ActionAccept, unknown>
->();
-
-export function getActionContext(
-  context?: Partial<ActionAPIContext>,
-): AstroActionContext {
-  const ctx = (context ?? useAstro()) as AstroGlobal;
-  const url = ctx.url ?? new URL(ctx.request?.url ?? "http://localhost/");
-  const queryAction = url.searchParams.get("_action");
-  const rpcMatch = url.pathname.startsWith("/_actions/")
-    ? decodeURIComponent(url.pathname.slice("/_actions/".length))
-    : null;
-  const actionName = queryAction ?? rpcMatch;
-  const calledFrom: "form" | "rpc" = queryAction ? "form" : "rpc";
-
-  let action: AstroActionContext["action"] = undefined;
-  if (actionName && (ctx.request?.method ?? "POST").toUpperCase() === "POST") {
-    const registered = registeredActions.get(actionName);
-    action = {
-      calledFrom,
-      name: actionName,
-      handler: async () => {
-        if (!registered) {
-          return {
-            data: undefined,
-            error: new ActionError({
-              code: "NOT_FOUND",
-              message: `Action "${actionName}" not found.`,
-            }),
-          };
-        }
-        let input: unknown = undefined;
-        if (ctx.request) {
-          const contentType =
-            ctx.request.headers.get("content-type")?.toLowerCase() ?? "";
-          if (
-            contentType.includes("multipart/form-data") ||
-            contentType.includes("application/x-www-form-urlencoded")
-          ) {
-            input = await ctx.request.clone().formData();
-          } else if (contentType.includes("application/json")) {
-            const text = await ctx.request.clone().text();
-            input = text.length > 0 ? JSON.parse(text) : undefined;
-          }
-        }
-        return await registered(input);
-      },
-    };
-  }
-
-  return {
-    action,
-    setActionResult(name: string, serialized: SerializedActionResult): void {
-      const deserialized = deserializeActionResult(serialized);
-      recordAstroActionResult(name, deserialized, ctx);
-      const registered = registeredActions.get(name);
-      if (registered) {
-        recordAstroActionResult(
-          registered as unknown as (...args: unknown[]) => unknown,
-          deserialized,
-          ctx,
-        );
-      }
-    },
-    serializeActionResult,
-    deserializeActionResult,
-  };
-}
-
 let actionIdCounter = 0;
 
 export function defineAction<
@@ -506,51 +330,34 @@ export function defineAction<
   const client = async (
     ...args: unknown[]
   ): Promise<SafeResult<TInput, Awaited<TOutput>>> => {
-    let result: SafeResult<TInput, Awaited<TOutput>>;
     try {
       const data = await executeOrThrow(args[0]);
-      result = { data, error: undefined };
+      return { data, error: undefined };
     } catch (err) {
       if (isInputError(err)) {
-        result = {
+        return {
           data: undefined,
           error: err as ActionInputError<
             TInput extends ErrorInferenceObject ? TInput : ErrorInferenceObject
           >,
         };
-      } else if (isActionError(err)) {
-        result = { data: undefined, error: err };
-      } else {
-        result = {
-          data: undefined,
-          error: new ActionError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: err instanceof Error ? err.message : String(err),
-            stack: err instanceof Error ? err.stack : undefined,
-          }),
-        };
       }
+      if (isActionError(err)) {
+        return { data: undefined, error: err };
+      }
+      return {
+        data: undefined,
+        error: new ActionError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        }),
+      };
     }
-    recordAstroActionResult(
-      actionClient as unknown as (...args: unknown[]) => unknown,
-      result,
-    );
-    recordAstroActionResult(actionName, result);
-    return result;
   };
 
-  const actionClient = Object.assign(client, {
+  return Object.assign(client, {
     orThrow: (...args: unknown[]) => executeOrThrow(args[0]),
     queryString,
-    toString: () => queryString,
   }) as ActionClient<TOutput, TAccept, TInput>;
-
-  registeredActions.set(
-    actionName,
-    actionClient as unknown as ActionClient<unknown, ActionAccept, unknown>,
-  );
-
-  return actionClient;
 }
-
-export { z } from "./content";

@@ -17,5 +17,3 @@ node_modules/
 examples/bun-server/public/client.js
 examples/bun-server/public/client.js.map
 .wrangler/
-# Crepus source fragments and byte-preserved compiler output.
-examples/native-template/templates/

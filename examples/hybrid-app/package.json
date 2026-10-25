@@ -1,7 +1,7 @@
 {
   "name": "@tschk/moonshine-example-hybrid-app",
   "private": true,
-  "version": "0.4.62",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "build": "moonshine build",

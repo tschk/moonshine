@@ -6,22 +6,7 @@ import {
 } from "@tschk/moonshine-dom/reactive";
 import { peekComponentContext } from "@tschk/moonshine-dom/component";
 
-const idCounters = /* @__PURE__ */ new WeakMap<
-  Owner,
-  { next: number; prefix: string }
->();
-
-export function setRootIdPrefix(owner: Owner, idPrefix?: string): void {
-  let root: Owner = owner;
-  while (root.parent) root = root.parent;
-  const prefix = idPrefix ? `${idPrefix}` : "";
-  const existing = idCounters.get(root);
-  if (existing) {
-    existing.prefix = prefix;
-  } else {
-    idCounters.set(root, { next: 0, prefix });
-  }
-}
+const idCounters = /* @__PURE__ */ new WeakMap<Owner, { next: number }>();
 
 export function propsId(): string {
   assertNotCleanupComputation();
@@ -36,8 +21,8 @@ export function propsId(): string {
   while (root.parent) root = root.parent;
   let state = idCounters.get(root);
   if (!state) {
-    state = { next: 0, prefix: "" };
+    state = { next: 0 };
     idCounters.set(root, state);
   }
-  return `${state.prefix}s-${state.next++}`;
+  return `s-${state.next++}`;
 }

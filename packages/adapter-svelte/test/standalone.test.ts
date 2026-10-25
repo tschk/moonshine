@@ -114,56 +114,6 @@ for(const source of ['<script>let open=$state(false);</script><div bind:open/>',
   },
 );
 
-test.skipIf(!sourceCompiler)(
-  "authored SvelteKit $app/*, $env/*, $service-worker, @sveltejs/kit and @sveltejs/kit/hooks compile and render in SSR",
-  async () => {
-    const kitPage = `<script lang="ts">
-import { page as pageState } from '$app/state';
-import { page as pageStore } from '$app/stores';
-import { goto } from '$app/navigation';
-import { resolveRoute } from '$app/paths';
-import { env } from '$env/dynamic/public';
-import { files } from '$service-worker';
-import { VERSION } from '@sveltejs/kit';
-import { sequence } from '@sveltejs/kit/hooks';
-const href = resolveRoute('/posts/[slug]', { slug: 'intro' });
-const hasSequence = typeof sequence === 'function';
-</script><a {href} onclick={() => goto(href)}>{pageState.url.pathname}|{$pageStore.params.slug ?? 'none'}|{env.PUBLIC_SITE ?? 'unset'}|{files.length}|{hasSequence}|{VERSION}</a>`;
-    const privatePage = `<script lang="ts">
-import { env as secretEnv } from '$env/dynamic/private';
-</script><span>{secretEnv.SECRET_KEY ?? 'missing'}</span>`;
-    await standalone(`
-import assert from 'node:assert/strict';
-const compiler=${JSON.stringify(sourceCompiler)};
-await Bun.write('source/KitPage.svelte',${JSON.stringify(kitPage)});
-await Bun.write('source/PrivatePage.svelte',${JSON.stringify(privatePage)});
-for(const [target,out] of [['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
- const proc=Bun.spawn([compiler,'web','build','--site','source','--entry','KitPage.svelte','--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
- const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
- assert.equal(code,0,stdout+stderr);
-}
-const badDom=Bun.spawn([compiler,'web','build','--site','source','--entry','PrivatePage.svelte','--emit','moonshine-dom','--out-dir','bad-dom'],{stdout:'pipe',stderr:'pipe'});
-assert.notEqual(await badDom.exited,0);
-const okSsr=Bun.spawn([compiler,'web','build','--site','source','--entry','PrivatePage.svelte','--emit','moonshine-ssr','--out-dir','priv-ssr'],{stdout:'pipe',stderr:'pipe'});
-assert.equal(await okSsr.exited,0);
-const {setKitPage,version}=await import('@tschk/moonshine-svelte/navigation');
-const {configureKitEnv,configureKitServiceWorker,resetKitEnv,resetKitServiceWorker}=await import('@tschk/moonshine-svelte/kit');
-const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
-const {default:KitPage}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
-const {default:PrivatePage}=await import(process.cwd()+'/priv-ssr/CrepusEmit.moonshine-ssr.ts');
-configureKitEnv({env:{PUBLIC_SITE:'moonshine',SECRET_KEY:'top-secret'}});
-configureKitServiceWorker({files:['/icon.png','/sw.js']});
-setKitPage({url:'http://localhost/posts/intro',params:{slug:'intro'}});
-const html=renderToString(()=>h(KitPage,{}));
-assert.equal(html,'<a href="/posts/intro">/posts/intro|intro|moonshine|2|true|'+version+'</a>');
-const privHtml=renderToString(()=>h(PrivatePage,{}));
-assert.equal(privHtml,'<span>top-secret</span>');
-resetKitEnv();
-resetKitServiceWorker();
-`);
-  },
-);
-
 test("stores, bridges and owner lifecycle work without host or optional packages", async () => {
   const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
   expect(Object.keys(pkg.dependencies)).toEqual([
@@ -261,43 +211,6 @@ assert.equal(flushSync(()=>svelteUntrack(()=>42)),42);assert.equal(serverFlushSy
 createRoot(stop=>{assert.equal(propsId(),'s-0');assert.equal(propsId(),'s-1');stop()});
 assert.throws(()=>onDestroy(()=>{}),/component initialization/);
 assert.throws(()=>propsId(),/component initialization/);
-const {on}=await import('@tschk/moonshine-svelte/events');
-const {cubicOut,linear}=await import('@tschk/moonshine-svelte/easing');
-const {Spring,Tween,spring,tweened,prefersReducedMotion}=await import('@tschk/moonshine-svelte/motion');
-assert.equal(linear(0.5),0.5);
-assert.equal(cubicOut(1),1);
-const et=new EventTarget();let pinged=0;const off=on(et,'ping',()=>{pinged++});et.dispatchEvent(new Event('ping'));off();et.dispatchEvent(new Event('ping'));assert.equal(pinged,1);
-const sp=new Spring(1,{stiffness:1,damping:1});await sp.set(5);assert.equal(sp.current,5);
-const tw=new Tween(2,{duration:0});await tw.set(8);assert.equal(tw.current,8);
-const twStore=tweened(3,{duration:0});await twStore.set(9);assert.equal(get(twStore),9);
-const spStore=spring(4,{stiffness:1,damping:1});await spStore.set(12,{hard:true});assert.equal(get(spStore),12);
-assert.equal(typeof prefersReducedMotion.current,'boolean');
-const {createAttachmentKey,fromAction,isAttachmentKey}=await import('@tschk/moonshine-svelte/attachments');
-const {fade,fly,scale}=await import('@tschk/moonshine-svelte/transition');
-const {flip}=await import('@tschk/moonshine-svelte/animate');
-const attachKey=createAttachmentKey();assert.equal(isAttachmentKey(attachKey),true);
-let actionDestroyed=false;const stopAttach=fromAction(()=>({destroy(){actionDestroyed=true}}))({});stopAttach?.();assert.equal(actionDestroyed,true);
-assert.equal(fade({style:{opacity:'1'}},{duration:100}).css(0.5,0.5),'opacity: 0.5');
-assert.ok(fly({style:{opacity:'1',transform:'none'}},{x:20}).css(0.5,0.5).includes('translate(10px, 0px)'));
-assert.ok(scale({style:{opacity:'1',transform:'none'}},{start:0.5}).css(0.5,0.5).includes('scale(0.75)'));
-assert.ok(flip({style:{transform:'none'}},{from:{left:0,top:0,width:50,height:50},to:{left:10,top:20,width:50,height:50}}).css(0.5,0.5).includes('translate(-5px, -10px)'));
-const {render:serverRender}=await import('@tschk/moonshine-svelte/server');
-const {once,preventDefault,handlers}=await import('@tschk/moonshine-svelte/legacy');
-const srvOut=serverRender(p=>h('div',{id:serverPropsId()},p.text),{props:{text:'ok'},idPrefix:'p-'});
-assert.equal(srvOut.body,'<div id="p-s-0">ok</div>');assert.equal(srvOut.html,srvOut.body);assert.equal(srvOut.head,'');
-let onceCount=0;const fnOnce=once(preventDefault(()=>{onceCount++}));let prevented=false;fnOnce({preventDefault(){prevented=true}});fnOnce({preventDefault(){}});assert.equal(onceCount,1);assert.equal(prevented,true);
-let hSum=0;handlers(n=>{hSum+=n},null,n=>{hSum+=n*2})(3);assert.equal(hSum,9);
-const {page,goto,setKitPage,resolveRoute}=await import('@tschk/moonshine-svelte/navigation');
-const {error:kitError,isHttpError,fail,isActionFailure,json:kitJson}=await import('@tschk/moonshine-svelte/kit');
-setKitPage({url:'http://localhost/items/5',params:{id:'5'}});
-assert.equal(page.url.pathname,'/items/5');
-assert.equal(resolveRoute('/items/[id]',{id:'5'}),'/items/5');
-await goto('/items/6');
-assert.equal(page.url.pathname,'/items/6');
-assert.equal(isActionFailure(fail(400,{bad:true})),true);
-let httpErr;try{kitError(403,'Forbidden')}catch(e){httpErr=e}
-assert.equal(isHttpError(httpErr,403),true);
-assert.equal((await kitJson({ok:1}).json()).ok,1);
 `);
 });
 
@@ -456,41 +369,6 @@ await Bun.write('check.ts',${JSON.stringify(check)});await import(process.cwd()+
 const built=await Bun.build({entrypoints:['check.ts'],target:'node',minify:true,outdir:'dist'});assert.ok(built.success,String(built.logs));
 const child=Bun.spawn(['node','dist/check.js'],{stdout:'pipe',stderr:'pipe'});
 const [out,err,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);assert.equal(code,0,out+err);
-`);
-  },
-);
-
-test.skipIf(!sourceCompiler)(
-  "authored .svelte components using $app/server and @sveltejs/kit load/action helpers compile and run without host packages",
-  async () => {
-    const serverPage = `<script lang="ts">
-import { getRequestEvent, query, prerender, command, form } from '$app/server';
-import { page } from '$app/state';
-const event = getRequestEvent();
-const getGreeting = query((name: string) => \`Hello, \${name}!\`);
-const getStaticBuild = prerender(() => '2026.10');
-const pingCmd = command(async (msg: string) => ({ echoed: msg }));
-const contactForm = form(async (data: { email: string }) => ({ ok: Boolean(data.email) }));
-</script>
-<section data-path={event.url.pathname} data-user={event.locals.user} data-page={page.url.pathname} data-form-method={contactForm.method} data-fn={typeof getGreeting + ':' + typeof getStaticBuild + ':' + typeof pingCmd}>{page.data.headline}</section>
-`;
-    await standalone(`import assert from 'node:assert/strict';
-const compiler=${JSON.stringify(sourceCompiler)};
-await Bun.write('source/ServerPage.svelte',${JSON.stringify(serverPage)});
-const child=Bun.spawn([compiler,'web','build','--site','source','--entry','ServerPage.svelte','--emit','moonshine-ssr','--out-dir','ssr'],{stdout:'pipe',stderr:'pipe'});
-const [stdout,stderr,code]=await Promise.all([new Response(child.stdout).text(),new Response(child.stderr).text(),child.exited]);
-assert.equal(code,0,stdout+stderr);
-const {default:ServerPage}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
-const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
-const {withKitRequestEvent,executeKitServerLoad,executeKitUniversalLoad,executeKitAction,fail}=await import('@tschk/moonshine-svelte/kit');
-for(const name of ['svelte','@sveltejs/kit','react','react-dom','@tschk/crepuscularity-wasm'])assert.throws(()=>Bun.resolveSync(name,process.cwd()));
-const ssrLoaded=await executeKitServerLoad(async ({params})=>({slug:params.slug}),{url:'http://localhost/blog/intro',params:{slug:'intro'}});
-await executeKitUniversalLoad(async ({data})=>({headline:'Post:'+data.slug}),{url:'http://localhost/blog/intro',params:{slug:'intro'},data:ssrLoaded.data});
-const html=withKitRequestEvent({url:'http://localhost/blog/intro',locals:{user:'ada'}},()=>renderToString(()=>h(ServerPage,{})));
-assert.equal(html,'<section data-path="/blog/intro" data-user="ada" data-page="/blog/intro" data-form-method="POST" data-fn="function:function:function">Post:intro</section>');
-const actionRes=await executeKitAction({default:async ()=>fail(400,{bad:true})},'default',{url:'http://localhost/blog/intro'});
-assert.equal(actionRes.type,'failure');
-assert.equal(actionRes.status,400);
 `);
   },
 );

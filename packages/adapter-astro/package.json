@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-astro",
-  "version": "0.4.78",
+  "version": "0.4.55",
   "description": "Native signal bridges and rendering with optional legacy astro entries",
   "license": "ISC",
   "type": "module",
@@ -9,30 +9,21 @@
   "exports": {
     ".": "./src/index.ts",
     "./actions": "./src/actions.ts",
-    "./assets": "./src/assets.ts",
     "./compiler": "./src/compiler.ts",
-    "./config": "./src/config.ts",
-    "./container": "./src/container.ts",
-    "./content": "./src/content.ts",
     "./context": "./src/context.ts",
-    "./env": "./src/env.ts",
-    "./i18n": "./src/i18n.ts",
-    "./loaders": "./src/loaders.ts",
-    "./middleware": "./src/middleware.ts",
-    "./routing": "./src/routing.ts",
     "./ssr": "./src/ssr.ts",
     "./transitions": "./src/transitions.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.78",
-    "@tschk/moonshine-dom": "^0.4.78"
+    "@tschk/moonshine": "^0.4.48",
+    "@tschk/moonshine-dom": "^0.4.48"
   },
   "devDependencies": {
     "typescript": "7.0.2"
   },
   "peerDependencies": {
     "astro": ">=4",
-    "@tschk/moonshine-framework": "^0.4.78"
+    "@tschk/moonshine-framework": "^0.4.48"
   },
   "peerDependenciesMeta": {
     "astro": {
