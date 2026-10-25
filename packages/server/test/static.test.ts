@@ -102,9 +102,19 @@ describe("isContained", () => {
 
   test("caches the real root on successive calls", () => {
     const realpathSpy = spyOn(fs.realpathSync, "native");
-    isContained(staticDir, resolve(staticDir, "ok.txt"));
-    isContained(staticDir, resolve(staticDir, "ok.txt"));
-    // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
+
+    const newDir = resolve(tmpDir, "newdir");
+    mkdirSync(newDir, { recursive: true });
+    writeFileSync(resolve(newDir, "a.txt"), "a");
+
+    realpathSpy.mockClear();
+    isContained(newDir, resolve(newDir, "a.txt"));
+    expect(realpathSpy).toHaveBeenCalledTimes(2); // root + file
+
+    realpathSpy.mockClear();
+    isContained(newDir, resolve(newDir, "a.txt"));
+    expect(realpathSpy).toHaveBeenCalledTimes(1); // only file, root is cached
+
     realpathSpy.mockRestore();
   });
 
