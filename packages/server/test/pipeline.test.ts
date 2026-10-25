@@ -1265,3 +1265,30 @@ test("detached next rejection discards its Response after a bodyless middleware 
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(cancelled).toBe(1);
 });
+
+test("stream cancellation errors are caught when discarding a response", async () => {
+  let attempts = 0;
+  const handler = createRequestHandler({
+    routes: [{ id: "page", path: "/", file: "page.ts" }],
+    modules: {
+      page: {
+        loader: () =>
+          new Response(
+            new ReadableStream({
+              async cancel() {
+                attempts++;
+                await Promise.resolve();
+                throw new Error("cleanup failed");
+              },
+            }),
+          ),
+      },
+    },
+  });
+  const response = await handler(
+    new Request("http://localhost/", { method: "HEAD" }),
+  );
+  expect(response.status).toBe(200);
+  expect(response.body).toBeNull();
+  expect(attempts).toBe(1);
+});
