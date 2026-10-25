@@ -44,8 +44,6 @@ describe("sourceAttributeValue", () => {
   test("fast path for static string attributes", () => {
     expect(sourceAttributeValue("class", "foo", false)).toBe("foo");
     expect(sourceAttributeValue("class", "foo", true)).toBe("foo");
-    // wait, sourceAttributeValue("disabled", "true", false)
-    // if (!dynamic && typeof value === 'string') return value;
     expect(sourceAttributeValue("disabled", "true", false)).toBe("true");
   });
 
@@ -63,7 +61,7 @@ describe("sourceAttributeValue", () => {
   });
 
   test("handles boolean exclusions and additions", () => {
-    // alpha is excluded
+    // alpha is in SOURCE_BOOLEAN_EXCLUSIONS
     expect(sourceAttributeValue("alpha", true, true)).toBe("true");
     expect(sourceAttributeValue("alpha", false, true)).toBe("false");
 
@@ -75,7 +73,9 @@ describe("sourceAttributeValue", () => {
   test("handles hidden specially", () => {
     expect(sourceAttributeValue("hidden", true, true)).toBe("");
     expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe("until-found");
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
   });
 
   test("handles translate specially", () => {
