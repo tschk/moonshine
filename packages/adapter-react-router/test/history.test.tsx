@@ -15,49 +15,79 @@ import {
 
 afterEach(cleanup);
 
+function FirstPage() {
+  const location = useLocation();
+  const action = useNavigationType();
+  const navigate = useNavigate();
+  const [, setSearch] = useSearchParams();
+  return createElement(
+    "main",
+    null,
+    createElement(
+      "output",
+      null,
+      JSON.stringify({
+        pathname: location.pathname,
+        state: location.state,
+        action,
+      }),
+    ),
+    createElement(Link, { to: "/page", state: { source: "link" } }, "link"),
+    createElement(
+      "button",
+      {
+        onClick: () =>
+          navigate("/page", { replace: true, state: { source: "hook" } }),
+      },
+      "navigate",
+    ),
+    createElement(
+      "button",
+      {
+        onClick: () =>
+          setSearch({ tab: "two" }, { state: { source: "search" } }),
+      },
+      "search",
+    ),
+  );
+}
+
+const redirectState = { source: "redirect" };
+function SecondPage() {
+  const navigate = useNavigate();
+  const [, setSearch] = useSearchParams();
+  const [redirect, setRedirect] = useState(false);
+  return createElement(
+    "main",
+    null,
+    createElement(Link, { to: "/page", state: { source: "link" } }, "link"),
+    createElement(
+      "button",
+      { onClick: () => navigate("/page", { state: { source: "hook" } }) },
+      "navigate",
+    ),
+    createElement(
+      "button",
+      {
+        onClick: () =>
+          setSearch({ tab: "two" }, { state: { source: "search" } }),
+      },
+      "search",
+    ),
+    createElement("button", { onClick: () => setRedirect(true) }, "redirect"),
+    redirect
+      ? createElement(Navigate, { to: "/page", state: redirectState })
+      : null,
+  );
+}
+
 test("React Router links, hooks and POP preserve reactive history state", async () => {
   setLocation("/page");
   const runtime = createMoonshineRouter();
-  function Page() {
-    const location = useLocation();
-    const action = useNavigationType();
-    const navigate = useNavigate();
-    const [, setSearch] = useSearchParams();
-    return createElement(
-      "main",
-      null,
-      createElement(
-        "output",
-        null,
-        JSON.stringify({
-          pathname: location.pathname,
-          state: location.state,
-          action,
-        }),
-      ),
-      createElement(Link, { to: "/page", state: { source: "link" } }, "link"),
-      createElement(
-        "button",
-        {
-          onClick: () =>
-            navigate("/page", { replace: true, state: { source: "hook" } }),
-        },
-        "navigate",
-      ),
-      createElement(
-        "button",
-        {
-          onClick: () =>
-            setSearch({ tab: "two" }, { state: { source: "search" } }),
-        },
-        "search",
-      ),
-    );
-  }
   const container = await render(
     createElement(MoonshineRouter, {
       runtime,
-      routes: [{ path: "/page", element: createElement(Page) }],
+      routes: [{ path: "/page", element: createElement(FirstPage) }],
     }),
   );
   const read = () =>
@@ -95,38 +125,10 @@ test("navigation stays with the owning router when another app mounts", async ()
   setLocation("/page");
   const first = createMoonshineRouter();
   const second = createMoonshineRouter();
-  const redirectState = { source: "redirect" };
-  function Page() {
-    const navigate = useNavigate();
-    const [, setSearch] = useSearchParams();
-    const [redirect, setRedirect] = useState(false);
-    return createElement(
-      "main",
-      null,
-      createElement(Link, { to: "/page", state: { source: "link" } }, "link"),
-      createElement(
-        "button",
-        { onClick: () => navigate("/page", { state: { source: "hook" } }) },
-        "navigate",
-      ),
-      createElement(
-        "button",
-        {
-          onClick: () =>
-            setSearch({ tab: "two" }, { state: { source: "search" } }),
-        },
-        "search",
-      ),
-      createElement("button", { onClick: () => setRedirect(true) }, "redirect"),
-      redirect
-        ? createElement(Navigate, { to: "/page", state: redirectState })
-        : null,
-    );
-  }
   const container = await render(
     createElement(MoonshineRouter, {
       runtime: first,
-      routes: [{ path: "/page", element: createElement(Page) }],
+      routes: [{ path: "/page", element: createElement(SecondPage) }],
     }),
   );
   await render(

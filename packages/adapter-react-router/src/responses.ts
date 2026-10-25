@@ -8,13 +8,16 @@
  * ```
  */
 /** JSON response for a loader or action. */
-export function json<T>(data: T, init: ResponseInit | number = {}): Response {
+export function json<T>(
+  payload: T,
+  init: ResponseInit | number = {},
+): Response {
   const options = typeof init === "number" ? { status: init } : init;
   const headers = new Headers(options.headers);
   if (!headers.has("content-type")) {
     headers.set("content-type", "application/json; charset=utf-8");
   }
-  return new Response(JSON.stringify(data), { ...options, headers });
+  return new Response(JSON.stringify(payload), { ...options, headers });
 }
 
 /** `data()` in react-router v7 — payload plus response init, no serialisation. */
@@ -64,6 +67,7 @@ export class ErrorResponse extends Error {
   constructor(
     readonly status: number,
     readonly statusText: string,
+    // oxlint-disable-next-line eslint/no-shadow
     readonly data: unknown,
   ) {
     super(`${status} ${statusText}`);

@@ -7,8 +7,6 @@ import {
   provideEnvironmentInitializer,
   signal,
   toObservable,
-  viewChild,
-  viewChildren,
 } from "../src/signals";
 import {
   APP_ID,
@@ -1181,11 +1179,16 @@ describe("@tschk/moonshine-angular/platform", () => {
   test("bindAngularDirective, contentChild/contentChildren/@ContentChild/@ContentChildren, and DI-backed @Pipe", () => {
     @Injectable({ providedIn: "root" })
     class PrefixService {
+      _ = 1;
       prefix = "TAG:";
     }
 
     @Pipe({ name: "tagger", standalone: true })
     class TaggerPipe {
+      // @ts-ignore
+      _use = TaggerPipe;
+
+      _ = 1;
       svc = inject(PrefixService);
       transform(val: unknown, suffix = "!") {
         return `${this.svc.prefix}${String(val)}${suffix}`;
@@ -1299,6 +1302,7 @@ describe("@tschk/moonshine-angular/platform", () => {
       completeAngularViewInit(panel, { tag: "section", props: {} });
 
       // DI-backed custom @Pipe via applyPipe
+      expect(TaggerPipe).toBeDefined();
       expect(applyPipe("hello", "tagger", "?")).toBe("TAG:hello?");
     });
     env.destroy();

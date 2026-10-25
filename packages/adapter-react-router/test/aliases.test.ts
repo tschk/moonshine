@@ -10,7 +10,7 @@ const specifiers = Object.keys(reactRouterAliases);
 
 describe("react-router aliases", () => {
   test("covers the packages this one replaces", () => {
-    expect(specifiers.sort()).toEqual([
+    expect(specifiers.toSorted()).toEqual([
       "@remix-run/react",
       "react-router",
       "react-router-dom",

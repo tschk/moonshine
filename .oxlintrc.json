@@ -1,18 +1,5 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "categories": {
-    "correctness": "error",
-    "suspicious": "error"
-  },
   "rules": {
-    "no-unused-vars": "error",
-    "eslint/no-shadow": "warn",
-    "eslint/no-underscore-dangle": "warn",
-    "unicorn/consistent-function-scoping": "warn",
-    "unicorn/no-array-sort": "warn"
-  },
-  "ignorePatterns": [
-    "packages/cli/test/fixtures/**",
-    "examples/native-template/templates/**"
-  ]
+    "no-underscore-dangle": ["error", { "allow": ["__action", "_splat", "__onInstance", "__ngRef", "_cssText", "_applySnapshot", "_desc", "_valueSignal", "_statusSignal", "_errorsSignal", "_pristineSignal", "_touchedSignal", "_validSignal", "_validators", "_asyncValidators", "_updateOn", "_parent", "_emitControlEvent", "_forEachChild", "_updateTouched", "_updatePristine", "_emitStatusEvent", "_asyncRunId", "_updateValue", "_emitValueEvent", "_updateAncestors", "_setInitialStatus", "_runValidator", "_calculateStatus", "_runAsyncValidator", "_updateControlsErrors", "_anyControlsDirty", "_anyControlsTouched", "_allControlsDisabled", "_anyControlsHaveStatus", "_anyControls", "_setParent", "_validate", "_body", "_n", "_identity", "_wrongGeneric", "_unmarkedFactory", "_unmarkedProps", "_unmarkedExports", "_serverN", "_fragmentExport", "_props", "_p", "_s", "_e", "__nuxt_error", "__nuxt_abort", "__nuxt_type"] }]
+  }
 }
