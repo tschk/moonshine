@@ -69,7 +69,9 @@ describe("sourceAttributeValue", () => {
     expect(sourceAttributeValue("hidden", false, true)).toBeUndefined();
     expect(sourceAttributeValue("hidden", "", true)).toBe(""); // changed from toBeUndefined
     // 'until-found' is not treated as boolean for source logic because condition requires value !== 'until-found'
-    expect(sourceAttributeValue("hidden", "until-found", true)).toBe("until-found");
+    expect(sourceAttributeValue("hidden", "until-found", true)).toBe(
+      "until-found",
+    );
   });
 
   test("handles translate attribute specifically for source", () => {
