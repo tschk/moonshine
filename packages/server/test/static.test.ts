@@ -103,7 +103,9 @@ describe("isContained", () => {
   });
 
   test("returns false for a symlink escaping the directory", () => {
-    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(false);
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(
+      false,
+    );
   });
 
   test("returns false for a sibling directory sharing a prefix", () => {
