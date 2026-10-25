@@ -781,9 +781,11 @@ export function createRouter(options: RouterOptions): Router {
     };
   }
 
-  function parseLocationPath(
-    raw: string,
-  ): { path: string; query: LocationQuery; hash: string } {
+  function parseLocationPath(raw: string): {
+    path: string;
+    query: LocationQuery;
+    hash: string;
+  } {
     let hash = "";
     let query: LocationQuery = {};
     const hashIdx = raw.indexOf("#");
