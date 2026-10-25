@@ -892,18 +892,29 @@ test("parallel loaders cancel ignored response bodies but retain the selected bo
 test("discardResponse swallows cancel errors", async () => {
   let cancelCalled = false;
   const handler = createRequestHandler({
-    routes: [{ id: "page", path: "/", file: "page.ts", layouts: ["layout.ts"] }],
+    routes: [
+      { id: "page", path: "/", file: "page.ts", layouts: ["layout.ts"] },
+    ],
     modules: {
       "layout.ts": {
-        loader: () => new Response("selected")
+        loader: () => new Response("selected"),
       },
-      page: {
-        loader: () => new Response(new ReadableStream({
-          cancel() {
-            cancelCalled = true;
-            throw new Error("sync error during cancel");
-          }
-        }))
+      "page.ts": {
+        loader: () => {
+          const res = new Response("dummy");
+          Object.defineProperty(res, "body", {
+            get() {
+              return {
+                locked: false,
+                cancel() {
+                  cancelCalled = true;
+                  throw new Error("sync error during cancel");
+                },
+              };
+            },
+          });
+          return res;
+        },
       },
     },
   });
