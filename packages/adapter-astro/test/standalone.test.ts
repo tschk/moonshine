@@ -207,18 +207,20 @@ for(const command of [['bun','--no-install','check.ts'],['bun','build','check.ts
   },
 );
 
-test("native Astro actions, context, and transitions run and bundle without Astro host or framework", async () => {
+test("native Astro actions, context, transitions, and content collections run and bundle without Astro host or framework", async () => {
   await standalone(`
 import assert from 'node:assert/strict';
 import { defineAction, ActionError, isActionError } from '@tschk/moonshine-astro/actions';
 import { AstroCookies, withAstroContext, useAstro } from '@tschk/moonshine-astro/context';
 import { fade, slide, createAnimationScope, transition } from '@tschk/moonshine-astro/transitions';
+import { defineCollection, registerCollections, seedCollection, getCollection, getEntry, render, z } from '@tschk/moonshine-astro/content';
 for (const name of ['astro', 'react', 'react-dom', '@tschk/crepuscularity-wasm', '@tschk/moonshine-framework']) {
   assert.throws(() => Bun.resolveSync(name, process.cwd()));
 }
 const action = defineAction({
   name: 'ping',
-  handler: async (input: { msg: string }, ctx) => {
+  input: z.object({ msg: z.string() }),
+  handler: async (input, ctx) => {
     if (input.msg === 'fail') throw new ActionError({ code: 'BAD_REQUEST', message: 'bad' });
     return { echo: input.msg, url: ctx.url.pathname };
   },
@@ -233,5 +235,310 @@ assert.equal(cookies.get('sid')?.value, 'xyz');
 const scope = createAnimationScope('card', fade({ duration: 120 }), 'astro-card-1');
 assert.equal(scope.attributes['data-astro-transition-scope'], 'astro-card-1');
 assert.ok(transition({ name: 'nav', animate: slide() })['data-astro-transition-scope'].startsWith('astro-nav-'));
+registerCollections({
+  docs: defineCollection({
+    schema: z.object({ title: z.string(), order: z.number().default(1) }),
+  }),
+});
+seedCollection('docs', [{ id: 'intro.md', data: { title: 'Intro' }, body: '# Intro\\n\\nWelcome.' }]);
+const docs = await getCollection('docs');
+assert.equal(docs.length, 1);
+assert.equal(docs[0].data.order, 1);
+const intro = await getEntry('docs', 'intro');
+const rendered = await render(intro);
+assert.equal(rendered.headings[0].slug, 'intro');
+assert.ok(rendered.Content().includes('<h1 id="intro">Intro</h1>'));
+const { defineMiddleware, sequence, createContext, trySerializeLocals } = await import('@tschk/moonshine-astro/middleware');
+const { configureI18n, getRelativeLocaleUrl, getAbsoluteLocaleUrl } = await import('@tschk/moonshine-astro/i18n');
+const { envField, validateEnv } = await import('@tschk/moonshine-astro/env');
+configureI18n({ defaultLocale: 'en', locales: ['en', 'fr'], site: 'https://example.com' });
+assert.equal(getRelativeLocaleUrl('fr', 'about'), '/fr/about');
+assert.equal(getAbsoluteLocaleUrl('en', 'about'), 'https://example.com/about');
+const mw = sequence(
+  defineMiddleware(async (ctx, next) => {
+    ctx.locals.role = 'admin';
+    return next();
+  }),
+);
+const mwCtx = createContext({ url: 'https://example.com/about' });
+const mwRes = await mw(mwCtx, async () => new Response(trySerializeLocals(mwCtx.locals)));
+assert.equal(await mwRes.text(), '{"role":"admin"}');
+const env = validateEnv(
+  { PORT: envField.number({ context: 'server', access: 'public', default: 3000 }) },
+  {},
+);
+assert.equal(env.PORT, 3000);
+const { getImage, inferImageDimensions } = await import('@tschk/moonshine-astro/assets');
+const { paginate } = await import('@tschk/moonshine-astro/routing');
+const img = await getImage({ src: { src: '/hero.png', width: 800, height: 400, format: 'png' }, width: 400, alt: 'Hero' });
+assert.equal(img.attributes.width, 400);
+assert.equal(img.attributes.height, 200);
+const svgDims = inferImageDimensions(new TextEncoder().encode('<svg viewBox="0 0 64 32"></svg>'));
+assert.deepEqual(svgDims, { width: 64, height: 32, format: 'svg' });
+const paginated = paginate(['a', 'b', 'c'], { pageSize: 2 });
+assert.equal(paginated.length, 2);
+assert.equal(paginated[0].props.page.url.next, '/2');
+const { glob, file } = await import('@tschk/moonshine-astro/loaders');
+const { AstroContainer, experimental_AstroContainer } = await import('@tschk/moonshine-astro/container');
+const { h: ssrH } = await import('@tschk/moonshine-astro/ssr');
+assert.equal(experimental_AstroContainer, AstroContainer);
+await Bun.write('content-dir/post.md', '---\\ntitle: From Glob\\n---\\n# Glob Heading\\n\\nBody.');
+await Bun.write('data.json', JSON.stringify([{ id: 'one', label: 'First' }]));
+registerCollections({
+  blog: defineCollection({
+    loader: glob({ pattern: '**/*.md', base: 'content-dir' }),
+    schema: z.object({ title: z.string() }),
+  }),
+  items: defineCollection({
+    loader: file('data.json'),
+    schema: z.object({ id: z.string(), label: z.string() }),
+  }),
+});
+const blogEntries = await getCollection('blog');
+assert.equal(blogEntries.length, 1);
+assert.equal(blogEntries[0].data.title, 'From Glob');
+const itemOne = await getEntry('items', 'one');
+assert.equal(itemOne?.data.label, 'First');
+const container = await AstroContainer.create({ locals: { env: 'test' } });
+const renderedStr = await container.renderToString((props) => ssrH('div', { 'data-env': useAstro().locals.env }, props.greeting), {
+  props: { greeting: 'Hello Container' },
+});
+assert.equal(renderedStr, '<div data-env="test">Hello Container</div>');
 `);
 });
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro virtual modules (astro:assets, astro:transitions, astro/config), <Astro.self>, and Astro.* request context compile and render via AstroContainer",
+  async () => {
+    const pageSource = `---
+import { Image, Picture } from "astro:assets";
+import { ClientRouter } from "astro:transitions";
+import { defineConfig } from "astro/config";
+import { defineAction } from "astro:actions";
+interface Props {
+  altText: string;
+  depth?: number;
+}
+const { altText, depth = 0 } = Astro.props;
+const path = Astro.url.pathname;
+const routePattern = Astro.routePattern;
+const slug = Astro.params.slug;
+const session = Astro.cookies.get("session")?.value ?? "guest";
+const role = Astro.locals.role;
+const locale = Astro.currentLocale ?? "en";
+const cfg = defineConfig({ base: "/docs" });
+const pingAction = defineAction({ name: "ping", handler: () => "pong" });
+Astro.session.set("visited", path);
+const actionData = Astro.getActionResult("ping")?.data ?? "idle";
+const hero = { src: "/hero.jpg", width: 800, height: 400, format: "jpg" as const };
+---
+<head><ClientRouter fallback="swap" /></head>
+<main data-path={path} data-route={routePattern} data-base={cfg.base} data-action={actionData} data-depth={depth} data-slug={slug} data-session={session} data-role={role} data-locale={locale}>
+  <Image src={hero} width={400} alt={altText} priority />
+  <Picture src={hero} width={400} formats={["avif", "webp"]} alt={altText} />
+  {depth > 0 && <Astro.self altText={altText} depth={depth - 1} />}
+  {Boolean(pingAction) && ""}
+</main>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Page.astro', ${JSON.stringify(pageSource)});
+const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', 'Page.astro', '--out-dir', 'out'], { stdout: 'pipe', stderr: 'pipe' });
+const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+assert.equal(code, 0, out + err);
+const { default: Page } = await import(process.cwd() + '/out/CrepusEmit.moonshine-ssr.ts');
+const { AstroContainer } = await import('@tschk/moonshine-astro/container');
+const { recordAstroActionResult, useAstro } = await import('@tschk/moonshine-astro/context');
+const container = await AstroContainer.create({ locals: { role: 'editor' } });
+const html = await container.renderToString(
+  (props) => {
+    recordAstroActionResult('ping', { data: 'done', error: undefined }, useAstro());
+    return Page(props);
+  },
+  {
+    request: new Request('https://example.com/blog/hello', { headers: { cookie: 'session=abc123' } }),
+    routePattern: '/blog/[slug]',
+    params: { slug: 'hello' },
+    props: { altText: 'Banner', depth: 1 },
+  },
+);
+assert.ok(html.includes('name="astro-view-transitions-fallback" content="swap"'), html);
+assert.ok(html.includes('data-path="/blog/hello"'), html);
+assert.ok(html.includes('data-route="/blog/[slug]"'), html);
+assert.ok(html.includes('data-base="/docs"'), html);
+assert.ok(html.includes('data-action="done"'), html);
+assert.ok(html.includes('data-depth="1"'), html);
+assert.ok(html.includes('data-depth="0"'), html);
+assert.ok(html.includes('data-slug="hello"'), html);
+assert.ok(html.includes('data-session="abc123"'), html);
+assert.ok(html.includes('data-role="editor"'), html);
+assert.ok(html.includes('alt="Banner"'), html);
+assert.ok(html.includes('type="image/avif"'), html);
+assert.ok(html.includes('fetchpriority="high"'), html);
+`);
+  },
+);
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro <Component server:defer> Server Islands, astro:prefetch, astro:schema, and astro/zod compile and resolve in eager and deferred modes",
+  async () => {
+    const userBadgeSource = `---
+interface Props {
+  userId: string;
+}
+const { userId } = Astro.props;
+const role = Astro.locals.role ?? "guest";
+---
+<div class="user-badge" data-user={userId} data-role={role}><slot>Default Badge</slot></div>
+`;
+    const pageSource = `---
+import UserBadge from "./UserBadge.astro";
+import { prefetch, getPrefetchedUrls, clearPrefetchedUrls } from "astro:prefetch";
+import { z } from "astro:schema";
+import { z as zodAlias } from "astro/zod";
+clearPrefetchedUrls();
+prefetch("/account");
+const prefetchedCount = getPrefetchedUrls().length;
+const parsed = z.string().parse("verified");
+const numParsed = zodAlias.number().parse(42);
+---
+<section data-prefetched={prefetchedCount} data-parsed={parsed} data-num={numParsed}>
+  <UserBadge server:defer userId="u-100">
+    <strong>Pro Member</strong>
+    <span slot="fallback" class="island-fallback">Loading user...</span>
+  </UserBadge>
+</section>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/UserBadge.astro', ${JSON.stringify(userBadgeSource)});
+await Bun.write('source/Page.astro', ${JSON.stringify(pageSource)});
+const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', 'Page.astro', '--out-dir', 'out'], { stdout: 'pipe', stderr: 'pipe' });
+const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+assert.equal(code, 0, out + err);
+const { default: Page } = await import(process.cwd() + '/out/CrepusEmit.moonshine-ssr.ts');
+const { h, renderToString, withAstroContext } = await import('@tschk/moonshine-astro/ssr');
+
+// Eager mode renders UserBadge immediately without the fallback slot
+const eagerHtml = withAstroContext({ locals: { role: 'admin' } }, (astro) => {
+  const rendered = renderToString(() => h(Page, {}));
+  assert.equal(astro.serverIslands.length, 1);
+  assert.equal(astro.serverIslands[0].componentName, 'UserBadge');
+  assert.equal(astro.serverIslands[0].hasFallback, true);
+  return rendered;
+});
+assert.ok(eagerHtml.includes('data-prefetched="1" data-parsed="verified" data-num="42"'), eagerHtml);
+assert.ok(eagerHtml.includes('<div class="user-badge" data-user="u-100" data-role="admin"><strong>Pro Member</strong></div>'), eagerHtml);
+assert.ok(!eagerHtml.includes('Loading user...'), eagerHtml);
+
+// Deferred mode renders <astro-server-island> fallback shell, then resolves island on demand
+withAstroContext({ locals: { role: 'owner' }, deferServerIslands: true }, (astro) => {
+  const shellHtml = renderToString(() => h(Page, {}));
+  assert.ok(shellHtml.includes('<astro-server-island data-island-id="island-1" data-component="UserBadge"><span class="island-fallback">Loading user...</span></astro-server-island>'), shellHtml);
+  const resolved = astro.resolveAllServerIslands(shellHtml);
+  assert.ok(resolved.includes('<div class="user-badge" data-user="u-100" data-role="owner"><strong>Pro Member</strong></div>'), resolved);
+  assert.ok(!resolved.includes('astro-server-island'), resolved);
+});
+`);
+  },
+);
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro define:vars and transition:name/animate/persist/persist-props directives compile and render CSS custom properties and View Transition attributes",
+  async () => {
+    const heroSource = `---
+import { fade } from "astro:transitions";
+const primaryColor = "crimson";
+const spacing = "2rem";
+const fadeAnim = fade({ duration: "250ms" });
+---
+<header
+  style="display:flex"
+  define:vars={{ primaryColor, spacing }}
+  transition:name="site-header"
+  transition:animate={fadeAnim}
+>
+  <video transition:persist="media-player" transition:persist-props src="/intro.mp4"></video>
+</header>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Hero.astro', ${JSON.stringify(heroSource)});
+const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', 'Hero.astro', '--out-dir', 'out'], { stdout: 'pipe', stderr: 'pipe' });
+const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+assert.equal(code, 0, out + err);
+const { default: Hero } = await import(process.cwd() + '/out/CrepusEmit.moonshine-ssr.ts');
+const { h, renderToString } = await import('@tschk/moonshine-astro/ssr');
+const html = renderToString(() => h(Hero, {}));
+assert.ok(html.includes('style="display:flex;--primaryColor:crimson;--spacing:2rem;view-transition-name:site-header"'), html);
+assert.ok(html.includes('data-astro-transition-scope="fade"'), html);
+assert.ok(html.includes('data-astro-transition-persist="media-player"'), html);
+assert.ok(html.includes('data-astro-transition-persist-props=""'), html);
+`);
+  },
+);
+
+test.skipIf(!sourceCompiler)(
+  "authored .astro Astro.slots.render(name, args?), is:raw directive, and <Fragment> slot/content directives compile and render via AstroContainer",
+  async () => {
+    const cardSource = `---
+const hasHeader = Astro.slots.has("header");
+const headerHtml = hasHeader ? Astro.slots.render("header") : "";
+const rowHtml = Astro.slots.has("row") ? Astro.slots.render("row", ["Ada", 1]) : "";
+const defaultHtml = Astro.slots.render("default");
+---
+<article class="card">
+  {hasHeader && <header class="card-header" set:html={headerHtml.toUpperCase()} />}
+  {rowHtml && <ul class="card-rows" set:html={rowHtml} />}
+  <div class="card-body" set:html={defaultHtml} />
+  <code is:raw class="raw-snippet">{unparsed} &amp; <span>{literal}</span></code>
+  <Fragment is:raw><pre class="raw-frag">{rawFrag}</pre></Fragment>
+</article>
+`;
+    const pageSource = `---
+import Card from "./Card.astro";
+const badgeMarkup = "<em>Rich Slot</em>";
+---
+<Card>
+  <Fragment slot="header" set:html={badgeMarkup} />
+  <p>Default slot paragraph</p>
+</Card>
+`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler = ${JSON.stringify(sourceCompiler)};
+await Bun.write('source/Card.astro', ${JSON.stringify(cardSource)});
+await Bun.write('source/Page.astro', ${JSON.stringify(pageSource)});
+for (const [entry, out] of [['Card.astro', 'card-out'], ['Page.astro', 'page-out']]) {
+  const proc = Bun.spawn([compiler, 'web', 'build', '--emit', 'moonshine-ssr', '--site', 'source', '--entry', entry, '--out-dir', out], { stdout: 'pipe', stderr: 'pipe' });
+  const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  assert.equal(code, 0, stdout + stderr);
+}
+const { default: Card } = await import(process.cwd() + '/card-out/CrepusEmit.moonshine-ssr.ts');
+const { default: Page } = await import(process.cwd() + '/page-out/CrepusEmit.moonshine-ssr.ts');
+const { AstroContainer } = await import('@tschk/moonshine-astro/container');
+const { h, renderToString } = await import('@tschk/moonshine-astro/ssr');
+
+const pageHtml = renderToString(() => h(Page, {}));
+assert.ok(pageHtml.includes('<header class="card-header"><EM>RICH SLOT</EM></header>'), pageHtml);
+assert.ok(pageHtml.includes('<div class="card-body"><p>Default slot paragraph</p></div>'), pageHtml);
+assert.ok(pageHtml.includes('<code class="raw-snippet">{unparsed} &amp; <span>{literal}</span></code>'), pageHtml);
+assert.ok(pageHtml.includes('<pre class="raw-frag">{rawFrag}</pre>'), pageHtml);
+
+const container = await AstroContainer.create();
+const cardHtml = await container.renderToString(Card, {
+  slots: {
+    header: '<span>Custom</span>',
+    row: (name: unknown, idx: unknown) => \`<li data-idx="\${idx}">\${name}</li>\`,
+    default: '<b>Body</b>',
+  },
+});
+assert.ok(cardHtml.includes('<header class="card-header"><SPAN>CUSTOM</SPAN></header>'), cardHtml);
+assert.ok(cardHtml.includes('<ul class="card-rows"><li data-idx="1">Ada</li></ul>'), cardHtml);
+assert.ok(cardHtml.includes('<div class="card-body"><b>Body</b></div>'), cardHtml);
+`);
+  },
+);

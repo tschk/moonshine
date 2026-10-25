@@ -1,6 +1,6 @@
 {
   "name": "@tschk/moonshine-nuxt",
-  "version": "0.4.55",
+  "version": "0.4.78",
   "description": "Native signal bridges and rendering with optional legacy nuxt entries",
   "license": "ISC",
   "type": "module",
@@ -9,12 +9,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./composables": "./src/composables.ts",
+    "./server": "./src/server.ts",
     "./app": "./src/app.ts",
     "./vue": "./src/vue.ts"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.48",
-    "@tschk/moonshine-dom": "^0.4.48"
+    "@tschk/moonshine": "^0.4.78",
+    "@tschk/moonshine-dom": "^0.4.78"
   },
   "devDependencies": {
     "typescript": "7.0.2"
@@ -22,7 +23,7 @@
   "peerDependencies": {
     "nuxt": ">=3",
     "vue": ">=3",
-    "@tschk/moonshine-framework": "^0.4.48"
+    "@tschk/moonshine-framework": "^0.4.78"
   },
   "peerDependenciesMeta": {
     "nuxt": {
