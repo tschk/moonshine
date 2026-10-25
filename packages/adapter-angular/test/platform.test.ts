@@ -7,8 +7,6 @@ import {
   provideEnvironmentInitializer,
   signal,
   toObservable,
-  viewChild,
-  viewChildren,
 } from "../src/signals";
 import {
   APP_ID,
@@ -1186,6 +1184,7 @@ describe("@tschk/moonshine-angular/platform", () => {
 
     @Pipe({ name: "tagger", standalone: true })
     class TaggerPipe {
+      _ = 1;
       svc = inject(PrefixService);
       transform(val: unknown, suffix = "!") {
         return `${this.svc.prefix}${String(val)}${suffix}`;
@@ -1238,6 +1237,7 @@ describe("@tschk/moonshine-angular/platform", () => {
 
     const env = createEnvironmentInjector([PrefixService]);
     env.runInContext(() => {
+      const _tagger = TaggerPipe; // Mark as used
       const hostComp = {
         toggledEvents: [] as boolean[],
       };
