@@ -198,6 +198,33 @@ describe("island hydration scheduling", () => {
     ).toEqual([3, 9]);
   });
 
+  test("reports failed module imports and falls back to console.error when reportError is not available", async () => {
+    marker();
+    const modules = document.querySelector(
+      "script[data-moonshine-island-modules]",
+    )!;
+    modules.textContent = JSON.stringify({
+      counter: "./missing-island-fixture.tsx",
+    });
+    const originalReportError = scope.reportError;
+    delete scope.reportError;
+    const errors: unknown[] = [];
+    const originalConsoleError = console.error;
+    console.error = (msg: string, error: unknown) => {
+      if (msg === "Moonshine island hydration failed") {
+        errors.push(error);
+      }
+    };
+    const hydrate = hydrationSpy();
+    dispose = hydrateIslands();
+    await flush();
+    expect(errors).toHaveLength(1);
+    expect(hydrate).not.toHaveBeenCalled();
+    console.error = originalConsoleError;
+    scope.reportError = originalReportError;
+    dispose();
+  });
+
   test("reports failed module imports and allows a retry", async () => {
     marker();
     const modules = document.querySelector(
