@@ -130,10 +130,10 @@ test("catchError routes failure in handler to parent queue", async () => {
 
 test("catchError route returns false if disposed", async () => {
   let caught = false;
-  createRoot((dispose) => {
+  createRoot(() => {
     catchError(
       () => {
-        const scope = createRoot((d) => {
+        createRoot((d) => {
           catchError(
             () => {
               d(); // Dispose inner scope
