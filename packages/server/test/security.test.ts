@@ -227,7 +227,12 @@ describe("createRequestHandler security", () => {
   });
 
   test("rejects redirect to completely invalid URL causing parse error", async () => {
-    expect(isSafeRedirect("http://this is not a valid url!!!", new Request("http://localhost"))).toBe(false);
+    expect(
+      isSafeRedirect(
+        "http://this is not a valid url!!!",
+        new Request("http://localhost"),
+      ),
+    ).toBe(false);
   });
 
   test("rejects same-origin path with embedded CR/LF", async () => {
