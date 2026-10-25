@@ -51,6 +51,10 @@ describe("parseSearch", () => {
     expect(parseSearch("?q=%22hello%20world%22")).toEqual({ q: "hello world" });
   });
 
+  test("decodes plus signs as spaces", () => {
+    expect(parseSearch("?q=hello+world")).toEqual({ q: "hello world" });
+  });
+
   test("handles malformed JSON gracefully", () => {
     expect(parseSearch("?bad=[1,2")).toEqual({ bad: "[1,2" });
   });
