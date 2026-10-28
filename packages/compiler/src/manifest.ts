@@ -20,7 +20,7 @@ import type {
 } from "@tschk/moonshine-framework";
 import { MANIFEST_VERSION } from "@tschk/moonshine-framework";
 import { analyzeModule } from "./analyze.js";
-import { buildBundles, preparePublicAssets } from "./build.js";
+import { buildBundles, hasClientEntry, preparePublicAssets } from "./build.js";
 import { classifyRoute } from "./classify.js";
 import { discoverRoutes } from "./discover.js";
 import type { RouteConvention } from "./inherit.js";
@@ -233,6 +233,11 @@ export async function buildProject(
           `Native interactive route "${route.path}" requires an explicit clientFile`,
         );
       }
+      if (route.hydrate === "route") {
+        throw new Error(
+          `Native route "${route.path}" cannot use hydrate: "route"; it is React-only`,
+        );
+      }
       if (route.clientFile && decision.mode !== "spa") {
         throw new Error(
           `Native route "${route.path}" with clientFile must use spa mode`,
@@ -276,7 +281,7 @@ export async function buildProject(
   const clientFile = bundles.entryFiles.client;
 
   for (const route of buildRoutes) {
-    if ((route.mode === "island" || route.mode === "spa") && clientFile) {
+    if (hasClientEntry(route) && clientFile) {
       route.clientEntries = [
         options.renderer === "native"
           ? bundles.routeClientEntries[route.id]!

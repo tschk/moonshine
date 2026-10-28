@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   copyFile,
   lstat,
   mkdir,
   readdir,
+  readFile,
   realpath,
   writeFile,
 } from "node:fs/promises";
@@ -242,9 +244,7 @@ function generateClientEntry(
   routes: RouteArtifact[],
   native: boolean,
 ): string | undefined {
-  const clientRoutes = routes.filter(
-    (r) => r.mode === "island" || r.mode === "spa",
-  );
+  const clientRoutes = routes.filter(hasClientEntry);
   if (clientRoutes.length === 0) return undefined;
   if (native) {
     const imports = [`import { h, render } from "@tschk/moonshine-dom/dom";`];
@@ -271,16 +271,48 @@ if (root) {
 }
 `;
   }
-  const imports: string[] = [];
+  const imports = [
+    `import { hydrateIslands, hydrateRoute } from "@tschk/moonshine-react/islands";`,
+  ];
   const body: string[] = [];
-  let index = 0;
-  for (const route of clientRoutes) {
+  const hydrated: string[] = [];
+  for (const [index, route] of clientRoutes.entries()) {
     const modulePath = importPath(buildDir, route.file);
     imports.push(`import route_${index} from ${JSON.stringify(modulePath)};`);
     body.push(`  [${JSON.stringify(route.path)}]: route_${index}`);
-    index++;
+    if (route.hydrate !== "route" || route.mode === "spa") continue;
+    const layouts = (route.layouts ?? []).map((file, layout) => {
+      imports.push(
+        `import layout_${index}_${layout} from ${JSON.stringify(importPath(buildDir, file))};`,
+      );
+      return `layout_${index}_${layout}`;
+    });
+    hydrated.push(
+      `  [${JSON.stringify(route.id)}]: { page: route_${index}, layouts: [${layouts.join(", ")}] }`,
+    );
   }
-  return `${imports.join("\n")}\n\nexport const islands = {\n${body.join(",\n")}\n};\n`;
+  return `${imports.join("\n")}
+
+export const islands = {
+${body.join(",\n")}
+};
+
+if (typeof document !== "undefined") {
+  void hydrateRoute({
+${hydrated.join(",\n")}
+  });
+  hydrateIslands();
+}
+`;
+}
+
+/** Routes whose pages run in the browser and so load the client entry. */
+export function hasClientEntry(route: RouteArtifact): boolean {
+  return (
+    route.mode === "island" ||
+    route.mode === "spa" ||
+    (route.hydrate === "route" && route.mode !== "api")
+  );
 }
 
 async function hashFile(path: string): Promise<string> {
@@ -304,6 +336,50 @@ function enqueueBunBuild<T>(work: () => Promise<T>): Promise<T> {
   return run;
 }
 
+const ISLAND_CALL_RE =
+  /\bisland\s*\(\s*(\(\s*\)\s*=>\s*import\s*\(\s*(["'])([^"'\n]+)\2\s*\))/g;
+
+/**
+ * Tags every `island(() => import("./X"))` loader in project source with an
+ * ID derived from the file it imports. The server and client bundles apply
+ * the same rewrite, so the ID the server renders is the one the browser
+ * registers the island's loader under; bundling would otherwise rewrite the
+ * loader's source and the `import()` specifier inside it.
+ */
+function islandIdPlugin(root: string): import("bun").BunPlugin {
+  return {
+    name: "moonshine-island-ids",
+    setup(build) {
+      build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
+        if (args.path.includes(`${sep}node_modules${sep}`)) return undefined;
+        const source = await readFile(args.path, "utf8");
+        if (!source.includes("island")) return undefined;
+        let changed = false;
+        const contents = source.replace(
+          ISLAND_CALL_RE,
+          (call, loader: string, _quote: string, specifier: string) => {
+            let target: string;
+            try {
+              target = Bun.resolveSync(specifier, dirname(args.path));
+            } catch {
+              return call;
+            }
+            changed = true;
+            const id = `moonshine-island-${createHash("sha256")
+              .update(sourcePath(relative(root, target)))
+              .digest("base64url")
+              .slice(0, 12)}`;
+            return `island(Object.assign(${loader}, { moonshineIslandId: ${JSON.stringify(id)} })`;
+          },
+        );
+        if (!changed) return undefined;
+        const ext = extname(args.path).replace(/^\.[cm]?/, "");
+        return { contents, loader: ext as "js" | "jsx" | "ts" | "tsx" };
+      });
+    },
+  };
+}
+
 async function runBuild(
   entries: string[],
   outdir: string,
@@ -314,6 +390,7 @@ async function runBuild(
     splitting?: boolean;
     metadata?: boolean;
     minify?: boolean;
+    islandIds?: boolean;
   } = {},
 ): Promise<BuiltResult> {
   const result = await enqueueBunBuild(() =>
@@ -345,6 +422,7 @@ async function runBuild(
             });
           },
         },
+        ...(options.islandIds ? [islandIdPlugin(root)] : []),
         ...(options.serverFiles
           ? [
               {
@@ -558,7 +636,7 @@ export async function buildBundles(options: {
     )
       ? "node"
       : "bun",
-    { metadata: true },
+    { metadata: true, islandIds: !native },
   );
   const serverFiles = native
     ? new Set(
@@ -580,6 +658,7 @@ export async function buildBundles(options: {
     ? await runBuild(clientEntries, publicDir, options.root, "browser", {
         serverFiles,
         splitting: native,
+        islandIds: !native,
       })
     : { files: [], inputs: new Map() };
   const serverOutputs = serverBuild.files;
