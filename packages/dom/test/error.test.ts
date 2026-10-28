@@ -142,6 +142,41 @@ test("route ignores errors if scope is disposed", async () => {
   expect(handlerCalled).toBe(false);
 });
 
+test("route forwards errors to the parent boundary once its scope is disposed", async () => {
+  let stop!: () => void;
+  let innerCalled = false;
+  let parentCaught: Error | undefined;
+  let route: any;
+
+  createRoot(() => {
+    catchError(
+      () => {
+        createRoot((d) => {
+          stop = d;
+          catchError(
+            () => {
+              route = getOwner()?.context?.get(errorHandlerKey);
+            },
+            () => {
+              innerCalled = true;
+            },
+          );
+        });
+      },
+      (err) => {
+        parentCaught = err;
+      },
+    );
+  });
+
+  stop();
+
+  expect(route("late error")).toBe(true);
+  await Promise.resolve();
+  expect(innerCalled).toBe(false);
+  expect(parentCaught?.message).toBe("late error");
+});
+
 test("ErrorBoundary renders children on success", () => {
   let result: (() => string | undefined) | undefined;
   createRoot(() => {
