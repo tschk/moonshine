@@ -122,4 +122,16 @@ describe("crepus renderer", () => {
     expect(text).toContain("<script");
     expect(text).toContain("moonshine-app");
   });
+
+  test("prerender emits crepuscularity document shell", async () => {
+    const html = await crepusRenderer.prerender(
+      makeContext(makeRoute({ mode: "static" }), allKindsIr()),
+    );
+    expect(html).toContain('<html lang="en"');
+    expect(html).toContain('charset="utf-8"');
+    expect(html).toContain('name="viewport"');
+    expect(html).toContain("width=device-width, initial-scale=1");
+    expect(html).toContain("html,body{margin:0}");
+    expect(html).toContain("body{min-height:100vh}");
+  });
 });

@@ -5,13 +5,15 @@ import {
   hAttributes,
   hAttributeEntries,
   defer,
+  renderToString,
   scopeSSRChild,
   type HTML,
   type SSRChild,
 } from "@tschk/moonshine-dom/ssr";
+import { peekAstroContext, type AstroServerIslandEntry } from "./context";
 
-const booleanAttributes = new Set(
-  "allowfullscreen async autofocus autoplay checked controls default defer disabled disablepictureinpicture disableremoteplayback formnovalidate inert loop muted nomodule novalidate open playsinline readonly required reversed scoped seamless selected itemscope".split(
+const booleanAttributes = /* @__PURE__ */ new Set(
+  /* @__PURE__ */ "allowfullscreen async autofocus autoplay checked controls default defer disabled disablepictureinpicture disableremoteplayback formnovalidate inert loop muted nomodule novalidate open playsinline readonly required reversed scoped seamless selected itemscope".split(
     " ",
   ),
 );
@@ -62,6 +64,118 @@ function style(value: object): string {
         `${key[0] === "-" || key[1] === "-" ? key : key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${item}`,
     )
     .join(";");
+}
+
+/** Compiler-facing `define:vars` CSS custom property serialization. */
+export function defineStyleVars(
+  vars: Record<string, unknown> | null | undefined,
+): string {
+  if (!vars || typeof vars !== "object") return "";
+  const parts: string[] = [];
+  for (const [key, item] of Object.entries(vars)) {
+    if (item === undefined || item === null || typeof item === "boolean") {
+      continue;
+    }
+    const text = String(item).trim();
+    if (!text) continue;
+    const propName = key.startsWith("--") ? key : `--${key}`;
+    parts.push(`${propName}:${text}`);
+  }
+  return parts.join(";");
+}
+
+/** Merge an element's `style`, `define:vars`, and `transition:name` into a single `style` value. */
+export function mergeDefineVars(
+  existingStyle: unknown,
+  vars?: Record<string, unknown> | null,
+  transitionName?: unknown,
+): string | undefined {
+  const segments: string[] = [];
+  if (typeof existingStyle === "string") {
+    const trimmed = existingStyle.trim().replace(/;+$/, "");
+    if (trimmed) segments.push(trimmed);
+  } else if (existingStyle !== null && typeof existingStyle === "object") {
+    const serialized = Array.isArray(existingStyle)
+      ? `${style(existingStyle[0] ?? {})};${existingStyle[1] ?? ""}`.replace(
+          /^;+|;+$/g,
+          "",
+        )
+      : style(existingStyle);
+    if (serialized) segments.push(serialized);
+  }
+  const varsStr = defineStyleVars(vars);
+  if (varsStr) segments.push(varsStr);
+  if (
+    transitionName !== undefined &&
+    transitionName !== null &&
+    transitionName !== false
+  ) {
+    const nameStr = String(transitionName).trim();
+    if (nameStr) {
+      segments.push(`view-transition-name:${nameStr}`);
+    }
+  }
+  return segments.length > 0 ? segments.join(";") : undefined;
+}
+
+/** Compiler-facing `transition:animate` attribute value normalization. */
+export function transitionAnimateValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === false) {
+    return undefined;
+  }
+  if (value === true || value === "") {
+    return "initial";
+  }
+  if (typeof value === "string") {
+    return value.trim() || "initial";
+  }
+  if (typeof value === "object") {
+    const candidate = value as Record<string, unknown>;
+    if (typeof candidate.name === "string" && candidate.name.trim()) {
+      return candidate.name.trim();
+    }
+    const forwards = candidate.forwards as Record<string, unknown> | undefined;
+    if (forwards && typeof forwards === "object") {
+      const next = forwards.new;
+      if (Array.isArray(next)) {
+        if (
+          next.some((item) =>
+            (item as { name?: string })?.name?.includes("Slide"),
+          )
+        ) {
+          return "slide";
+        }
+      } else if (next && typeof next === "object") {
+        const animName = (next as { name?: string }).name;
+        if (animName === "astroFadeIn") return "fade";
+        if (animName === "none") return "none";
+        if (animName) return animName;
+      }
+    }
+    return "custom";
+  }
+  return String(value);
+}
+
+/** Compiler-facing `transition:persist` attribute value normalization. */
+export function transitionPersistValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === false) {
+    return undefined;
+  }
+  if (value === true || value === "") {
+    return "";
+  }
+  return String(value);
+}
+
+/** Compiler-facing `transition:persist-props` boolean attribute normalization. */
+export function transitionPersistPropsValue(
+  value: unknown,
+): string | undefined {
+  if (value === undefined || value === null || value === false) {
+    return undefined;
+  }
+  return "";
 }
 
 function attribute(
@@ -137,6 +251,56 @@ export function sourceComponent<P extends object>(
   );
 }
 
+/** Compiler-facing Astro 5 `<Component server:defer>` Server Island invocation. */
+export function sourceServerIsland<P extends object>(
+  component: (props: P, slots: SourceSlots) => SSRChild,
+  componentName: string,
+  props: P,
+  slots: Readonly<Record<string, () => SSRChild>> = {},
+): SSRChild {
+  const captured = captureProps(props);
+  const componentSlots: Record<string, () => SSRChild> = {};
+  for (const [name, render] of Object.entries(slots)) {
+    if (name !== "fallback") {
+      componentSlots[name] = render;
+    }
+  }
+  const hasFallback = Object.hasOwn(slots, "fallback");
+  const ctx = peekAstroContext();
+  const deferred = Boolean(ctx?.deferServerIslands);
+  const id = `island-${(ctx?.serverIslands.length ?? 0) + 1}`;
+  const renderIsland = () =>
+    renderToString(() => sourceComponent(component, captured, componentSlots));
+
+  if (ctx) {
+    const entry: AstroServerIslandEntry = {
+      id,
+      componentName,
+      props: { ...(captured as Record<string, unknown>) },
+      hasFallback,
+      deferred,
+      render: renderIsland,
+    };
+    ctx.serverIslands.push(entry);
+  }
+
+  if (deferred) {
+    const fallbackContent = hasFallback
+      ? scopeSSRChild(() => sourceChild(slots.fallback!()))
+      : undefined;
+    return h(
+      "astro-server-island",
+      {
+        "data-island-id": id,
+        "data-component": componentName,
+      },
+      fallbackContent,
+    );
+  }
+
+  return sourceComponent(component, captured, componentSlots);
+}
+
 /** Presence selects a slot, including an explicitly empty supplied slot. */
 export function sourceSlot(
   slots: SourceSlots,
@@ -149,6 +313,35 @@ export function sourceSlot(
 /** Check native slot presence without evaluating its supplied content. */
 export function sourceHasSlot(slots: SourceSlots, name: string): boolean {
   return Object.hasOwn(slots, name);
+}
+
+/** Render a named slot synchronously to an HTML string (`Astro.slots.render(name, args?)`). */
+export function sourceRenderSlot(
+  slots: SourceSlots,
+  name = "default",
+  args?: readonly unknown[],
+): string {
+  if (Object.hasOwn(slots, name)) {
+    const slotEntry = slots[name];
+    if (
+      typeof slotEntry === "function" &&
+      Array.isArray(args) &&
+      args.length > 0
+    ) {
+      return renderToString(() =>
+        sourceChild((slotEntry as (...a: unknown[]) => unknown)(...args)),
+      );
+    }
+    return renderToString(() => sourceChild(slotEntry));
+  }
+  const ctx = peekAstroContext();
+  if (ctx?.slots.has(name)) {
+    const rendered = ctx.slots.render(name, args ? [...args] : []);
+    if (typeof rendered === "string") {
+      return rendered;
+    }
+  }
+  return "";
 }
 
 export function h<P extends object>(
@@ -231,3 +424,16 @@ export function sourceElement(
 ): HTML {
   return hAttributeEntries(tag, entries, ...children.map(sourceChild));
 }
+
+export {
+  useAstro,
+  peekAstroContext,
+  withAstroContext,
+  createAstroGlobal,
+  AstroCookies,
+  AstroCookie,
+  type AstroGlobal,
+  type AstroContextInit,
+  type AstroSlots,
+  type AstroServerIslandEntry,
+} from "./context";

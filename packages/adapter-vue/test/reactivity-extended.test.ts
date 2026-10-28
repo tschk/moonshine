@@ -13,6 +13,7 @@ import {
   isShallow,
   markRaw,
   onScopeDispose,
+  proxyRefs,
   reactive,
   readonly,
   ref,
@@ -21,6 +22,7 @@ import {
   shallowRef,
   toRaw,
   toRef,
+  toRefs,
   toValue,
   triggerRef,
   watch,
@@ -504,4 +506,66 @@ test("getCurrentScope and onScopeDispose integrate with native component setup a
   expect(events).toEqual(["child-scope-disposed", "component-scope-disposed"]);
   source.value = 30;
   expect(seen).toEqual([10, 20]);
+});
+
+test("proxyRefs shallowly unwraps ref reads, forwards non-ref writes, replaces ref properties, and returns reactive objects unchanged", () => {
+  const count = ref(1);
+  const label = ref("initial");
+  const doubled = computed(() => count.value * 2);
+  const nested = { inner: ref(99) };
+  const raw = { count, label, doubled, plain: "static", nested };
+  const proxied = proxyRefs(raw);
+
+  expect(proxyRefs(raw)).toBe(proxied);
+  expect(proxyRefs(proxied)).toBe(proxied);
+  expect(proxied.count).toBe(1);
+  expect(proxied.label).toBe("initial");
+  expect(proxied.doubled).toBe(2);
+  expect(proxied.plain).toBe("static");
+  // Shallow unwrapping leaves nested refs untouched
+  expect(isRef(proxied.nested.inner)).toBe(true);
+
+  const trace: string[] = [];
+  const stop = watchSyncEffect(() => {
+    trace.push(`${proxied.count}:${proxied.label}:${proxied.doubled}`);
+  });
+  expect(trace).toEqual(["1:initial:2"]);
+
+  // Writing non-ref value mutates underlying ref
+  proxied.count = 5;
+  expect(count.value).toBe(5);
+  expect(proxied.doubled).toBe(10);
+  expect(trace).toEqual(["1:initial:2", "5:initial:10"]);
+
+  // Replacing ref property with a new ref replaces the underlying property without mutating the old ref
+  const replacement = ref("replaced");
+  (proxied as any).label = replacement;
+  expect(raw.label).toBe(replacement);
+  expect(label.value).toBe("initial");
+  expect(proxied.label).toBe("replaced");
+  count.value = 6;
+  expect(trace).toEqual(["1:initial:2", "5:initial:10", "6:replaced:12"]);
+  replacement.value = "updated-replacement";
+  expect(trace).toEqual([
+    "1:initial:2",
+    "5:initial:10",
+    "6:replaced:12",
+    "6:updated-replacement:12",
+  ]);
+
+  // Writing to a readonly ref throws
+  expect(() => {
+    (proxied as any).doubled = 20;
+  }).toThrow("readonly");
+
+  // proxyRefs(toRefs(reactiveObj)) round-trips reactive reads and writes
+  const state = reactive({ a: 10, b: "ok" });
+  expect(proxyRefs(state)).toBe(state);
+  const unwrappedRefs = proxyRefs(toRefs(state));
+  expect(unwrappedRefs.a).toBe(10);
+  unwrappedRefs.a = 25;
+  expect(state.a).toBe(25);
+
+  stop();
+  expect(() => proxyRefs(null as any)).toThrow("proxyRefs requires an object");
 });

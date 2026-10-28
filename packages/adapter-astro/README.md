@@ -14,14 +14,23 @@ This requirement does not apply to the signal-only `@tschk/moonshine` core entry
 import { fromMoonshineSignal, crepusRenderer } from "@tschk/moonshine-astro";
 ```
 
-| Entry           | Provides                                                                            |
-| --------------- | ----------------------------------------------------------------------------------- |
-| `.`             | Native signal bridges, lazy native renderer, and host-free runtime helpers          |
-| `./actions`     | Independent Astro Actions (`defineAction`, `ActionError`, `ActionInputError`)       |
-| `./compiler`    | Legacy Astro compiler re-exports                                                    |
-| `./context`     | Independent `AstroCookies`, `createAstroGlobal`, `withAstroContext`, `useAstro`     |
-| `./ssr`         | Independent synchronous Astro source factories                                      |
-| `./transitions` | Independent View Transitions (`fade`, `slide`, `none`, `navigate`, `swapFunctions`) |
+| Entry           | Provides                                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`             | Native signal bridges, lazy native renderer, and host-free runtime helpers                                                                                                                  |
+| `./actions`     | Independent Astro Actions (`defineAction`, `ActionError`, `ActionInputError`, `getActionContext`, `serializeActionResult`, `deserializeActionResult`, `z`)                                  |
+| `./assets`      | Independent Astro Assets (`Image`, `Picture`, `getImage`, `getImageSync`, `inferImageDimensions`, `inferRemoteSize`, `configureAssets`)                                                     |
+| `./compiler`    | Legacy Astro compiler re-exports                                                                                                                                                            |
+| `./config`      | Independent Astro configuration (`defineConfig`, `mergeConfig`, `validateConfig`, `passthroughImageService`, `sharpImageService`, `squooshImageService`, `envField`)                        |
+| `./container`   | Independent Astro Container API (`AstroContainer`, `experimental_AstroContainer`, `renderToString`, `renderToResponse`, `insertPageRoute`)                                                  |
+| `./content`     | Independent Content Collections & Live Content Layer (`defineCollection`, `getCollection`, `getEntry`, `getEntries`, `glob`, `file`, `reference`, `render`, `z`)                            |
+| `./context`     | Independent `AstroCookies`, `AstroSession`, `AstroSlots`, `createAstroGlobal`, `withAstroContext`, `useAstro`, `recordAstroActionResult`, `clearAstroSessions`                              |
+| `./env`         | Independent `astro:env` schema validation (`envField`, `validateEnv`, `getSecret`, `setEnvSource`)                                                                                          |
+| `./i18n`        | Independent `astro:i18n` locale routing (`getRelativeLocaleUrl`, `getAbsoluteLocaleUrl`, `redirectToDefaultLocale`, `i18nMiddleware`)                                                       |
+| `./loaders`     | Independent `astro/loaders` Content Layer loaders (`glob`, `file`, `parseFrontmatter`, `parseSimpleYaml`, `parseSimpleToml`, `parseSimpleCsv`, `matchGlobPattern`)                          |
+| `./middleware`  | Independent `astro:middleware` (`defineMiddleware`, `sequence`, `createContext`, `trySerializeLocals`)                                                                                      |
+| `./routing`     | Independent static path pagination & endpoint types (`paginate`, `createPaginate`, `Page`, `GetStaticPaths`, `InferGetStaticParamsType`, `APIRoute`)                                        |
+| `./ssr`         | Independent synchronous Astro source factories (`sourceComponent`, `sourceServerIsland`, `sourceSlot`, `sourceHasSlot`, `sourceRenderSlot`), and `useAstro` / `withAstroContext` re-exports |
+| `./transitions` | Independent View Transitions & prefetching (`ClientRouter`, `ViewTransitions`, `fade`, `slide`, `none`, `navigate`, `swapFunctions`, `prefetch`, `init`)                                    |
 
 `crepusRenderer` preserves its compatibility name but renders native server
 factories, escaped metadata, API JSON and SPA shells. Install
@@ -49,7 +58,7 @@ path. Parsing and lowering stay in Crepuscularity.
 
 This remains a bounded source slice: top-level await, dynamic imports,
 client directives, script/style blocks, runtime exports, async children, and
-Astro globals other than `Astro.props` are unsupported. Hydration and arbitrary
+unsupported Astro globals (such as `Astro.glob`) are rejected. Hydration and arbitrary
 host-compiled output are unsupported. Use the legacy compiler explicitly for
 applications requiring the full Astro compiler contract.
 
@@ -115,17 +124,21 @@ are omitted. Component factories omit an empty normalized class-list prop while
 retaining an explicitly supplied empty ordinary `class` prop.
 
 Local authored slot lowering now supports default and nonempty literal named
-slots, grouping of same-name children, named Fragments and forwarding through
-imported layouts. An explicit empty slot suppresses fallback; whitespace-only
-ordinary component content supplies no slot. Projected HTML loses the marker,
-while projected components retain their ordinary `slot` prop. Dynamic/empty
-outlet names and misplaced markers reject explicitly. `Astro.slots.render`, the
-slot bag, method extraction, computed/optional access and unrelated Astro globals
-remain unsupported.
+slots, grouping of same-name children, named `<Fragment slot="...">` (including
+`<Fragment set:html={...} />` and `<Fragment set:text={...} />`), `is:raw` literal
+curlies in authored templates, and forwarding through imported layouts. An explicit
+empty slot suppresses fallback; whitespace-only ordinary component content supplies
+no slot. Projected HTML loses the marker, while projected components retain their
+ordinary `slot` prop. Dynamic/empty outlet names and misplaced markers reject
+explicitly. `Astro.slots.has(name)` and synchronous `Astro.slots.render(name, args?)`
+(with optional callback argument arrays via `sourceRenderSlot`) are supported in
+frontmatter and template expressions; bare `Astro.slots` bag access, method extraction,
+computed/optional access and unrelated Astro globals remain unsupported.
 
-Local source now supports ordinary `Astro.slots.has(nameExpression)` calls in
-frontmatter and template expressions, including dynamic strings and nested
-`Astro.props` reads. For example:
+Local source now supports ordinary `Astro.slots.has(nameExpression)` and
+synchronous `Astro.slots.render(nameExpression, argsExpression?)` calls in
+frontmatter and template expressions (usable with or without `await`), including
+dynamic strings, parameterized slot callbacks, and nested `Astro.props` reads. For example:
 
 ```astro
 ---
@@ -151,7 +164,7 @@ or timing comparison. A no-slot control bundle is byte-identical before/after
 the helper addition. Compiler changes remain local and unpublished.
 
 Generated calls use the compiler-facing `sourceComponent` / `sourceSlot` /
-`sourceHasSlot` contract. Slot values stay outside ordinary props, including `children` and
+`sourceHasSlot` / `sourceRenderSlot` contract. Slot values stay outside ordinary props, including `children` and
 `slots`. Props and template interpolations capture when the parent constructs
 its template; component frontmatter runs during serialization, once per
 invocation. Unused slot content stays lazy, repeated outlets render it again,
@@ -161,3 +174,32 @@ inside `renderToString(() => ...)`; ordinary public `h` invocation is unchanged.
 This compiler integration is local and unpublished. The companion runtime
 helpers are available in SDK 0.4.22. This is not Astro's compiled component ABI;
 async rendering, hydration and full slot/source coverage remain incomplete.
+
+Local `.astro` compilation also rewrites `astro:actions`, `astro:assets`,
+`astro:content`, `astro:schema`, `astro/zod`, `astro:env` (`astro:env/client`,
+`astro:env/server`, `astro:env/setup`), `astro:i18n`, `astro:middleware`,
+`astro:prefetch`, `astro:transitions` (`astro:transitions/client`),
+`astro/config`, and `astro/loaders` imports onto `@tschk/moonshine-astro/*`,
+lowers `<Astro.self>` and `Astro.self` to recursive component factory
+references, lowers Astro 5 `<Component server:defer>` Server Islands (with
+`<slot name="fallback">` / `slot="fallback"`) to `sourceServerIsland` in
+`@tschk/moonshine-astro/ssr` (supporting both eager synchronous SSR and deferred
+`<astro-server-island>` placeholder shells resolved via
+`astro.resolveServerIsland(id)` / `astro.resolveAllServerIslands(html)` when
+`deferServerIslands: true` is set on `withAstroContext`), and lowers
+`Astro.url`, `Astro.request`, `Astro.params`, `Astro.locals`, `Astro.cookies`,
+`Astro.session`, `Astro.site`, `Astro.generator`, `Astro.clientAddress`,
+`Astro.response`, `Astro.originPathname`, `Astro.routePattern`,
+`Astro.isPrerendered`, `Astro.preferredLocale`, `Astro.preferredLocaleList`,
+`Astro.currentLocale`, `Astro.redirect`, `Astro.rewrite`, `Astro.callAction`,
+and `Astro.getActionResult` in frontmatter and template expressions to
+`useAstro()` from `@tschk/moonshine-astro/ssr`.
+On HTML elements, `define:vars={{ ... }}` and `transition:name` merge into
+`style` via `mergeDefineVars` (`defineStyleVars`), while `transition:animate`,
+`transition:persist`, and `transition:persist-props` lower to
+`data-astro-transition-scope`, `data-astro-transition-persist`, and
+`data-astro-transition-persist-props` via `transitionAnimateValue`,
+`transitionPersistValue`, and `transitionPersistPropsValue`.
+`<Image>` and `<Picture>` in `@tschk/moonshine-astro/assets` and `<ClientRouter>`
+/ `<ViewTransitions>` in `@tschk/moonshine-astro/transitions` render synchronous
+server HTML without Astro host packages.
