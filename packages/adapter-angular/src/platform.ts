@@ -3532,7 +3532,7 @@ export function resolveAngularContentQueries(
     { selector: any; first: boolean; read?: any; descendants?: boolean }
   >;
   for (const [propName, q] of Object.entries(contentQueries)) {
-    const descendants = q.descendants ?? q.first;
+    const descendants = q.descendants ?? Boolean(q.first);
     const nodes = collectProjectedQueryNodes(children, descendants);
     const matched: any[] = [];
     for (const node of nodes) {
