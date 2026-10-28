@@ -1,4 +1,9 @@
-export { reactRenderer, registerRouteModules } from "./renderer";
+export {
+  createReactRenderer,
+  reactRenderer,
+  registerRouteModules,
+} from "./renderer";
+export type { BundledRoute } from "./renderer";
 export type { RenderContext, Renderer } from "@tschk/moonshine-framework";
 export {
   batch,

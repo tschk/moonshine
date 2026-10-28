@@ -8,7 +8,10 @@ Each adapter consumes the same manifest and compiled artifacts.
 `moonshine build` writes to `.moonshine/`:
 
 - `manifest.json` — versioned route and asset metadata.
-- `dist/server.js` — server bundle.
+- `dist/server.js` — server bundle. It exports `modules` and, for the React
+  and native renderers, the `renderer` bound to those modules; adapters render
+  through it so a deployed bundle never re-imports route source files or loads
+  a second copy of React.
 - `dist/client.js` — client bundle (when islands or SPAs exist).
 - `server.ts` — adapter-specific entry file.
 

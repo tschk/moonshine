@@ -200,9 +200,12 @@ export const nodeAdapter: DeploymentAdapter = {
       JSON.stringify(builtManifest, null, 2) + "\n",
     );
     const native = manifest.renderer === "native";
-    const rendererImport = native
-      ? 'import { modules, renderer } from "./dist/server.js";'
-      : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
+    // The bundle exports the renderer bound to its own route modules (and, for
+    // React, its own React instance).
+    const rendererImport =
+      native || (manifest.renderer ?? "react") === "react"
+        ? 'import { modules, renderer } from "./dist/server.js";'
+        : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
     const entry = `import { createServer } from "node:http";
 import { createRequestHandler } from "@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}";
 import { createNodeHandler } from "@tschk/moonshine-deploy-node";

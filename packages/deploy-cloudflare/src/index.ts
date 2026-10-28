@@ -8,6 +8,7 @@ import {
 import { matchRoutes, createRouteGraph } from "@tschk/moonshine-router/graph";
 import {
   type DeploymentAdapter,
+  type Renderer,
   type MoonshineManifest,
   type Harness,
   type HarnessFactory,
@@ -31,6 +32,7 @@ export async function cloudflareFetch(
   ctx: CloudflareContext,
   manifest: MoonshineManifest,
   modules: Record<string, RouteModule> = {},
+  bundledRenderer?: Renderer,
 ): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
@@ -44,16 +46,16 @@ export async function cloudflareFetch(
     if (assetRes.status !== 404) return assetRes;
   }
 
-  const { reactRenderer, registerRouteModules } =
-    await import("@tschk/moonshine-react");
   const graph = createRouteGraph(manifest.routes);
   const match = matchRoutes(graph, pathname);
-  registerRouteModules(modules);
-  const handler = createRequestHandler({
-    manifest,
-    modules,
-    renderer: reactRenderer,
-  });
+  let renderer = bundledRenderer;
+  if (!renderer) {
+    const { reactRenderer, registerRouteModules } =
+      await import("@tschk/moonshine-react");
+    registerRouteModules(modules);
+    renderer = reactRenderer;
+  }
+  const handler = createRequestHandler({ manifest, modules, renderer });
   const cache =
     typeof caches !== "undefined"
       ? (caches as { default?: Cache }).default
@@ -187,13 +189,13 @@ export const cloudflareAdapter: DeploymentAdapter = {
     // dynamic `import(route.file)` the renderer would otherwise fall back to.
     const serverEntry = `import cloudflareFetch from "@tschk/moonshine-deploy-cloudflare";
 import manifest from "./manifest.json" with { type: "json" };
-import { modules } from "./dist/server.js";
+import { modules, renderer } from "./dist/server.js";
 
 type Env = { ASSETS?: { fetch: (request: Request) => Promise<Response> } };
 
 export default {
   async fetch(request: Request, env: Env, ctx: { waitUntil: (promise: Promise<unknown>) => void }) {
-    return cloudflareFetch(request, env, ctx, manifest, modules);
+    return cloudflareFetch(request, env, ctx, manifest, modules, renderer);
   },
 };
 `;
