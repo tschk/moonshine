@@ -123,8 +123,9 @@ export function useRouter_UNSTABLE(): RouterInstance {
 
   const go = useCallback(
     (to: LinkTo, replace: boolean, scroll?: boolean) => {
-      navigate(toHref(to), { replace });
-      if (scroll !== false) globalThis.scrollTo?.(0, 0);
+      const href = toHref(to);
+      navigate(href, { replace });
+      if (scroll !== false) scrollAfterNavigation(href);
       rerender();
       return Promise.resolve();
     },
@@ -150,6 +151,20 @@ export function useRouter_UNSTABLE(): RouterInstance {
 
 /** Alias — Waku ships the hook under both names. */
 export const useRouter = useRouter_UNSTABLE;
+
+/**
+ * Scrolls after a navigation the way the browser and Waku do: to the element
+ * the URL's fragment names when the page has it, else to the top.
+ */
+export function scrollAfterNavigation(href: string): void {
+  if (typeof window === "undefined") return;
+  const { hash } = new URL(href, window.location.href);
+  const target = hash
+    ? document.getElementById(decodeURIComponent(hash.slice(1)))
+    : null;
+  if (target) target.scrollIntoView();
+  else window.scrollTo?.(0, 0);
+}
 
 const prefetched = new Set<string>();
 

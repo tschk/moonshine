@@ -33,7 +33,9 @@ import { json } from "@tschk/moonshine-waku/server";
   (IntersectionObserver at 0.1 threshold), `unstable_startTransition`.
   Modifier-clicks, external URLs, fragments, non-self targets and downloads
   fall through to the browser without route prefetch. Internal navigation runs
-  inside `startTransition`.
+  inside `startTransition`, then scrolls to the element the URL's fragment
+  names (`/#pricing`) when the page has it, else to the top; `useRouter`'s
+  `push` and `replace` do the same.
 - `useRouter_UNSTABLE` / `useRouter` — spreads the current `{ path, query, hash }`
   route plus `push`, `replace`, `reload`, `back`, `forward`, `prefetch`.
 - `useRoute` — Waku's route shape, with the trailing-slash `path` convention.

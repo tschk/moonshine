@@ -22,6 +22,7 @@ import { isExternal, useNavigate } from "@tschk/moonshine/router";
 import {
   NavigationStatusContext,
   prefetchRoute,
+  scrollAfterNavigation,
   toHref,
   type LinkTo,
 } from "./router";
@@ -118,7 +119,7 @@ export function Link({
         warm();
         const go = () => {
           navigate(href);
-          if (scroll !== false) globalThis.scrollTo?.(0, 0);
+          if (scroll !== false) scrollAfterNavigation(href);
         };
         if (unstable_instant) go();
         else run(go);
