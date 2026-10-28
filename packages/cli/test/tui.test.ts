@@ -2,14 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { clampColumns, truncate, warningBar, terminalTui } from "../src/tui";
 
 describe("clampColumns", () => {
-  test("returns 80 for undefined or non-finite values", () => {
+  test("returns 80 for undefined, non-finite, or 0 (falsy) values", () => {
     expect(clampColumns(undefined)).toBe(80);
+    expect(clampColumns(0)).toBe(80);
     expect(clampColumns(NaN)).toBe(80);
     expect(clampColumns(Infinity)).toBe(80);
     expect(clampColumns(-Infinity)).toBe(80);
   });
 
-  test("clamps to a minimum of 20", () => {
+  test("clamps to a minimum of 20, including negative numbers", () => {
+    expect(clampColumns(-5)).toBe(20);
     expect(clampColumns(10)).toBe(20);
     expect(clampColumns(19)).toBe(20);
     expect(clampColumns(20)).toBe(20);
