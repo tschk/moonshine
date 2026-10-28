@@ -118,6 +118,11 @@ export default function Page() {
   ]);
   expect(wholeHtml).toContain("data-moonshine-route-props");
 
+  // A production client bundle: minified, with React's production build.
+  const clientSource = await Bun.file(join(out, "public", "client.js")).text();
+  expect(clientSource.split("\n").length).toBeLessThan(1000);
+  expect(clientSource).not.toContain("Each child in a list should have");
+
   await import("../../react/test/dom");
   const act = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
   act.IS_REACT_ACT_ENVIRONMENT = false;

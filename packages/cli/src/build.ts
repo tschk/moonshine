@@ -24,6 +24,7 @@ function defaultRuntime(adapter: AdapterName): string {
 export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
   let projectDir = "";
   let adapter: AdapterName | undefined;
+  let production = true;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === "--adapter") {
@@ -33,6 +34,8 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
         process.exit(1);
       }
       adapter = next as AdapterName;
+    } else if (arg === "--development") {
+      production = false;
     } else if (arg.startsWith("-")) {
       console.error(`Unknown flag: ${arg}`);
       process.exit(1);
@@ -92,6 +95,7 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
     requestContext: config.requestContext,
     dataRequests: config.dataRequests,
     mode: config.mode,
+    production,
     programmatic: config.routes,
     ...(config.routesDir && {
       routesDir: resolve(resolvedDir, config.routesDir),

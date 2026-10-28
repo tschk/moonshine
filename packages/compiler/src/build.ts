@@ -391,6 +391,8 @@ async function runBuild(
     metadata?: boolean;
     minify?: boolean;
     islandIds?: boolean;
+    /** Minified, with `process.env.NODE_ENV` defined as "production". */
+    production?: boolean;
   } = {},
 ): Promise<BuiltResult> {
   const result = await enqueueBunBuild(() =>
@@ -404,7 +406,10 @@ async function runBuild(
       splitting: options.splitting ?? false,
       sourcemap: "none",
       metafile: options.metadata || options.splitting,
-      minify: options.minify ?? false,
+      minify: options.minify ?? options.production ?? false,
+      ...(options.production && {
+        define: { "process.env.NODE_ENV": '"production"' },
+      }),
       plugins: [
         // A root-relative url() in CSS names a file under public/, served at
         // that path; Bun would otherwise try to resolve it from the disk root
@@ -577,6 +582,7 @@ export async function buildBundles(options: {
   renderer?: RendererName;
   requestContext?: boolean;
   publicAssets?: readonly PublicAsset[];
+  production?: boolean;
 }): Promise<BundleOutput> {
   const publicAssets =
     options.publicAssets ??
@@ -659,6 +665,7 @@ export async function buildBundles(options: {
         serverFiles,
         splitting: native,
         islandIds: !native,
+        production: options.production ?? true,
       })
     : { files: [], inputs: new Map() };
   const serverOutputs = serverBuild.files;

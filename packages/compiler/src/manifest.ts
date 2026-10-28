@@ -38,6 +38,13 @@ export type BuildOptions = {
   /** Enable the opt-in JSON route-data request protocol. */
   dataRequests?: RouteDataRequests;
   mode?: RenderMode;
+  /**
+   * Build browser bundles for production: minified, with
+   * `process.env.NODE_ENV` set to "production" so React and other packages
+   * drop their development builds. Defaults to true; `moonshine dev` turns
+   * it off.
+   */
+  production?: boolean;
 };
 
 function toProjectRelative(projectDir: string, p: string): string {
@@ -277,6 +284,7 @@ export async function buildProject(
     renderer: options.renderer,
     requestContext: options.requestContext,
     publicAssets,
+    production: options.production,
   });
   const clientFile = bundles.entryFiles.client;
 
