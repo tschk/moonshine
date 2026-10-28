@@ -675,6 +675,9 @@ export async function buildBundles(options: {
   // never served.
   const serverStyleEntries = new Map<string, string>();
   {
+    // Routes importing the same stylesheets share one bundle, so browsers
+    // download and cache it once across pages.
+    const entriesBySource = new Map<string, string>();
     for (const [index, route] of options.routes.entries()) {
       if (route.mode === "api") continue;
       const serverCss = await cssRoots(
@@ -691,17 +694,21 @@ export async function buildBundles(options: {
       const browserCss = route.clientFile
         ? await cssRoots(clientBuild.inputs, [route.clientFile])
         : [];
-      const entry = join(buildDir, `server-style-${index}.css`);
-      await writeFile(
-        entry,
-        [...new Set([...serverCss, ...browserCss])].map(cssImport).join("\n"),
-      );
+      const source = [...new Set([...serverCss, ...browserCss])]
+        .map(cssImport)
+        .join("\n");
+      let entry = entriesBySource.get(source);
+      if (!entry) {
+        entry = join(buildDir, `server-style-${index}.css`);
+        await writeFile(entry, source);
+        entriesBySource.set(source, entry);
+      }
       serverStyleEntries.set(route.id, entry);
     }
   }
   const cssBuild = serverStyleEntries.size
     ? await runBuild(
-        [...serverStyleEntries.values()],
+        [...new Set(serverStyleEntries.values())],
         publicDir,
         options.root,
         "browser",
@@ -789,11 +796,16 @@ export async function buildBundles(options: {
       : [];
   }
 
+  const cssOutputs = new Map(
+    await Promise.all(
+      cssBuild.files
+        .filter((file) => file.entryPoint && file.path.endsWith(".css"))
+        .map(async (file) => [await realpath(file.entryPoint!), file] as const),
+    ),
+  );
   for (const [id, entry] of serverStyleEntries) {
     const source = await realpath(entry);
-    const output = cssBuild.files.find(
-      (file) => file.entryPoint === source && file.path.endsWith(".css"),
-    );
+    const output = cssOutputs.get(source);
     if (!output)
       throw new Error(
         `Missing CSS bundle output for ${entry} (resolved ${source}); returned outputs: ${JSON.stringify(cssBuild.files.map(({ path, entryPoint }) => ({ path, entryPoint })))}`,
