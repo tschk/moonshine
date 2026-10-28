@@ -141,7 +141,45 @@ async function renderPage(
     context.route.clientEntries,
     isIslandMode,
   );
-  return `<!DOCTYPE html><html lang="en"><head>${DOCUMENT_HEAD}${stylesheets(context)}${head}</head><body>${bodyMarkup}${tail}</body></html>`;
+  const headParts = `${stylesheets(context)}${head}`;
+  const document = completeDocument(bodyMarkup, headParts, tail);
+  if (document) return document;
+  return `<!DOCTYPE html><html lang="en"><head>${DOCUMENT_HEAD}${headParts}</head><body>${bodyMarkup}${tail}</body></html>`;
+}
+
+/**
+ * A root layout may render the whole document (`<html>`, `<head>`, `<body>`),
+ * as Next.js and Waku layouts do. React then owns <head> and hoists every
+ * `<title>`, `<meta>` and `<link>` rendered anywhere in the tree into it; the
+ * renderer only adds its stylesheets and scripts. Returns undefined when the
+ * markup is not a document.
+ */
+function completeDocument(
+  markup: string,
+  head: string,
+  tail: string,
+): string | undefined {
+  const doctype = "<!DOCTYPE html>";
+  const html = markup.startsWith(doctype)
+    ? markup.slice(doctype.length)
+    : markup;
+  if (!/^<html[\s>]/.test(html)) return undefined;
+  const charset = /<meta charSet=/i.test(html) ? "" : '<meta charset="utf-8">';
+  const withHead = html.includes("</head>")
+    ? html
+        .replace("</head>", `${head}</head>`)
+        .replace("<head>", `<head>${charset}`)
+    : html.replace(
+        /^<html[^>]*>/,
+        (open) => `${open}<head>${charset}${head}</head>`,
+      );
+  const end = withHead.lastIndexOf("</body>");
+  return (
+    doctype +
+    (end === -1
+      ? withHead.replace(/<\/html>$/, `${tail}</html>`)
+      : `${withHead.slice(0, end)}${tail}${withHead.slice(end)}`)
+  );
 }
 
 /** The route's published CSS, collected by `moonshine build`. */

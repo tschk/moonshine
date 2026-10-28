@@ -47,7 +47,10 @@ src/routes/
 
 Special files are prefixed with `+` and inherit through the route tree.
 
-- `+layout.tsx` — wraps child routes.
+- `+layout.tsx` — wraps child routes. With the React renderer, the root
+  layout may render the whole document (`<html>`, `<head>`, `<body>`); React
+  then hoists `<title>`, `<meta>` and `<link>` elements from any page into that
+  `<head>`, and Moonshine adds only its stylesheets and scripts.
 - `+error.tsx` — error boundary; the nearest one wins.
 - `+middleware.ts` — runs before/after child routes.
 

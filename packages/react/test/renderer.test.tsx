@@ -98,4 +98,35 @@ describe("react renderer", () => {
     expect(res.headers.get("content-type")).toContain("application/json");
     expect(await res.json()).toEqual({ title: "Moonshine" });
   });
+
+  test("a root layout that renders <html> owns the document and its <head>", async () => {
+    const html = await reactRenderer.prerender(
+      makeContext(
+        makeRoute({
+          mode: "static",
+          file: join(fixtures, "TitledPage.tsx"),
+          layouts: [join(fixtures, "DocumentLayout.tsx")],
+          clientStyles: ["/route.css"],
+        }),
+      ),
+    );
+    expect(
+      html.startsWith('<!DOCTYPE html><html lang="fr" class="site"><head>'),
+    ).toBe(true);
+    const head = html.slice(0, html.indexOf("</head>"));
+    // React hoists the page's title and meta into the layout's <head>.
+    expect(head).toContain("<title>Page title</title>");
+    expect(head).toContain(
+      '<meta name="description" content="Page description"/>',
+    );
+    expect(head).toContain('<meta charset="utf-8">');
+    expect(head).toContain('<link rel="stylesheet" href="/route.css">');
+    // Moonshine's own shell defaults do not override the layout's.
+    expect(html).not.toContain("initial-scale=1");
+    expect(html).not.toContain("html,body{margin:0}");
+    expect(html.match(/<html/g)).toHaveLength(1);
+    expect(html).toContain(
+      '<body class="page"><main><h1>titled</h1></main></body></html>',
+    );
+  });
 });
