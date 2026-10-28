@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { isContained, resolveStaticPath, tryServeStatic } from "../src/static";
+import {
+  isContained,
+  resolveStaticPath,
+  staticFileHeaders,
+  tryServeStatic,
+} from "../src/static";
 import * as fs from "node:fs";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "ms-static-"));
@@ -19,6 +24,8 @@ beforeAll(() => {
   writeFileSync(resolve(staticDir, "ok.txt"), "ok");
   writeFileSync(resolve(tmpDir, "secret.txt"), "secret");
   symlinkSync(resolve(tmpDir, "secret.txt"), resolve(staticDir, "escape.txt"));
+  symlinkSync(resolve(staticDir, "ok.txt"), resolve(tmpDir, "link-in.txt"));
+  symlinkSync(staticDir, resolve(tmpDir, "public-link"));
 });
 
 afterAll(() => {
@@ -47,6 +54,43 @@ describe("resolveStaticPath", () => {
   });
 });
 
+describe("staticFileHeaders", () => {
+  test("sets content-type and default security headers", () => {
+    const headers = staticFileHeaders("text/html");
+    expect(headers.get("content-type")).toBe("text/html");
+    expect(headers.get("x-content-type-options")).toBe("nosniff");
+    expect(headers.get("x-frame-options")).toBe("DENY");
+    expect(headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  test("initializes with custom headers", () => {
+    const headers = staticFileHeaders("text/css", { "x-custom": "value" });
+    expect(headers.get("content-type")).toBe("text/css");
+    expect(headers.get("x-custom")).toBe("value");
+    expect(headers.get("x-frame-options")).toBe("DENY");
+  });
+
+  test("does not overwrite provided custom security headers", () => {
+    const headers = staticFileHeaders("application/json", {
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "x-content-type-options": "custom",
+    });
+    expect(headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(headers.get("referrer-policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(headers.get("x-content-type-options")).toBe("custom");
+  });
+
+  test("overwrites content-type even if provided in customHeaders", () => {
+    const headers = staticFileHeaders("text/javascript", {
+      "content-type": "text/plain",
+    });
+    expect(headers.get("content-type")).toBe("text/javascript");
+  });
+});
+
 describe("isContained", () => {
   test("returns true for a file inside the directory", () => {
     expect(isContained(staticDir, resolve(staticDir, "ok.txt"))).toBe(true);
@@ -58,10 +102,61 @@ describe("isContained", () => {
 
   test("caches the real root on successive calls", () => {
     const realpathSpy = spyOn(fs.realpathSync, "native");
-    isContained(staticDir, resolve(staticDir, "ok.txt"));
-    isContained(staticDir, resolve(staticDir, "ok.txt"));
-    // Since the root is fixed we're just checking that successive calls don't crash and maintain correctness
+
+    const newDir = resolve(tmpDir, "newdir");
+    mkdirSync(newDir, { recursive: true });
+    writeFileSync(resolve(newDir, "a.txt"), "a");
+
+    realpathSpy.mockClear();
+    isContained(newDir, resolve(newDir, "a.txt"));
+    expect(realpathSpy).toHaveBeenCalledTimes(2); // root + file
+
+    realpathSpy.mockClear();
+    isContained(newDir, resolve(newDir, "a.txt"));
+    expect(realpathSpy).toHaveBeenCalledTimes(1); // only file, root is cached
+
     realpathSpy.mockRestore();
+  });
+
+  test("returns false for a symlink escaping the directory", () => {
+    expect(isContained(staticDir, resolve(staticDir, "escape.txt"))).toBe(
+      false,
+    );
+  });
+
+  test("returns true for the root directory itself", () => {
+    expect(isContained(staticDir, staticDir)).toBe(true);
+  });
+
+  test("returns false for a path sharing a string prefix but not contained", () => {
+    const similarDir = staticDir + "-other";
+    mkdirSync(similarDir, { recursive: true });
+    writeFileSync(resolve(similarDir, "file.txt"), "content");
+    try {
+      expect(isContained(staticDir, resolve(similarDir, "file.txt"))).toBe(
+        false,
+      );
+    } finally {
+      rmSync(similarDir, { recursive: true, force: true });
+    }
+  });
+
+  test("throws an error if the file does not exist", () => {
+    expect(() =>
+      isContained(staticDir, resolve(staticDir, "missing.txt")),
+    ).toThrow();
+  });
+
+  test("returns true when a symlink outside points inside", () => {
+    expect(isContained(staticDir, resolve(tmpDir, "link-in.txt"))).toBe(true);
+  });
+
+  test("works correctly when the root itself is a symlink", () => {
+    const symlinkRoot = resolve(tmpDir, "public-link");
+    expect(isContained(symlinkRoot, resolve(symlinkRoot, "ok.txt"))).toBe(true);
+    expect(isContained(symlinkRoot, resolve(symlinkRoot, "escape.txt"))).toBe(
+      false,
+    );
   });
 });
 

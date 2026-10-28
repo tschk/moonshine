@@ -47,6 +47,7 @@ import SetChild from './SetChild.vue';
 import ModelChild from './ModelChild.vue';
 import DefineModelChild from './DefineModelChild.vue';
 const selected=ref(new Set(['x']));
+const entries=ref(new Map([['x',7]]));
 const count=ref(2);
 const label=ref('label');
 const id=useId();
@@ -54,16 +55,16 @@ const doubled=computed(()=>count.value*2);
 onBeforeMount(()=>{count.value+=10;});
 onErrorCaptured(()=>false);
 function increment(){count.value++;}
-</script><template><div :id="id"><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected"/><ModelChild v-model="count" v-model:label.trim="label"/><DefineModelChild v-model.trim="label" active/><output>{{count}}/{{label}}</output></div></template>`;
+</script><template><div :id="id"><button @click="increment">{{count}}/{{doubled}}</button><input type="number" v-model.number="count"/><input type="checkbox" v-model="selected" value="missing"/><input type="radio" v-model="count" :value="2"/><select v-model="count"><option :value="2">two</option><option :value="3">three</option></select><Child/><SetChild :values="selected" :entries="entries"/><ModelChild v-model="count" v-model:label.trim="label"/><DefineModelChild v-model.trim="label" active/><output>{{count}}/{{label}}</output></div></template>`;
     const child = `<script setup>import {useId} from 'vue';const id=useId();const label='<b>&';</script><template><p :id="id">{{label}}</p></template>`;
-    const setChild = `<script setup lang="ts">const props=defineProps<{values:Set<string>}>();</script><template><em>{{props.values.size}}</em></template>`;
+    const setChild = `<script setup lang="ts">const props=defineProps<{values:Set<string>;entries:Map<string,number>}>();</script><template><em>{{props.values.size}}/{{props.entries.get('x')}}</em></template>`;
     const modelChild = `<script setup lang="ts">const props=defineProps<{modelValue:number;label:string}>();const emit=defineEmits<{'update:modelValue':[number];'update:label':[string]}>();if(typeof document==='undefined'){emit('update:modelValue',props.modelValue+1);emit('update:label',' '+props.label+'-ssr ');}</script><template><strong>{{props.modelValue}}/{{props.label}}</strong></template>`;
     const defineModelChild = `<script setup lang="ts">const [model,mods]=defineModel<string,'trim'>({default:'fallback',get:(v)=>mods.trim?v.trim():v});const active=defineModel<boolean>('active',{default:false});if(typeof document==='undefined'){model.value=' '+model.value+'-dm ';}</script><template><kbd>{{model}}/{{active}}</kbd></template>`;
     const check = `import assert from 'node:assert/strict';
 import Page from './ssr/CrepusEmit.moonshine-ssr.ts';
 import {h,renderToString} from '@tschk/moonshine-dom/ssr';
 assert.equal(typeof document,'undefined');
-for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div id="v-0"><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p id="v-1">&lt;b&gt;&amp;</p><em>1</em><strong>2/label</strong><kbd>label-ssr-dm/true</kbd><output>3/label-ssr-dm</output></div>');
+for(let request=0;request<3;request++)assert.equal(renderToString(()=>h(Page,{})),'<div id="v-0"><button>2/4</button><input type="number" value="2"><input type="checkbox" value="missing" checked=""><input type="radio" value="2" checked=""><select><option value="2" selected="">two</option><option value="3">three</option></select><p id="v-1">&lt;b&gt;&amp;</p><em>1/7</em><strong>2/label</strong><kbd>label-ssr-dm/true</kbd><output>3/label-ssr-dm</output></div>');
 assert.equal(typeof document,'undefined');`;
     await standalone(`
 import assert from 'node:assert/strict';
@@ -119,7 +120,7 @@ import assert from 'node:assert/strict';
 import {existsSync} from 'node:fs';
 import * as root from '@tschk/moonshine-vue';
 import {crepusRenderer} from '@tschk/moonshine-vue/framework';
-import {ref,shallowRef,reactive,toRefs,computed,watch,watchSyncEffect,useId as reactiveUseId} from '@tschk/moonshine-vue/reactive';
+import {ref,shallowRef,reactive,toRefs,proxyRefs,computed,watch,watchSyncEffect,useId as reactiveUseId} from '@tschk/moonshine-vue/reactive';
 import {toDisplayString,toDisplayStringSSR} from '@tschk/moonshine-vue/text';
 import {bindTextModel,createTextModel} from '@tschk/moonshine-vue/model';
 import {createServerTextModel} from '@tschk/moonshine-vue/model/ssr';
@@ -161,6 +162,7 @@ policyValue.value=1;stopPolicy();rejectPolicy(policyFailure);await Promise.resol
 assert.deepEqual(policyErrors,[[policyFailure,'watch callback',undefined]]);
 
 const linked=toRefs(state);linked.nested.value.count=5;assert.equal(state.nested.count,5);
+const proxiedRefs=proxyRefs({count});assert.equal(proxiedRefs.count,5);proxiedRefs.count=6;assert.equal(count.value,6);
 const sync=ref(0), syncTrace=[];
 const endSync=watchSyncEffect(clean=>{const value=sync.value;syncTrace.push(value);clean(()=>syncTrace.push('clean:'+value));});
 sync.value=1;endSync();sync.value=2;assert.deepEqual(syncTrace,[0,'clean:0',1,'clean:1']);
@@ -180,8 +182,112 @@ assert.equal(renderToString(()=>h(()=>{onBeforeMount(()=>lifecycleCalls++);onMou
 assert.equal(lifecycleCalls,0);
 assert.deepEqual(capturedErrors,[['ssr-boom','watch effect']]);
 assert.equal(renderToString(()=>h(()=>{provide('value','<context>');return h(()=>h('p',null,inject('value')),null)},null)),'<p>&lt;context&gt;</p>');
+const reactiveMod=await import('@tschk/moonshine-vue/reactive');
+assert.equal(reactiveMod.version,'3.5.13');
+assert.equal(reactiveMod.mergeProps({class:'a'},{class:'b'}).class,'a b');
+assert.equal(await reactiveMod.nextTick(()=>42),42);
+const storeMod=await import('@tschk/moonshine-vue/store');
+const routerMod=await import('@tschk/moonshine-vue/router');
+storeMod.setActivePinia(storeMod.createPinia());
+const useCounter=storeMod.defineStore('standalone-counter',()=>{const c=ref(5);return{c};});
+assert.equal(useCounter().c,5);
+const router=routerMod.createRouter({history:routerMod.createMemoryHistory(),routes:[{path:'/',component:()=>h('span',null,'home')}]});
+assert.equal(router.currentRoute.value.path,'/');
 `);
 });
+
+test.skipIf(!sourceCompiler)(
+  "vue-router, pinia, built-in components, defineOptions, and defineSlots in .vue SFCs lower and render without host packages",
+  async () => {
+    const storeFile = `import { ref, computed } from '@tschk/moonshine-vue/reactive';
+import { defineStore } from '@tschk/moonshine-vue/store';
+export const useCounterStore = defineStore('counter', () => {
+  const count = ref(4);
+  const double = computed(() => count.value * 2);
+  return { count, double };
+});
+`;
+    const page = `<script setup lang="ts">
+import { useRoute, RouterLink } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { useCounterStore } from './store';
+defineOptions({ name: 'CounterPage', inheritAttrs: false });
+const slots = defineSlots<{ default?: () => any }>();
+const route = useRoute();
+const store = useCounterStore();
+const { count, double } = storeToRefs(store);
+</script><template><section><h1>{{ route.path }}</h1><Transition name="fade"><TransitionGroup tag="div" name="list"><KeepAlive><Suspense><Teleport to="#modal" :disabled="true"><p>{{ count }}/{{ double }}/{{ Boolean(slots.default) }}</p></Teleport></Suspense></KeepAlive></TransitionGroup></Transition><RouterLink to="/items" active-class="is-active" class="nav-link">Items</RouterLink></section></template>`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/store.ts',${JSON.stringify(storeFile)});
+await Bun.write('source/Page.vue',${JSON.stringify(page)});
+for(const[target,out]of[['moonshine-dom','dom'],['moonshine-ssr','ssr']]){
+ const proc=Bun.spawn([compiler,'web','build','--site','source','--entry','Page.vue','--emit',target,'--out-dir',out],{stdout:'pipe',stderr:'pipe'});
+ const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+ assert.equal(code,0,stdout+stderr);
+}
+const {h,renderToString}=await import('@tschk/moonshine-dom/ssr');
+const {createPinia,setActivePinia}=await import('@tschk/moonshine-vue/store');
+const {createRouter,createMemoryHistory}=await import('@tschk/moonshine-vue/router');
+const {default:Page}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+assert.equal(Page.name,'CounterPage');
+assert.equal(Page.inheritAttrs,false);
+setActivePinia(createPinia());
+const router=createRouter({history:createMemoryHistory(),routes:[{path:'/items',component:Page},{path:'/next',component:Page}]});
+await router.push('/items');
+const html=renderToString(()=>h(()=>{router.install();return h(Page,{});},null));
+assert.equal(html,'<section><h1>/items</h1><div><p>4/8/false</p></div><a href="/items" class="nav-link is-active router-link-exact-active" aria-current="page">Items</section>'.replace('Items</section>','Items</a></section>'));
+`);
+  },
+);
+
+test.skipIf(!sourceCompiler)(
+  "authored .vue SFC with onServerPrefetch, useSSRContext, useAttrs, useSlots, Teleport, createSSRApp, and vue/server-renderer compiles and renders",
+  async () => {
+    const sfc = `<script setup lang="ts">
+import { ref, onServerPrefetch, useSSRContext, useAttrs, useSlots, watchEffect } from 'vue';
+import { ssrInterpolate } from 'vue/server-renderer';
+
+const status = ref('initial');
+const attrs = useAttrs();
+const slots = useSlots();
+let watched = '';
+watchEffect(() => {
+  watched = status.value;
+});
+
+onServerPrefetch(async () => {
+  await Promise.resolve();
+  const ctx = useSSRContext<{ tag?: string }>();
+  status.value = ssrInterpolate(ctx?.tag ?? 'fallback');
+});
+</script>
+<template>
+  <article :data-role="attrs.role" :data-has-slot="Boolean(slots.default)">
+    <h2>{{ status }} ({{ watched }})</h2>
+    <Teleport to="#modals">
+      <div class="teleported-banner">{{ status }}</div>
+    </Teleport>
+  </article>
+</template>`;
+    await standalone(`
+import assert from 'node:assert/strict';
+const compiler=${JSON.stringify(sourceCompiler)};
+await Bun.write('source/PrefetchPage.vue',${JSON.stringify(sfc)});
+const proc=Bun.spawn([compiler,'web','build','--site','source','--entry','PrefetchPage.vue','--emit','moonshine-ssr','--out-dir','ssr'],{stdout:'pipe',stderr:'pipe'});
+const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+assert.equal(code,0,stdout+stderr);
+const {createSSRApp}=await import('@tschk/moonshine-vue/reactive');
+const {renderToString}=await import('@tschk/moonshine-vue/server-renderer');
+const {default:PrefetchPage}=await import(process.cwd()+'/ssr/CrepusEmit.moonshine-ssr.ts');
+const ctx={tag:'ssr-ok'};
+const html=await renderToString(createSSRApp(PrefetchPage,{role:'banner'}),ctx);
+assert.equal(html,'<article data-role="banner" data-has-slot="false"><h2>ssr-ok (ssr-ok)</h2><!--teleport start--><!--teleport end--></article>');
+assert.equal(ctx.teleports?.['#modals'],'<div class="teleported-banner">ssr-ok</div>');
+`);
+  },
+);
 
 test("optional framework compatibility renderer serves native SSR, API and SPA", async () => {
   await standalone(

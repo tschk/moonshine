@@ -73,32 +73,32 @@ export const PACKAGES: PackageEntry[] = [
   },
   {
     name: "@tschk/moonshine-solid",
-    role: "Solid renderer, solid-js re-exports, and signal bridges",
+    role: "Independent native replacement for supported Solid APIs and static IR",
     group: "adapter",
   },
   {
     name: "@tschk/moonshine-svelte",
-    role: "Svelte hosting adapter: peer svelte re-exports and signal bridges",
+    role: "Independent Svelte stores, native lifecycle, and signal bridges; no Svelte runtime",
     group: "adapter",
   },
   {
     name: "@tschk/moonshine-vue",
-    role: "Vue hosting adapter: peer vue re-exports and signal bridges",
+    role: "Native Vue composition APIs and signal bridges; optional legacy Vue entries",
     group: "adapter",
   },
   {
     name: "@tschk/moonshine-angular",
-    role: "Angular hosting adapter: peer @angular/* re-exports and signal bridges",
+    role: "Native signal bridges and renderer; optional legacy Angular entries",
     group: "adapter",
   },
   {
     name: "@tschk/moonshine-astro",
-    role: "Astro hosting adapter: peer astro compiler re-exports and signal bridges",
+    role: "Native signal bridges and renderer; optional legacy Astro compiler",
     group: "adapter",
   },
   {
     name: "@tschk/moonshine-nuxt",
-    role: "Nuxt hosting adapter: peer nuxt/vue re-exports and signal bridges",
+    role: "Native signal bridges and renderer; optional legacy Nuxt/Vue entries",
     group: "adapter",
   },
   {

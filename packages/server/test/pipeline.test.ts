@@ -189,6 +189,22 @@ describe("createRequestHandler", () => {
     expect(head.headers.getSetCookie()).toEqual(["blocked=1; Path=/"]);
   });
 
+  test("blocks unparseable URL bypass redirects", async () => {
+    const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        from: {
+          loader: () => redirect("http://[::1", 302),
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/from"));
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("Invalid redirect");
+  });
+
   test("blocks backslash bypass redirects", async () => {
     const routes = graph([{ id: "from", path: "/from", file: "from.tsx" }]);
     const handler = createRequestHandler({
@@ -203,6 +219,85 @@ describe("createRequestHandler", () => {
     const res = await handler(new Request("http://x/from"));
     expect(res.status).toBe(400);
     expect(await res.text()).toBe("Invalid redirect");
+  });
+
+  test("thrown response is finalized and returned directly", async () => {
+    const routes = graph([{ id: "throw-res", path: "/", file: "route.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {
+        "throw-res": {
+          loader: () => {
+            throw new Response("Thrown response body", { status: 418 });
+          },
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/"));
+    expect(res.status).toBe(418);
+    expect(await res.text()).toBe("Thrown response body");
+  });
+
+  test("uncaught errors fallback to default error response", async () => {
+    const routes = graph([{ id: "throw-err", path: "/", file: "route.tsx" }]);
+    const handler = createRequestHandler({
+      graph: routes,
+      mode: "development",
+      modules: {
+        "throw-err": {
+          loader: () => {
+            throw new Error("Unhandled pipeline error");
+          },
+        },
+      },
+    });
+
+    const res = await handler(new Request("http://x/"));
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe("Unhandled pipeline error");
+  });
+
+  test("error boundary throws out of the pipeline handler", async () => {
+    const handler = createRequestHandler({
+      routes: [{ id: "root", path: "/", file: "root.tsx" }],
+      modules: {
+        root: {
+          loader: () => {
+            throw new Error("loader error");
+          },
+          errorBoundary: () => {
+            throw new Error("boundary error");
+          },
+        },
+      },
+    });
+    await expect(handler(new Request("http://x/"))).rejects.toThrow(
+      "boundary error",
+    );
+  });
+
+  test("error boundary throwing a Response rejects with the Response", async () => {
+    const handler = createRequestHandler({
+      routes: [{ id: "root", path: "/", file: "root.tsx" }],
+      modules: {
+        root: {
+          loader: () => {
+            throw new Error("loader error");
+          },
+          errorBoundary: () => {
+            throw new Response("boundary error response", { status: 418 });
+          },
+        },
+      },
+    });
+    const rejected = await handler(new Request("http://x/")).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(rejected).toBeInstanceOf(Response);
+    expect((rejected as Response).status).toBe(418);
   });
 
   test("nearest error boundary catches loader errors", async () => {
@@ -356,6 +451,28 @@ describe("createRequestHandler", () => {
 
     const blocked = await handler(new Request("http://x/../etc/passwd"));
     expect(blocked.status).toBe(404);
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  test("throws if a static route has no renderer and no static file matches", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ms-srv-static-"));
+    const routes = graph([
+      { id: "home", path: "/missing.txt", file: "home.tsx", mode: "static" },
+    ]);
+    const handler = createRequestHandler({
+      graph: routes,
+      modules: {},
+      staticDir: dir,
+      mode: "development",
+    });
+
+    const res = await handler(new Request("http://x/missing.txt"));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("No renderer for static route");
     await fs.rm(dir, { recursive: true, force: true });
   });
 
@@ -796,6 +913,37 @@ test("HEAD ignores rejected cancellation without losing its valid response", asy
             }),
             { status: 206, headers: { "x-stream": "kept" } },
           ),
+      },
+    },
+  });
+  const response = await handler(
+    new Request("http://localhost/", { method: "HEAD" }),
+  );
+  expect(attempts).toBe(1);
+  expect(response.status).toBe(206);
+  expect(response.body).toBeNull();
+  expect(response.headers.get("x-stream")).toBe("kept");
+});
+
+test("HEAD ignores synchronous thrown error during cancellation", async () => {
+  let attempts = 0;
+  const handler = createRequestHandler({
+    routes: [{ id: "stream", path: "/", file: "stream.ts", mode: "api" }],
+    modules: {
+      stream: {
+        loader: () => {
+          const stream = new ReadableStream();
+          Object.defineProperty(stream, "cancel", {
+            value: () => {
+              attempts++;
+              throw new TypeError("synchronous cleanup failed");
+            },
+          });
+          return new Response(stream, {
+            status: 206,
+            headers: { "x-stream": "kept" },
+          });
+        },
       },
     },
   });
