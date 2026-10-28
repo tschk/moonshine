@@ -483,6 +483,61 @@ describe("createRequestHandler", () => {
     expect(res.status).toBe(404);
     expect(await res.text()).toBe("Not Found");
   });
+
+  test("a /404 page renders unmatched page requests with status 404", async () => {
+    const handler = createRequestHandler({
+      routes: [
+        { id: "home", path: "/", file: "home.tsx" },
+        { id: "404", path: "/404", file: "404.tsx" },
+        { id: "posts", path: "/posts/:slug", file: "post.tsx" },
+      ],
+      modules: {
+        "404": { loader: (ctx) => ({ asked: ctx.request.url }) },
+        // Next.js's notFound(): a bodiless 404, returned or thrown.
+        posts: {
+          loader: (ctx) => {
+            if (ctx.params.slug === "gone")
+              return new Response("gone", { status: 404 });
+            if (ctx.params.slug === "thrown")
+              throw new Response(null, { status: 404 });
+            if (ctx.params.slug !== "real")
+              return new Response(null, { status: 404 });
+            return { slug: ctx.params.slug };
+          },
+        },
+      },
+      renderer: renderer("page", (data) =>
+        Response.json(data, { headers: { "x-page": "404" } }),
+      ),
+    });
+    const missing = await handler(new Request("http://x/missing/page"));
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("x-page")).toBe("404");
+    expect(await missing.json()).toEqual({ "404": { asked: "http://x/404" } });
+    const head = await handler(
+      new Request("http://x/missing", { method: "HEAD" }),
+    );
+    expect(head.status).toBe(404);
+    expect(await head.text()).toBe("");
+    for (const slug of ["missing", "thrown"]) {
+      const notFound = await handler(new Request(`http://x/posts/${slug}`));
+      expect(notFound.status).toBe(404);
+      expect(notFound.headers.get("x-page")).toBe("404");
+    }
+    // A 404 with its own body, matched routes and other methods are kept.
+    const gone = await handler(new Request("http://x/posts/gone"));
+    expect([gone.status, await gone.text()]).toEqual([404, "gone"]);
+    expect((await handler(new Request("http://x/posts/real"))).status).toBe(
+      200,
+    );
+    expect((await handler(new Request("http://x/404"))).status).toBe(200);
+    const post = await handler(
+      new Request("http://x/missing", { method: "POST" }),
+    );
+    expect(post.status).toBe(404);
+    expect(await post.text()).toBe("Not Found");
+  });
+
   test("rejects non-GET methods on a leaf with no action", async () => {
     let loaderRuns = 0;
     const routes = graph([{ id: "p", path: "/p", file: "p.tsx" }]);
