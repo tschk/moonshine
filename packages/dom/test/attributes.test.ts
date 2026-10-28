@@ -49,6 +49,7 @@ describe("attributeValue", () => {
     expect(attributeValue("translate", true, true)).toBe("yes");
     expect(attributeValue("translate", false, true)).toBe("no");
     expect(attributeValue("translate", "yes", true)).toBe("yes");
+    expect(attributeValue("TRANSLATE", true, true)).toBe("yes");
   });
 
   test("matches boolean attribute names case-insensitively", () => {

@@ -27,6 +27,10 @@ describe("wrapFragmentSource", () => {
     expect(result).toContain("#version 300 es");
     expect(result).toContain("out vec4 outColor;");
     expect(result).toContain(source);
+    expect(result).toContain("precision highp float;");
+    expect(result).toContain("uniform vec2 u_resolution;");
+    expect(result).toContain("uniform float u_time;");
+    expect(result).toContain("vec2 uv = gl_FragCoord.xy / u_resolution;");
     expect(result).toContain("outColor = shade(uv, u_time);");
   });
 
@@ -37,6 +41,10 @@ describe("wrapFragmentSource", () => {
     expect(result).not.toContain("#version");
     expect(result).not.toContain("out vec4 outColor;");
     expect(result).toContain(source);
+    expect(result).toContain("precision highp float;");
+    expect(result).toContain("uniform vec2 u_resolution;");
+    expect(result).toContain("uniform float u_time;");
+    expect(result).toContain("vec2 uv = gl_FragCoord.xy / u_resolution;");
     expect(result).toContain("gl_FragColor = shade(uv, u_time);");
   });
 });
