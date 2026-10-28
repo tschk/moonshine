@@ -3,178 +3,228 @@ import { catchError, ErrorBoundary } from "../src/error";
 import {
   createRoot,
   createSignal,
-  createEffect,
-  createErrorOwner,
+  getOwner,
   errorHandlerKey,
 } from "../src/reactive";
 
-test("normalizeError handles Error instances", async () => {
-  let caught: Error | undefined;
-  createRoot(() => {
-    catchError(
-      () => {
-        throw new Error("standard error");
-      },
-      (e) => {
-        caught = e;
-      },
-    );
-  });
-  await Promise.resolve();
-  expect(caught).toBeInstanceOf(Error);
-  expect(caught?.message).toBe("standard error");
-});
-
-test("normalizeError handles string primitives", async () => {
+test("normalizeError handles strings", () => {
   let caught: Error | undefined;
   createRoot(() => {
     catchError(
       () => {
         throw "string error";
       },
-      (e) => {
-        caught = e;
+      (err) => {
+        caught = err;
       },
     );
   });
-  await Promise.resolve();
   expect(caught).toBeInstanceOf(Error);
   expect(caught?.message).toBe("string error");
   expect(caught?.cause).toBe("string error");
 });
 
-test("normalizeError handles non-standard objects/primitives", async () => {
+test("normalizeError handles unknown objects", () => {
   let caught: Error | undefined;
   createRoot(() => {
     catchError(
       () => {
-        throw 123;
+        throw { some: "object" };
       },
-      (e) => {
-        caught = e;
+      (err) => {
+        caught = err;
       },
     );
   });
-  await Promise.resolve();
   expect(caught).toBeInstanceOf(Error);
   expect(caught?.message).toBe("Unknown error");
-  expect(caught?.cause).toBe(123);
+  expect(caught?.cause).toEqual({ some: "object" });
 });
 
-test("ErrorBoundary normalizes thrown string errors in children", async () => {
-  const [shouldThrow, setShouldThrow] = createSignal(false);
-  let view: () => string | undefined;
-  createRoot(() => {
-    view = ErrorBoundary({
-      children: () => {
-        createEffect(() => {
-          if (shouldThrow()) throw "string error";
-        });
-        return "ok";
-      },
-      fallback: (e) => {
-        return e.message;
-      },
-    }) as () => string;
-  });
-  expect(view!()).toBe("ok");
-  setShouldThrow(true);
-  expect(view!()).toBe("string error");
-});
-
-test("ErrorBoundary normalizes non-standard objects thrown in children", async () => {
-  const [shouldThrow, setShouldThrow] = createSignal(false);
-  let view: () => string | undefined;
-  createRoot(() => {
-    view = ErrorBoundary({
-      children: () => {
-        createEffect(() => {
-          if (shouldThrow()) throw { custom: true };
-        });
-        return "ok";
-      },
-      fallback: (e) => {
-        expect(e.cause).toEqual({ custom: true });
-        return e.message;
-      },
-    }) as () => string;
-  });
-  expect(view!()).toBe("ok");
-  setShouldThrow(true);
-  expect(view!()).toBe("Unknown error");
-});
-
-test("catchError routes failure in handler to parent queue", async () => {
+test("normalizeError passes through Error instances", () => {
   let caught: Error | undefined;
+  const original = new Error("original");
+  createRoot(() => {
+    catchError(
+      () => {
+        throw original;
+      },
+      (err) => {
+        caught = err;
+      },
+    );
+  });
+  expect(caught).toBe(original);
+});
+
+test("catchError returns fn result on success", () => {
+  let result: string | undefined;
+  createRoot(() => {
+    result = catchError(
+      () => "success",
+      () => {},
+    );
+  });
+  expect(result).toBe("success");
+});
+
+test("handler failure is passed to parent if it exists", () => {
+  let parentCaught: Error | undefined;
   createRoot(() => {
     catchError(
       () => {
         catchError(
           () => {
-            throw "first error";
+            throw new Error("first");
           },
           () => {
-            throw "handler error";
+            throw "second";
           },
         );
       },
-      (e) => {
-        caught = e;
+      (err) => {
+        parentCaught = err;
       },
     );
   });
-  await Promise.resolve();
-  expect(caught).toBeInstanceOf(Error);
-  expect(caught?.message).toBe("handler error");
+  expect(parentCaught).toBeInstanceOf(Error);
+  expect(parentCaught?.message).toBe("second");
+  expect(parentCaught?.cause).toBe("second");
 });
 
-test("catchError route returns false if disposed", async () => {
-  let caught = false;
+test("handler failure is normalized and re-thrown if no parent catches", () => {
+  let caughtError: Error | undefined;
+
+  try {
+    createRoot(() => {
+      catchError(
+        () => {
+          throw new Error("first");
+        },
+        () => {
+          throw "second";
+        },
+      );
+    });
+  } catch (e) {
+    caughtError = e as Error;
+  }
+
+  expect(caughtError).toBeInstanceOf(Error);
+  expect(caughtError?.message).toBe("second");
+});
+
+test("route ignores errors if scope is disposed", async () => {
+  let stop!: () => void;
+  let handlerCalled = false;
+  let route: any;
+
+  createRoot((d) => {
+    stop = d;
+    catchError(
+      () => {
+        route = getOwner()?.context?.get(errorHandlerKey);
+      },
+      () => {
+        handlerCalled = true;
+      },
+    );
+  });
+
+  expect(route).toBeDefined();
+
+  stop();
+
+  const returned = route("late error");
+  expect(returned).toBe(false);
+
+  await Promise.resolve();
+  expect(handlerCalled).toBe(false);
+});
+
+test("route forwards errors to the parent boundary once its scope is disposed", async () => {
+  let stop!: () => void;
+  let innerCalled = false;
+  let parentCaught: Error | undefined;
+  let route: any;
+
   createRoot(() => {
     catchError(
       () => {
         createRoot((d) => {
+          stop = d;
           catchError(
             () => {
-              d(); // Dispose inner scope
-              throw new Error("disposed error");
+              route = getOwner()?.context?.get(errorHandlerKey);
             },
             () => {
-              caught = true;
-            }, // Should NOT be called
+              innerCalled = true;
+            },
           );
         });
       },
-      (e) => {
-        expect(e.message).toBe("disposed error");
+      (err) => {
+        parentCaught = err;
       },
     );
   });
+
+  stop();
+
+  expect(route("late error")).toBe(true);
   await Promise.resolve();
-  expect(caught).toBe(false);
+  expect(innerCalled).toBe(false);
+  expect(parentCaught?.message).toBe("late error");
 });
 
-test("catchError route returns false if disposed and no parent", async () => {
-  let caught = false;
-  createRoot((dispose) => {
-    catchError(
-      () => {
-        dispose();
-        try {
-          throw new Error("disposed no parent");
-        } catch (e) {
-          const errorHandler = createErrorOwner().context?.get(errorHandlerKey);
-          if (errorHandler) {
-            const handled = (errorHandler as any)(e);
-            expect(handled).toBe(false);
-          }
-        }
-      },
-      () => {
-        caught = true;
-      },
-    );
+test("ErrorBoundary renders children on success", () => {
+  let result: (() => string | undefined) | undefined;
+  createRoot(() => {
+    result = ErrorBoundary({
+      children: () => "child",
+      fallback: () => "error",
+    });
   });
-  await Promise.resolve();
-  expect(caught).toBe(false);
+  expect(result?.()).toBe("child");
+});
+
+test("ErrorBoundary renders fallback on error", () => {
+  let result: (() => string | undefined) | undefined;
+  createRoot(() => {
+    result = ErrorBoundary({
+      children: () => {
+        throw new Error("child error");
+      },
+      fallback: () => "error",
+    });
+  });
+  expect(result?.()).toBe("error");
+});
+
+test("ErrorBoundary allows resetting the error state", () => {
+  let result: (() => string | undefined) | undefined;
+  const [shouldThrow, setShouldThrow] = createSignal(true);
+  let resetFn: (() => void) | undefined;
+
+  createRoot(() => {
+    result = ErrorBoundary({
+      children: () => {
+        if (shouldThrow()) {
+          throw new Error("child error");
+        }
+        return "recovered child";
+      },
+      fallback: (_error, reset) => {
+        resetFn = reset;
+        return "error fallback";
+      },
+    });
+  });
+
+  expect(result?.()).toBe("error fallback");
+
+  setShouldThrow(false);
+  resetFn?.();
+
+  expect(result?.()).toBe("recovered child");
 });
