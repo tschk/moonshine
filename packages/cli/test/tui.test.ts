@@ -100,6 +100,20 @@ describe("terminalTui", () => {
     expect(typeof tui.prompt).toBe("function");
   });
 
+  test("clamps columns read from process.stdout", () => {
+    const original = Object.getOwnPropertyDescriptor(process.stdout, "columns");
+    Object.defineProperty(process.stdout, "columns", {
+      value: 150,
+      configurable: true,
+    });
+    try {
+      expect(terminalTui().columns).toBe(100);
+    } finally {
+      if (original) Object.defineProperty(process.stdout, "columns", original);
+      else delete (process.stdout as any).columns;
+    }
+  });
+
   test("write outputs to process.stdout", () => {
     const tui = terminalTui();
     let written = "";
