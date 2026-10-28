@@ -37,6 +37,25 @@ test("public asset storage remains literal and cannot overwrite the server bundl
   }
 });
 
+test("broken public symlink gracefully falls back during copyAsset", async () => {
+  const root = await mkdtemp(join(tmpdir(), "moonshine-copy-broken-link-"));
+  try {
+    await symlink(join(root, "does-not-exist"), join(root, "public"));
+    await writeFile(join(root, "source.css"), "css");
+
+    expect(
+      await copyAsset(
+        { file: join(root, "source.css"), path: "/app.css" },
+        root,
+      ),
+    ).toBe("app.css");
+
+    expect(await readFile(join(root, "app.css"), "utf8")).toBe("css");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("public symlinks cannot alias private files", async () => {
   const root = await mkdtemp(join(tmpdir(), "moonshine-copy-link-"));
   try {
@@ -63,6 +82,22 @@ test("legacy external registrations still copy to their declared destination", a
       ),
     ).toBe("app.css");
     expect(await readFile(join(root, "app.css"), "utf8")).toBe("css");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("broken symlinks cause copyAsset to reject", async () => {
+  const root = await mkdtemp(join(tmpdir(), "moonshine-copy-broken-link-"));
+  try {
+    await mkdir(join(root, "public"));
+    await symlink(
+      join(root, "non-existent.js"),
+      join(root, "public/broken.js"),
+    );
+    await expect(
+      copyAsset({ file: "public/broken.js", path: "/broken.js" }, root),
+    ).rejects.toThrow("ENOENT");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
