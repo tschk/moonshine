@@ -114,6 +114,38 @@ describe("terminalTui", () => {
     }
   });
 
+  test("reads isTTY from process.stdout and defaults columns to 80", () => {
+    const originals = {
+      isTTY: Object.getOwnPropertyDescriptor(process.stdout, "isTTY"),
+      columns: Object.getOwnPropertyDescriptor(process.stdout, "columns"),
+    };
+    try {
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        configurable: true,
+      });
+      expect(terminalTui().isTTY).toBe(true);
+
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: false,
+        configurable: true,
+      });
+      Object.defineProperty(process.stdout, "columns", {
+        value: undefined,
+        configurable: true,
+      });
+      const tui = terminalTui();
+      expect(tui.isTTY).toBe(false);
+      expect(tui.columns).toBe(80);
+    } finally {
+      for (const key of ["isTTY", "columns"] as const) {
+        const original = originals[key];
+        if (original) Object.defineProperty(process.stdout, key, original);
+        else delete (process.stdout as any)[key];
+      }
+    }
+  });
+
   test("write outputs to process.stdout", () => {
     const tui = terminalTui();
     let written = "";
