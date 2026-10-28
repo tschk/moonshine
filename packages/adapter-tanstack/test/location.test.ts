@@ -19,8 +19,52 @@ describe("parseSearch", () => {
     expect(parseSearch('?f={"a":1}')).toEqual({ f: { a: 1 } });
   });
 
+  test("falls back to string for malformed JSON", () => {
+    expect(parseSearch("?f={bad}")).toEqual({ f: "{bad}" });
+  });
+
+  test("handles empty values and keys without equals", () => {
+    expect(parseSearch("?empty=&key")).toEqual({ empty: "", key: "" });
+  });
+
+  test("takes the last value for duplicate keys", () => {
+    expect(parseSearch("?a=1&a=2")).toEqual({ a: 2 });
+  });
+
   test("returns an empty record for no query", () => {
     expect(parseSearch("")).toEqual({});
+  });
+
+  test("decodes JSON arrays", () => {
+    expect(parseSearch("?arr=[1,2,3]")).toEqual({ arr: [1, 2, 3] });
+  });
+
+  test("decodes JSON null and false", () => {
+    expect(parseSearch("?n=null&f=false")).toEqual({ n: null, f: false });
+  });
+
+  test("decodes strings formatted as JSON", () => {
+    expect(parseSearch('?s="string"')).toEqual({ s: "string" });
+  });
+
+  test("handles URL encoded characters", () => {
+    expect(parseSearch("?q=%22hello%20world%22")).toEqual({ q: "hello world" });
+  });
+
+  test("decodes plus signs as spaces", () => {
+    expect(parseSearch("?q=hello+world")).toEqual({ q: "hello world" });
+  });
+
+  test("handles malformed JSON gracefully", () => {
+    expect(parseSearch("?bad=[1,2")).toEqual({ bad: "[1,2" });
+  });
+
+  test("overwrites duplicate keys", () => {
+    expect(parseSearch("?a=1&a=2")).toEqual({ a: 2 });
+  });
+
+  test("handles query without leading ?", () => {
+    expect(parseSearch("page=2&open=true")).toEqual({ page: 2, open: true });
   });
 });
 
@@ -36,6 +80,24 @@ describe("stringifySearch", () => {
 
   test("returns an empty string for an empty record", () => {
     expect(stringifySearch({})).toBe("");
+  });
+
+  test("stringifies objects and arrays to JSON", () => {
+    expect(stringifySearch({ obj: { a: 1 }, arr: [1, 2] })).toBe(
+      "?obj=%7B%22a%22%3A1%7D&arr=%5B1%2C2%5D",
+    );
+  });
+
+  test("stringifies numbers, booleans, and null to JSON", () => {
+    expect(stringifySearch({ num: 42, bool: true, nul: null })).toBe(
+      "?num=42&bool=true&nul=null",
+    );
+  });
+
+  test("handles strings with special characters", () => {
+    expect(stringifySearch({ q: "hello world&foo=bar" })).toBe(
+      "?q=hello+world%26foo%3Dbar",
+    );
   });
 });
 
