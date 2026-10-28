@@ -61,6 +61,16 @@ describe("createFullscreenFragment", () => {
     const source = "return vec4(1.0);";
     const result = createFullscreenFragment(source, false);
     expect(result.vertex).toContain("attribute vec2 a_pos;");
+    expect(result.vertex).not.toContain("#version 300 es");
     expect(result.fragment).not.toContain("#version 300 es");
+    expect(result.fragment).toContain("gl_FragColor = shade(uv, u_time);");
+  });
+
+  it("defaults to WebGL2 when webgl2 is omitted", () => {
+    const source = "vec4 shade(vec2 uv, float t) { return vec4(1.0); }";
+    const result = createFullscreenFragment(source);
+    expect(result.vertex).toContain("#version 300 es");
+    expect(result.fragment).toContain("#version 300 es");
+    expect(result.fragment).toContain("outColor = shade(uv, u_time);");
   });
 });
