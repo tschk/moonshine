@@ -40,11 +40,21 @@ export function terminalTui(): Tui {
   };
 }
 
-/** Cut `text` to `width` columns, marking the cut so nothing looks complete when it is not. */
+/**
+ * Cut `text` to `width` columns, marking the cut so nothing looks complete when it is not.
+ * Never cuts inside a surrogate pair: an astral character (2 UTF-16 units, and
+ * typically 2 columns) that would straddle the limit is dropped whole, so the
+ * result never exceeds `width` and never holds a lone surrogate.
+ */
 export function truncate(text: string, width: number): string {
   if (text.length <= width) return text;
-  if (width <= 1) return text.slice(0, Math.max(0, width));
-  return `${text.slice(0, width - 1)}…`;
+  if (width <= 1) return slicePairSafe(text, Math.max(0, width));
+  return `${slicePairSafe(text, width - 1)}…`;
+}
+
+function slicePairSafe(text: string, end: number): string {
+  const last = text.charCodeAt(end - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? end - 1 : end);
 }
 
 /**
