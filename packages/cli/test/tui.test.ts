@@ -60,6 +60,24 @@ describe("truncate", () => {
     expect(truncate("", -1)).toBe("");
   });
 
+  test("never splits a surrogate pair", () => {
+    expect(truncate("👋🌍", 1)).toBe("");
+    expect(truncate("👋🌍", 2)).toBe("…");
+    expect(truncate("👋🌍", 3)).toBe("👋…");
+    expect(truncate("👋🌍", 4)).toBe("👋🌍");
+    // A pair straddling the cut is dropped whole, never exceeding the width.
+    expect(truncate("ab👋cd", 3)).toBe("ab…");
+    expect(truncate("ab👋cd", 4)).toBe("ab…");
+    expect(truncate("ab👋cd", 5)).toBe("ab👋…");
+    expect(truncate("a👋", 1)).toBe("a");
+    expect(truncate("a👋", 2)).toBe("a…");
+    for (let width = 0; width <= 6; width++) {
+      const out = truncate("x👋🌍y", width);
+      expect(out.length).toBeLessThanOrEqual(Math.max(0, width));
+      expect(out.isWellFormed()).toBe(true);
+    }
+  });
+
   test("handles strings with spaces", () => {
     expect(truncate("a b c", 3)).toBe("a …");
     expect(truncate("a b c", 4)).toBe("a b…");
