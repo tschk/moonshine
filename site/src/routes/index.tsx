@@ -251,8 +251,8 @@ export default function Home({ data }: { data: HomeData }) {
           <div className="row">
             <span>renderers</span>
             <span>
-              React and Solid own their output; there is no shared vnode. The{" "}
-              <code>Renderer</code> contract is <code>name</code>,{" "}
+              React and native renderers own their output; there is no shared
+              vnode. The <code>Renderer</code> contract is <code>name</code>,{" "}
               <code>render</code> and <code>prerender</code> — small enough that
               this site implements its own to control <code>&lt;head&gt;</code>.
             </span>
@@ -280,16 +280,20 @@ export default function Home({ data }: { data: HomeData }) {
           moonshine implementations instead.
         </p>
         <p>
-          Svelte, Vue, Astro and Angular have no adapter, so they take the
-          rougher path: each <code>.svelte</code>, <code>.vue</code>,{" "}
-          <code>.astro</code> or Angular component template compiles through{" "}
-          <Crepuscularity /> into View IR, and adopt writes a generated React
-          module that renders it — under <code>moonshine/routes</code> when the
-          filename maps to a URL, otherwise <code>moonshine/components</code>,
-          compiled but unmounted. Only markup is compiled. Svelte{" "}
-          <code>&lt;script&gt;</code> blocks, Vue&rsquo;s Composition API,
-          Astro&rsquo;s <code>---</code> frontmatter and the Angular component
-          class are never executed, so that logic has to be ported by hand.
+          Svelte provides independent stores, component contexts, events and
+          native lifecycle without the Svelte runtime. Existing Svelte output
+          must be recompiled. The local Crepus source path supports scalar
+          state/derived runes, live props and imported child components; full
+          SFC coverage remains unfinished. For template adoption, each{" "}
+          <code>.svelte</code>, <code>.vue</code>, <code>.astro</code> or
+          Angular component template compiles through <Crepuscularity /> into
+          native SSR, and adopt writes a generated module that renders it —
+          under <code>moonshine/routes</code> when the filename maps to a URL,
+          otherwise <code>moonshine/components</code>, compiled but unmounted.
+          Svelte source support depends on the installed compiler. Vue&rsquo;s
+          Composition API, Astro&rsquo;s <code>---</code> frontmatter and the
+          Angular component class are never executed, so that logic has to be
+          ported by hand.
         </p>
         <p>
           It also prints, bluntly, what does not carry over. For Next:
@@ -333,12 +337,13 @@ $ moonshine preview`}</code>
             <code>@tschk/moonshine-waku</code> — Waku client router API
           </li>
         </ul>
-        <p>Two host a real library or contract instead of replacing it:</p>
+        <p>Other opt-in packages provide native APIs and deployment checks:</p>
         <ul className="plain">
           <li>
-            <code>@tschk/moonshine-solid</code> — re-exports{" "}
-            <code>solid-js</code> alongside the Solid renderer and signal
-            bridges
+            <code>@tschk/moonshine-solid</code> — an independent native
+            replacement for supported Solid APIs and static IR, without{" "}
+            <code>solid-js</code>. Authored JSX must be recompiled through
+            Crepus; Solid compiler output and hydration are unsupported.
           </li>
           <li>
             <code>@tschk/moonshine-adapter-conformance</code> — the deployment
@@ -355,9 +360,9 @@ $ moonshine preview`}</code>
           published as <code>@tschk/crepuscularity-wasm</code>. It accepts{" "}
           <code>.crepus</code>, JSX/TSX, <code>.svelte</code>, <code>.vue</code>
           , <code>.astro</code> and Angular templates, lowering all of them to
-          one View IR that the React and Solid renderers consume. Class tokens
-          survive as <code>className</code> verbatim, so UnoCSS or Tailwind
-          still owns the styling.
+          one View IR that React and independent native renderers consume. Class
+          tokens survive as <code>className</code> verbatim, so UnoCSS or
+          Tailwind still owns the styling.
         </p>
         <Crates crates={data.crates} />
         {data.moonshineDownloads.ok ? (
