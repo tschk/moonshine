@@ -1,25 +1,21 @@
 import { copyFile, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { tryServeStatic } from "@tschk/moonshine-server";
 
 import {
   type DeploymentAdapter,
   type MoonshineManifest,
-  type RenderContext,
-  type RouteArtifact,
   type Harness,
   type HarnessFactory,
-  resolveManifestFiles,
   copyAssets,
   validateRuntime,
   validateCapabilities,
 } from "@tschk/moonshine-framework";
 
-type VercelRoute = {
-  src: string;
-  dest: string;
-};
+type VercelRoute =
+  | { handle: "filesystem" }
+  | { src: string; dest: string; headers?: Record<string, string> };
 
 type VercelConfig = {
   version: 3;
@@ -27,9 +23,11 @@ type VercelConfig = {
 };
 
 function routeToRegex(path: string): string {
+  // A splat also matches its bare prefix (`/docs/*` matches `/docs`), as the
+  // router does.
   return `^${path
+    .replace(/\/\*[^/]*$/, "(?:/.*)?")
     .replace(/\//g, "\\/")
-    .replace(/\*/g, ".*")
     .replace(/:([^/]+?)\?/g, "(?<$1>[^/]*)")
     .replace(/:([^/]+)/g, "(?<$1>[^/]+)")}$`;
 }
@@ -45,46 +43,6 @@ function staticSlug(path: string, usedSlugs: Set<string>): string {
   while (usedSlugs.has(`${slug}-${i}`)) i++;
   usedSlugs.add(`${slug}-${i}`);
   return `${slug}-${i}`;
-}
-
-async function mapConcurrent<T, R>(
-  items: T[],
-  fn: (item: T) => Promise<R>,
-  concurrency: number,
-): Promise<R[]> {
-  const results: R[] = Array.from({ length: items.length });
-  const errors: unknown[] = [];
-  let index = 0;
-
-  const worker = async () => {
-    while (index < items.length) {
-      const i = index++;
-      try {
-        results[i] = await fn(items[i]);
-      } catch (e) {
-        errors.push(e);
-      }
-    }
-  };
-
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, items.length) }, worker),
-  );
-
-  if (errors.length > 0) throw errors[0];
-  return results;
-}
-
-async function prerenderRoute(route: RouteArtifact): Promise<string> {
-  const context: RenderContext = {
-    request: new Request(`http://localhost${route.path}`),
-    route,
-    params: {},
-    data: {},
-    signal: new AbortController().signal,
-  };
-  const { reactRenderer } = await import("@tschk/moonshine-react");
-  return reactRenderer.prerender(context);
 }
 
 function validateAssetPath(path: string): void {
@@ -266,106 +224,157 @@ export const vercelAdapter: DeploymentAdapter = {
     }
     for (const asset of manifest.assets) validateAssetPath(asset.path);
     await copyAssets(manifest.assets, outDir);
-    const projectRoot = resolve(outDir, "..");
-    const resolvedManifest = resolveManifestFiles(manifest, projectRoot);
-
+    // Project-relative paths: the bundled module map is keyed by them.
     await writeFile(
       resolve(outDir, "manifest.json"),
-      JSON.stringify(resolvedManifest, null, 2) + "\n",
+      JSON.stringify(manifest, null, 2) + "\n",
     );
 
     const vercelOutput = resolve(outDir, ".vercel/output");
     const staticDir = resolve(vercelOutput, "static");
-    const functionsDir = resolve(vercelOutput, "functions");
     await mkdir(staticDir, { recursive: true });
-    await mkdir(functionsDir, { recursive: true });
-
-    const config: VercelConfig = { version: 3, routes: [] };
-    const usedSlugs = new Set<string>();
-
-    const routesConfig = await mapConcurrent(
-      resolvedManifest.routes,
-      async (route) => {
-        if (
-          route.mode === "static" &&
-          !route.path.includes("*") &&
-          !route.path.includes(":")
-        ) {
-          // Allocate the output slug before awaiting so concurrent workers
-          // cannot race on `usedSlugs`.
-          const slug = staticSlug(route.path, usedSlugs);
-          const html = await prerenderRoute(route);
-          await writeFile(resolve(staticDir, `${slug}.html`), html);
-          return {
-            src: routeToRegex(route.path),
-            dest: `/${slug}.html`,
-          };
-        } else {
-          const funcDir = resolve(functionsDir, `${route.id}.func`);
-          await mkdir(funcDir, { recursive: true });
-
-          const runtime =
-            route.runtime === "vercel-edge" ? "edge" : "nodejs20.x";
-          const vcConfig: Record<string, string> = {
-            runtime,
-            handler: "index.ts",
-          };
-          if (runtime !== "edge") {
-            vcConfig.launcherType = "Nodejs";
-          }
-          await writeFile(
-            resolve(funcDir, ".vc-config.json"),
-            JSON.stringify(vcConfig, null, 2) + "\n",
-          );
-
-          const functionEntry = `import { createRequestHandler } from "@tschk/moonshine-server";
-import { reactRenderer } from "@tschk/moonshine-react";
-import manifest from "../../manifest.json" with { type: "json" };
-
-const fetch = createRequestHandler({ manifest, renderer: reactRenderer });
-
-export default { fetch };
-`;
-          await writeFile(resolve(funcDir, "index.ts"), functionEntry);
-
-          return {
-            src: routeToRegex(route.path),
-            dest: `/${route.id}`,
-          };
-        }
-      },
-      20,
-    );
-    config.routes.push(...routesConfig);
-
-    await copyPublicAssets(resolvedManifest, outDir, staticDir);
-
-    await writeFile(
-      resolve(vercelOutput, "manifest.json"),
-      JSON.stringify(resolvedManifest, null, 2) + "\n",
-    );
+    const routes: VercelRoute[] = [{ handle: "filesystem" }];
+    if (manifest.routes.length) {
+      routes.push(...(await buildFunctions(manifest, outDir, staticDir)));
+    }
+    await copyPublicAssets(manifest, outDir, staticDir);
     await writeFile(
       resolve(vercelOutput, "config.json"),
-      JSON.stringify(config, null, 2) + "\n",
+      JSON.stringify({ version: 3, routes } satisfies VercelConfig, null, 2) +
+        "\n",
     );
-
-    const serverEntry = `import { createRequestHandler } from "@tschk/moonshine-server";
-import { reactRenderer } from "@tschk/moonshine-react";
-import { join } from "node:path";
-import manifest from "./manifest.json" with { type: "json" };
-
-const fetch = createRequestHandler({
-  manifest,
-  renderer: reactRenderer,
-  staticDir: join(import.meta.dir, ".vercel/output/static"),
-});
-
-const envPort = Number(process.env.PORT);
-Bun.serve({ port: Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535 ? envPort : 0, fetch });
-`;
-    await writeFile(resolve(outDir, "server.ts"), serverEntry);
   },
 };
+
+const own = (specifier: string) =>
+  JSON.stringify(fileURLToPath(import.meta.resolve(specifier)));
+
+/**
+ * Bundles the app into at most two self-contained functions — one Node, one
+ * Edge — and prerenders static routes by requesting them from the Node bundle,
+ * so the HTML carries loader data exactly as a live request would.
+ */
+async function buildFunctions(
+  manifest: MoonshineManifest,
+  outDir: string,
+  staticDir: string,
+): Promise<VercelRoute[]> {
+  const functionsDir = resolve(outDir, ".vercel/output/functions");
+  const appImports = `import { createRequestHandler } from ${own("@tschk/moonshine-server")};
+import { reactRenderer as renderer, registerRouteModules } from "@tschk/moonshine-react";
+import { modules } from "./dist/server.js";
+import manifest from "./manifest.json" with { type: "json" };
+registerRouteModules(modules);
+export const fetch = createRequestHandler({ manifest, modules, renderer });
+`;
+  const define = { "process.env.NODE_ENV": JSON.stringify("production") };
+  const nodeDir = resolve(functionsDir, "moonshine.func");
+  const nodeEntry = resolve(outDir, "vercel-node.ts");
+  await writeFile(
+    nodeEntry,
+    `${appImports}import { createNodeHandler } from ${own("@tschk/moonshine-deploy-node")};
+export default createNodeHandler({ fetch });
+`,
+  );
+  const nodeBuild = await Bun.build({
+    entrypoints: [nodeEntry],
+    outdir: nodeDir,
+    naming: "index.mjs",
+    target: "node",
+    packages: "bundle",
+    define,
+  });
+  if (!nodeBuild.success)
+    throw new AggregateError(
+      nodeBuild.logs,
+      "Vercel Node function bundle failed",
+    );
+
+  const routes: VercelRoute[] = [];
+  const usedSlugs = new Set<string>();
+  const prerendered = new Set<string>();
+  const app = (await import(
+    `${pathToFileURL(resolve(nodeDir, "index.mjs")).href}?${Date.now()}`
+  )) as { fetch: (request: Request) => Promise<Response> };
+  for (const route of manifest.routes) {
+    if (
+      route.mode !== "static" ||
+      route.path.includes("*") ||
+      route.path.includes(":")
+    )
+      continue;
+    const response = await app.fetch(
+      new Request(new URL(route.path, "http://localhost")),
+    );
+    if (response.status !== 200)
+      throw new Error(
+        `Prerendering static route "${route.path}" returned ${response.status}`,
+      );
+    const slug = staticSlug(route.path, usedSlugs);
+    await writeFile(resolve(staticDir, `${slug}.html`), await response.text());
+    routes.push({
+      src: routeToRegex(route.path),
+      dest: `/${slug}.html`,
+      ...(route.headers && { headers: route.headers }),
+    });
+    prerendered.add(route.id);
+  }
+
+  const live = manifest.routes.filter((route) => !prerendered.has(route.id));
+  const edge = live.filter((route) => route.runtime === "vercel-edge");
+  const node = live.filter((route) => route.runtime !== "vercel-edge");
+  if (edge.length) {
+    const edgeEntry = resolve(outDir, "vercel-edge.ts");
+    await writeFile(
+      edgeEntry,
+      `${appImports}export default (request) => fetch(request);
+`,
+    );
+    const edgeDir = resolve(functionsDir, "moonshine-edge.func");
+    const edgeBuild = await Bun.build({
+      entrypoints: [edgeEntry],
+      outdir: edgeDir,
+      naming: "index.js",
+      target: "browser",
+      packages: "bundle",
+      define,
+    });
+    if (!edgeBuild.success)
+      throw new AggregateError(
+        edgeBuild.logs,
+        "Vercel Edge function bundle failed",
+      );
+    await writeFile(
+      resolve(edgeDir, ".vc-config.json"),
+      JSON.stringify({ runtime: "edge", entrypoint: "index.js" }, null, 2) +
+        "\n",
+    );
+    for (const route of edge)
+      routes.push({ src: routeToRegex(route.path), dest: "/moonshine-edge" });
+  }
+  if (node.length || !edge.length) {
+    await writeFile(
+      resolve(nodeDir, ".vc-config.json"),
+      JSON.stringify(
+        {
+          runtime: "nodejs22.x",
+          handler: "index.mjs",
+          launcherType: "Nodejs",
+          supportsResponseStreaming: true,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    // Everything else, including unmatched paths, reaches the app so its own
+    // 404 handling applies.
+    routes.push({ src: "/.*", dest: "/moonshine" });
+  } else {
+    await rm(nodeDir, { recursive: true, force: true });
+    routes.push({ src: "/.*", dest: "/moonshine-edge" });
+  }
+  return routes;
+}
 
 export const vercelHarness: HarnessFactory = (fetch, options) => {
   const server = Bun.serve({

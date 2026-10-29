@@ -13,4 +13,11 @@ export type RouteDefinition = {
   middleware?: string[];
   errorBoundary?: string;
   dataFile?: string;
+  /**
+   * `control` is sent as Cache-Control on successful GET/HEAD responses.
+   * `revalidate` (seconds) reuses a rendered response for that long before the
+   * next request renders it again, and is advertised to shared caches as
+   * `s-maxage` when `control` is not set.
+   */
+  cache?: { control?: string; revalidate?: number };
 };

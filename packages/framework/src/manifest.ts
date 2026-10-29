@@ -18,7 +18,6 @@ export type RouteArtifact = RouteDefinition & {
   clientEntries: string[];
   clientStyles?: string[];
   staticOutput?: string;
-  cache?: { control?: string; revalidate?: number };
   headers?: Record<string, string>;
 };
 

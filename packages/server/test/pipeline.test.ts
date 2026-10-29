@@ -1265,3 +1265,63 @@ test("detached next rejection discards its Response after a bodyless middleware 
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(cancelled).toBe(1);
 });
+
+test("cache.revalidate reuses a rendered page per URL until it expires", async () => {
+  const { setSystemTime } = await import("bun:test");
+  let renders = 0;
+  const handler = createRequestHandler({
+    routes: [
+      {
+        id: "page",
+        path: "/page",
+        file: "page.tsx",
+        mode: "ssr",
+        cache: { revalidate: 10 },
+      },
+      {
+        id: "session",
+        path: "/session",
+        file: "session.tsx",
+        mode: "ssr",
+        cache: { revalidate: 10 },
+      },
+    ],
+    modules: {
+      page: { loader: () => ({}) },
+      session: { loader: () => ({}) },
+    },
+    renderer: {
+      name: "count",
+      prerender: async () => "",
+      render: async (ctx) =>
+        new Response(`render ${++renders}`, {
+          headers: ctx.route.id === "session" ? { "set-cookie": "sid=1" } : {},
+        }),
+    },
+  });
+  const get = (path: string, method = "GET") =>
+    handler(new Request(`http://localhost${path}`, { method }));
+  try {
+    setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    const first = await get("/page");
+    expect(first.headers.get("cache-control")).toBe(
+      "public, max-age=0, s-maxage=10",
+    );
+    expect(await first.text()).toBe("render 1");
+    expect(await (await get("/page")).text()).toBe("render 1");
+    const head = await get("/page", "HEAD");
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    // The query is part of the page, so it is cached separately.
+    expect(await (await get("/page?x=1")).text()).toBe("render 2");
+    // Personalised responses are never shared.
+    expect(await (await get("/session")).text()).toBe("render 3");
+    expect(await (await get("/session")).text()).toBe("render 4");
+    setSystemTime(new Date("2026-01-01T00:00:09Z"));
+    expect(await (await get("/page")).text()).toBe("render 1");
+    setSystemTime(new Date("2026-01-01T00:00:11Z"));
+    expect(await (await get("/page")).text()).toBe("render 5");
+  } finally {
+    setSystemTime();
+  }
+});

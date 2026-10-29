@@ -6,8 +6,13 @@ import {
   MANIFEST_VERSION,
   type MoonshineManifest,
   type RouteArtifact,
+  validateCapabilities,
 } from "@tschk/moonshine-framework";
-import { adapterConformance } from "@tschk/moonshine-adapter-conformance";
+import {
+  adapterConformance,
+  artifactConformance,
+  workerdRuntime,
+} from "@tschk/moonshine-adapter-conformance";
 import {
   cloudflareAdapter,
   cloudflareFetch,
@@ -30,6 +35,11 @@ const baseManifest: MoonshineManifest = {
 
 describe("cloudflare adapter", () => {
   adapterConformance(cloudflareAdapter, cloudflareHarness);
+  artifactConformance(
+    cloudflareAdapter,
+    workerdRuntime,
+    resolve(import.meta.dir, ".."),
+  );
 
   test("rejects node routes", async () => {
     const buildDir = mkdtempSync(resolve(tmpdir(), "ms-cf-reject-"));
@@ -100,9 +110,9 @@ describe("cloudflare adapter", () => {
       entries: {},
       capabilities: ["streaming"],
     };
-    const buildDir = mkdtempSync(resolve(tmpdir(), "ms-cf-cap-"));
-    await cloudflareAdapter.build(manifest, buildDir);
-    rmSync(buildDir, { recursive: true, force: true });
+    expect(() =>
+      validateCapabilities(cloudflareAdapter, manifest),
+    ).not.toThrow();
   });
 });
 

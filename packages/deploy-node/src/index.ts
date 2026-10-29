@@ -5,6 +5,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 import {
   type DeploymentAdapter,
@@ -181,6 +182,10 @@ export const nodeHarness: HarnessFactory = (fetch, options) => {
   } as Harness;
 };
 
+/** Resolves this adapter's own dependencies, which the app may not install. */
+const own = (specifier: string) =>
+  JSON.stringify(fileURLToPath(import.meta.resolve(specifier)));
+
 export const nodeAdapter: DeploymentAdapter = {
   name: "node",
   runtimes: ["node"],
@@ -200,35 +205,27 @@ export const nodeAdapter: DeploymentAdapter = {
       JSON.stringify(builtManifest, null, 2) + "\n",
     );
     const native = manifest.renderer === "native";
-    const rendererImport = native
-      ? 'import { modules, renderer } from "./dist/server.js";'
-      : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
+    // Every import is bundled into one self-contained `server.js`, so the
+    // artifact runs on plain Node with no node_modules, TypeScript loader, or
+    // source tree beside it.
     const entry = `import { createServer } from "node:http";
-import { createRequestHandler } from "@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}";
-import { createNodeHandler } from "@tschk/moonshine-deploy-node";
-import { dirname, resolve } from "node:path";
+import { createRequestHandler } from ${own(`@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}`)};
+import { createNodeHandler } from ${JSON.stringify(fileURLToPath(import.meta.url))};
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import manifest from "./manifest.json" with { type: "json" };
-${rendererImport}
+${
+  native
+    ? 'import { modules, renderer } from "./dist/server.js";'
+    : `import { modules } from "./dist/server.js";
+import { reactRenderer as renderer, registerRouteModules } from "@tschk/moonshine-react";
+registerRouteModules(modules);`
+}
 ${manifest.requestContext ? 'import { requestScope } from "./dist/server.js";' : ""}
 
 const artifactDir = dirname(fileURLToPath(import.meta.url));
-const projectDir = resolve(artifactDir, "..");
-const abs = (p) => (p ? resolve(projectDir, p) : undefined);
-const resolvedManifest = {
-  ...manifest,
-  routes: manifest.routes.map((r) => ({
-    ...r,
-    file: resolve(projectDir, r.file),
-    dataFile: abs(r.dataFile),
-    layouts: r.layouts?.map(abs).filter(Boolean),
-    middleware: r.middleware?.map(abs).filter(Boolean),
-    errorBoundary: abs(r.errorBoundary),
-  })),
-};
-
 const fetch = createRequestHandler({
-  manifest: ${native ? "manifest" : "resolvedManifest"},
+  manifest,
   modules,
   renderer,${manifest.requestContext ? "\n  requestScope," : ""}
   staticDir: artifactDir + "/public",
@@ -243,18 +240,14 @@ server.listen(Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535 ? en
 `;
     const entryPath = resolve(outDir, "server.ts");
     await writeFile(entryPath, entry);
-    if (native) {
-      const result = await Bun.build({
-        entrypoints: [entryPath],
-        outdir: outDir,
-        target: "node",
-        packages: "bundle",
-      });
-      if (!result.success)
-        throw new AggregateError(
-          result.logs,
-          "Native Node server bundle failed",
-        );
-    }
+    const result = await Bun.build({
+      entrypoints: [entryPath],
+      outdir: outDir,
+      target: "node",
+      packages: "bundle",
+      define: { "process.env.NODE_ENV": JSON.stringify("production") },
+    });
+    if (!result.success)
+      throw new AggregateError(result.logs, "Node server bundle failed");
   },
 };

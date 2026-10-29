@@ -296,6 +296,7 @@ async function runBuild(
     splitting?: boolean;
     metadata?: boolean;
     minify?: boolean;
+    externalPackages?: boolean;
   } = {},
 ): Promise<BuiltResult> {
   const result = await enqueueBunBuild(() =>
@@ -310,6 +311,17 @@ async function runBuild(
       sourcemap: "none",
       metafile: options.metadata || options.splitting,
       minify: options.minify ?? false,
+      // Deploy adapters bundle this server bundle together with the renderer
+      // and server runtime. Inlining packages here would hand route modules
+      // second copies of React (whose hooks then fail under the renderer's
+      // react-dom) and of `@tschk/moonshine-server` (whose `redirect()` the
+      // pipeline then fails to recognise). Leave packages to the adapter's
+      // bundle or the runtime's resolver, and emit production JSX, which works
+      // under either React build.
+      ...(options.externalPackages && {
+        packages: "external",
+        jsx: { development: false },
+      }),
       ...(options.serverFiles && {
         plugins: [
           {
@@ -514,13 +526,8 @@ export async function buildBundles(options: {
     [serverEntry],
     distDir,
     options.root,
-    native &&
-      options.routes.some((route) =>
-        ["node", "cloudflare"].includes(route.runtime),
-      )
-      ? "node"
-      : "bun",
-    { metadata: native },
+    options.routes.some((route) => route.runtime !== "bun") ? "node" : "bun",
+    { metadata: native, externalPackages: !native },
   );
   const serverFiles = native
     ? new Set(

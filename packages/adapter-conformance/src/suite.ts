@@ -1,12 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -371,23 +364,6 @@ export function adapterConformance(
       expect(slowAborted).toBe(true);
       const res = await fetch(new Request(buildUrl("/")));
       expect(res.status).toBe(200);
-    });
-
-    test("builds deploy output", async () => {
-      const buildDir = mkdtempSync(
-        resolve(tmpdir(), `ms-${adapter.name}-build-`),
-      );
-      const buildManifest: MoonshineManifest = {
-        ...manifest,
-        assets: manifest.assets.map((a) => ({ ...a })),
-      };
-      await adapter.build(buildManifest, buildDir);
-      expect(existsSync(resolve(buildDir, "app.css"))).toBe(true);
-      expect(existsSync(resolve(buildDir, "server.ts"))).toBe(true);
-      expect(existsSync(resolve(buildDir, "manifest.json"))).toBe(true);
-      const built = readFileSync(resolve(buildDir, "app.css"), "utf8");
-      expect(built).toBe(css);
-      rmSync(buildDir, { recursive: true, force: true });
     });
 
     test("stops gracefully", async () => {

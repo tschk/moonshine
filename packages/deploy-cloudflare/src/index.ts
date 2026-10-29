@@ -1,5 +1,6 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   createRequestHandler,
   tryServeStatic,
@@ -11,7 +12,6 @@ import {
   type MoonshineManifest,
   type Harness,
   type HarnessFactory,
-  resolveManifestFiles,
   copyAssets,
   validateRuntime,
   validateCapabilities,
@@ -24,6 +24,14 @@ export type CloudflareEnv = {
 export type CloudflareContext = {
   waitUntil: (promise: Promise<unknown>) => void;
 };
+
+const apps = new WeakMap<
+  MoonshineManifest,
+  {
+    graph: ReturnType<typeof createRouteGraph>;
+    handler: (request: Request) => Promise<Response>;
+  }
+>();
 
 export async function cloudflareFetch(
   request: Request,
@@ -44,16 +52,24 @@ export async function cloudflareFetch(
     if (assetRes.status !== 404) return assetRes;
   }
 
-  const { reactRenderer, registerRouteModules } =
-    await import("@tschk/moonshine-react");
-  const graph = createRouteGraph(manifest.routes);
+  let app = apps.get(manifest);
+  if (!app) {
+    const { reactRenderer, registerRouteModules } =
+      await import("@tschk/moonshine-react");
+    registerRouteModules(modules);
+    app = {
+      graph: createRouteGraph(manifest.routes),
+      // One handler per manifest, so its revalidation cache outlives a request.
+      handler: createRequestHandler({
+        manifest,
+        modules,
+        renderer: reactRenderer,
+      }),
+    };
+    apps.set(manifest, app);
+  }
+  const { graph, handler } = app;
   const match = matchRoutes(graph, pathname);
-  registerRouteModules(modules);
-  const handler = createRequestHandler({
-    manifest,
-    modules,
-    renderer: reactRenderer,
-  });
   const cache =
     typeof caches !== "undefined"
       ? (caches as { default?: Cache }).default
@@ -86,6 +102,42 @@ export async function cloudflareFetch(
 
 export default cloudflareFetch;
 
+async function bundleWorker(entryPath: string, outDir: string) {
+  const result = await Bun.build({
+    entrypoints: [entryPath],
+    outdir: outDir,
+    target: "browser",
+    external: ["node:*"],
+    packages: "bundle",
+    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+  });
+  if (!result.success)
+    throw new AggregateError(result.logs, "Cloudflare worker bundle failed");
+  await writeWranglerConfig(outDir);
+}
+
+async function writeWranglerConfig(outDir: string) {
+  await mkdir(resolve(outDir, "public"), { recursive: true });
+  await writeFile(
+    resolve(outDir, "wrangler.jsonc"),
+    JSON.stringify(
+      {
+        name: "moonshine",
+        main: "server.js",
+        compatibility_date: new Date().toISOString().slice(0, 10),
+        compatibility_flags: ["nodejs_compat"],
+        assets: {
+          directory: "./public",
+          binding: "ASSETS",
+          run_worker_first: true,
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
+
 async function buildNativeWorker(
   manifest: MoonshineManifest,
   outDir: string,
@@ -114,36 +166,7 @@ export default {
 `;
   const entryPath = resolve(outDir, "server.ts");
   await writeFile(entryPath, entry);
-  const result = await Bun.build({
-    entrypoints: [entryPath],
-    outdir: outDir,
-    target: "browser",
-    external: ["node:*"],
-    packages: "bundle",
-  });
-  if (!result.success)
-    throw new AggregateError(
-      result.logs,
-      "Native Cloudflare worker bundle failed",
-    );
-  await writeFile(
-    resolve(outDir, "wrangler.jsonc"),
-    JSON.stringify(
-      {
-        name: "moonshine-native",
-        main: "server.js",
-        compatibility_date: new Date().toISOString().slice(0, 10),
-        compatibility_flags: ["nodejs_compat"],
-        assets: {
-          directory: "./public",
-          binding: "ASSETS",
-          run_worker_first: true,
-        },
-      },
-      null,
-      2,
-    ) + "\n",
-  );
+  await bundleWorker(entryPath, outDir);
 }
 
 export const cloudflareAdapter: DeploymentAdapter = {
@@ -174,30 +197,28 @@ export const cloudflareAdapter: DeploymentAdapter = {
       await buildNativeWorker(manifest, outDir);
       return;
     }
-    const projectRoot = resolve(outDir, "..");
-    const resolvedManifest = resolveManifestFiles(manifest, projectRoot);
-
     await writeFile(
       resolve(outDir, "manifest.json"),
-      JSON.stringify(resolvedManifest, null, 2) + "\n",
+      JSON.stringify(manifest, null, 2) + "\n",
     );
     await copyAssets(manifest.assets, outDir);
 
-    // The module map must be a static import: Workers cannot resolve the
-    // dynamic `import(route.file)` the renderer would otherwise fall back to.
-    const serverEntry = `import cloudflareFetch from "@tschk/moonshine-deploy-cloudflare";
+    // Workers cannot resolve the renderer's dynamic `import(route.file)`, so
+    // the bundled module map is registered instead. The manifest keeps the
+    // project-relative paths those modules are keyed by.
+    const serverEntry = `import cloudflareFetch from ${JSON.stringify(fileURLToPath(import.meta.url))};
 import manifest from "./manifest.json" with { type: "json" };
 import { modules } from "./dist/server.js";
 
-type Env = { ASSETS?: { fetch: (request: Request) => Promise<Response> } };
-
 export default {
-  async fetch(request: Request, env: Env, ctx: { waitUntil: (promise: Promise<unknown>) => void }) {
+  async fetch(request, env, ctx) {
     return cloudflareFetch(request, env, ctx, manifest, modules);
   },
 };
 `;
-    await writeFile(resolve(outDir, "server.ts"), serverEntry);
+    const entryPath = resolve(outDir, "server.ts");
+    await writeFile(entryPath, serverEntry);
+    await bundleWorker(entryPath, outDir);
   },
 };
 

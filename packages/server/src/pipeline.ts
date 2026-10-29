@@ -442,6 +442,9 @@ async function runBefores(
   }
 }
 
+/** Bounds the revalidation cache against unbounded query-string variants. */
+const PAGE_CACHE_LIMIT = 500;
+
 export function createPipelineHandler(
   options: RequestHandlerOptions,
   policy?: DataRequestPolicy,
@@ -457,6 +460,13 @@ export function createPipelineHandler(
   // Compiling the route graph is linear in the route count, so build it once
   // per handler instead of once per request.
   let cachedGraph = options.graph;
+  // Rendered responses for routes with `cache.revalidate`, keyed by URL and
+  // reused until they are `revalidate` seconds old; the next request after that
+  // renders again. Per handler instance, so per process or isolate.
+  const pageCache = new Map<
+    string,
+    { body: ArrayBuffer; status: number; headers: Headers; expires: number }
+  >();
 
   const handler = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -505,7 +515,79 @@ export function createPipelineHandler(
     }
 
     const route = match.route;
-    const ctx = createRouteContext(request, match.params);
+    const revalidate = route.cache?.revalidate;
+    // Request-context apps read headers and cookies anywhere in render, so
+    // their pages are never assumed shareable.
+    const cacheKey =
+      !dataRequest &&
+      !options.requestScope &&
+      (method === "GET" || method === "HEAD") &&
+      typeof revalidate === "number" &&
+      revalidate > 0
+        ? url.pathname + url.search
+        : undefined;
+    if (cacheKey !== undefined) {
+      const hit = pageCache.get(cacheKey);
+      if (hit && hit.expires > Date.now())
+        return finalizeResponse(
+          new Response(hit.body, { status: hit.status, headers: hit.headers }),
+          undefined,
+          method,
+        );
+    }
+    const response = applyCachePolicy(
+      await respond(request, route, match.params, dataRequest),
+    );
+    if (
+      cacheKey === undefined ||
+      method !== "GET" ||
+      response.status !== 200 ||
+      response.headers.has("set-cookie")
+    )
+      return response;
+    const body = await response.arrayBuffer();
+    if (pageCache.size >= PAGE_CACHE_LIMIT)
+      pageCache.delete(pageCache.keys().next().value!);
+    pageCache.set(cacheKey, {
+      body,
+      status: response.status,
+      headers: response.headers,
+      expires: Date.now() + revalidate! * 1000,
+    });
+    return new Response(body, {
+      status: response.status,
+      headers: response.headers,
+    });
+
+    function applyCachePolicy(rendered: Response): Response {
+      const cache = route.cache;
+      if (
+        !cache ||
+        (method !== "GET" && method !== "HEAD") ||
+        rendered.status < 200 ||
+        rendered.status >= 300 ||
+        rendered.headers.has("cache-control") ||
+        rendered.headers.has("set-cookie")
+      )
+        return rendered;
+      const control =
+        cache.control ??
+        (cacheKey !== undefined
+          ? `public, max-age=0, s-maxage=${revalidate}`
+          : undefined);
+      if (control) rendered.headers.set("cache-control", control);
+      return rendered;
+    }
+  };
+
+  async function respond(
+    request: Request,
+    route: RouteDefinition,
+    params: Record<string, string>,
+    dataRequest: DataRequestPolicy | undefined,
+  ): Promise<Response> {
+    const method = request.method;
+    const ctx = createRouteContext(request, params);
     const chain = buildModuleChain(route, options.modules ?? {});
     const baseHeaders = resolveBaseHeaders(chain, route, options.defaultMeta);
 
@@ -566,7 +648,7 @@ export function createPipelineHandler(
         method,
       );
     }
-  };
+  }
   const requestScope = options.requestScope;
   const scoped = requestScope
     ? (request: Request) => {

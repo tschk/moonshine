@@ -10,8 +10,10 @@ await cloudflareAdapter.build(manifest, ".moonshine");
 
 - Target runtime: `cloudflare`.
 - Capabilities: `streaming`, `islands`, `edge`, `revalidation`.
-- Output: `server.ts` worker that uses the Cloudflare Cache API and an `ASSETS`
-  binding for static files.
+- Output: a bundled `server.js` Worker and `wrangler.jsonc`. The Worker uses
+  the Cloudflare Cache API for routes with a `cache` policy and an `ASSETS`
+  binding for files in `public/`. Run it with
+  `wrangler dev --local --config .moonshine/wrangler.jsonc`.
 
 Limitations: requires an `ASSETS` binding for static files; worker size and
 Cache API limits apply.

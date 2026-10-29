@@ -42,7 +42,7 @@ A `RouteArtifact` extends `RouteDefinition` with compiler output.
 | `layouts`       | `string[]?`                                        | Project-relative layout modules.            |
 | `middleware`    | `string[]?`                                        | Project-relative middleware modules.        |
 | `errorBoundary` | `string?`                                          | Nearest project-relative error module.      |
-| `cache`         | `{ control?, revalidate? }?`                       | Cache policy for the route.                 |
+| `cache`         | `{ control?, revalidate? }?`                       | Cache policy; see DEPLOYMENT.md.            |
 | `headers`       | `Record<string, string>?`                          | Extra response headers.                     |
 
 ## Capabilities
