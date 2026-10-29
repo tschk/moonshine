@@ -52,7 +52,9 @@ The compiler derives capabilities from the route set.
 - `streaming` — always added.
 - `islands` — added when any route is `island` or `spa`.
 - `edge` — added when any route uses `cloudflare` or `vercel-edge`.
-- `revalidation` — added when any route defines `cache.revalidate`.
+- `revalidation` — added when any route defines `cache.revalidate`. Routes with
+  `before` middleware are never reused from the cache; see
+  [DEPLOYMENT.md](./DEPLOYMENT.md#revalidate-does-not-apply-to-routes-with-before-middleware).
 
 Adapters validate that they support every capability in the manifest; if not,
 the build fails with a clear message.

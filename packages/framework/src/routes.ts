@@ -17,7 +17,9 @@ export type RouteDefinition = {
    * `control` is sent as Cache-Control on successful GET/HEAD responses.
    * `revalidate` (seconds) reuses a rendered response for that long before the
    * next request renders it again, and is advertised to shared caches as
-   * `s-maxage` when `control` is not set.
+   * `s-maxage` when `control` is not set. Deliberately ignored for routes
+   * with `before` middleware, which must run on every request; see
+   * docs/DEPLOYMENT.md, "Caching and revalidation".
    */
   cache?: { control?: string; revalidate?: number };
 };

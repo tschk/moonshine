@@ -108,9 +108,30 @@ applies on every adapter through the shared request pipeline:
   stored once it completes. Without `control`, the response advertises
   `public, max-age=0, s-maxage=n` to shared caches. Never reused: responses
   that set cookies or are marked `private` / `no-store`, non-200 responses,
-  route-data requests, routes with `before` middleware (it runs on every
-  request), and apps with `requestContext`. The cache lives in the server
+  route-data requests, routes with `before` middleware (see below), and apps
+  with `requestContext`. The cache lives in the server
   process (or Worker isolate) and holds at most 500 pages of up to 4 MiB.
+
+### `revalidate` does not apply to routes with `before` middleware
+
+This is a deliberate limitation, not an oversight. `before` middleware
+usually authorizes or personalizes the request, and a cache hit would return
+a page rendered for an earlier request without running it, which is how one
+user's page is served to another. So if any module in a route's chain (its
+layouts, middleware, or the route itself) has `before` middleware,
+`revalidate` is ignored for that route: every request renders, no automatic
+`s-maxage` is sent, and the Cloudflare adapter does not store it in the Cache
+API. An explicit `cache.control` is still sent.
+
+To cache such a route, do one of these:
+
+- Cache inside the handler: keep the middleware, and memoize the expensive,
+  user-independent work (data fetches, computed fragments) in the loader,
+  keyed on whatever it depends on.
+- Move the middleware's work into the handler: if the check does not gate
+  access (for example it only sets a header), do it in the loader or
+  renderer instead, so the route has no `before` middleware and the page can
+  be shared.
 
 Routes with `revalidate` add the `revalidation` capability, which Bun, Node and
 Cloudflare support. The Vercel and native Cloudflare/Vercel builds reject it.

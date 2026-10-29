@@ -10,6 +10,8 @@ await cloudflareAdapter.build(manifest, ".moonshine");
 
 - Target runtime: `cloudflare`.
 - Capabilities: `streaming`, `islands`, `edge`, `revalidation`.
+- `cache.revalidate` is ignored, by design, on routes with `before` middleware;
+  see [Caching and revalidation](../../docs/DEPLOYMENT.md#revalidate-does-not-apply-to-routes-with-before-middleware).
 - Output: a bundled `server.js` Worker and `wrangler.jsonc`. The Worker uses
   the Cloudflare Cache API for routes with a `cache` policy and an `ASSETS`
   binding for files in `public/`. Run it with

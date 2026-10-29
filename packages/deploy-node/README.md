@@ -10,6 +10,8 @@ await nodeAdapter.build(manifest, ".moonshine");
 
 - Target runtime: `node`.
 - Capabilities: `streaming`, `islands`, `revalidation`.
+- `cache.revalidate` is ignored, by design, on routes with `before` middleware;
+  see [Caching and revalidation](../../docs/DEPLOYMENT.md#revalidate-does-not-apply-to-routes-with-before-middleware).
 - Output: a bundled `server.js` using `node:http` and a `Request` / `Response`
   bridge, for both the React and native renderers. Deploy it beside `public/`
   and run `node server.js`. The bundle includes its manifest and needs no
