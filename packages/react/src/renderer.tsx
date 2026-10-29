@@ -4,7 +4,9 @@ import {
   type FunctionComponent,
   type ReactNode,
 } from "react";
-import { renderToReadableStream } from "react-dom/server";
+// The web-streams build: the "node" export of react-dom/server has no
+// renderToReadableStream, and this one runs on Bun, Node and edge runtimes.
+import { renderToReadableStream } from "react-dom/server.edge";
 import type { RenderContext, Renderer } from "@tschk/moonshine-framework";
 import { IslandProvider, type IslandRegistry } from "./islands";
 import { escapeHtml, serializeIslandProps } from "./serialize";

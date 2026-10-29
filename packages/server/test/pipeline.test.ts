@@ -1413,3 +1413,196 @@ test("detached next rejection discards its Response after a bodyless middleware 
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(cancelled).toBe(1);
 });
+
+test("cache.revalidate reuses a rendered page per URL until it expires", async () => {
+  const { setSystemTime } = await import("bun:test");
+  let renders = 0;
+  const route = (id: string, cache: { control?: string } = {}) => ({
+    id,
+    path: `/${id}`,
+    file: `${id}.tsx`,
+    mode: "ssr" as const,
+    cache: { revalidate: 10, ...cache },
+  });
+  const handler = createRequestHandler({
+    routes: [
+      route("page"),
+      route("session"),
+      route("guarded"),
+      route("personal", { control: "private, max-age=60" }),
+    ],
+    modules: {
+      page: { loader: () => ({}) },
+      session: { loader: () => ({}) },
+      guarded: { loader: () => ({}), before: [(_ctx, next) => next()] },
+      personal: { loader: () => ({}) },
+    },
+    renderer: {
+      name: "count",
+      prerender: async () => "",
+      render: async (ctx) =>
+        new Response(`render ${++renders}`, {
+          headers: ctx.route.id === "session" ? { "set-cookie": "sid=1" } : {},
+        }),
+    },
+  });
+  // The cached copy is stored once the teed body finishes; let that settle.
+  const get = async (path: string, method = "GET") => {
+    const response = await handler(
+      new Request(new URL(path, "http://localhost"), { method }),
+    );
+    const text = await response.text();
+    await Bun.sleep(0);
+    return { response, text };
+  };
+  try {
+    setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    const first = await get("/page");
+    expect(first.response.headers.get("cache-control")).toBe(
+      "public, max-age=0, s-maxage=10",
+    );
+    expect(first.text).toBe("render 1");
+    expect((await get("/page")).text).toBe("render 1");
+    const head = await get("/page", "HEAD");
+    expect(head.response.status).toBe(200);
+    expect(head.text).toBe("");
+    // The query and the origin are part of the page, so each is separate.
+    expect((await get("/page?x=1")).text).toBe("render 2");
+    expect((await get("http://other.example/page")).text).toBe("render 3");
+    // Personalised, private and middleware-gated pages are never shared.
+    expect((await get("/session")).text).toBe("render 4");
+    expect((await get("/session")).text).toBe("render 5");
+    expect((await get("/personal")).text).toBe("render 6");
+    expect((await get("/personal")).text).toBe("render 7");
+    const guarded = await get("/guarded");
+    expect(guarded.text).toBe("render 8");
+    expect(guarded.response.headers.get("cache-control")).toBeNull();
+    expect((await get("/guarded")).text).toBe("render 9");
+    setSystemTime(new Date("2026-01-01T00:00:09Z"));
+    expect((await get("/page")).text).toBe("render 1");
+    setSystemTime(new Date("2026-01-01T00:00:11Z"));
+    expect((await get("/page")).text).toBe("render 10");
+  } finally {
+    setSystemTime();
+  }
+});
+
+test("cache.revalidate streams a page before it is cached", async () => {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  const handler = createRequestHandler({
+    routes: [
+      {
+        id: "page",
+        path: "/",
+        file: "page.tsx",
+        mode: "ssr",
+        cache: { revalidate: 10 },
+      },
+    ],
+    modules: { page: { loader: () => ({}) } },
+    renderer: {
+      name: "stream",
+      prerender: async () => "",
+      render: async () =>
+        new Response(
+          new ReadableStream({
+            async start(controller) {
+              controller.enqueue(new TextEncoder().encode("head "));
+              await released;
+              controller.enqueue(new TextEncoder().encode("tail"));
+              controller.close();
+            },
+          }),
+        ),
+    },
+  });
+  const response = await handler(new Request("http://localhost/"));
+  const reader = response.body!.getReader();
+  // The first chunk arrives while the render is still open.
+  expect(new TextDecoder().decode((await reader.read()).value)).toBe("head ");
+  release();
+  expect(new TextDecoder().decode((await reader.read()).value)).toBe("tail");
+  expect((await reader.read()).done).toBe(true);
+  await Bun.sleep(0);
+  const cached = await handler(new Request("http://localhost/"));
+  expect(await cached.text()).toBe("head tail");
+});
+
+test("cache.revalidate never serves a cached page past before-middleware auth", async () => {
+  const handler = createRequestHandler({
+    routes: [
+      {
+        id: "account",
+        path: "/account",
+        file: "account.tsx",
+        mode: "ssr",
+        cache: { revalidate: 60 },
+      },
+    ],
+    modules: {
+      account: {
+        loader: () => ({}),
+        before: [
+          async (ctx, next) =>
+            ctx.request.headers.get("authorization") === "secret"
+              ? next()
+              : new Response("unauthorized", { status: 401 }),
+        ],
+      },
+    },
+    renderer: {
+      name: "secret",
+      prerender: async () => "",
+      render: async () => new Response("private account page"),
+    },
+  });
+  const authorized = await handler(
+    new Request("http://localhost/account", {
+      headers: { authorization: "secret" },
+    }),
+  );
+  expect(await authorized.text()).toBe("private account page");
+  await Bun.sleep(0);
+  const anonymous = await handler(new Request("http://localhost/account"));
+  expect(anonymous.status).toBe(401);
+  expect(await anonymous.text()).toBe("unauthorized");
+});
+
+test("cache.revalidate does not store no-store or private responses", async () => {
+  let renders = 0;
+  const handler = createRequestHandler({
+    routes: [
+      {
+        id: "page",
+        path: "/page",
+        file: "page.tsx",
+        mode: "ssr",
+        cache: { revalidate: 60 },
+      },
+    ],
+    modules: { page: { loader: () => ({}) } },
+    renderer: {
+      name: "directive",
+      prerender: async () => "",
+      render: async (ctx) =>
+        new Response(`render ${++renders}`, {
+          headers: {
+            "cache-control": new URL(ctx.request.url).searchParams.has("p")
+              ? "private"
+              : "no-store",
+          },
+        }),
+    },
+  });
+  for (const path of ["/page", "/page?p"]) {
+    const first = await (
+      await handler(new Request(`http://localhost${path}`))
+    ).text();
+    await Bun.sleep(0);
+    const second = await (
+      await handler(new Request(`http://localhost${path}`))
+    ).text();
+    expect(second).not.toBe(first);
+  }
+});

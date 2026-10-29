@@ -1,4 +1,4 @@
-export { createRequestHandler } from "./pipeline.js";
+export { createRequestHandler, hasBeforeMiddleware } from "./pipeline.js";
 export { callAction, callLoader, createRouteContext } from "./data.js";
 export { redirect, json, errorResponse, Redirect } from "./errors.js";
 export { serializeData } from "@tschk/moonshine-framework";

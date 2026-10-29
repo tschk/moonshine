@@ -10,11 +10,12 @@ await vercelAdapter.build(manifest, ".moonshine");
 
 - Target runtimes: `node`, `vercel-edge`.
 - Capabilities: `streaming`, `islands`, `edge`.
-- Output: `.vercel/output` with static HTML, function directories, and
-  `config.json` route regexes.
+- Output: `.vercel/output` with public files and prerendered static HTML, one
+  bundled Node 22 function (`moonshine.func`), one bundled Edge function
+  (`moonshine-edge.func`) when any route uses `vercel-edge`, and `config.json`.
 
-Limitations: static catch-all routes are not pre-rendered; each non-static
-route becomes a separate function; `revalidation` is not supported.
+Limitations: static routes with parameters are not pre-rendered;
+`revalidation` is not supported (`cache.control` is sent as `Cache-Control`).
 
 See [docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md) and
 [docs/MANIFEST.md](../../docs/MANIFEST.md).

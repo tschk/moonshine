@@ -442,6 +442,25 @@ async function runBefores(
   }
 }
 
+/** Bounds the revalidation cache against unbounded query-string variants. */
+const PAGE_CACHE_LIMIT = 500;
+/** Largest page body the revalidation cache keeps, in bytes. */
+const PAGE_BODY_LIMIT = 4 * 1024 * 1024;
+
+/**
+ * Whether any module the route runs through has `before` middleware. Such
+ * routes are never served from a shared cache, because the middleware (often
+ * authorization) has to run on every request.
+ */
+export function hasBeforeMiddleware(
+  route: RouteDefinition,
+  modules: Record<string, RouteModule>,
+): boolean {
+  return buildModuleChain(route, modules).some(
+    (item) => (item.module.before?.length ?? 0) > 0,
+  );
+}
+
 export function createPipelineHandler(
   options: RequestHandlerOptions,
   policy?: DataRequestPolicy,
@@ -457,6 +476,13 @@ export function createPipelineHandler(
   // Compiling the route graph is linear in the route count, so build it once
   // per handler instead of once per request.
   let cachedGraph = options.graph;
+  // Rendered responses for routes with `cache.revalidate`, keyed by URL and
+  // reused until they are `revalidate` seconds old; the next request after that
+  // renders again. Per handler instance, so per process or isolate.
+  const pageCache = new Map<
+    string,
+    { body: ArrayBuffer; status: number; headers: Headers; expires: number }
+  >();
 
   const handler = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -505,7 +531,106 @@ export function createPipelineHandler(
     }
 
     const route = match.route;
-    const ctx = createRouteContext(request, match.params);
+    const revalidate = route.cache?.revalidate;
+    // Pages are shared only when nothing per-request can gate or vary them:
+    // `before` middleware (often authorization) must run on every request,
+    // and request-context apps read headers and cookies anywhere in render.
+    const cacheKey =
+      !dataRequest &&
+      !options.requestScope &&
+      (method === "GET" || method === "HEAD") &&
+      typeof revalidate === "number" &&
+      revalidate > 0 &&
+      !hasBeforeMiddleware(route, options.modules ?? {})
+        ? url.origin + url.pathname + url.search
+        : undefined;
+    if (cacheKey !== undefined) {
+      const hit = pageCache.get(cacheKey);
+      if (hit && hit.expires > Date.now())
+        return finalizeResponse(
+          new Response(hit.body, { status: hit.status, headers: hit.headers }),
+          undefined,
+          method,
+        );
+    }
+    const response = applyCachePolicy(
+      await respond(request, route, match.params, dataRequest),
+    );
+    if (
+      cacheKey === undefined ||
+      method !== "GET" ||
+      response.status !== 200 ||
+      response.headers.has("set-cookie") ||
+      /\b(?:no-store|private)\b/i.test(
+        response.headers.get("cache-control") ?? "",
+      )
+    )
+      return response;
+    // Tee the body so the client still streams; the copy is stored once it
+    // completes, and dropped if it outgrows PAGE_BODY_LIMIT (e.g. an
+    // unbounded stream).
+    const [toClient, toCache] = response.body?.tee() ?? [null, null];
+    const headers = response.headers;
+    const status = response.status;
+    void (async () => {
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      if (toCache) {
+        const reader = toCache.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > PAGE_BODY_LIMIT) return reader.cancel();
+          chunks.push(value);
+        }
+      }
+      const body = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        body.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      if (pageCache.size >= PAGE_CACHE_LIMIT)
+        pageCache.delete(pageCache.keys().next().value!);
+      pageCache.set(cacheKey, {
+        body: body.buffer,
+        status,
+        headers,
+        expires: Date.now() + revalidate! * 1000,
+      });
+    })().catch(() => {});
+    return new Response(toClient, { status, headers });
+
+    function applyCachePolicy(rendered: Response): Response {
+      const cache = route.cache;
+      if (
+        !cache ||
+        (method !== "GET" && method !== "HEAD") ||
+        rendered.status < 200 ||
+        rendered.status >= 300 ||
+        rendered.headers.has("cache-control") ||
+        rendered.headers.has("set-cookie")
+      )
+        return rendered;
+      const control =
+        cache.control ??
+        (cacheKey !== undefined
+          ? `public, max-age=0, s-maxage=${revalidate}`
+          : undefined);
+      if (control) rendered.headers.set("cache-control", control);
+      return rendered;
+    }
+  };
+
+  async function respond(
+    request: Request,
+    route: RouteDefinition,
+    params: Record<string, string>,
+    dataRequest: DataRequestPolicy | undefined,
+  ): Promise<Response> {
+    const method = request.method;
+    const ctx = createRouteContext(request, params);
     const chain = buildModuleChain(route, options.modules ?? {});
     const baseHeaders = resolveBaseHeaders(chain, route, options.defaultMeta);
 
@@ -566,7 +691,7 @@ export function createPipelineHandler(
         method,
       );
     }
-  };
+  }
   const requestScope = options.requestScope;
   const scoped = requestScope
     ? (request: Request) => {
