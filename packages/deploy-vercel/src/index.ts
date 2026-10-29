@@ -24,12 +24,15 @@ type VercelConfig = {
 
 function routeToRegex(path: string): string {
   // A splat also matches its bare prefix (`/docs/*` matches `/docs`), as the
-  // router does.
-  return `^${path
-    .replace(/\/\*[^/]*$/, "(?:/.*)?")
+  // router does. The suffix is appended last so the parameter rewrite cannot
+  // touch the `:` in its `(?:` group.
+  const splat = /\/\*[^/]*$/;
+  const pattern = path
+    .replace(splat, "")
     .replace(/\//g, "\\/")
     .replace(/:([^/]+?)\?/g, "(?<$1>[^/]*)")
-    .replace(/:([^/]+)/g, "(?<$1>[^/]+)")}$`;
+    .replace(/:([^/]+)/g, "(?<$1>[^/]+)");
+  return `^${pattern}${splat.test(path) ? "(?:\\/.*)?" : ""}$`;
 }
 
 function staticSlug(path: string, usedSlugs: Set<string>): string {

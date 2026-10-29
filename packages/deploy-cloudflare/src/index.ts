@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createRequestHandler,
+  hasBeforeMiddleware,
   tryServeStatic,
   type RouteModule,
 } from "@tschk/moonshine-server";
@@ -75,7 +76,14 @@ export async function cloudflareFetch(
       ? (caches as { default?: Cache }).default
       : undefined;
 
-  if (match && match.route.cache && cache) {
+  // Cache API hits skip the handler, so routes whose `before` middleware
+  // (often authorization) must run on every request are never cached.
+  if (
+    match &&
+    match.route.cache &&
+    cache &&
+    !hasBeforeMiddleware(match.route, modules)
+  ) {
     const cached = await cache.match(request);
     if (cached) return cached;
     const response = await handler(request);

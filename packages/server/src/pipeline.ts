@@ -444,6 +444,22 @@ async function runBefores(
 
 /** Bounds the revalidation cache against unbounded query-string variants. */
 const PAGE_CACHE_LIMIT = 500;
+/** Largest page body the revalidation cache keeps, in bytes. */
+const PAGE_BODY_LIMIT = 4 * 1024 * 1024;
+
+/**
+ * Whether any module the route runs through has `before` middleware. Such
+ * routes are never served from a shared cache, because the middleware (often
+ * authorization) has to run on every request.
+ */
+export function hasBeforeMiddleware(
+  route: RouteDefinition,
+  modules: Record<string, RouteModule>,
+): boolean {
+  return buildModuleChain(route, modules).some(
+    (item) => (item.module.before?.length ?? 0) > 0,
+  );
+}
 
 export function createPipelineHandler(
   options: RequestHandlerOptions,
@@ -516,15 +532,17 @@ export function createPipelineHandler(
 
     const route = match.route;
     const revalidate = route.cache?.revalidate;
-    // Request-context apps read headers and cookies anywhere in render, so
-    // their pages are never assumed shareable.
+    // Pages are shared only when nothing per-request can gate or vary them:
+    // `before` middleware (often authorization) must run on every request,
+    // and request-context apps read headers and cookies anywhere in render.
     const cacheKey =
       !dataRequest &&
       !options.requestScope &&
       (method === "GET" || method === "HEAD") &&
       typeof revalidate === "number" &&
-      revalidate > 0
-        ? url.pathname + url.search
+      revalidate > 0 &&
+      !hasBeforeMiddleware(route, options.modules ?? {})
+        ? url.origin + url.pathname + url.search
         : undefined;
     if (cacheKey !== undefined) {
       const hit = pageCache.get(cacheKey);
@@ -542,22 +560,47 @@ export function createPipelineHandler(
       cacheKey === undefined ||
       method !== "GET" ||
       response.status !== 200 ||
-      response.headers.has("set-cookie")
+      response.headers.has("set-cookie") ||
+      /\b(?:no-store|private)\b/i.test(
+        response.headers.get("cache-control") ?? "",
+      )
     )
       return response;
-    const body = await response.arrayBuffer();
-    if (pageCache.size >= PAGE_CACHE_LIMIT)
-      pageCache.delete(pageCache.keys().next().value!);
-    pageCache.set(cacheKey, {
-      body,
-      status: response.status,
-      headers: response.headers,
-      expires: Date.now() + revalidate! * 1000,
-    });
-    return new Response(body, {
-      status: response.status,
-      headers: response.headers,
-    });
+    // Tee the body so the client still streams; the copy is stored once it
+    // completes, and dropped if it outgrows PAGE_BODY_LIMIT (e.g. an
+    // unbounded stream).
+    const [toClient, toCache] = response.body?.tee() ?? [null, null];
+    const headers = response.headers;
+    const status = response.status;
+    void (async () => {
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      if (toCache) {
+        const reader = toCache.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > PAGE_BODY_LIMIT) return reader.cancel();
+          chunks.push(value);
+        }
+      }
+      const body = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        body.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      if (pageCache.size >= PAGE_CACHE_LIMIT)
+        pageCache.delete(pageCache.keys().next().value!);
+      pageCache.set(cacheKey, {
+        body: body.buffer,
+        status,
+        headers,
+        expires: Date.now() + revalidate! * 1000,
+      });
+    })().catch(() => {});
+    return new Response(toClient, { status, headers });
 
     function applyCachePolicy(rendered: Response): Response {
       const cache = route.cache;

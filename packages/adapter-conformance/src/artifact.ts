@@ -220,7 +220,7 @@ export function artifactConformance(
           ? [
               route(
                 "edge",
-                "/edge",
+                "/edge/*",
                 "edge.tsx",
                 "ssr",
                 ', runtime: "vercel-edge"',
@@ -346,9 +346,12 @@ export function artifactConformance(
 
     if (edge) {
       test("runs Edge routes in the Edge function", async () => {
-        const res = await fetch(url("/edge"));
-        expect(res.status).toBe(200);
-        expect(await res.text()).toContain("edge function");
+        // A splat route, so its regex must also match the bare prefix.
+        for (const path of ["/edge", "/edge/a/b"]) {
+          const res = await fetch(url(path));
+          expect(res.status).toBe(200);
+          expect(await res.text()).toContain("edge function");
+        }
       });
     }
   });

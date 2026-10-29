@@ -102,12 +102,15 @@ applies on every adapter through the shared request pipeline:
 
 - `control` is sent as `Cache-Control` on successful GET and HEAD responses
   that do not set their own `Cache-Control` or a cookie.
-- `revalidate: n` reuses a rendered response, per URL including the query, for
-  `n` seconds; the first request after that renders it again. Without
-  `control`, the response advertises `public, max-age=0, s-maxage=n` to shared
-  caches. Responses that set cookies, non-200 responses, route-data
-  requests, and apps with `requestContext` are never reused. The cache lives in the server process (or Worker
-  isolate) and holds at most 500 pages.
+- `revalidate: n` reuses a rendered response, per URL including origin and
+  query, for `n` seconds; the first request after that renders it again while
+  the request waits. The page still streams on a cache miss; the copy is
+  stored once it completes. Without `control`, the response advertises
+  `public, max-age=0, s-maxage=n` to shared caches. Never reused: responses
+  that set cookies or are marked `private` / `no-store`, non-200 responses,
+  route-data requests, routes with `before` middleware (it runs on every
+  request), and apps with `requestContext`. The cache lives in the server
+  process (or Worker isolate) and holds at most 500 pages of up to 4 MiB.
 
 Routes with `revalidate` add the `revalidation` capability, which Bun, Node and
 Cloudflare support. The Vercel and native Cloudflare/Vercel builds reject it.
