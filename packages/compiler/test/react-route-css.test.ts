@@ -41,6 +41,10 @@ export default function Home() { return <h1 className={styles.title}>home</h1>; 
     join(routes, "plain.tsx"),
     `export default function Plain() { return <p>plain</p>; }\n`,
   );
+  writeFileSync(
+    join(routes, "other.tsx"),
+    `export default function Other() { return <p>other</p>; }\n`,
+  );
 
   await buildProjectIsolated({ projectDir });
   const out = join(projectDir, ".moonshine");
@@ -67,7 +71,7 @@ export default function Home() { return <h1 className={styles.title}>home</h1>; 
         hrefs.map((href) => Bun.file(join(out, "public", href)).text()),
       )
     ).join("\n");
-    return { html, css };
+    return { html, css, hrefs };
   };
 
   const home = await render("/");
@@ -79,4 +83,9 @@ export default function Home() { return <h1 className={styles.title}>home</h1>; 
   const plain = await render("/plain");
   expect(plain.css).toContain("url(/fonts/brand.woff2)");
   expect(plain.css).not.toContain(`.${className}`);
+
+  // Pages importing the same CSS share one stylesheet URL, cached once.
+  const other = await render("/other");
+  expect(other.hrefs).toEqual(plain.hrefs);
+  expect(home.hrefs).not.toEqual(plain.hrefs);
 }, 60_000);
