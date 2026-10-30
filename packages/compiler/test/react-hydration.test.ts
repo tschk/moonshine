@@ -1,0 +1,136 @@
+import { afterAll, expect, test } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import type { Renderer, RouteArtifact } from "@tschk/moonshine-framework";
+import { buildProjectIsolated } from "./build-in-subprocess";
+
+/**
+ * Interactive React routes must come alive in the browser: the client entry
+ * `moonshine build` emits has to load and hydrate each `island()` the server
+ * rendered, and hydrate a whole route declared with `hydrate: "route"`.
+ */
+
+// Inside the monorepo so `react` resolves at build time.
+const projectDir = join(import.meta.dir, `.tmp-react-hydration-${process.pid}`);
+
+afterAll(() => {
+  rmSync(projectDir, { recursive: true, force: true });
+});
+
+const counter = (label: string) => `import { useState } from "react";
+export default function Counter({ start }: { start: number }) {
+  const [count, setCount] = useState(start);
+  return <button onClick={() => setCount(count + 1)}>${label} {count}</button>;
+}
+`;
+
+async function waitFor(check: () => boolean): Promise<void> {
+  for (let i = 0; i < 200 && !check(); i++)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
+test("the client entry hydrates islands and route-hydrated pages", async () => {
+  const routes = join(projectDir, "src", "routes");
+  const components = join(projectDir, "src", "components");
+  mkdirSync(routes, { recursive: true });
+  mkdirSync(components, { recursive: true });
+  writeFileSync(join(components, "Counter.tsx"), counter("island"));
+  writeFileSync(
+    join(routes, "+layout.tsx"),
+    `import type { ReactNode } from "react";
+export default function Layout({ children }: { children: ReactNode }) {
+  return <main>{children}</main>;
+}
+`,
+  );
+  writeFileSync(
+    join(routes, "island.tsx"),
+    `import { island } from "@tschk/moonshine-react";
+const Counter = island(() => import("../components/Counter"));
+export default function Page() {
+  return <Counter start={1} />;
+}
+`,
+  );
+  writeFileSync(
+    join(routes, "whole.tsx"),
+    counter("route")
+      .replace(
+        "{ start }: { start: number }",
+        "{ data }: { data: { start: number } }",
+      )
+      .replace("useState(start)", "useState(data.start)"),
+  );
+  writeFileSync(
+    join(routes, "whole.data.ts"),
+    "export function loader() { return { start: 5 }; }\n",
+  );
+
+  await buildProjectIsolated({
+    projectDir,
+    runtime: "node",
+    programmatic: [
+      {
+        id: "whole",
+        path: "/whole",
+        file: "src/routes/whole.tsx",
+        hydrate: "route",
+      },
+    ],
+  });
+  const out = join(projectDir, ".moonshine");
+  const bundle = (await import(join(out, "dist", "server.js"))) as {
+    renderer: Renderer;
+  };
+  const manifest = await Bun.file(join(out, "manifest.json")).json();
+
+  const page = async (path: string, data: unknown) => {
+    const route = manifest.routes.find(
+      (candidate: RouteArtifact) => candidate.path === path,
+    ) as RouteArtifact;
+    expect(route.clientEntries).toEqual(["/client.js"]);
+    const response = await bundle.renderer.render({
+      request: new Request(`http://localhost${path}`),
+      route,
+      params: {},
+      data,
+      signal: new AbortController().signal,
+    });
+    return response.text();
+  };
+  const islandHtml = await page("/island", {});
+  const wholeHtml = await page("/whole", { start: 5 });
+  // Only the client entry is preloaded: the island ships inside it.
+  expect(islandHtml.match(/rel="modulepreload"/g)).toEqual([
+    'rel="modulepreload"',
+  ]);
+  expect(wholeHtml).toContain("data-moonshine-route-props");
+
+  await import("../../react/test/dom");
+  const act = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  act.IS_REACT_ACT_ENVIRONMENT = false;
+  const client = join(out, "public", "client.js");
+  try {
+    for (const [html, label, start, query] of [
+      [islandHtml, "island", 1, "?island"],
+      [wholeHtml, "route", 5, "?route"],
+    ] as const) {
+      // The test imports the entry itself; happy-dom cannot fetch scripts.
+      document.body.innerHTML = html
+        .slice(html.indexOf("<body>") + 6, html.indexOf("</body>"))
+        .replace(/<script type="module"[^>]*><\/script>/g, "");
+      const button = () => document.querySelector("button")!;
+      expect(button().textContent).toBe(`${label} ${start}`);
+      await import(client + query);
+      await waitFor(() =>
+        Object.keys(button()).some((key) => key.startsWith("__reactFiber")),
+      );
+      button().click();
+      await waitFor(() => button().textContent !== `${label} ${start}`);
+      expect(button().textContent).toBe(`${label} ${start + 1}`);
+    }
+  } finally {
+    act.IS_REACT_ACT_ENVIRONMENT = true;
+    document.body.replaceChildren();
+  }
+}, 60_000);

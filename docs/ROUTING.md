@@ -124,6 +124,27 @@ When `mode` is `auto` (or omitted), the compiler applies these rules in order:
 
 Use `moonshine inspect` to see the resolved mode and reason for every route.
 
+### Hydration (React)
+
+The client entry `moonshine build` emits hydrates every
+`island(() => import("./X"))` the server rendered. The build tags each such
+loader with an ID derived from the imported file and bundles the island into
+the client entry, so islands need no separate module URL.
+
+A route whose page is interactive itself — as every page is under Next.js or
+Waku — sets `hydrate: "route"`. The browser then hydrates the whole route
+tree, page and layouts, with the same params and loader data the server used.
+A layout that renders `<html>` hydrates the document.
+
+```ts
+defineRoute({
+  id: "home",
+  path: "/",
+  file: "src/pages/index.tsx",
+  hydrate: "route",
+});
+```
+
 ## API reference
 
 - `@tschk/moonshine-router` — `compilePattern`, `matchPath`, `createRouteGraph`,

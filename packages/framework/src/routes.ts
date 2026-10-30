@@ -13,4 +13,10 @@ export type RouteDefinition = {
   middleware?: string[];
   errorBoundary?: string;
   dataFile?: string;
+  /**
+   * React only. `islands` (the default) hydrates each `island()` on the page;
+   * `route` hydrates the whole route tree — page and layouts — in the
+   * browser, as Next.js and Waku hydrate client components.
+   */
+  hydrate?: "islands" | "route";
 };
