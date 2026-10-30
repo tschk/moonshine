@@ -73,14 +73,14 @@ export async function localOverrides(
   return overrides;
 }
 
-function runtimeForAdapter(adapter: Adapter, renderer?: Renderer): string {
+function runtimeForAdapter(adapter: Adapter): string {
   switch (adapter) {
     case "node":
       return "node";
     case "cloudflare":
       return "cloudflare";
     case "vercel":
-      return renderer === "native" ? "node" : "vercel-edge";
+      return "node";
     case "bun":
     default:
       return "bun";
@@ -273,7 +273,7 @@ async function writeConfig(
   renderer: Renderer | undefined,
   adapter: Adapter,
 ): Promise<void> {
-  const runtime = runtimeForAdapter(adapter, renderer);
+  const runtime = runtimeForAdapter(adapter);
   const entries: Record<string, unknown> = { runtime, adapter };
   if (renderer) entries.renderer = renderer;
   if (renderer === "native")
@@ -379,7 +379,7 @@ async function writeReadme(
   renderer: Renderer | undefined,
   adapter: Adapter,
 ): Promise<void> {
-  const runtime = runtimeForAdapter(adapter, renderer);
+  const runtime = runtimeForAdapter(adapter);
   let body = `# ${name}\n\nMoonshine on **${adapter}** (${runtime}).\n\n\`\`\`bash\nbun install\nbun run dev\n\`\`\`\n`;
   if (renderer === "native")
     body +=

@@ -1,12 +1,18 @@
 import { copyFile, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { tryServeStatic } from "@tschk/moonshine-server";
+import { existsSync } from "node:fs";
+import {
+  createRequestHandler,
+  tryServeStatic,
+  type RouteModule,
+} from "@tschk/moonshine-server";
 
 import {
   type DeploymentAdapter,
   type MoonshineManifest,
   type RenderContext,
+  type Renderer,
   type RouteArtifact,
   type Harness,
   type HarnessFactory,
@@ -169,7 +175,14 @@ async function copyPublicAssets(
   );
 }
 
-async function buildNativeFunction(
+/**
+ * Writes `outDir/.vercel/output` around one Node function bundled from the
+ * server bundle `moonshine build` emitted: its route modules and renderer,
+ * with every package inlined, so the function runs on Vercel without the
+ * project's sources or node_modules. React static routes are prerendered
+ * through the same bundle and served from the filesystem first.
+ */
+async function buildBundledFunction(
   manifest: MoonshineManifest,
   outDir: string,
 ) {
@@ -188,18 +201,23 @@ async function buildNativeFunction(
     entryPath,
     `import { createRequestHandler } from "@tschk/moonshine-server";
 import { createNodeHandler } from ${JSON.stringify(fileURLToPath(import.meta.resolve("@tschk/moonshine-deploy-node")))};
-import { modules, renderer } from "./dist/server.js";
+import { modules, renderer } from ${JSON.stringify(`./${manifest.entries.server}`)};
 import manifest from "./manifest.json" with { type: "json" };
 const fetch = createRequestHandler({ manifest, modules, renderer });
 export default createNodeHandler({ fetch });
 `,
   );
+  const overrides =
+    manifest.renderer === "native"
+      ? {}
+      : await prerenderStatic(manifest, outDir, staticDir);
   const result = await Bun.build({
     entrypoints: [entryPath],
     outdir: funcDir,
     naming: "index.mjs",
     target: "node",
     packages: "bundle",
+    define: { "process.env.NODE_ENV": '"production"' },
   });
   if (!result.success)
     throw new AggregateError(
@@ -225,10 +243,63 @@ export default createNodeHandler({ fetch });
       {
         version: 3,
         routes: [{ handle: "filesystem" }, { src: "/.*", dest: "/moonshine" }],
+        ...(Object.keys(overrides).length && { overrides }),
       },
       null,
       2,
     ) + "\n",
+  );
+}
+
+/**
+ * Renders each static or island route without params through the server bundle and
+ * writes it under `static/`, with the override that serves `about.html` at
+ * `/about`.
+ */
+async function prerenderStatic(
+  manifest: MoonshineManifest,
+  outDir: string,
+  staticDir: string,
+): Promise<Record<string, { path: string }>> {
+  const bundle = (await import(resolve(outDir, manifest.entries.server!))) as {
+    modules: Record<string, RouteModule>;
+    renderer: Renderer;
+  };
+  const fetch = createRequestHandler({
+    manifest,
+    modules: bundle.modules,
+    renderer: bundle.renderer,
+  });
+  const overrides: Record<string, { path: string }> = {};
+  for (const route of manifest.routes) {
+    // An island page is build-time HTML too; only its islands run later.
+    if (
+      (route.mode !== "static" && route.mode !== "island") ||
+      /[:*]/.test(route.path)
+    )
+      continue;
+    const response = await fetch(new Request(`http://localhost${route.path}`));
+    if (
+      response.status !== 200 ||
+      !response.headers.get("content-type")?.startsWith("text/html")
+    ) {
+      await response.body?.cancel();
+      continue;
+    }
+    const path = route.path.replace(/^\/+|\/+$/g, "");
+    const file = `${path || "index"}.html`;
+    await mkdir(dirname(resolve(staticDir, file)), { recursive: true });
+    await writeFile(resolve(staticDir, file), await response.text());
+    if (path) overrides[file] = { path };
+  }
+  return overrides;
+}
+
+/** A React build whose server bundle `moonshine build` actually wrote. */
+function hasServerBundle(manifest: MoonshineManifest, outDir: string): boolean {
+  return Boolean(
+    manifest.entries.server &&
+    existsSync(resolve(outDir, manifest.entries.server)),
   );
 }
 
@@ -261,7 +332,15 @@ export const vercelAdapter: DeploymentAdapter = {
       force: true,
     });
     if (manifest.renderer === "native") {
-      await buildNativeFunction(manifest, outDir);
+      await buildBundledFunction(manifest, outDir);
+      return;
+    }
+    if (hasServerBundle(manifest, outDir)) {
+      if (manifest.routes.some((route) => route.runtime === "vercel-edge"))
+        throw new Error(
+          "React Vercel output runs one Node function; vercel-edge routes are not supported",
+        );
+      await buildBundledFunction(manifest, outDir);
       return;
     }
     for (const asset of manifest.assets) validateAssetPath(asset.path);

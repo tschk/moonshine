@@ -614,10 +614,7 @@ test("native Vercel scaffold uses a bundled Node function and rejects Edge", asy
   ]);
   expect(exit, error).toBe(0);
   expect(output).toContain("(vercel)");
-  const functions = join(
-    dir,
-    ".moonshine/.vercel/output/functions/moonshine.func",
-  );
+  const functions = join(dir, ".vercel/output/functions/moonshine.func");
   const functionConfig = JSON.parse(
     readFileSync(join(functions, ".vc-config.json"), "utf8"),
   );

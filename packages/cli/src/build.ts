@@ -1,3 +1,4 @@
+import { mkdir, rename, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { buildProject } from "@tschk/moonshine-compiler";
 import type { MoonshineManifest } from "@tschk/moonshine-framework";
@@ -12,7 +13,8 @@ function defaultRuntime(adapter: AdapterName): string {
     case "cloudflare":
       return "cloudflare";
     case "vercel":
-      return "vercel-edge";
+      // The Vercel adapter emits one bundled Node function.
+      return "node";
     case "bun":
     default:
       return "bun";
@@ -111,6 +113,13 @@ export async function buildCommand(args: string[]): Promise<MoonshineManifest> {
     throw new Error(`Adapter "${adapter}" does not export a build function`);
   }
   await adapterFn.build(manifest, outDir);
+  if (adapter === "vercel") {
+    // Vercel reads Build Output from `.vercel/output` in the project root.
+    const vercelOutput = resolve(resolvedDir, ".vercel/output");
+    await rm(vercelOutput, { recursive: true, force: true });
+    await mkdir(resolve(resolvedDir, ".vercel"), { recursive: true });
+    await rename(resolve(outDir, ".vercel/output"), vercelOutput);
+  }
 
   console.log(
     `Built ${manifest.routes.length} routes into .moonshine/manifest.json (${adapter})`,

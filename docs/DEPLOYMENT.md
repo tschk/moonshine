@@ -57,17 +57,25 @@ Each adapter consumes the same manifest and compiled artifacts.
 
 ### Vercel
 
-`@tschk/moonshine-deploy-vercel` produces a Vercel build output.
+`@tschk/moonshine-deploy-vercel` produces Vercel Build Output API v3.
+`moonshine build` moves it to `.vercel/output` in the project root, where
+Vercel reads it; set the Vercel project's framework to "Other" and its build
+command to `moonshine build`.
 
-- Target: `node` or `vercel-edge` runtime per route.
+- Target: the `node` runtime (the default for `--adapter vercel`).
 - Capabilities: `streaming`, `islands`, `edge`.
 - Output:
-  - `.vercel/output/static/` for prerendered `static` routes.
-  - `.vercel/output/functions/<id>.func/` for server/edge routes.
-  - `.vercel/output/config.json` with regex route matching.
+  - `.vercel/output/functions/moonshine.func/`: one Node function bundled
+    from the server bundle, with every package inlined, so it runs without
+    the project's sources or `node_modules`. It serves every route the
+    filesystem does not.
+  - `.vercel/output/static/`: public assets, the client bundle and CSS, and
+    React `static` routes without params, prerendered through the same
+    bundle (`about.html` is served at `/about` through `overrides`).
+  - `.vercel/output/config.json`: `filesystem` first, then the function.
 - Limitations:
-  - Static routes with rest parameters are not pre-rendered.
-  - Each non-static route becomes a separate function directory.
+  - React builds with a server bundle reject `vercel-edge` routes.
+  - Static routes with params are rendered by the function on request.
   - `revalidation` is not a supported capability; routes that request it fail
     the build.
 
@@ -82,8 +90,8 @@ moonshine build --adapter cloudflare
 moonshine build --adapter vercel
 ```
 
-The default runtime for an adapter is `bun`, `node`, `cloudflare`, or
-`vercel-edge` respectively. Each route can override its runtime through
+The default runtime for an adapter is `bun`, `node`, `cloudflare`, or `node`
+respectively. Each route can override its runtime through
 `RouteDefinition` or `moonshine.config.ts`.
 
 ## Conformance
