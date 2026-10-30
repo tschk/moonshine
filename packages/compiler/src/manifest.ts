@@ -284,7 +284,6 @@ export async function buildProject(
       ];
     }
     if (
-      options.renderer === "native" &&
       Object.hasOwn(bundles.routeClientStyles, route.id) &&
       bundles.routeClientStyles[route.id]!.length
     ) {

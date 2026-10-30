@@ -141,12 +141,19 @@ async function renderPage(
     context.route.clientEntries,
     isIslandMode,
   );
-  return `<!DOCTYPE html><html lang="en"><head>${DOCUMENT_HEAD}${head}</head><body>${bodyMarkup}${tail}</body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head>${DOCUMENT_HEAD}${stylesheets(context)}${head}</head><body>${bodyMarkup}${tail}</body></html>`;
+}
+
+/** The route's published CSS, collected by `moonshine build`. */
+function stylesheets(context: RenderContext): string {
+  return (context.route.clientStyles ?? [])
+    .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`)
+    .join("");
 }
 
 function renderSpaShell(context: RenderContext): string {
   const clientEntries = context.route.clientEntries;
-  const head: string[] = [];
+  const head: string[] = [stylesheets(context)];
   const tail: string[] = [];
   for (const entry of clientEntries) {
     head.push(`<link rel="modulepreload" href="${escapeHtml(entry)}">`);

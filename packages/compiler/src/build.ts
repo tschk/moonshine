@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
   copyFile,
   lstat,
@@ -327,22 +328,40 @@ async function runBuild(
       sourcemap: "none",
       metafile: options.metadata || options.splitting,
       minify: options.minify ?? false,
-      ...(options.serverFiles && {
-        plugins: [
-          {
-            name: "native-client-boundary",
-            setup(build) {
-              build.onLoad({ filter: /.*/ }, (args) => {
-                if (options.serverFiles!.has(resolve(args.path))) {
-                  throw new Error(
-                    `Native client imports server-only route module: ${args.path}`,
-                  );
-                }
-              });
-            },
+      plugins: [
+        // A root-relative url() in CSS names a file under public/, served at
+        // that path; Bun would otherwise try to resolve it from the disk root
+        // and fail the build.
+        {
+          name: "public-css-urls",
+          setup(build) {
+            build.onResolve({ filter: /^\/(?!\/)/ }, (args) => {
+              if (
+                args.importer.endsWith(".css") &&
+                existsSync(join(root, "public", args.path))
+              )
+                return { path: args.path, external: true };
+              return undefined;
+            });
           },
-        ],
-      }),
+        },
+        ...(options.serverFiles
+          ? [
+              {
+                name: "native-client-boundary",
+                setup(build: import("bun").PluginBuilder) {
+                  build.onLoad({ filter: /.*/ }, (args) => {
+                    if (options.serverFiles!.has(resolve(args.path))) {
+                      throw new Error(
+                        `Native client imports server-only route module: ${args.path}`,
+                      );
+                    }
+                  });
+                },
+              },
+            ]
+          : []),
+      ],
       // Browsers have no `process`. Any dependency that reads `process.env.X` —
       // and most of them do, behind a `typeof` guard or not — otherwise throws
       // `ReferenceError: process is not defined` while the entry module is being
@@ -539,7 +558,7 @@ export async function buildBundles(options: {
     )
       ? "node"
       : "bun",
-    { metadata: native },
+    { metadata: true },
   );
   const serverFiles = native
     ? new Set(
@@ -565,8 +584,11 @@ export async function buildBundles(options: {
     : { files: [], inputs: new Map() };
   const serverOutputs = serverBuild.files;
   const clientOutputs = clientBuild.files;
+  // Every renderer server-renders its routes, so the CSS those routes import is
+  // collected per route and published; the server bundle's own CSS output is
+  // never served.
   const serverStyleEntries = new Map<string, string>();
-  if (native) {
+  {
     for (const [index, route] of options.routes.entries()) {
       if (route.mode === "api") continue;
       const serverCss = await cssRoots(
