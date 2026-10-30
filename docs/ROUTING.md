@@ -124,6 +124,14 @@ When `mode` is `auto` (or omitted), the compiler applies these rules in order:
 
 Use `moonshine inspect` to see the resolved mode and reason for every route.
 
+### Not-found page
+
+A page route at `/404` — Waku's `pages/404.tsx`, Next.js's `pages/404` —
+renders every `GET` or `HEAD` request no route matches, and every page
+request whose loader returns or throws a bodiless 404 (Next.js's
+`notFound()`), with status 404 and the page's own headers. An explicit `notFound` handler option takes
+precedence; other methods get the plain 404.
+
 ### Hydration (React)
 
 The client entry `moonshine build` emits hydrates every

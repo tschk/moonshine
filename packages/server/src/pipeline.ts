@@ -442,6 +442,22 @@ async function runBefores(
   }
 }
 
+const NOT_FOUND_PATH = "/404";
+
+/** A page's loader answered 404 without a body of its own. */
+function isBareNotFound(
+  response: Response,
+  route: RouteDefinition,
+  dataRequest: unknown,
+): boolean {
+  return (
+    response.status === 404 &&
+    response.body === null &&
+    !dataRequest &&
+    (route as Partial<RouteArtifact>).mode !== "api"
+  );
+}
+
 export function createPipelineHandler(
   options: RequestHandlerOptions,
   policy?: DataRequestPolicy,
@@ -457,6 +473,47 @@ export function createPipelineHandler(
   // Compiling the route graph is linear in the route count, so build it once
   // per handler instead of once per request.
   let cachedGraph = options.graph;
+
+  /**
+   * Like Waku's `404.tsx` and Next.js's `pages/404`, a page route at /404
+   * renders unmatched GET and HEAD requests, and page requests whose loader
+   * answers a bodiless 404 (Next.js's `notFound()`), with status 404 and the
+   * page's own headers. An explicit `notFound` option takes precedence.
+   */
+  const notFoundPage = async (
+    request: Request,
+  ): Promise<Response | undefined> => {
+    const { method } = request;
+    const url = new URL(request.url);
+    if (
+      options.notFound ||
+      (method !== "GET" && method !== "HEAD") ||
+      (url.pathname.replace(/\/+$/, "") || "/") === NOT_FOUND_PATH
+    )
+      return undefined;
+    const graph = cachedGraph;
+    const page = graph ? matchRoutes(graph, NOT_FOUND_PATH) : undefined;
+    if (
+      !page ||
+      page.route.path !== NOT_FOUND_PATH ||
+      (page.route as Partial<RouteArtifact>).mode === "api"
+    )
+      return undefined;
+    const response = await handler(
+      new Request(new URL(NOT_FOUND_PATH, url), {
+        method,
+        headers: request.headers,
+        signal: request.signal,
+      }),
+    );
+    if (response.status === 200)
+      return new Response(response.body, {
+        status: 404,
+        headers: response.headers,
+      });
+    await response.body?.cancel();
+    return undefined;
+  };
 
   const handler = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -494,6 +551,8 @@ export function createPipelineHandler(
 
     const match = matchRoutes(graph, pathname);
     if (!match) {
+      const page = dataRequest ? undefined : await notFoundPage(request);
+      if (page) return page;
       const ctx = createRouteContext(request, {});
       return finalizeResponse(
         options.notFound
@@ -521,6 +580,10 @@ export function createPipelineHandler(
         route,
         dataRequest,
       );
+      const page = isBareNotFound(response, route, dataRequest)
+        ? await notFoundPage(request)
+        : undefined;
+      if (page) return page;
       return finalizeResponse(response, baseHeaders, method);
     } catch (error) {
       if (error instanceof Redirect) {
@@ -557,6 +620,10 @@ export function createPipelineHandler(
       }
 
       if (error instanceof Response) {
+        const page = isBareNotFound(error, route, dataRequest)
+          ? await notFoundPage(request)
+          : undefined;
+        if (page) return page;
         return finalizeResponse(error, baseHeaders, method);
       }
 
