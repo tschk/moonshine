@@ -70,3 +70,22 @@ test("internal links navigate and prefetch; user cancellation and modifiers win"
   expect(calls).toBe(1);
   expect(canceled.runtime.getLocation()).toBe("/page");
 });
+
+test("a link to a fragment on the page scrolls to it instead of the top", async () => {
+  const { runtime, anchor } = await fixture({ to: "/page#pricing" });
+  const target = document.createElement("section");
+  target.id = "pricing";
+  document.body.append(target);
+  const scrolled: string[] = [];
+  target.scrollIntoView = () => scrolled.push("pricing");
+  const scrollTo = window.scrollTo;
+  window.scrollTo = (() => scrolled.push("top")) as typeof window.scrollTo;
+  try {
+    await click(anchor);
+    expect(runtime.getLocation()).toBe("/page");
+    expect(scrolled).toEqual(["pricing"]);
+  } finally {
+    window.scrollTo = scrollTo;
+    target.remove();
+  }
+});
