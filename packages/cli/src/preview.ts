@@ -114,10 +114,7 @@ export async function startPreview(options: {
   }
   const config = await loadConfigMaybe(projectDir);
   const manifest = resolveManifest(projectDir, raw);
-  const renderer = await resolveRenderer(
-    raw.renderer ?? config.renderer,
-    projectDir,
-  );
+  let renderer: Renderer | undefined;
   const staticDir = resolve(projectDir, ".moonshine", PUBLIC_DIR);
   const serverBundlePath = resolve(
     projectDir,
@@ -134,9 +131,16 @@ export async function startPreview(options: {
   try {
     const bundle = (await import(serverBundlePath)) as {
       modules?: Record<string, RouteModule>;
+      renderer?: Renderer;
       requestScope?: typeof requestScope;
     };
     modules = bundle.modules ?? {};
+    // React bundles export the renderer bound to their own modules and React.
+    if (
+      (raw.renderer ?? "react") === "react" &&
+      bundle.renderer?.name === "react"
+    )
+      renderer = bundle.renderer;
     requestScope = bundle.requestScope;
   } catch (error) {
     if (raw.requestContext) throw error;
@@ -146,6 +150,10 @@ export async function startPreview(options: {
         `  Server-rendered routes will fail. Run \`moonshine build\` first.`,
     );
   }
+  renderer ??= await resolveRenderer(
+    raw.renderer ?? config.renderer,
+    projectDir,
+  );
   if (raw.requestContext && typeof requestScope !== "function")
     throw new Error(
       "Request context runner missing from server bundle; rebuild the project",

@@ -124,6 +124,7 @@ function generateServerEntry(
   native: boolean,
   root: string,
   requestContext: boolean,
+  react: boolean,
 ): string {
   const keysForFile = (file: string) => {
     const rel = sourcePath(relative(root, file));
@@ -133,7 +134,9 @@ function generateServerEntry(
     ? [
         `import { createNativeRenderer } from "@tschk/moonshine-dom/framework-native";`,
       ]
-    : [];
+    : react
+      ? [`import { createReactRenderer } from "@tschk/moonshine-react";`]
+      : [];
   if (requestContext) {
     imports.push(
       `export { runWithRequest as requestScope } from "@tschk/moonshine-framework/request";`,
@@ -202,8 +205,10 @@ function generateServerEntry(
       if (file && !supportFiles.includes(file)) supportFiles.push(file);
     }
   }
+  const supportVar = new Map<string, string>();
   for (let i = 0; i < supportFiles.length; i++) {
     const file = supportFiles[i]!;
+    supportVar.set(file, `support_${i}`);
     imports.push(
       `import * as support_${i} from ${JSON.stringify(importPath(buildDir, file))};`,
     );
@@ -216,7 +221,19 @@ function generateServerEntry(
     );
   }
 
-  return `${imports.join("\n")}\n\n${moduleHelpers.join("\n")}\n\nconst ${routes.map((_, i) => `module_${i} = makeModule_${i}(route_${i}, ${routes[i]!.dataFile ? `data_${i}` : "undefined"})`).join(";\nconst ")};\n\nexport const routes = {\n${bodies.join(",\n")}\n};\n\nexport const modules = {\n${moduleBodys.join(",\n")}\n};\n${native ? `export const renderer = createNativeRenderer(modules, Object.fromEntries(${JSON.stringify(routes.map((route) => [route.id, route.layouts ?? []]))}));\n` : ""}`;
+  return `${imports.join("\n")}\n\n${moduleHelpers.join("\n")}\n\nconst ${routes.map((_, i) => `module_${i} = makeModule_${i}(route_${i}, ${routes[i]!.dataFile ? `data_${i}` : "undefined"})`).join(";\nconst ")};\n\nexport const routes = {\n${bodies.join(",\n")}\n};\n\nexport const modules = {\n${moduleBodys.join(",\n")}\n};\n${native ? `export const renderer = createNativeRenderer(modules, Object.fromEntries(${JSON.stringify(routes.map((route) => [route.id, route.layouts ?? []]))}));\n` : ""}${
+    react
+      ? // The renderer comes from this bundle, so it shares the bundle's React
+        // with the route modules and finds them by route id wherever the
+        // bundle is deployed, never by re-importing their source files.
+        `export const renderer = createReactRenderer({\n${routes
+          .map(
+            (route, i) =>
+              `  [${JSON.stringify(route.id)}]: { page: module_${i}, layouts: [${(route.layouts ?? []).map((file) => supportVar.get(file)).join(", ")}] }`,
+          )
+          .join(",\n")}\n});\n`
+      : ""
+  }`;
 }
 
 function generateClientEntry(
@@ -479,6 +496,7 @@ export async function buildBundles(options: {
       options.renderer === "native",
       options.root,
       options.requestContext === true,
+      (options.renderer ?? "react") === "react",
     ),
   );
 
@@ -514,10 +532,11 @@ export async function buildBundles(options: {
     [serverEntry],
     distDir,
     options.root,
-    native &&
-      options.routes.some((route) =>
-        ["node", "cloudflare"].includes(route.runtime),
-      )
+    // A Bun-targeted bundle selects Bun-only builds of its dependencies
+    // (react-dom/server.bun among them), which fail on any other runtime.
+    options.routes.some((route) =>
+      ["node", "cloudflare", "vercel-edge"].includes(route.runtime),
+    )
       ? "node"
       : "bun",
     { metadata: native },

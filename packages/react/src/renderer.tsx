@@ -4,7 +4,10 @@ import {
   type FunctionComponent,
   type ReactNode,
 } from "react";
-import { renderToReadableStream } from "react-dom/server";
+// The web-streams build runs unchanged on Bun, Node, Workers and Vercel; the
+// default `react-dom/server` entry resolves per bundle target, and its Node
+// build lacks renderToReadableStream before React 19.2.
+import { renderToReadableStream } from "react-dom/server.edge";
 import type { RenderContext, Renderer } from "@tschk/moonshine-framework";
 import { IslandProvider, type IslandRegistry } from "./islands";
 import { escapeHtml, serializeIslandProps } from "./serialize";
@@ -39,34 +42,44 @@ export function registerRouteModules(modules: Record<string, unknown>): void {
   for (const [key, mod] of Object.entries(modules)) routeModules.set(key, mod);
 }
 
-async function loadComponent(file: string): Promise<ComponentType<unknown>> {
-  const registered = routeModules.get(file);
-  const mod = registered ?? (await import(file));
+function componentOf(mod: unknown): ComponentType<unknown> {
   return ((mod as { default?: unknown }).default ??
     mod) as ComponentType<unknown>;
 }
 
+async function loadComponent(file: string): Promise<ComponentType<unknown>> {
+  const registered = routeModules.get(file);
+  return componentOf(registered ?? (await import(file)));
+}
+
+/** A route's page module and its layouts, outermost first. */
+export type BundledRoute = { page: unknown; layouts: readonly unknown[] };
+
+type RouteComponents = (route: RenderContext["route"]) => Promise<{
+  page: ComponentType<unknown>;
+  layouts: ComponentType<unknown>[];
+}>;
+
+/** Resolves components from the registered modules, else from source paths. */
+const loadFromFiles: RouteComponents = async (route) => ({
+  page: await loadComponent(route.file),
+  layouts: await Promise.all((route.layouts ?? []).map(loadComponent)),
+});
+
 async function buildBody(
   context: RenderContext,
   registry: IslandRegistry,
+  load: RouteComponents,
 ): Promise<ReactNode> {
   const { route, params, data } = context;
-  const Page = (await loadComponent(
-    route.file,
-  )) as FunctionComponent<PageProps>;
+  const components = await load(route);
+  const Page = components.page as FunctionComponent<PageProps>;
   const pageProps = { params, data };
   let body = createElement(Page, pageProps);
 
-  if (route.layouts) {
-    const layouts = await Promise.all(
-      route.layouts.map(
-        (layout) =>
-          loadComponent(layout) as Promise<FunctionComponent<LayoutProps>>,
-      ),
-    );
-    for (let i = layouts.length - 1; i >= 0; i--) {
-      body = createElement(layouts[i]!, { ...pageProps, children: body });
-    }
+  for (let i = components.layouts.length - 1; i >= 0; i--) {
+    const Layout = components.layouts[i] as FunctionComponent<LayoutProps>;
+    body = createElement(Layout, { ...pageProps, children: body });
   }
 
   return createElement(IslandProvider, { registry }, body);
@@ -115,9 +128,12 @@ function buildIslandHeadAndTail(
 const DOCUMENT_HEAD =
   '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>html{scroll-behavior:smooth}html,body{margin:0}body{min-height:100vh}</style>';
 
-async function renderPage(context: RenderContext): Promise<string> {
+async function renderPage(
+  context: RenderContext,
+  load: RouteComponents,
+): Promise<string> {
   const registry: IslandRegistry = { entries: new Map() };
-  const body = await buildBody(context, registry);
+  const body = await buildBody(context, registry, load);
   const bodyMarkup = await renderToStringAsync(body, context.signal);
   const isIslandMode = context.route.mode === "island";
   const { head, tail } = buildIslandHeadAndTail(
@@ -139,31 +155,61 @@ function renderSpaShell(context: RenderContext): string {
   return `<!DOCTYPE html><html lang="en"><head>${DOCUMENT_HEAD}${head.join("")}</head><body><div id="moonshine-app" data-moonshine-app="${escapeHtml(context.route.id)}"></div>${tail.join("")}</body></html>`;
 }
 
-export const reactRenderer: Renderer = {
-  name: "react",
-  async prerender(context) {
-    if (context.route.mode === "api") {
-      return serializeIslandProps(context.data);
-    }
-    if (context.route.mode === "spa") {
-      return renderSpaShell(context);
-    }
-    return renderPage(context);
-  },
-  async render(context) {
-    if (context.route.mode === "api") {
-      return new Response(serializeIslandProps(context.data), {
-        headers: { "content-type": "application/json; charset=utf-8" },
-      });
-    }
-    if (context.route.mode === "spa") {
-      return new Response(renderSpaShell(context), {
+function createRenderer(load: RouteComponents): Renderer {
+  return {
+    name: "react",
+    async prerender(context) {
+      if (context.route.mode === "api") {
+        return serializeIslandProps(context.data);
+      }
+      if (context.route.mode === "spa") {
+        return renderSpaShell(context);
+      }
+      return renderPage(context, load);
+    },
+    async render(context) {
+      if (context.route.mode === "api") {
+        return new Response(serializeIslandProps(context.data), {
+          headers: { "content-type": "application/json; charset=utf-8" },
+        });
+      }
+      if (context.route.mode === "spa") {
+        return new Response(renderSpaShell(context), {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+      const html = await renderPage(context, load);
+      return new Response(html, {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
-    }
-    const html = await renderPage(context);
-    return new Response(html, {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
-  },
-};
+    },
+  };
+}
+
+/**
+ * Renders route modules registered with `registerRouteModules`, falling back
+ * to importing each route's source file.
+ */
+export const reactRenderer: Renderer = createRenderer(loadFromFiles);
+
+/**
+ * A renderer bound to the route modules of one server bundle, keyed by route
+ * id. `moonshine build` exports it from the bundle, so pages, layouts and
+ * react-dom/server share that bundle's single React instance and its CSS
+ * module class names, wherever the bundle is deployed. Routes missing from
+ * the map fall back to `reactRenderer`'s lookup.
+ */
+export function createReactRenderer(
+  routes: Readonly<Record<string, BundledRoute>>,
+): Renderer {
+  return createRenderer(async (route) => {
+    const bundled = Object.hasOwn(routes, route.id)
+      ? routes[route.id]
+      : undefined;
+    if (!bundled) return loadFromFiles(route);
+    return {
+      page: componentOf(bundled.page),
+      layouts: bundled.layouts.map(componentOf),
+    };
+  });
+}
