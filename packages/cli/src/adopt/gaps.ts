@@ -90,11 +90,11 @@ export async function findManualWork(
       )
     ) {
       note(
-        `${file}: generateMetadata() is not called. Moonshine emits its own <head>; move tags into a layout.`,
+        `${file}: generateMetadata() is not called. Render <title>/<meta>/<link> elements from the page instead; React hoists them into a layout-rendered <head>.`,
       );
     } else if (/export\s+const\s+metadata\b/.test(source)) {
       note(
-        `${file}: the metadata export is not read. Moonshine emits its own <head>; move tags into a layout.`,
+        `${file}: the metadata export is not read. Render <title>/<meta>/<link> elements from the page or layout instead; React hoists them into a layout-rendered <head>.`,
       );
     }
     if (/export\s+const\s+revalidate\b/.test(source)) {
@@ -106,11 +106,6 @@ export async function findManualWork(
     if (/export\s+default\s+async\s+function/.test(source) && stem === "page") {
       note(
         `${file}: async server component. Moonshine renders with react-dom/server, which cannot await a component — move the fetch into a loader.`,
-      );
-    }
-    if (stem === "layout" && /<html\b/.test(source)) {
-      note(
-        `${file}: returns <html>/<body>, but moonshine already emits the document shell. Return a fragment instead.`,
       );
     }
     if (["loading", "template", "not-found", "default"].includes(stem)) {
