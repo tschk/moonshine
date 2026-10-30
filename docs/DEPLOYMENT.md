@@ -12,7 +12,10 @@ Each adapter consumes the same manifest and compiled artifacts.
   and native renderers, the `renderer` bound to those modules; adapters render
   through it so a deployed bundle never re-imports route source files or loads
   a second copy of React.
-- `dist/client.js` — client bundle (when islands or SPAs exist).
+- `public/client.js` — client bundle (when islands, SPAs or route-hydrated
+  pages exist). It is minified and built with `process.env.NODE_ENV` set to
+  `"production"`; `moonshine dev` (or `moonshine build --development`) keeps
+  development builds.
 - `server.ts` — adapter-specific entry file.
 
 ## Adapters

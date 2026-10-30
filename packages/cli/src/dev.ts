@@ -45,7 +45,7 @@ export async function devCommand(args: string[]): Promise<void> {
       preview = undefined;
     }
     try {
-      await buildCommand([root]);
+      await buildCommand([root, "--development"]);
       preview = await startPreview({ projectDir: root, port: 0 });
       console.log(`Dev server on http://localhost:${preview.port}/`);
     } catch (error) {
