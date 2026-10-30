@@ -13,13 +13,13 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@tschk/moonshine-framework": "workspace:*",
-    "@tschk/moonshine-deploy-bun": "workspace:*",
-    "@tschk/moonshine-dom": "workspace:*",
-    "@tschk/moonshine-server": "workspace:*"
+    "@tschk/moonshine-framework": "^0.4.79",
+    "@tschk/moonshine-deploy-bun": "^0.4.79",
+    "@tschk/moonshine-dom": "^0.4.79",
+    "@tschk/moonshine-server": "^0.4.79"
   },
   "devDependencies": {
-    "@tschk/moonshine-cli": "workspace:*",
+    "@tschk/moonshine-cli": "^0.4.79",
     "@types/bun": "1.3.14",
     "typescript": "7.0.2"
   }

@@ -11,8 +11,8 @@
     "build": "moonshine build --adapter cloudflare"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*",
-    "@tschk/moonshine-deploy-cloudflare": "workspace:*"
+    "@tschk/moonshine": "^0.4.79",
+    "@tschk/moonshine-deploy-cloudflare": "^0.4.79"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

@@ -13,10 +13,10 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@tschk/moonshine": "workspace:*",
-    "@tschk/moonshine-cli": "workspace:*",
-    "@tschk/moonshine-compiler": "workspace:*",
-    "@tschk/moonshine-react": "workspace:*",
+    "@tschk/moonshine": "^0.4.79",
+    "@tschk/moonshine-cli": "^0.4.79",
+    "@tschk/moonshine-compiler": "^0.4.79",
+    "@tschk/moonshine-react": "^0.4.79",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },

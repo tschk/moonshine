@@ -1,3 +1,14 @@
+# Moonshine 0.4.79
+
+- Render React routes through their bundled renderer on Bun, Node, Workers,
+  and Vercel; publish route CSS and allow root layouts to own the document.
+- Hydrate React islands and opt-in route trees, and render client navigations
+  in place. Waku fragment links scroll to their target.
+- Emit self-contained Vercel Node functions and production client bundles.
+- Render the `/404` page for missing paths and bodiless loader 404 responses.
+- Share stylesheet output between routes with identical CSS imports, including
+  builds through macOS temporary-directory symlinks.
+
 # Moonshine 0.4.57
 
 - Add native host-free Nuxt 3/4 routing, navigation, response status, layout,
