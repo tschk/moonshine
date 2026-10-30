@@ -136,6 +136,12 @@ Waku — sets `hydrate: "route"`. The browser then hydrates the whole route
 tree, page and layouts, with the same params and loader data the server used.
 A layout that renders `<html>` hydrates the document.
 
+Navigations through the moonshine router — its `Link`, Waku's `Link` and
+`useRouter` from `@tschk/moonshine-waku`, `navigate()`, Back and Forward —
+then render the next `hydrate: "route"` page in place: the client fetches the
+page's server HTML for its route ID, params and data and re-renders the same
+root, so layout state survives. Any other page loads as a document.
+
 ```ts
 defineRoute({
   id: "home",

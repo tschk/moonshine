@@ -13,6 +13,7 @@ export type { RouteGraph, RouteMatch } from "./graph.js";
 export {
   navigate,
   getLocation,
+  getRouter,
   useLocation,
   useHistory,
   useParams,

@@ -29,7 +29,7 @@ async function waitFor(check: () => boolean): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 10));
 }
 
-test("the client entry hydrates islands and route-hydrated pages", async () => {
+test("the client entry hydrates islands and route-hydrated pages, and navigates in place", async () => {
   const routes = join(projectDir, "src", "routes");
   const components = join(projectDir, "src", "components");
   mkdirSync(routes, { recursive: true });
@@ -38,8 +38,9 @@ test("the client entry hydrates islands and route-hydrated pages", async () => {
   writeFileSync(
     join(routes, "+layout.tsx"),
     `import type { ReactNode } from "react";
+import { Link } from "@tschk/moonshine/router";
 export default function Layout({ children }: { children: ReactNode }) {
-  return <main>{children}</main>;
+  return <main><Link href="/other">other</Link>{children}</main>;
 }
 `,
   );
@@ -66,6 +67,11 @@ export default function Page() {
     "export function loader() { return { start: 5 }; }\n",
   );
 
+  writeFileSync(
+    join(routes, "other.tsx"),
+    "export default function Other() { return <h1>other</h1>; }\n",
+  );
+
   await buildProjectIsolated({
     projectDir,
     runtime: "node",
@@ -74,6 +80,12 @@ export default function Page() {
         id: "whole",
         path: "/whole",
         file: "src/routes/whole.tsx",
+        hydrate: "route",
+      },
+      {
+        id: "other",
+        path: "/other",
+        file: "src/routes/other.tsx",
         hydrate: "route",
       },
     ],
@@ -111,23 +123,55 @@ export default function Page() {
   act.IS_REACT_ACT_ENVIRONMENT = false;
   const client = join(out, "public", "client.js");
   try {
-    for (const [html, label, start, query] of [
-      [islandHtml, "island", 1, "?island"],
-      [wholeHtml, "route", 5, "?route"],
+    for (const [path, html, label, start] of [
+      ["/island", islandHtml, "island", 1],
+      ["/whole", wholeHtml, "route", 5],
     ] as const) {
+      history.replaceState(null, "", path);
       // The test imports the entry itself; happy-dom cannot fetch scripts.
       document.body.innerHTML = html
         .slice(html.indexOf("<body>") + 6, html.indexOf("</body>"))
         .replace(/<script type="module"[^>]*><\/script>/g, "");
       const button = () => document.querySelector("button")!;
       expect(button().textContent).toBe(`${label} ${start}`);
-      await import(client + query);
+      // A fresh module instance per page, as each page load would have.
+      await import(`${client}?${label}`);
       await waitFor(() =>
         Object.keys(button()).some((key) => key.startsWith("__reactFiber")),
       );
       button().click();
       await waitFor(() => button().textContent !== `${label} ${start}`);
       expect(button().textContent).toBe(`${label} ${start + 1}`);
+    }
+
+    // The /whole page stays mounted: its layout's Link renders /other in
+    // place, and Back renders /whole again, without loading a document.
+    const realFetch = globalThis.fetch;
+    const fetched: string[] = [];
+    globalThis.fetch = (async (input: string | URL) => {
+      const { pathname } = new URL(String(input));
+      fetched.push(pathname);
+      const data = pathname === "/whole" ? { start: 5 } : {};
+      return new Response(await page(pathname, data), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    }) as typeof fetch;
+    try {
+      const link = document.querySelector("main > a")!;
+      (link as HTMLAnchorElement).click();
+      await waitFor(() => document.querySelector("h1") !== null);
+      expect(document.querySelector("h1")?.textContent).toBe("other");
+      expect(document.querySelector("button")).toBeNull();
+      expect(window.location.pathname).toBe("/other");
+      expect(document.querySelector("main > a")).toBe(link);
+
+      history.back();
+      await waitFor(() => document.querySelector("button") !== null);
+      expect(document.querySelector("button")?.textContent).toBe("route 5");
+      expect(window.location.pathname).toBe("/whole");
+      expect(fetched).toEqual(["/other", "/whole"]);
+    } finally {
+      globalThis.fetch = realFetch;
     }
   } finally {
     act.IS_REACT_ACT_ENVIRONMENT = true;

@@ -8,6 +8,7 @@ import {
   type FunctionComponent,
   type ReactNode,
 } from "react";
+import { getRouter } from "@tschk/moonshine/router";
 import { serializeIslandProps } from "./serialize";
 
 export type IslandEntry = {
@@ -247,28 +248,106 @@ export function routeElement(
   return element;
 }
 
+type RoutePayload = {
+  id: string;
+  params: Record<string, string>;
+  data: unknown;
+};
+
+const ROUTE_PROPS = "script[data-moonshine-route-props]";
+
+function readPayload(doc: Document): RoutePayload | undefined {
+  const payload = doc.querySelector(ROUTE_PROPS);
+  return payload
+    ? (JSON.parse(payload.textContent ?? "{}") as RoutePayload)
+    : undefined;
+}
+
 /**
- * Hydrates an island-mode route that declares no islands of its own: its
- * interactivity lives in the page itself, so the whole route tree hydrates.
- * The renderer marks such a route with its ID, params and loader data; a
- * layout that renders `<html>` hydrates the document, as in Next.js and Waku.
+ * Hydrates a route declared with `hydrate: "route"`: the page and its
+ * layouts hydrate as one tree with the params and loader data the server
+ * used. A layout that renders `<html>` hydrates the document, as in Next.js
+ * and Waku.
+ *
+ * Navigations through the moonshine router (Waku's and moonshine's `Link`,
+ * `navigate()`, Back and Forward) then render the next route in place: its
+ * server HTML supplies the route ID, params and data, and the same root
+ * re-renders, so state above the page survives. A page this bundle cannot
+ * render loads as a document instead.
  */
 export async function hydrateRoute(
   routes: Readonly<Record<string, ClientRoute>>,
 ): Promise<void> {
   if (typeof document === "undefined") return;
-  const payload = document.querySelector("script[data-moonshine-route-props]");
-  if (!payload) return;
-  const { id, params, data } = JSON.parse(payload.textContent ?? "{}") as {
-    id: string;
-    params: Record<string, string>;
-    data: unknown;
-  };
-  const route = Object.hasOwn(routes, id) ? routes[id] : undefined;
-  if (!route) return;
+  const initial = readPayload(document);
+  const route =
+    initial && Object.hasOwn(routes, initial.id)
+      ? routes[initial.id]
+      : undefined;
+  if (!initial || !route) return;
   const container =
-    document.querySelector(`[data-moonshine-route]`) ?? document;
+    document.querySelector("[data-moonshine-route]") ?? document;
   const client = await import("react-dom/client");
   const { hydrateRoot } = client.default ?? client;
-  hydrateRoot(container, routeElement(route, { params, data }));
+  const root = hydrateRoot(container, routeElement(route, initial));
+
+  const router = getRouter();
+  let current = router.location.peek();
+  let pending: AbortController | undefined;
+  const show = async (location: string) => {
+    pending?.abort();
+    const controller = (pending = new AbortController());
+    const url = new URL(location, window.location.href);
+    try {
+      const response = await fetch(url, {
+        headers: { accept: "text/html" },
+        signal: controller.signal,
+      });
+      if (!response.headers.get("content-type")?.includes("text/html"))
+        throw new Error("not a page");
+      const next = new DOMParser().parseFromString(
+        await response.text(),
+        "text/html",
+      );
+      if (controller.signal.aborted) return;
+      const payload = readPayload(next);
+      const nextRoute =
+        payload && Object.hasOwn(routes, payload.id)
+          ? routes[payload.id]
+          : undefined;
+      if (!payload || !nextRoute) throw new Error("not a hydrated route");
+      for (const link of next.head.querySelectorAll<HTMLLinkElement>(
+        'link[rel="stylesheet"]',
+      )) {
+        const href = link.getAttribute("href");
+        if (
+          href &&
+          !document.head.querySelector(
+            `link[rel="stylesheet"][href="${CSS.escape(href)}"]`,
+          )
+        )
+          document.head.append(link.cloneNode());
+      }
+      root.render(routeElement(nextRoute, payload));
+      if (url.hash)
+        requestAnimationFrame(() =>
+          document
+            .getElementById(decodeURIComponent(url.hash.slice(1)))
+            ?.scrollIntoView(),
+        );
+    } catch {
+      if (controller.signal.aborted) return;
+      // The history entry already names the page; load it as a document.
+      window.location.reload();
+    }
+  };
+  router.location.subscribe(() => {
+    const location = router.location.peek();
+    if (location === current) return;
+    current = location;
+    void show(location);
+  });
+  // A mounted MoonshineRouter syncs Back and Forward itself; the fallback
+  // router does not.
+  window.addEventListener("popstate", () => router.syncFromBrowser());
 }

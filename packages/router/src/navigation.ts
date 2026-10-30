@@ -43,6 +43,11 @@ export function navigate(
   currentRouter().navigate(to, options);
 }
 
+/** The router `navigate` targets: the innermost mounted one, else the fallback. */
+export function getRouter(): MoonshineRouterInstance {
+  return currentRouter();
+}
+
 /** Current pathname and query (reactive; active or fallback router). */
 export function getLocation(): string {
   return currentRouter().getLocation();
