@@ -11,7 +11,7 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@tschk/moonshine": "^0.4.79",
+    "@tschk/moonshine": "^0.4.80",
     "svelte": "5.57.1"
   },
   "devDependencies": {
