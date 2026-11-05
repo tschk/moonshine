@@ -1,11 +1,13 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Readable } from "node:stream";
+import { fileURLToPath } from "node:url";
 import {
   type DeploymentAdapter,
   type MoonshineManifest,
@@ -188,6 +190,7 @@ export const nodeAdapter: DeploymentAdapter = {
   build: async (manifest, outDir) => {
     validateRuntime(nodeAdapter, manifest);
     await mkdir(outDir, { recursive: true });
+    await rm(resolve(outDir, "server.mjs"), { force: true });
     const assets = await Promise.all(
       manifest.assets.map(async (asset) => {
         const file = await copyAsset(asset, outDir);
@@ -200,20 +203,28 @@ export const nodeAdapter: DeploymentAdapter = {
       JSON.stringify(builtManifest, null, 2) + "\n",
     );
     const native = manifest.renderer === "native";
+    const bundled =
+      native ||
+      ((manifest.renderer ?? "react") === "react" &&
+        Boolean(
+          manifest.entries.server &&
+          existsSync(resolve(outDir, manifest.entries.server)),
+        ));
+    const serverEntry = manifest.entries.server ?? "dist/server.js";
     // The bundle exports the renderer bound to its own route modules (and, for
     // React, its own React instance).
     const rendererImport =
       native || (manifest.renderer ?? "react") === "react"
-        ? 'import { modules, renderer } from "./dist/server.js";'
+        ? `import { modules, renderer } from ${JSON.stringify(`./${serverEntry}`)};`
         : 'import { modules } from "./dist/server.js";\nimport { reactRenderer as renderer } from "@tschk/moonshine-react";';
     const entry = `import { createServer } from "node:http";
-import { createRequestHandler } from "@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}";
-import { createNodeHandler } from "@tschk/moonshine-deploy-node";
+import { createRequestHandler } from ${JSON.stringify(bundled ? fileURLToPath(import.meta.resolve(`@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}`)) : `@tschk/moonshine-server${manifest.dataRequests ? "/data-http" : ""}`)};
+import { createNodeHandler } from ${JSON.stringify(bundled ? fileURLToPath(import.meta.resolve("@tschk/moonshine-deploy-node")) : "@tschk/moonshine-deploy-node")};
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import manifest from "./manifest.json" with { type: "json" };
 ${rendererImport}
-${manifest.requestContext ? 'import { requestScope } from "./dist/server.js";' : ""}
+${manifest.requestContext ? `import { requestScope } from ${JSON.stringify(`./${serverEntry}`)};` : ""}
 
 const artifactDir = dirname(fileURLToPath(import.meta.url));
 const projectDir = resolve(artifactDir, "..");
@@ -231,7 +242,7 @@ const resolvedManifest = {
 };
 
 const fetch = createRequestHandler({
-  manifest: ${native ? "manifest" : "resolvedManifest"},
+  manifest: ${bundled ? "manifest" : "resolvedManifest"},
   modules,
   renderer,${manifest.requestContext ? "\n  requestScope," : ""}
   staticDir: artifactDir + "/public",
@@ -246,18 +257,19 @@ server.listen(Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535 ? en
 `;
     const entryPath = resolve(outDir, "server.ts");
     await writeFile(entryPath, entry);
-    if (native) {
+    if (bundled) {
       const result = await Bun.build({
         entrypoints: [entryPath],
         outdir: outDir,
+        naming: native ? "server.js" : "server.mjs",
         target: "node",
         packages: "bundle",
+        ...(native
+          ? {}
+          : { define: { "process.env.NODE_ENV": '"production"' } }),
       });
       if (!result.success)
-        throw new AggregateError(
-          result.logs,
-          "Native Node server bundle failed",
-        );
+        throw new AggregateError(result.logs, "Node server bundle failed");
     }
   },
 };

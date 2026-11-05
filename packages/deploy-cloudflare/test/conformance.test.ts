@@ -242,4 +242,121 @@ describe("cloudflare cache", () => {
     expect(matchCount).toBe(0);
     expect(putCount).toBe(0);
   });
+
+  test("bypasses an existing entry for credentials and before middleware", async () => {
+    const route: RouteArtifact = {
+      id: "secure",
+      path: "/secure",
+      file: "secure.ts",
+      mode: "ssr",
+      runtime: "cloudflare",
+      decision: "fixture",
+      clientEntries: [],
+      cache: { control: "public, max-age=60" },
+    };
+    const manifest = { ...baseManifest, routes: [route] };
+    stored.set("http://localhost/secure", new Response("cached"));
+    let calls = 0;
+    const renderer = {
+      name: "test",
+      render: async () =>
+        new Response(`rendered ${++calls}`, {
+          headers: { "cache-control": "public, max-age=60" },
+        }),
+      prerender: async () => "",
+    };
+    const credentialHeaders: Record<string, string>[] = [
+      { cookie: "session=one" },
+      { authorization: "Bearer token" },
+    ];
+    for (const headers of credentialHeaders) {
+      const response = await cloudflareFetch(
+        new Request("http://localhost/secure", { headers }),
+        {},
+        { waitUntil: () => {} },
+        manifest,
+        {},
+        renderer,
+      );
+      expect(await response.text()).toStartWith("rendered");
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+    }
+    let middlewareCalls = 0;
+    const modules = {
+      secure: {
+        before: [
+          async (_ctx: unknown, next: () => Promise<Response>) => {
+            middlewareCalls++;
+            return next();
+          },
+        ],
+      },
+    };
+    const response = await cloudflareFetch(
+      new Request("http://localhost/secure"),
+      {},
+      { waitUntil: () => {} },
+      manifest,
+      modules,
+      renderer,
+    );
+    expect(await response.text()).toStartWith("rendered");
+    expect(middlewareCalls).toBe(1);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const afterResponse = await cloudflareFetch(
+      new Request("http://localhost/secure"),
+      {},
+      { waitUntil: () => {} },
+      manifest,
+      { secure: { after: [async (_ctx, next) => next()] } },
+      renderer,
+    );
+    expect(await afterResponse.text()).toStartWith("rendered");
+    expect(afterResponse.headers.get("cache-control")).toBe(
+      "private, no-store",
+    );
+    expect(matchCount).toBe(0);
+    expect(putCount).toBe(0);
+  });
+
+  test("does not store private, no-store, cookie-setting or varying responses", async () => {
+    const route: RouteArtifact = {
+      id: "page",
+      path: "/page",
+      file: "page.ts",
+      mode: "ssr",
+      runtime: "cloudflare",
+      decision: "fixture",
+      clientEntries: [],
+      cache: { control: "public, max-age=60" },
+    };
+    const manifest = { ...baseManifest, routes: [route] };
+    const responseHeaders: Record<string, string>[] = [
+      { "cache-control": "private, max-age=60" },
+      { "cache-control": "no-store" },
+      { "set-cookie": "session=one", "cache-control": "public, max-age=60" },
+      { vary: "Accept-Language", "cache-control": "public, max-age=60" },
+    ];
+    for (const headers of responseHeaders) {
+      let calls = 0;
+      const renderer = {
+        name: "test",
+        render: async () => new Response(`response ${++calls}`, { headers }),
+        prerender: async () => "",
+      };
+      for (let i = 1; i <= 2; i++) {
+        const response = await cloudflareFetch(
+          new Request("http://localhost/page"),
+          {},
+          { waitUntil: () => {} },
+          manifest,
+          {},
+          renderer,
+        );
+        expect(await response.text()).toBe(`response ${i}`);
+        expect(response.headers.get("cache-control")).toBe("private, no-store");
+      }
+    }
+    expect(putCount).toBe(0);
+  });
 });

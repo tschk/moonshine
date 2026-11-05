@@ -26,6 +26,30 @@ export type CloudflareContext = {
   waitUntil: (promise: Promise<unknown>) => void;
 };
 
+function forbidsSharedCache(value: string | null | undefined): boolean {
+  return /(?:^|,)\s*(?:private|no-store|no-cache)\s*(?:=|,|$)/i.test(
+    value ?? "",
+  );
+}
+
+function unsafeResponse(response: Response): boolean {
+  return (
+    response.headers.has("set-cookie") ||
+    response.headers.has("vary") ||
+    forbidsSharedCache(response.headers.get("cache-control"))
+  );
+}
+
+function preventSharedCaching(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "private, no-store");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export async function cloudflareFetch(
   request: Request,
   env: CloudflareEnv,
@@ -61,14 +85,30 @@ export async function cloudflareFetch(
       ? (caches as { default?: Cache }).default
       : undefined;
 
-  if (match && match.route.cache && cache) {
+  const policy = match?.route.cache;
+  const sensitive =
+    request.headers.has("cookie") ||
+    request.headers.has("authorization") ||
+    !!manifest.requestContext ||
+    Object.values(modules).some(
+      (module) =>
+        (module.before?.length ?? 0) > 0 || (module.after?.length ?? 0) > 0,
+    );
+  const eligible =
+    !!policy &&
+    !sensitive &&
+    !forbidsSharedCache(policy.control) &&
+    !forbidsSharedCache(request.headers.get("cache-control")) &&
+    request.method === "GET";
+
+  if (eligible && cache) {
     const cached = await cache.match(request);
-    if (cached) return cached;
+    if (cached && !unsafeResponse(cached)) return cached;
     const response = await handler(request);
     if (
       response.status >= 200 &&
       response.status < 400 &&
-      (request.method === "GET" || request.method === "HEAD")
+      !unsafeResponse(response)
     ) {
       ctx.waitUntil(
         (async () => {
@@ -80,10 +120,16 @@ export async function cloudflareFetch(
         })(),
       );
     }
-    return response;
+    return unsafeResponse(response) ? preventSharedCaching(response) : response;
   }
 
-  return handler(request);
+  const response = await handler(request);
+  return policy &&
+    (sensitive ||
+      forbidsSharedCache(policy.control) ||
+      unsafeResponse(response))
+    ? preventSharedCaching(response)
+    : response;
 }
 
 export default cloudflareFetch;

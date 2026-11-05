@@ -37,7 +37,9 @@ Each adapter consumes the same manifest and compiled artifacts.
 
 - Target: `node` runtime.
 - Capabilities: `streaming`, `islands`, `revalidation`.
-- Output: a `server.ts` entry using `createServer` and `createNodeHandler`.
+- Output: React builds with a compiler server bundle emit a self-contained
+  `server.mjs`. Deploy it beside `public/` and run it with Node. Native builds
+  emit `server.js`; manifests without a server bundle retain `server.ts`.
 - Converts `IncomingMessage` / `ServerResponse` to `Request` / `Response` and
   back, including request cancellation through `AbortController`.
 - Limitations: static files are served through `node:fs` read streams; does not
@@ -52,7 +54,12 @@ Each adapter consumes the same manifest and compiled artifacts.
 - Output: a `server.ts` worker that imports `cloudflareFetch` and the manifest.
 - Static assets are fetched through the `ASSETS` binding when present.
 - Route matches are cached with the Cloudflare Cache API when a route defines a
-  cache policy.
+  cache policy. Only opt in routes whose responses are public for every request.
+  Requests with credentials and apps with `before` or `after` middleware bypass
+  the cache.
+  Responses with `Set-Cookie`, `Vary`, or private cache directives are not stored.
+  Purge existing shared cache entries when deploying a change that makes a
+  previously cached route private or request-dependent.
 - Limitations:
   - Requires an `ASSETS` binding for static files.
   - Server modules are not resolved to absolute paths in the worker bundle.

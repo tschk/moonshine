@@ -11,6 +11,10 @@ await nodeAdapter.build(manifest, ".moonshine");
 - Target runtime: `node`.
 - Capabilities: `streaming`, `islands`, `revalidation`.
 - Output: `server.ts` using `node:http` and a `Request` / `Response` bridge.
+- React builds with a compiler server bundle also emit a self-contained
+  `server.mjs`. Deploy it beside `public/` and run `node server.mjs` on Node 22;
+  neither source files nor runtime packages are needed. Building requires Bun.
+  Manifests without a compiler server bundle retain the legacy `server.ts` output.
 - Native builds also emit a bundled `server.js`; deploy it beside `public/` and run
   `node server.js`. The bundle includes its manifest and needs no runtime packages.
   This path is verified on Node 22. Building still requires Bun.
