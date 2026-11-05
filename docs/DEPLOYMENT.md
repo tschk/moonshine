@@ -87,6 +87,12 @@ To assess whether a deployment was exposed:
   does not establish a Cloudflare deployment or use of the vulnerable cache
   path. If an affected Worker was deployed, include its zones and other shared
   caches in the purge below.
+- Include the first-party `undivisible/qr-forge` application in the
+  investigation. Its source configures a Cloudflare Worker named `qr-forge`,
+  builds with the Cloudflare adapter, and locks the adapter to version `0.4.1`.
+  Verify what was deployed, whether cached routes were used, and which zones and
+  shared caches are affected. Once a verified `0.4.80` npm release is available,
+  update its dependency and lockfile, rebuild and deploy, then purge as below.
 - For any `file:`-linked or vendored consumer, update the actual Moonshine source
   used by the build to include `02649da` or a verified later fix, then rebuild.
   Publishing or installing an npm release alone does not update that source or an
