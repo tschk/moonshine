@@ -178,7 +178,7 @@ describe("cloudflare cache", () => {
     (globalThis as { caches?: unknown }).caches = originalCaches;
   });
 
-  test("uses caches.default only when route declares cache", async () => {
+  test("ignores existing cache entries and disables shared caching for declared policies", async () => {
     const cachedRoute: RouteArtifact = {
       id: "about",
       path: "/about",
@@ -193,6 +193,7 @@ describe("cloudflare cache", () => {
       ...baseManifest,
       routes: [cachedRoute],
     };
+    stored.set("http://localhost/about", new Response("stale private data"));
 
     const first = await cloudflareFetch(
       new Request("http://localhost/about"),
@@ -201,8 +202,9 @@ describe("cloudflare cache", () => {
       manifest,
     );
     expect(first.status).toBe(200);
-    expect(matchCount).toBe(1);
-    expect(putCount).toBe(1);
+    expect(first.headers.get("cache-control")).toBe("private, no-store");
+    expect(matchCount).toBe(0);
+    expect(putCount).toBe(0);
 
     const second = await cloudflareFetch(
       new Request("http://localhost/about"),
@@ -211,11 +213,13 @@ describe("cloudflare cache", () => {
       manifest,
     );
     expect(second.status).toBe(200);
-    expect(matchCount).toBe(2);
-    expect(putCount).toBe(1);
+    expect(second.headers.get("cache-control")).toBe("private, no-store");
+    expect(matchCount).toBe(0);
+    expect(putCount).toBe(0);
     const firstText = await first.text();
     const secondText = await second.text();
     expect(secondText).toBe(firstText);
+    expect(secondText).not.toContain("stale private data");
   });
 
   test("does not cache when route has no cache policy", async () => {

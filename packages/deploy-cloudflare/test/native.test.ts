@@ -63,9 +63,10 @@ await cloudflareAdapter.build(manifest,out);
           `
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
-const {Miniflare}=createRequire(import.meta.url)(process.argv[1]);
+const {Miniflare,convertV4MiniflareOptions}=createRequire(import.meta.url)(process.argv[1]);
 const root=process.argv[2];
-const mf=new Miniflare({modules:true,modulesRoot:root,scriptPath:root+'/server.js',compatibilityDate:'2026-06-16',compatibilityFlags:['nodejs_compat'],assets:{directory:root+'/public',binding:'ASSETS',routerConfig:{has_user_worker:true,invoke_user_worker_ahead_of_assets:true}}});
+const options={modules:true,modulesRoot:root,scriptPath:root+'/server.js',compatibilityDate:'2026-06-16',compatibilityFlags:['nodejs_compat'],assets:{directory:root+'/public',binding:'ASSETS',routerConfig:{has_user_worker:true,invoke_user_worker_ahead_of_assets:true}}};
+const mf=new Miniflare(convertV4MiniflareOptions?convertV4MiniflareOptions(options):options);
 try{
  const logo=await mf.dispatchFetch('http://localhost/logo.svg');assert.equal(logo.status,200);assert.ok(logo.headers.get('content-type').includes('image/svg'));assert.ok((await logo.text()).includes('<circle'));
  for(const [path,text]of [['/files/a%20b%25.txt','public percent and space'],['/files/literal%2520.txt','literal percent escape']]){const response=await mf.dispatchFetch('http://localhost'+path);assert.equal(response.status,200);assert.equal(await response.text(),text);const head=await mf.dispatchFetch('http://localhost'+path,{method:'HEAD'});assert.equal(head.status,200);assert.equal(await head.text(),'');}

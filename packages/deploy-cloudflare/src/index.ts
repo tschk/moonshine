@@ -1,4 +1,5 @@
 import { writeFile, mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   createRequestHandler,
@@ -26,20 +27,6 @@ export type CloudflareContext = {
   waitUntil: (promise: Promise<unknown>) => void;
 };
 
-function forbidsSharedCache(value: string | null | undefined): boolean {
-  return /(?:^|,)\s*(?:private|no-store|no-cache)\s*(?:=|,|$)/i.test(
-    value ?? "",
-  );
-}
-
-function unsafeResponse(response: Response): boolean {
-  return (
-    response.headers.has("set-cookie") ||
-    response.headers.has("vary") ||
-    forbidsSharedCache(response.headers.get("cache-control"))
-  );
-}
-
 function preventSharedCaching(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("cache-control", "private, no-store");
@@ -53,7 +40,7 @@ function preventSharedCaching(response: Response): Response {
 export async function cloudflareFetch(
   request: Request,
   env: CloudflareEnv,
-  ctx: CloudflareContext,
+  _ctx: CloudflareContext,
   manifest: MoonshineManifest,
   modules: Record<string, RouteModule> = {},
   bundledRenderer?: Renderer,
@@ -68,6 +55,7 @@ export async function cloudflareFetch(
   ) {
     const assetRes = await env.ASSETS.fetch(request);
     if (assetRes.status !== 404) return assetRes;
+    if (assetRes.body) void assetRes.body.cancel().catch(() => {});
   }
 
   const graph = createRouteGraph(manifest.routes);
@@ -80,56 +68,8 @@ export async function cloudflareFetch(
     renderer = reactRenderer;
   }
   const handler = createRequestHandler({ manifest, modules, renderer });
-  const cache =
-    typeof caches !== "undefined"
-      ? (caches as { default?: Cache }).default
-      : undefined;
-
-  const policy = match?.route.cache;
-  const sensitive =
-    request.headers.has("cookie") ||
-    request.headers.has("authorization") ||
-    !!manifest.requestContext ||
-    Object.values(modules).some(
-      (module) =>
-        (module.before?.length ?? 0) > 0 || (module.after?.length ?? 0) > 0,
-    );
-  const eligible =
-    !!policy &&
-    !sensitive &&
-    !forbidsSharedCache(policy.control) &&
-    !forbidsSharedCache(request.headers.get("cache-control")) &&
-    request.method === "GET";
-
-  if (eligible && cache) {
-    const cached = await cache.match(request);
-    if (cached && !unsafeResponse(cached)) return cached;
-    const response = await handler(request);
-    if (
-      response.status >= 200 &&
-      response.status < 400 &&
-      !unsafeResponse(response)
-    ) {
-      ctx.waitUntil(
-        (async () => {
-          try {
-            await cache.put(request.clone(), response.clone());
-          } catch (err) {
-            console.warn("Failed to cache response:", err);
-          }
-        })(),
-      );
-    }
-    return unsafeResponse(response) ? preventSharedCaching(response) : response;
-  }
-
   const response = await handler(request);
-  return policy &&
-    (sensitive ||
-      forbidsSharedCache(policy.control) ||
-      unsafeResponse(response))
-    ? preventSharedCaching(response)
-    : response;
+  return match?.route.cache ? preventSharedCaching(response) : response;
 }
 
 export default cloudflareFetch;
@@ -194,6 +134,59 @@ export default {
   );
 }
 
+async function buildReactWorker(
+  manifest: MoonshineManifest,
+  outDir: string,
+): Promise<void> {
+  await writeFile(
+    resolve(outDir, "manifest.json"),
+    JSON.stringify(manifest) + "\n",
+  );
+  await mkdir(resolve(outDir, "public"), { recursive: true });
+  const entryPath = resolve(outDir, "server.ts");
+  await writeFile(
+    entryPath,
+    `import { cloudflareFetch } from ${JSON.stringify(import.meta.path)};
+import { modules, renderer } from ${JSON.stringify(`./${manifest.entries.server}`)};
+import manifest from "./manifest.json" with { type: "json" };
+export default { fetch(request, env, ctx) {
+  return cloudflareFetch(request, env, ctx, manifest, modules, renderer);
+} };
+`,
+  );
+  const result = await Bun.build({
+    entrypoints: [entryPath],
+    outdir: outDir,
+    target: "browser",
+    external: ["node:*"],
+    packages: "bundle",
+    define: { "process.env.NODE_ENV": '"production"' },
+  });
+  if (!result.success)
+    throw new AggregateError(
+      result.logs,
+      "React Cloudflare worker bundle failed",
+    );
+  await writeFile(
+    resolve(outDir, "wrangler.jsonc"),
+    JSON.stringify(
+      {
+        name: "moonshine-react",
+        main: "server.js",
+        compatibility_date: new Date().toISOString().slice(0, 10),
+        compatibility_flags: ["nodejs_compat"],
+        assets: {
+          directory: "./public",
+          binding: "ASSETS",
+          run_worker_first: true,
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
+
 export const cloudflareAdapter: DeploymentAdapter = {
   name: "cloudflare",
   runtimes: ["cloudflare"],
@@ -220,6 +213,13 @@ export const cloudflareAdapter: DeploymentAdapter = {
     await mkdir(outDir, { recursive: true });
     if (manifest.renderer === "native") {
       await buildNativeWorker(manifest, outDir);
+      return;
+    }
+    if (
+      manifest.entries.server &&
+      existsSync(resolve(outDir, manifest.entries.server))
+    ) {
+      await buildReactWorker(manifest, outDir);
       return;
     }
     const projectRoot = resolve(outDir, "..");

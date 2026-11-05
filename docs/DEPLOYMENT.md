@@ -51,28 +51,26 @@ Each adapter consumes the same manifest and compiled artifacts.
 
 - Target: `cloudflare` runtime.
 - Capabilities: `streaming`, `islands`, `edge`, `revalidation`.
-- Output: a `server.ts` worker that imports `cloudflareFetch` and the manifest.
+- Output: compiler builds emit a bundled `server.js` and `wrangler.jsonc`.
+  Legacy manifests without a compiler server bundle emit `server.ts`.
 - Static assets are fetched through the `ASSETS` binding when present.
-- Route matches are cached with the Cloudflare Cache API when a route defines a
-  cache policy. Only opt in routes whose responses are public for every request.
-  Requests with credentials and apps with `before` or `after` middleware bypass
-  the cache.
-  Responses with `Set-Cookie`, `Vary`, or private cache directives are not stored.
-  Purge existing shared cache entries when deploying a change that makes a
-  previously cached route private or request-dependent.
+- The adapter does not use the Cloudflare Cache API for route responses. Routes
+  with a cache policy return `Cache-Control: private, no-store`. Purge entries
+  created by older builds as described below.
 - Limitations:
   - Requires an `ASSETS` binding for static files.
   - Server modules are not resolved to absolute paths in the worker bundle.
-  - `revalidation` depends on the Cloudflare cache API and plan limits.
+  - Route cache policies do not enable shared caching.
 
 #### Security upgrade: purge old shared entries
 
-Workers built before the shared-cache fix in commit `36af08c` could store a
-visitor-specific response and serve it to another visitor. The fix does not
-remove entries that the old Worker already stored. Treat every response cached
-by an affected Worker as potentially sensitive, including every path, hostname,
-and query-string variant on every affected environment. A cache hit does not
-prove whether the old response was public.
+The old shared-cache path could store a visitor-specific response and serve it
+to another visitor. Commit `36af08c` added safeguards, but did not disable the
+shared cache for all possible request-dependent personalization. The later fix
+disables that cache path. Neither fix removes entries the old Worker stored.
+Treat every response cached by an affected Worker as potentially sensitive,
+including every path, hostname, and query-string variant on every affected
+environment. A cache hit does not prove whether the old response was public.
 
 To assess whether a deployment was exposed:
 

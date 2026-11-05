@@ -9,12 +9,15 @@ await cloudflareAdapter.build(manifest, ".moonshine");
 ```
 
 - Target runtime: `cloudflare`.
-- Capabilities: `streaming`, `islands`, `edge`, `revalidation`.
-- Output: `server.ts` worker that uses the Cloudflare Cache API and an `ASSETS`
-  binding for static files.
+- Capabilities: `streaming`, `islands`, `edge`, `revalidation` (route cache
+  storage is disabled as described below).
+- Compiler builds output a bundled `server.js`, `public/` assets and
+  `wrangler.jsonc`. The React worker uses an `ASSETS` binding for static files.
+  Legacy manifests without a compiler server
+  bundle still emit `server.ts` and require a separate bundling step.
 
-Limitations: requires an `ASSETS` binding for static files; worker size and
-Cache API limits apply.
+Limitations: requires an `ASSETS` binding for static files; worker size limits
+apply.
 
 See [docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md) and
 [docs/MANIFEST.md](../../docs/MANIFEST.md).
@@ -37,8 +40,14 @@ date as its compatibility date. A recent Wrangler/workerd is required; older loc
 runtimes may require an isolated test configuration with an older supported date.
 
 Native hydration/islands, opt-in request context, and route caching/revalidation
-are rejected explicitly. The legacy `cloudflareFetch` helper and React renderer
-remain available for existing apps; native apps use the generated worker.
+are rejected explicitly. React builds use the compiler's module table and renderer
+through `cloudflareFetch`. It does not read or write the shared Cache API:
+loaders can personalize responses using arbitrary request data even without a
+`Vary` header. For routes declaring a cache policy, dynamic responses instead
+receive `Cache-Control: private, no-store`, sacrificing shared caching until an
+explicit safe contract exists. Asset binding responses retain their own headers.
+This change does not purge entries already stored by previous deployments or
+override separately configured caching rules.
 
 The optional native artifact test discovers an existing Wrangler/Miniflare
 installation and runs real workerd. It skips when that tool is unavailable and
