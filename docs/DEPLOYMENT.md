@@ -74,6 +74,37 @@ by an affected Worker as potentially sensitive, including every path, hostname,
 and query-string variant on every affected environment. A cache hit does not
 prove whether the old response was public.
 
+To assess whether a deployment was exposed:
+
+- Identify every deployed version of `@tschk/moonshine-deploy-cloudflare`,
+  including bundled Worker artifacts, and check whether it contains the old
+  `cloudflareFetch` cache path. An installed package version alone does not
+  establish which code is running. The current separate native Worker build
+  does not use that helper; check the actual deployed artifact.
+- Inspect the deployed manifest for routes with a `cache` policy. The old helper
+  attempted a cache lookup before middleware and a write for GET or HEAD
+  responses with status 200–399.
+  Check whether loaders, rendering, or middleware could return visitor-specific
+  content for any such route, including requests with cookies or authorization.
+- Inspect available application and Cloudflare logs for matching URLs, query
+  strings, response cache headers, and different sessions accessing the same
+  route. The old helper passed the request URL to `caches.default`; deployments
+  with custom cache keys or other cache layers must inspect those rules too.
+  Do not record or share session tokens while investigating. A cache API
+  `edgeWorkerCacheAPI` 504 log can mean a normal miss or expired entry, not an
+  application error or proof of disclosure.
+- Cloudflare documents that `cache.put()` respects response cache directives and
+  normally does not store a response with `Set-Cookie`. A personalized response
+  need not set a cookie, and a successful `put()` does not prove storage.
+  Missing logs, missing cache-hit headers, or a current cache miss do not prove
+  an entry was never stored or served. Logs alone cannot establish that no
+  visitor received another visitor's content.
+
+If you cannot rule out visitor-specific cached responses for every affected
+route and cache layer, treat the deployment as potentially exposed and follow
+the purge procedure. Preserve relevant evidence under your incident process
+before purging; cached responses may contain sensitive information.
+
 The operator must coordinate this procedure. Do not restore public traffic
 between the deployment and the purge:
 
