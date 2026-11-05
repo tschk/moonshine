@@ -81,6 +81,16 @@ To assess whether a deployment was exposed:
   `cloudflareFetch` cache path. An installed package version alone does not
   establish which code is running. The current separate native Worker build
   does not use that helper; check the actual deployed artifact.
+- Include `undivisible/omi-v4`'s `site/web-moonshine` in the investigation. Its
+  `file:` dependency points to a sibling Moonshine checkout, so the build uses
+  the checkout's revision rather than a pinned npm version. Its dependency alone
+  does not establish a Cloudflare deployment or use of the vulnerable cache
+  path. If an affected Worker was deployed, include its zones and other shared
+  caches in the purge below.
+- For any `file:`-linked or vendored consumer, update the actual Moonshine source
+  used by the build to include `02649da` or a verified later fix, then rebuild.
+  Publishing or installing an npm release alone does not update that source or an
+  already deployed Worker.
 - Inspect the deployed manifest for routes with a `cache` policy. The old helper
   attempted a cache lookup before middleware and a write for GET or HEAD
   responses with status 200–399.
