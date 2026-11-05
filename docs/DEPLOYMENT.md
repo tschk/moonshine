@@ -65,9 +65,11 @@ Each adapter consumes the same manifest and compiled artifacts.
 #### Security upgrade: purge old shared entries
 
 The old shared-cache path could store a visitor-specific response and serve it
-to another visitor. Commit `36af08c` added safeguards, but did not disable the
-shared cache for all possible request-dependent personalization. The later fix
-disables that cache path. Neither fix removes entries the old Worker stored.
+to another visitor. **Commit `36af08c` is a partial mitigation, not the fix.**
+For example, a response personalized by `X-Visitor` without `Vary` could still
+enter the shared cache and reach another visitor. Commit `02649da` closes this
+adapter path by disabling shared-cache reads and writes. Neither commit removes
+entries that an older Worker stored.
 Treat every response cached by an affected Worker as potentially sensitive,
 including every path, hostname, and query-string variant on every affected
 environment. A cache hit does not prove whether the old response was public.

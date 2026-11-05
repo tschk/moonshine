@@ -1,3 +1,12 @@
+# Unreleased
+
+- Security: disable the Cloudflare adapter's legacy shared response cache to
+  prevent cross-visitor disclosure and authorization bypass. Commit `36af08c`
+  was a partial mitigation, not the fix: responses personalized by headers such
+  as `X-Visitor` without `Vary` could still be shared. Commit `02649da` disables
+  the unsafe cache path. Existing entries must be purged; see the
+  [Cloudflare security upgrade runbook](docs/DEPLOYMENT.md#security-upgrade-purge-old-shared-entries).
+
 # Moonshine 0.4.79
 
 - Render React routes through their bundled renderer on Bun, Node, Workers,
